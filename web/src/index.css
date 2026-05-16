@@ -31,6 +31,18 @@ body {
   letter-spacing: -0.3px;
 }
 
+.btn-scan {
+  padding: 8px 16px;
+  background: #fff;
+  color: #7b3f00;
+  border: 2px solid #7b3f00;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-scan:hover { background: #fdf5ee; }
+
 .btn-add {
   padding: 8px 16px;
   background: #7b3f00;
@@ -221,6 +233,142 @@ body {
 }
 .btn-save:hover { background: #5e2f00; }
 .btn-save:disabled, .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Scan flow ───────────────────────────────────────────────────────────── */
+
+.scan-flow {
+  background: #fff;
+  border-radius: 10px;
+  padding: 32px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.scan-flow h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.scan-subtitle {
+  font-size: 14px;
+  color: #666;
+  max-width: 360px;
+}
+
+.scan-dropzone {
+  width: 100%;
+  border: 2px dashed #c5b8ae;
+  border-radius: 8px;
+  padding: 40px 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.scan-dropzone:hover,
+.scan-dropzone.drag-over {
+  border-color: #7b3f00;
+  background: #fdf5ee;
+}
+
+.scan-dropzone-icon {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.scan-dropzone p {
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+  line-height: 1.5;
+}
+
+.scan-dropzone-hint {
+  font-size: 13px;
+  color: #888;
+  font-weight: 400;
+}
+
+.scan-flow--scanning {
+  gap: 20px;
+}
+
+.scan-spinner {
+  font-size: 48px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* ── Scan review form ────────────────────────────────────────────────────── */
+
+.scan-review-form {
+  max-width: 560px;
+}
+
+.scan-review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.scan-label-preview {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  flex-shrink: 0;
+}
+
+.scan-missing-notice {
+  font-size: 13px;
+  color: #7a4f00;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 5px;
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
+/* Missing field highlight */
+.scan-field-missing,
+input.scan-field-missing {
+  border-color: #f59e0b !important;
+  background: #fffbf0;
+}
+
+.scan-field-tag {
+  font-size: 11px;
+  font-weight: 700;
+  background: #fff3cd;
+  color: #7a4f00;
+  border: 1px solid #ffe082;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.scan-field-tier2 {
+  font-size: 11px;
+  font-weight: 400;
+  color: #999;
+  margin-left: 4px;
+}
 
 /* ── Feedback ────────────────────────────────────────────────────────────── */
 

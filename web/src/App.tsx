@@ -3,6 +3,7 @@ import type { WineEntry, WineStatus } from '@shared/types'
 import { listWines, createWine, promoteWine } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
+import { LabelScanFlow } from './components/LabelScanFlow'
 import type { CreateWineInput } from '@shared/types'
 
 type TabId = WineStatus | 'tasting_notes'
@@ -21,6 +22,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [showScan, setShowScan] = useState(false)
 
   const fetchWines = useCallback(async (tab: TabId) => {
     setLoading(true)
@@ -51,11 +53,12 @@ export default function App() {
   const handleCreate = async (data: CreateWineInput) => {
     await createWine(data)
     setShowForm(false)
+    setShowScan(false)
     const targetTab: TabId = data.status
     if (targetTab === activeTab) {
       fetchWines(activeTab)
     } else {
-      setActiveTab(targetTab)
+      setActiveTab(targetTab as TabId)
     }
   }
 
@@ -66,6 +69,9 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>My Wine Collection</h1>
+        <button className="btn-scan" onClick={() => setShowScan(true)}>
+          📷 Scan Label
+        </button>
         <button className="btn-add" onClick={() => setShowForm(true)}>
           + Add Wine
         </button>
@@ -84,6 +90,14 @@ export default function App() {
       </nav>
 
       {error && <p className="error-msg">{error}</p>}
+
+      {showScan && (
+        <LabelScanFlow
+          defaultStatus={defaultFormStatus}
+          onSave={handleCreate}
+          onCancel={() => setShowScan(false)}
+        />
+      )}
 
       {showForm && (
         <AddWineForm

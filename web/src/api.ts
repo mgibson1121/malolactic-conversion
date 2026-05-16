@@ -2,6 +2,32 @@ import type { CreateWineInput, WineEntry, WineStatus } from '@shared/types'
 
 const BASE = '/api'
 
+// ── Label scan ────────────────────────────────────────────────────────────────
+
+export interface LabelScanResult {
+  name: string | null
+  producer: string | null
+  vintage: number | null
+  region: string | null
+  denomination: string | null
+  grape_varieties: string[]
+  quality_classification: string | null
+  vineyard: string | null
+  missing_tier1_fields: string[]
+  raw_response: string
+}
+
+export async function scanLabel(file: File): Promise<LabelScanResult> {
+  const form = new FormData()
+  form.append('label', file)
+  const res = await fetch(`${BASE}/label-scan`, { method: 'POST', body: form })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.error ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<LabelScanResult>
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
