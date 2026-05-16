@@ -6,11 +6,16 @@
 
 jest.mock('openai')
 jest.mock('sharp')
-jest.mock('heic-convert', () => jest.fn().mockResolvedValue(Buffer.from('converted-jpeg')))
+jest.mock('child_process', () => ({ execFile: jest.fn() }))
+jest.mock('fs/promises', () => ({
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  readFile: jest.fn().mockResolvedValue(Buffer.from('converted-jpeg')),
+  unlink: jest.fn().mockResolvedValue(undefined),
+}))
 
 import OpenAI from 'openai'
 import sharp from 'sharp'
-import heicConvert from 'heic-convert'
+import { execFile } from 'child_process'
 import { scanLabel } from './index'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -183,15 +188,20 @@ describe('scanLabel', () => {
       expect(response.result.name).toBe('Clos de la Roche')
     })
 
-    it('converts HEIC to JPEG before passing to sharp', async () => {
+    it('converts HEIC to JPEG via sips before passing to sharp', async () => {
       mockSharp()
       mockOpenAI(fullScanJson)
+
+      // Make execFile call the callback with no error (success)
+      ;(execFile as unknown as jest.Mock).mockImplementation((_cmd, _args, cb) => cb(null))
 
       const heicInput = { imageBuffer: Buffer.from('fake-heic'), mimeType: 'image/heic' }
       const response = await scanLabel(heicInput)
 
-      expect(heicConvert).toHaveBeenCalledWith(
-        expect.objectContaining({ format: 'JPEG', quality: 0.9 })
+      expect(execFile).toHaveBeenCalledWith(
+        '/usr/bin/sips',
+        expect.arrayContaining(['-s', 'format', 'jpeg']),
+        expect.any(Function)
       )
       expect(response.available).toBe(true)
     })

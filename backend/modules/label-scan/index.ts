@@ -10,7 +10,11 @@
  */
 
 import sharp from 'sharp'
-import heicConvert from 'heic-convert'
+import { execFile } from 'child_process'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import { writeFile, readFile, unlink } from 'fs/promises'
+import { randomUUID } from 'crypto'
 import OpenAI from 'openai'
 import type { LabelScanInput, LabelScanResponse, LabelScanResult } from './types'
 
@@ -18,31 +22,53 @@ const MAX_PX = 1024
 
 const HEIC_MIMES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'])
 
+// ── HEIC conversion via sips (macOS built-in) ────────────────────────────────
+
+/**
+ * Convert a HEIC/HEIF buffer to JPEG using macOS's built-in `sips` tool.
+ * sips is available on every Mac at /usr/bin/sips — no extra dependencies.
+ */
+async function heicToJpeg(buffer: Buffer): Promise<Buffer> {
+  const id = randomUUID()
+  const inPath = join(tmpdir(), `${id}.heic`)
+  const outPath = join(tmpdir(), `${id}.jpg`)
+
+  try {
+    await writeFile(inPath, buffer)
+    await new Promise<void>((resolve, reject) => {
+      execFile('/usr/bin/sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '90', inPath, '--out', outPath], (err) => {
+        if (err) reject(new Error(`sips conversion failed: ${err.message}`))
+        else resolve()
+      })
+    })
+    return await readFile(outPath)
+  } finally {
+    await unlink(inPath).catch(() => {})
+    await unlink(outPath).catch(() => {})
+  }
+}
+
 // ── Image resize ─────────────────────────────────────────────────────────────
 
 /**
  * Resize the image so neither dimension exceeds MAX_PX.
- * Handles HEIC/HEIF natively via heic-convert before passing to sharp.
+ * HEIC/HEIF files are first converted to JPEG via sips (macOS built-in).
  * Returns a JPEG buffer safe for all OpenAI vision inputs.
  */
 async function resizeImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
   let workingBuffer = buffer
 
-  // Step 1: convert HEIC/HEIF → JPEG before sharp touches it
+  // Step 1: convert HEIC/HEIF → JPEG using sips before sharp touches it
   if (HEIC_MIMES.has(mimeType)) {
-    console.log('[label-scan] converting HEIC → JPEG before resize')
-    // heic-convert expects ArrayBufferLike — extract the underlying ArrayBuffer from the Node Buffer
-    const arrayBuf = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
-    workingBuffer = Buffer.from(
-      await heicConvert({ buffer: arrayBuf, format: 'JPEG', quality: 0.9 })
-    )
+    console.log('[label-scan] converting HEIC → JPEG via sips')
+    workingBuffer = await heicToJpeg(buffer)
   }
 
   // Step 2: resize via sharp
   try {
     return await sharp(workingBuffer, { failOn: 'none' })
-      .rotate()                 // honour EXIF orientation
-      .toColorspace('srgb')     // normalise wide-gamut (P3) profiles
+      .rotate()               // honour EXIF orientation
+      .toColorspace('srgb')   // normalise wide-gamut (P3) ICC profiles
       .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 90 })
       .toBuffer()
