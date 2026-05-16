@@ -40,6 +40,8 @@ router.post(
       return
     }
 
+    console.log(`[label-scan] received file: size=${req.file.size} mime=${req.file.mimetype}`)
+
     const response = await scanLabel({
       imageBuffer: req.file.buffer,
       mimeType: req.file.mimetype,
@@ -47,9 +49,11 @@ router.post(
 
     if (!response.available) {
       if (response.reason === 'unsupported_format') {
+        console.error('[label-scan] unsupported_format detail:', response.detail)
         res.status(400).json({
           error: 'IMAGE_FORMAT_UNSUPPORTED',
           message: 'This image format could not be processed. Try saving the photo as a JPEG and uploading again.',
+          detail: response.detail,
         })
         return
       }

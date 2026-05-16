@@ -28,14 +28,30 @@ const MAX_PX = 1024
  * at all (caller should return a 400 with a user-friendly message).
  */
 async function resizeImage(buffer: Buffer): Promise<Buffer> {
+  // Pass 1: try with full options (handles standard JPEG/PNG)
   try {
     return await sharp(buffer, { failOn: 'none' })
-      .rotate()                  // honour EXIF orientation
+      .rotate()                    // honour EXIF orientation
+      .toColorspace('srgb')        // normalise wide-gamut (P3) ICC profiles from HEIC-converted JPEGs
       .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 90 })
       .toBuffer()
+  } catch {
+    // pass — try fallback below
+  }
+
+  // Pass 2: strip all metadata and force raw re-encode (last resort for unusual encodings)
+  try {
+    return await sharp(buffer, { failOn: 'none', limitInputPixels: false })
+      .rotate()
+      .ensureAlpha()               // avoid alpha-channel errors on some PNGs
+      .flatten({ background: '#ffffff' })
+      .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90, chromaSubsampling: '4:4:4' })
+      .toBuffer()
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
+    console.error('[label-scan] sharp error (both passes):', detail)
     throw new Error(`IMAGE_FORMAT_UNSUPPORTED: ${detail}`)
   }
 }

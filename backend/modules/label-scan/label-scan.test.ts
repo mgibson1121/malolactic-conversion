@@ -32,6 +32,9 @@ const fullScanJson = JSON.stringify({
 function mockSharp() {
   const chain = {
     rotate: jest.fn().mockReturnThis(),
+    toColorspace: jest.fn().mockReturnThis(),
+    ensureAlpha: jest.fn().mockReturnThis(),
+    flatten: jest.fn().mockReturnThis(),
     resize: jest.fn().mockReturnThis(),
     jpeg: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('resized-image')),
@@ -87,7 +90,7 @@ describe('scanLabel', () => {
 
       await scanLabel(mockInput)
 
-      expect(sharp).toHaveBeenCalledWith(mockInput.imageBuffer, { failOn: 'none' })
+      expect(sharp).toHaveBeenCalledWith(mockInput.imageBuffer, expect.objectContaining({ failOn: 'none' }))
       expect(sharpChain.rotate).toHaveBeenCalled()
       expect(sharpChain.resize).toHaveBeenCalledWith({
         width: 1024,
