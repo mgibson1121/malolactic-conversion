@@ -59,6 +59,11 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
           step: 'unavailable',
           reason: 'Label scanning is unavailable — OPENAI_API_KEY is not configured on the backend.',
         })
+      } else if (msg.includes('IMAGE_FORMAT_UNSUPPORTED')) {
+        setFlow({
+          step: 'error',
+          message: 'This image format couldn\'t be processed. Please save the photo as a JPEG and try again.',
+        })
       } else {
         setFlow({ step: 'error', message: `Scan failed: ${msg}` })
       }

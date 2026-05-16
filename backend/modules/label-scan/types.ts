@@ -39,6 +39,14 @@ export interface LabelScanUnavailable {
   reason: 'no_api_key'
 }
 
+/** Returned when the image cannot be decoded (unsupported format). */
+export interface LabelScanFormatError {
+  available: false
+  reason: 'unsupported_format'
+  detail: string
+}
+
 export type LabelScanResponse =
   | { available: true; result: LabelScanResult }
   | LabelScanUnavailable
+  | LabelScanFormatError

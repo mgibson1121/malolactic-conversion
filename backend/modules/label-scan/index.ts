@@ -20,12 +20,24 @@ const MAX_PX = 1024
 /**
  * Resize the image so neither dimension exceeds MAX_PX.
  * Preserves aspect ratio. Returns a JPEG buffer (safe for all OpenAI vision inputs).
+ *
+ * - failOn: 'none'  — suppresses libvips loader warnings (e.g. HEIF probe errors)
+ * - .rotate()       — auto-orients from EXIF before resize
+ *
+ * Throws with prefix IMAGE_FORMAT_UNSUPPORTED when the buffer cannot be decoded
+ * at all (caller should return a 400 with a user-friendly message).
  */
 async function resizeImage(buffer: Buffer): Promise<Buffer> {
-  return sharp(buffer)
-    .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 90 })
-    .toBuffer()
+  try {
+    return await sharp(buffer, { failOn: 'none' })
+      .rotate()                  // honour EXIF orientation
+      .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90 })
+      .toBuffer()
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    throw new Error(`IMAGE_FORMAT_UNSUPPORTED: ${detail}`)
+  }
 }
 
 // ── GPT-4o prompt ─────────────────────────────────────────────────────────────
@@ -74,8 +86,17 @@ export async function scanLabel(input: LabelScanInput): Promise<LabelScanRespons
 
   const client = new OpenAI({ apiKey })
 
-  // 1. Resize
-  const resized = await resizeImage(input.imageBuffer)
+  // 1. Resize — catch unsupported format errors before hitting the API
+  let resized: Buffer
+  try {
+    resized = await resizeImage(input.imageBuffer)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.startsWith('IMAGE_FORMAT_UNSUPPORTED')) {
+      return { available: false, reason: 'unsupported_format', detail: msg }
+    }
+    throw err
+  }
   const base64 = resized.toString('base64')
 
   // 2. GPT-4o vision call

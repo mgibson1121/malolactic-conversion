@@ -23,7 +23,9 @@ export async function scanLabel(file: File): Promise<LabelScanResult> {
   const res = await fetch(`${BASE}/label-scan`, { method: 'POST', body: form })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error ?? `HTTP ${res.status}`)
+    // Preserve the error code so the UI can show format-specific guidance
+    const code = body?.error ?? `HTTP ${res.status}`
+    throw new Error(code)
   }
   return res.json() as Promise<LabelScanResult>
 }

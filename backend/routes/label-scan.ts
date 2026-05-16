@@ -46,6 +46,13 @@ router.post(
     })
 
     if (!response.available) {
+      if (response.reason === 'unsupported_format') {
+        res.status(400).json({
+          error: 'IMAGE_FORMAT_UNSUPPORTED',
+          message: 'This image format could not be processed. Try saving the photo as a JPEG and uploading again.',
+        })
+        return
+      }
       res.status(503).json({
         error: 'Label scanning is unavailable — OPENAI_API_KEY is not configured.',
         reason: response.reason,

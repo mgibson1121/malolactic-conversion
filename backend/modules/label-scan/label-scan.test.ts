@@ -31,6 +31,7 @@ const fullScanJson = JSON.stringify({
 
 function mockSharp() {
   const chain = {
+    rotate: jest.fn().mockReturnThis(),
     resize: jest.fn().mockReturnThis(),
     jpeg: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('resized-image')),
@@ -86,7 +87,8 @@ describe('scanLabel', () => {
 
       await scanLabel(mockInput)
 
-      expect(sharp).toHaveBeenCalledWith(mockInput.imageBuffer)
+      expect(sharp).toHaveBeenCalledWith(mockInput.imageBuffer, { failOn: 'none' })
+      expect(sharpChain.rotate).toHaveBeenCalled()
       expect(sharpChain.resize).toHaveBeenCalledWith({
         width: 1024,
         height: 1024,
@@ -176,6 +178,23 @@ describe('scanLabel', () => {
       expect(response.available).toBe(true)
       if (!response.available) return
       expect(response.result.name).toBe('Clos de la Roche')
+    })
+
+    it('returns unsupported_format when sharp cannot decode the image', async () => {
+      // Make sharp throw with the IMAGE_FORMAT_UNSUPPORTED prefix
+      const chain = {
+        rotate: jest.fn().mockReturnThis(),
+        resize: jest.fn().mockReturnThis(),
+        jpeg: jest.fn().mockReturnThis(),
+        toBuffer: jest.fn().mockRejectedValue(new Error('IMAGE_FORMAT_UNSUPPORTED: bad seek to 1234')),
+      }
+      ;(sharp as unknown as jest.Mock).mockReturnValue(chain)
+
+      const response = await scanLabel(mockInput)
+
+      expect(response.available).toBe(false)
+      if (response.available) return
+      expect(response.reason).toBe('unsupported_format')
     })
 
     it('returns all missing Tier 1 fields when JSON cannot be parsed', async () => {
