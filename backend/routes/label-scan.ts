@@ -19,6 +19,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB ceiling — label photos are always smaller
   fileFilter: (_req, file, cb) => {
+    // Accept all image/* types including image/heic and image/heif
     if (!file.mimetype.startsWith('image/')) {
       cb(new Error('Only image files are accepted'))
       return

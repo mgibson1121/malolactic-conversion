@@ -10,48 +10,45 @@
  */
 
 import sharp from 'sharp'
+import heicConvert from 'heic-convert'
 import OpenAI from 'openai'
 import type { LabelScanInput, LabelScanResponse, LabelScanResult } from './types'
 
 const MAX_PX = 1024
 
+const HEIC_MIMES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'])
+
 // ── Image resize ─────────────────────────────────────────────────────────────
 
 /**
  * Resize the image so neither dimension exceeds MAX_PX.
- * Preserves aspect ratio. Returns a JPEG buffer (safe for all OpenAI vision inputs).
- *
- * - failOn: 'none'  — suppresses libvips loader warnings (e.g. HEIF probe errors)
- * - .rotate()       — auto-orients from EXIF before resize
- *
- * Throws with prefix IMAGE_FORMAT_UNSUPPORTED when the buffer cannot be decoded
- * at all (caller should return a 400 with a user-friendly message).
+ * Handles HEIC/HEIF natively via heic-convert before passing to sharp.
+ * Returns a JPEG buffer safe for all OpenAI vision inputs.
  */
-async function resizeImage(buffer: Buffer): Promise<Buffer> {
-  // Pass 1: try with full options (handles standard JPEG/PNG)
+async function resizeImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
+  let workingBuffer = buffer
+
+  // Step 1: convert HEIC/HEIF → JPEG before sharp touches it
+  if (HEIC_MIMES.has(mimeType)) {
+    console.log('[label-scan] converting HEIC → JPEG before resize')
+    // heic-convert expects ArrayBufferLike — extract the underlying ArrayBuffer from the Node Buffer
+    const arrayBuf = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+    workingBuffer = Buffer.from(
+      await heicConvert({ buffer: arrayBuf, format: 'JPEG', quality: 0.9 })
+    )
+  }
+
+  // Step 2: resize via sharp
   try {
-    return await sharp(buffer, { failOn: 'none' })
-      .rotate()                    // honour EXIF orientation
-      .toColorspace('srgb')        // normalise wide-gamut (P3) ICC profiles from HEIC-converted JPEGs
+    return await sharp(workingBuffer, { failOn: 'none' })
+      .rotate()                 // honour EXIF orientation
+      .toColorspace('srgb')     // normalise wide-gamut (P3) profiles
       .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 90 })
       .toBuffer()
-  } catch {
-    // pass — try fallback below
-  }
-
-  // Pass 2: strip all metadata and force raw re-encode (last resort for unusual encodings)
-  try {
-    return await sharp(buffer, { failOn: 'none', limitInputPixels: false })
-      .rotate()
-      .ensureAlpha()               // avoid alpha-channel errors on some PNGs
-      .flatten({ background: '#ffffff' })
-      .resize({ width: MAX_PX, height: MAX_PX, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 90, chromaSubsampling: '4:4:4' })
-      .toBuffer()
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
-    console.error('[label-scan] sharp error (both passes):', detail)
+    console.error('[label-scan] sharp error:', detail)
     throw new Error(`IMAGE_FORMAT_UNSUPPORTED: ${detail}`)
   }
 }
@@ -105,7 +102,7 @@ export async function scanLabel(input: LabelScanInput): Promise<LabelScanRespons
   // 1. Resize — catch unsupported format errors before hitting the API
   let resized: Buffer
   try {
-    resized = await resizeImage(input.imageBuffer)
+    resized = await resizeImage(input.imageBuffer, input.mimeType)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.startsWith('IMAGE_FORMAT_UNSUPPORTED')) {

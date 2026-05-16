@@ -6,9 +6,11 @@
 
 jest.mock('openai')
 jest.mock('sharp')
+jest.mock('heic-convert', () => jest.fn().mockResolvedValue(Buffer.from('converted-jpeg')))
 
 import OpenAI from 'openai'
 import sharp from 'sharp'
+import heicConvert from 'heic-convert'
 import { scanLabel } from './index'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -33,8 +35,6 @@ function mockSharp() {
   const chain = {
     rotate: jest.fn().mockReturnThis(),
     toColorspace: jest.fn().mockReturnThis(),
-    ensureAlpha: jest.fn().mockReturnThis(),
-    flatten: jest.fn().mockReturnThis(),
     resize: jest.fn().mockReturnThis(),
     jpeg: jest.fn().mockReturnThis(),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('resized-image')),
@@ -181,6 +181,19 @@ describe('scanLabel', () => {
       expect(response.available).toBe(true)
       if (!response.available) return
       expect(response.result.name).toBe('Clos de la Roche')
+    })
+
+    it('converts HEIC to JPEG before passing to sharp', async () => {
+      mockSharp()
+      mockOpenAI(fullScanJson)
+
+      const heicInput = { imageBuffer: Buffer.from('fake-heic'), mimeType: 'image/heic' }
+      const response = await scanLabel(heicInput)
+
+      expect(heicConvert).toHaveBeenCalledWith(
+        expect.objectContaining({ format: 'JPEG', quality: 0.9 })
+      )
+      expect(response.available).toBe(true)
     })
 
     it('returns unsupported_format when sharp cannot decode the image', async () => {
