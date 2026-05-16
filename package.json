@@ -1,0 +1,16 @@
+{
+  "name": "wine-app",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "web"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && npm start",
+    "dev:web": "cd web && npm run dev",
+    "test": "cd backend && npm test",
+    "test:unit": "cd backend && npm run test:unit",
+    "test:integration": "cd backend && npm run test:integration",
+    "test:web": "cd web && npm test"
+  }
+}

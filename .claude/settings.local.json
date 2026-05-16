@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(grep -v \"^$\")",
+      "Bash(npm install *)",
+      "Bash(npm test *)",
+      "Bash(npm start *)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(npx ts-node *)",
+      "Bash(curl -s \"http://localhost:3000/api/wines?status=cellar\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(git checkout *)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

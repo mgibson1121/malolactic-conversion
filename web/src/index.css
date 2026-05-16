@@ -1,0 +1,237 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #f5f0eb;
+  min-height: 100vh;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.btn-add {
+  padding: 8px 16px;
+  background: #7b3f00;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-add:hover { background: #5e2f00; }
+
+/* ── Tab nav ─────────────────────────────────────────────────────────────── */
+
+.tab-nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 20px;
+}
+
+.tab-nav button {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+}
+.tab-nav button.active {
+  color: #7b3f00;
+  border-bottom-color: #7b3f00;
+  font-weight: 700;
+}
+
+/* ── Wine list ───────────────────────────────────────────────────────────── */
+
+.wine-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-state {
+  color: #888;
+  padding: 32px 0;
+  text-align: center;
+}
+
+/* ── Wine card ───────────────────────────────────────────────────────────── */
+
+.wine-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  border: 1px solid #e5ddd5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wine-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wine-meta {
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.wine-meta .sep { color: #ccc; }
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.status-badge.discovered { background: #e8f4fd; color: #1a6da1; }
+.status-badge.wishlist   { background: #fff3e0; color: #b05a00; }
+.status-badge.cellar     { background: #e8f5e9; color: #2e7d32; }
+.status-badge.consumed   { background: #f3e5f5; color: #6a1b9a; }
+
+.btn-promote {
+  margin-top: 4px;
+  align-self: flex-start;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #7b3f00;
+  background: #fdf5ee;
+  border: 1px solid #dbc9b5;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.btn-promote:hover { background: #f5e5d0; }
+
+/* ── Form overlay ────────────────────────────────────────────────────────── */
+
+.form-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.add-wine-form {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.add-wine-form h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.add-wine-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin-top: 4px;
+}
+
+.add-wine-form input,
+.add-wine-form select {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  width: 100%;
+}
+.add-wine-form input:focus,
+.add-wine-form select:focus {
+  outline: 2px solid #7b3f00;
+  border-color: transparent;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  background: #f0ebe5;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-cancel:hover { background: #e5e0da; }
+
+.btn-save {
+  padding: 8px 20px;
+  background: #7b3f00;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-save:hover { background: #5e2f00; }
+.btn-save:disabled, .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Feedback ────────────────────────────────────────────────────────────── */
+
+.error-msg {
+  color: #b00020;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.loading-msg {
+  color: #888;
+  padding: 32px 0;
+  text-align: center;
+}
