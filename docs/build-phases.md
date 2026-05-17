@@ -11,7 +11,7 @@
 
 **Deliverables:**
 - Wine entry schema defined as a Google Sheet with one tab per entity type: `wines`, `cellar`, `wishlist`, `tasting_notes`, `advice`
-- Schema reflects the Tier 1 / Tier 2 field split defined in `wine-app-product-context.md` Section 3. Tier 1 fields are canonical columns present on every row. Tier 2 fields (`quality_classification`, `vineyard`) are nullable columns — empty is valid.
+- Schema reflects the Tier 1 / Tier 2 field split defined in `wine-app-product-context.md` Section 3. Tier 1 fields are canonical columns present on every row. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable columns — empty is valid. `name` is not a column — do not add it.
 - `wines` sheet includes a `tasting_note_id` column (UUID, nullable) as a foreign key to `tasting_notes`. Null = no note recorded; populated = tasting note exists.
 - `drinking_window_start` / `drinking_window_end` treated as cached/derived values — overwritten by review data, never manually set
 - `my_tags` kept in sync with tags on the `tasting_notes` sheet; GPT-4o tag extraction writes back to the `wines` sheet when a note is saved
@@ -33,7 +33,7 @@
 **Goal:** Validate two things in a single rough pass: (1) that the wine object can be created via a minimal UI and stored correctly in the Sheets structure, and (2) that the skeletal UI structure — the core lists a wine entry belongs to — is the right shape for the product. This is a proof of concept, not a polished feature. Speed of learning matters more than code quality at this stage.
 
 **Deliverables:**
-- Manual wine entry form: create a wine object by filling in Tier 1 fields (name, producer, vintage, region, denomination, grape varieties, status, cellar category). Tier 2 fields (quality_classification, vineyard) included as optional inputs. No scanning or enrichment — user-supplied data only.
+- Manual wine entry form: create a wine object by filling in Tier 1 fields (producer, vintage, region, denomination, status, cellar category). Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) included as optional inputs. `name` has been removed — do not include it as a form field. No scanning or enrichment — user-supplied data only.
 - List view: entries displayed in a single grouped list, organised by status (`discovered`, `wishlist`, `cellar`, `consumed`)
 - Core list alignment proven: a wine entry can be correctly associated with and displayed in each of the three primary lists — **Cellar**, **Wishlist**, and **Tasting Notes** — by setting its status and `tasting_note_id` field
 - Status promotion: a wine can be moved forward through the lifecycle (`discovered` → `wishlist` → `cellar`) from the list view
@@ -57,7 +57,7 @@
 **Deliverables:**
 - GPT-4o vision label scan module in `backend/modules/label-scan/`
 - Image resize pipeline: max 1024px on longest side before API call — applied regardless of input source
-- Scan returns structured JSON covering all Tier 1 fields (producer, name, vintage, region, denomination, grape_varieties) and Tier 2 fields (quality_classification, vineyard) where extractable
+- Scan returns structured JSON covering all Tier 1 fields (producer, vintage, region, denomination) and Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) where extractable. `name` has been removed — do not include it in scan output.
 - Tier 2 extraction follows the rules defined in `wine-app-product-context.md` Section 3 — the label scan prompt must explicitly encode these rules, not infer them
 - Web UI file upload: user selects or drops a photo of a wine label → scan runs → pre-populated entry card displayed for review → user confirms or adjusts → saves to Sheets
 - End-to-end latency target: under 30 seconds from upload to populated entry card

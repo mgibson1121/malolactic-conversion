@@ -26,14 +26,14 @@ const mockInput = {
 }
 
 const fullScanJson = JSON.stringify({
-  name: 'Clos de la Roche',
   producer: 'Domaine Dujac',
   vintage: 2019,
   region: 'Burgundy',
   denomination: 'Clos de la Roche Grand Cru',
-  grape_varieties: ['Pinot Noir'],
   quality_classification: 'Grand Cru',
   vineyard: null,
+  cuvee: null,
+  grape_varieties: ['Pinot Noir'],
 })
 
 function mockSharp() {
@@ -116,7 +116,6 @@ describe('scanLabel', () => {
       if (!response.available) return
 
       const { result } = response
-      expect(result.name).toBe('Clos de la Roche')
       expect(result.producer).toBe('Domaine Dujac')
       expect(result.vintage).toBe(2019)
       expect(result.region).toBe('Burgundy')
@@ -124,20 +123,21 @@ describe('scanLabel', () => {
       expect(result.grape_varieties).toEqual(['Pinot Noir'])
       expect(result.quality_classification).toBe('Grand Cru')
       expect(result.vineyard).toBeNull()
+      expect(result.cuvee).toBeNull()
       expect(result.missing_tier1_fields).toHaveLength(0)
     })
 
     it('flags missing Tier 1 fields in missing_tier1_fields', async () => {
       mockSharp()
       const partialJson = JSON.stringify({
-        name: null,
         producer: 'Domaine Dujac',
         vintage: null,
         region: null,
         denomination: 'Clos de la Roche Grand Cru',
-        grape_varieties: [],
         quality_classification: null,
         vineyard: null,
+        cuvee: null,
+        grape_varieties: null,
       })
       mockOpenAI(partialJson)
 
@@ -147,25 +147,25 @@ describe('scanLabel', () => {
       if (!response.available) return
 
       expect(response.result.missing_tier1_fields).toEqual(
-        expect.arrayContaining(['name', 'vintage', 'region'])
+        expect.arrayContaining(['vintage', 'region'])
       )
       expect(response.result.missing_tier1_fields).not.toContain('producer')
       expect(response.result.missing_tier1_fields).not.toContain('denomination')
     })
 
-    it('extracts Tier 2 vineyard field when present', async () => {
+    it('extracts Tier 2 vineyard and cuvee fields when present', async () => {
       mockSharp()
-      const withVineyard = JSON.stringify({
-        name: 'Barolo',
+      const withTier2 = JSON.stringify({
         producer: 'Giacomo Conterno',
         vintage: 2016,
         region: 'Piedmont',
         denomination: 'Barolo DOCG',
-        grape_varieties: ['Nebbiolo'],
         quality_classification: 'Riserva',
         vineyard: 'Vigna Francia',
+        cuvee: null,
+        grape_varieties: ['Nebbiolo'],
       })
-      mockOpenAI(withVineyard)
+      mockOpenAI(withTier2)
 
       const response = await scanLabel(mockInput)
 
@@ -174,6 +174,7 @@ describe('scanLabel', () => {
 
       expect(response.result.quality_classification).toBe('Riserva')
       expect(response.result.vineyard).toBe('Vigna Francia')
+      expect(response.result.cuvee).toBeNull()
     })
 
     it('handles JSON wrapped in markdown fences', async () => {
@@ -185,7 +186,7 @@ describe('scanLabel', () => {
 
       expect(response.available).toBe(true)
       if (!response.available) return
-      expect(response.result.name).toBe('Clos de la Roche')
+      expect(response.result.producer).toBe('Domaine Dujac')
     })
 
     it('converts HEIC to JPEG via sips before passing to sharp', async () => {
@@ -210,6 +211,7 @@ describe('scanLabel', () => {
       // Make sharp throw with the IMAGE_FORMAT_UNSUPPORTED prefix
       const chain = {
         rotate: jest.fn().mockReturnThis(),
+        toColorspace: jest.fn().mockReturnThis(),
         resize: jest.fn().mockReturnThis(),
         jpeg: jest.fn().mockReturnThis(),
         toBuffer: jest.fn().mockRejectedValue(new Error('IMAGE_FORMAT_UNSUPPORTED: bad seek to 1234')),
@@ -233,22 +235,22 @@ describe('scanLabel', () => {
       if (!response.available) return
 
       expect(response.result.missing_tier1_fields).toEqual(
-        expect.arrayContaining(['name', 'producer', 'vintage', 'region', 'denomination'])
+        expect.arrayContaining(['producer', 'vintage', 'region', 'denomination'])
       )
       expect(response.result.raw_response).toBe('not valid json at all')
     })
 
-    it('defaults grape_varieties to empty array when missing', async () => {
+    it('returns null for grape_varieties when not present (not an empty array)', async () => {
       mockSharp()
       const noGrapes = JSON.stringify({
-        name: 'Test Wine',
         producer: 'Test Producer',
         vintage: 2020,
         region: 'Burgundy',
         denomination: 'Bourgogne AOC',
         quality_classification: null,
         vineyard: null,
-        // grape_varieties intentionally omitted
+        cuvee: null,
+        // grape_varieties intentionally omitted — should be null, not []
       })
       mockOpenAI(noGrapes)
 
@@ -256,7 +258,7 @@ describe('scanLabel', () => {
 
       expect(response.available).toBe(true)
       if (!response.available) return
-      expect(response.result.grape_varieties).toEqual([])
+      expect(response.result.grape_varieties).toBeNull()
     })
   })
 })

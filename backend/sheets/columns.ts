@@ -11,12 +11,12 @@ export const SHEET_COL_RANGE = 'AB'
 
 export const WINE_COLS = {
   id: 0,
-  name: 1,
+  cuvee: 1,                  // Tier 2 — repurposed from 'name' (removed in Phase 3)
   producer: 2,
   vintage: 3,
   region: 4,
   denomination: 5,
-  grape_varieties: 6,        // stored as JSON array string
+  grape_varieties: 6,        // Tier 2 — stored as JSON array string or empty
   label_image_url: 7,
   status: 8,
   cellar_category: 9,
@@ -41,7 +41,7 @@ export const WINE_COLS = {
 } as const
 
 export const WINE_HEADERS = [
-  'id', 'name', 'producer', 'vintage', 'region', 'denomination',
+  'id', 'cuvee', 'producer', 'vintage', 'region', 'denomination',
   'grape_varieties', 'label_image_url', 'status', 'cellar_category',
   'drinking_window_start', 'drinking_window_end', 'vintage_rating',
   'my_rating', 'my_tags', 'date_added', 'date_consumed', 'tasting_note_id',

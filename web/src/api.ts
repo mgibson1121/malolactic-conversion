@@ -5,14 +5,16 @@ const BASE = '/api'
 // ── Label scan ────────────────────────────────────────────────────────────────
 
 export interface LabelScanResult {
-  name: string | null
+  // Tier 1
   producer: string | null
   vintage: number | null
   region: string | null
   denomination: string | null
-  grape_varieties: string[]
+  // Tier 2
   quality_classification: string | null
   vineyard: string | null
+  cuvee: string | null
+  grape_varieties: string[] | null
   missing_tier1_fields: string[]
   raw_response: string
 }

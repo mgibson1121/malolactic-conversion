@@ -166,12 +166,12 @@ export class SheetsAdapter implements StorageAdapter {
   private wineToRow(w: WineEntry): string[] {
     return [
       w.id,
-      w.name,
+      w.cuvee ?? '',
       w.producer ?? '',
       w.vintage != null ? String(w.vintage) : '',
       w.region ?? '',
       w.denomination ?? '',
-      JSON.stringify(w.grape_varieties),
+      w.grape_varieties != null ? JSON.stringify(w.grape_varieties) : '',
       w.label_image_url ?? '',
       w.status,
       w.cellar_category ?? '',
@@ -205,12 +205,12 @@ export class SheetsAdapter implements StorageAdapter {
 
     return {
       id: c(WINE_COLS.id),
-      name: c(WINE_COLS.name),
+      cuvee: orNull(c(WINE_COLS.cuvee)),
       producer: orNull(c(WINE_COLS.producer)),
       vintage: c(WINE_COLS.vintage) ? parseInt(c(WINE_COLS.vintage), 10) : null,
       region: orNull(c(WINE_COLS.region)),
       denomination: orNull(c(WINE_COLS.denomination)),
-      grape_varieties: safeParseJSON<string[]>(c(WINE_COLS.grape_varieties), []),
+      grape_varieties: safeParseJSON<string[] | null>(c(WINE_COLS.grape_varieties), null),
       quality_classification: orNull(c(WINE_COLS.quality_classification)),
       vineyard: orNull(c(WINE_COLS.vineyard)),
       label_image_url: orNull(c(WINE_COLS.label_image_url)),

@@ -38,7 +38,6 @@ maybeDescribe('SheetsAdapter (integration)', () => {
 
   it('full lifecycle: create → list → update → promote → consume', async () => {
     const wine = await adapter.createWine({
-      name: 'INTEGRATION_TEST Chambolle-Musigny',
       producer: 'Georges Roumier',
       vintage: 2018,
       region: 'Burgundy',
@@ -57,6 +56,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     expect(wine.id).toBeTruthy()
@@ -64,7 +64,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
     // Retrieve it
     const fetched = await adapter.getWine(wine.id)
     expect(fetched).not.toBeNull()
-    expect(fetched!.name).toBe('INTEGRATION_TEST Chambolle-Musigny')
+    expect(fetched!.denomination).toBe('Chambolle-Musigny')
     expect(fetched!.grape_varieties).toEqual(['Pinot Noir'])
     expect(fetched!.drinking_window?.start).toBe('2028-01-01')
 
@@ -95,7 +95,6 @@ maybeDescribe('SheetsAdapter (integration)', () => {
 
   it('creates and retrieves a tasting note', async () => {
     const wine = await adapter.createWine({
-      name: 'INTEGRATION_TEST Barolo',
       producer: 'Giacomo Conterno',
       vintage: 2016,
       region: 'Piedmont',
@@ -114,6 +113,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const note = await adapter.createTastingNote({
@@ -154,7 +154,6 @@ maybeDescribe('SheetsAdapter (integration)', () => {
 
   it('creates an advice entry and filters by wine', async () => {
     const wine = await adapter.createWine({
-      name: 'INTEGRATION_TEST Meursault',
       producer: null,
       vintage: 2021,
       region: 'Burgundy',
@@ -173,6 +172,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -193,7 +193,6 @@ maybeDescribe('SheetsAdapter (integration)', () => {
 
   it('manages cellar entry quantity', async () => {
     const wine = await adapter.createWine({
-      name: 'INTEGRATION_TEST Nuits-Saint-Georges',
       producer: null,
       vintage: 2019,
       region: 'Burgundy',
@@ -212,6 +211,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const entry = await adapter.upsertCellarEntry(wine.id, {

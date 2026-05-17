@@ -26,7 +26,6 @@ type FlowState =
   | { step: 'error'; message: string }
 
 const TIER1_LABELS: Record<string, string> = {
-  name: 'Name',
   producer: 'Producer',
   vintage: 'Vintage',
   region: 'Region',
@@ -51,6 +50,7 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
 
     try {
       const result = await scanLabel(file)
+      console.log('[label-scan] GPT result:', JSON.stringify(result, null, 2))
       setFlow({ step: 'review', scan: result, preview })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -195,14 +195,14 @@ interface ReviewProps {
 function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCancel }: ReviewProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
-  const [name, setName] = useState(scan.name ?? '')
   const [producer, setProducer] = useState(scan.producer ?? '')
   const [vintage, setVintage] = useState(scan.vintage ? String(scan.vintage) : '')
   const [region, setRegion] = useState(scan.region ?? '')
   const [denomination, setDenomination] = useState(scan.denomination ?? '')
-  const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties.join(', '))
   const [qualityClassification, setQualityClassification] = useState(scan.quality_classification ?? '')
   const [vineyard, setVineyard] = useState(scan.vineyard ?? '')
+  const [cuvee, setCuvee] = useState(scan.cuvee ?? '')
+  const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties?.join(', ') ?? '')
   const [status, setStatus] = useState<WineStatus>(defaultStatus)
   const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
@@ -212,17 +212,18 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!producer.trim() && !denomination.trim()) return
 
+    const grapes = grapeVarieties.split(',').map((s) => s.trim()).filter(Boolean)
     const data: CreateWineInput = {
-      name: name.trim(),
       producer: producer.trim() || null,
       vintage: vintage ? parseInt(vintage, 10) : null,
       region: region.trim() || null,
       denomination: denomination.trim() || null,
-      grape_varieties: grapeVarieties.split(',').map((s) => s.trim()).filter(Boolean),
       quality_classification: qualityClassification.trim() || null,
       vineyard: vineyard.trim() || null,
+      cuvee: cuvee.trim() || null,
+      grape_varieties: grapes.length > 0 ? grapes : null,
       label_image_url: null,
       status,
       cellar_category: cellarCategory || null,
@@ -266,19 +267,6 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
         </div>
 
         {/* Tier 1 fields */}
-        <label htmlFor="sr-name" className={fieldClass('name')}>
-          Name * {missing.has('name') && <span className="scan-field-tag">Needs review</span>}
-        </label>
-        <input
-          id="sr-name"
-          className={fieldClass('name')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={missing.has('name') ? TIER1_LABELS['name'] + ' — enter manually' : ''}
-          required
-          autoFocus={missing.has('name')}
-        />
-
         <label htmlFor="sr-producer" className={fieldClass('producer')}>
           Producer {missing.has('producer') && <span className="scan-field-tag">Needs review</span>}
         </label>
@@ -288,6 +276,7 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
           value={producer}
           onChange={(e) => setProducer(e.target.value)}
           placeholder={missing.has('producer') ? 'Enter producer name manually' : ''}
+          autoFocus={missing.has('producer')}
         />
 
         <label htmlFor="sr-vintage" className={fieldClass('vintage')}>
@@ -336,7 +325,7 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
 
         {/* Tier 2 fields — no warning, null is valid */}
         <label htmlFor="sr-quality-classification">
-          Quality Classification <span className="scan-field-tier2">(Tier 2 — optional)</span>
+          Quality Classification <span className="scan-field-tier2">(Tier 2)</span>
         </label>
         <input
           id="sr-quality-classification"
@@ -346,13 +335,23 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
         />
 
         <label htmlFor="sr-vineyard">
-          Vineyard / Lieu-dit <span className="scan-field-tier2">(Tier 2 — optional)</span>
+          Vineyard / Lieu-dit <span className="scan-field-tier2">(Tier 2)</span>
         </label>
         <input
           id="sr-vineyard"
           value={vineyard}
           onChange={(e) => setVineyard(e.target.value)}
           placeholder="e.g. Les Amoureuses, Vigna Francia"
+        />
+
+        <label htmlFor="sr-cuvee">
+          Cuvée <span className="scan-field-tier2">(Tier 2)</span>
+        </label>
+        <input
+          id="sr-cuvee"
+          value={cuvee}
+          onChange={(e) => setCuvee(e.target.value)}
+          placeholder="e.g. Cristal, Belle Époque, Opus One"
         />
 
         <label htmlFor="sr-status">Status</label>
@@ -388,7 +387,7 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
           <button type="button" className="btn-cancel" onClick={onCancel} disabled={submitting}>
             Cancel
           </button>
-          <button type="submit" className="btn-save" disabled={submitting || !name.trim()}>
+          <button type="submit" className="btn-save" disabled={submitting || (!producer.trim() && !denomination.trim())}>
             {submitting ? 'Saving…' : 'Save Wine'}
           </button>
         </div>

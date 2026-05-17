@@ -21,18 +21,26 @@ const STATUS_LABELS: Record<WineStatus, string> = {
 export function WineCard({ wine, onPromote }: Props) {
   const nextStatus = NEXT_STATUS[wine.status]
 
+  // Primary identity: producer + denomination (the two canonical display fields)
+  const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
+  const secondaryParts = [
+    wine.vintage ? String(wine.vintage) : null,
+    wine.region,
+    wine.cuvee,
+    wine.quality_classification,
+    wine.grape_varieties && wine.grape_varieties.length > 0 ? wine.grape_varieties.join(', ') : null,
+  ].filter(Boolean)
+
   return (
     <div className="wine-card">
-      <div className="wine-name">{wine.name}</div>
+      <div className="wine-name">{primaryLine || '—'}</div>
       <div className="wine-meta">
-        {wine.producer && <span>{wine.producer}</span>}
-        {wine.producer && wine.vintage && <span className="sep">·</span>}
-        {wine.vintage && <span>{wine.vintage}</span>}
-        {wine.region && <><span className="sep">·</span><span>{wine.region}</span></>}
-        {wine.denomination && <><span className="sep">·</span><span>{wine.denomination}</span></>}
-        {wine.grape_varieties.length > 0 && (
-          <><span className="sep">·</span><span>{wine.grape_varieties.join(', ')}</span></>
-        )}
+        {secondaryParts.map((part, i) => (
+          <span key={i}>
+            {i > 0 && <span className="sep">·</span>}
+            {part}
+          </span>
+        ))}
         <span className={`status-badge ${wine.status}`}>{STATUS_LABELS[wine.status]}</span>
       </div>
       {nextStatus && (

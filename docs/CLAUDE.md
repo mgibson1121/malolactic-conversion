@@ -46,7 +46,8 @@ The data layer is backed by Google Sheets. The goal is to validate the wine entr
 - The `wines` sheet must include a `tasting_note_id` column (UUID, nullable) as a foreign key to `tasting_notes`. Null = no note recorded; populated = tasting note exists.
 - `drinking_window_start` and `drinking_window_end` are cached/derived values — overwritten by review data, never manually set
 - `my_tags` must stay consistent with tags on the `tasting_notes` sheet; GPT-4o tag extraction writes back to the `wines` sheet when a note is saved
-- The wine entry schema uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`) are nullable and follow explicit extraction rules. See `wine-app-product-context.md` Section 3 for the full field definitions and extraction rules before building the label scan module.
+- The wine entry schema uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable and follow explicit extraction rules. See `wine-app-product-context.md` Section 3 for the full field definitions and extraction rules before building the label scan module.
+- `name` has been removed from the schema. Wine identity is expressed as `producer` + `denomination` + `vintage`, supplemented by Tier 2 fields. Do not add a `name` column to the wines sheet.
 
 ### Phase 2 — SQLite migration (stable schema)
 When the schema is stable, replace the Sheets adapter with SQLite. The module interface must not change — only the underlying storage implementation.
@@ -124,7 +125,7 @@ GOOGLE_SHEETS_SPREADSHEET_ID= 1oLAVCxV9M5F3Mg4WmNssvbpiD7Nxhyen_th1PlbAU-o/edit?
 
 - Model: GPT-4o vision, high detail mode
 - Images must be resized to max 1024px on the longest side before the API call — enforce this in the module regardless of input source (file upload or camera)
-- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, name, vintage, region, denomination, grape_varieties) are expected on every scan. Tier 2 fields (quality_classification, vineyard) are nullable — omit rather than hallucinate.
+- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. `name` has been removed from the schema — do not include it in scan output.
 - The label scan prompt must explicitly target Tier 2 extraction rules as defined in `wine-app-product-context.md` Section 3
 - **Phase 3 capture surface:** web file upload (HTML file input, image/*). The module receives an image file; resize and scan. No native camera in this phase.
 - **Phase 10 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change — only the input path is swapped.

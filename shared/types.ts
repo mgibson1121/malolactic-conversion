@@ -71,15 +71,16 @@ export interface DrinkingWindow {
 
 export interface WineEntry {
   id: string
-  name: string
+  // Tier 1 — Canonical, expected on every entry
   producer: string | null
   vintage: number | null // null for NV
   region: string | null
   denomination: string | null
-  grape_varieties: string[]
   // Tier 2 — LLM-enriched, nullable by design
   quality_classification: string | null
   vineyard: string | null
+  cuvee: string | null          // prestige/commercial name; also overflow for unclassified label text
+  grape_varieties: string[] | null  // extracted or inferred from denomination; null if ambiguous
   label_image_url: string | null
   status: WineStatus
   cellar_category: CellarCategory | null

@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-16
+> Status: In progress | Last updated: 2026-05-16 (schema revision: name removed, cuvee + grape_varieties moved to Tier 2)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -57,12 +57,10 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | Field | Type | Source | Notes |
 |---|---|---|---|
 | `id` | UUID | System | Auto-generated |
-| `name` | String | Scan / manual | Wine name as labelled. With Tier 2 fields split out, this should be the clean commercial label name without appended vineyard or classification text. |
-| `producer` | String | Scan / GPT-4o | Producer / domaine |
+| `producer` | String | Scan / GPT-4o | Producer / domaine. First display field — primary identity of the wine alongside denomination. |
 | `vintage` | Year | Scan / manual | Null if NV |
 | `region` | String | Scan / GPT-4o | Broad geographic region. e.g. Burgundy, Piedmont, Rioja |
-| `denomination` | String | Scan / GPT-4o | The controlled designation of origin for the wine, regardless of country-specific naming convention. Maps to AOC/AOP (France), DOC/DOCG (Italy), DO/DOCa (Spain), AVA (USA). e.g. Volnay, Barolo, Rioja DOCa, Chablis |
-| `grape_varieties` | Array | Scan / GPT-4o | |
+| `denomination` | String | Scan / GPT-4o | The controlled designation of origin for the wine, regardless of country-specific naming convention. Maps to AOC/AOP (France), DOC/DOCG (Italy), DO/DOCa (Spain), AVA (USA). e.g. Volnay, Barolo, Rioja DOCa, Chablis. Second display field alongside producer. |
 | `label_image` | URL | Scan | Resized to max 1024px before storage |
 | `status` | Enum | User action | See status lifecycle below |
 | `cellar_category` | Enum | User / inferred | `table`, `near_term`, `long_term` |
@@ -91,7 +89,9 @@ These fields are populated by the label scan module using rule-guided extraction
 | Field | Type | Source | Extraction rules | Fallback |
 |---|---|---|---|---|
 | `quality_classification` | String | Scan / GPT-4o | Quality or aging tier designation. Extract if label contains: Premier Cru, Grand Cru, 1er Cru, Riserva, Reserva, Gran Reserva, Superiore, Classico, Cru Bourgeois, or equivalent. | Null if no recognised designation found. Never infer from context. |
-| `vineyard` | String | Scan / GPT-4o | Specific vineyard or lieu-dit within the denomination. Extract if: (1) text appears in quotation marks on the front label and is not the producer or wine name; (2) text is preceded by a known vineyard prefix: Viña, Vina, Vigna, Vigneto, Clos, Les. If label text remains uncategorised after all Tier 1 and other Tier 2 fields are extracted, attempt to classify it as a vineyard; if confidence is low, append to `name` instead. | Null if no text triggers the above rules. Do not guess. If appending to `name`, do so cleanly — no duplicate text. |
+| `vineyard` | String | Scan / GPT-4o | Specific vineyard or lieu-dit within the denomination. Extract if: (1) text appears in quotation marks on the front label and is not the producer or denomination; (2) text is preceded by a known vineyard prefix: Viña, Vina, Vigna, Vigneto, Clos, Les. If label text remains uncategorised after all Tier 1 and other Tier 2 fields are extracted, attempt to classify it as a vineyard; if confidence is low, append to `cuvee` instead. | Null if no text triggers the above rules. Do not guess. |
+| `cuvee` | String | Scan / GPT-4o | A proper commercial name for the wine that is distinct from the denomination, vineyard, or producer — typically used by Champagne houses, prestige cuvées, and some New World producers. e.g. Cristal, Belle Époque, Opus One. Also used as the overflow field for uncategorised label text that cannot be confidently assigned to vineyard. | Null if no distinct cuvee name is present. Do not populate with the denomination or producer name. |
+| `grape_varieties` | Array | Scan / GPT-4o | Grape varieties for the wine. Extract directly from the label if listed. If not listed, infer from the denomination using established regional conventions (e.g. Volnay → Pinot Noir, Barolo → Nebbiolo, Rioja Tinto → Tempranillo-dominant). Confidence is high for well-known denominations; leave null for obscure or ambiguous denominations where the blend varies significantly by producer. | Null if denomination is too obscure to infer reliably. Never guess for unknown denominations. |
 
 ### Status Lifecycle
 
@@ -362,7 +362,7 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 
 **Model:** GPT-4o vision (high detail mode)
 **Input:** Image file resized to max 1024px on longest side before API call. Never send raw input. In Phase 3 this arrives via web file upload; in Phase 10 it arrives from the native iOS SwiftUI camera. The module handles both identically.
-**Output:** Structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, name, vintage, region, denomination, grape varieties) are expected on every scan. Tier 2 fields (quality_classification, vineyard) are nullable — omit rather than hallucinate. See Section 3 for field-level extraction rules.
+**Output:** Structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. See Section 3 for field-level extraction rules.
 **Phase 3 capture surface:** Web file upload (HTML file input, image/*) — validates the pipeline without requiring a native app.
 **Phase 10 capture surface:** Native iOS SwiftUI camera (AVFoundation) — replaces file upload as the production capture surface. Backend module unchanged.
 **Cost:** ~$0.004 per scan at 1024×1024 (765 image tokens + prompt + output at $2.50/1M input, $10.00/1M output)
@@ -447,7 +447,10 @@ Tags are extracted from completed notes and attached to the wine entry for cross
 - ✅ Wine entry field taxonomy: Tier 1 (canonical, expected on every bottle) and Tier 2 (LLM-enriched, nullable, rule-guided) split defined in Section 3
 - ✅ `appellation` renamed to `denomination` to correctly cover AOC/AOP (France), DOC/DOCG (Italy), DO/DOCa (Spain), AVA (USA) without privileging French terminology
 - ✅ `quality_classification` added as Tier 2 field: Premier Cru, Grand Cru, Riserva, Reserva, Gran Reserva, Classico, etc.
-- ✅ `vineyard` added as Tier 2 field: extracted via quotation marks and known prefixes (Viña, Vina, Vigna, Vigneto, Clos, Les); falls back to null or appends to `name`
+- ✅ `vineyard` added as Tier 2 field: extracted via quotation marks and known prefixes (Viña, Vina, Vigna, Vigneto, Clos, Les); falls back to null or overflows into `cuvee`
+- ✅ `name` field removed: wine identity is expressed as the combination of `producer` + `denomination` + `vintage`, supplemented by Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`). These are the first display fields in the UI.
+- ✅ `cuvee` added as Tier 2 field: proper commercial name distinct from denomination/vineyard (e.g. Cristal, Belle Époque, Opus One); also serves as overflow for uncategorised label text
+- ✅ `grape_varieties` moved to Tier 2: extracted from label if present; inferred from denomination for well-known appellations; null for obscure or ambiguous denominations
 
 ### Remaining
 - [ ] App name

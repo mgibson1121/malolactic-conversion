@@ -30,7 +30,6 @@ export const DrinkingWindowSchema = z.object({
 })
 
 export const CreateWineSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
   producer: z.string().nullish().transform((v) => v ?? null),
   vintage: z
     .number()
@@ -41,9 +40,11 @@ export const CreateWineSchema = z.object({
     .transform((v) => v ?? null),
   region: z.string().nullish().transform((v) => v ?? null),
   denomination: z.string().nullish().transform((v) => v ?? null),
+  // Tier 2
   quality_classification: z.string().nullish().transform((v) => v ?? null),
   vineyard: z.string().nullish().transform((v) => v ?? null),
-  grape_varieties: z.array(z.string()).default([]),
+  cuvee: z.string().nullish().transform((v) => v ?? null),
+  grape_varieties: z.array(z.string()).nullish().transform((v) => v ?? null),
   label_image_url: z.string().url().nullish().transform((v) => v ?? null),
   status: WineStatusSchema.default('discovered'),
   cellar_category: CellarCategorySchema.nullish().transform((v) => v ?? null),

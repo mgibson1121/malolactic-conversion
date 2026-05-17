@@ -82,7 +82,6 @@ beforeEach(() => {
 describe('createWine', () => {
   it('assigns an id and date_added', async () => {
     const wine = await adapter.createWine({
-      name: 'Gevrey-Chambertin',
       producer: null,
       vintage: 2018,
       region: 'Burgundy',
@@ -101,6 +100,7 @@ describe('createWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     expect(wine.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -111,7 +111,6 @@ describe('createWine', () => {
 
   it('preserves all optional fields', async () => {
     const wine = await adapter.createWine({
-      name: 'Volnay 1er Cru Caillerets',
       producer: "Domaine de la Pousse d'Or",
       vintage: 2019,
       region: 'Burgundy',
@@ -130,6 +129,7 @@ describe('createWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     expect(wine.producer).toBe("Domaine de la Pousse d'Or")
@@ -148,7 +148,6 @@ describe('createWine', () => {
 
   it('handles NV wines (null vintage)', async () => {
     const wine = await adapter.createWine({
-      name: 'Bollinger Special Cuvée',
       producer: 'Bollinger',
       vintage: null,
       region: 'Champagne',
@@ -167,6 +166,7 @@ describe('createWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     expect(wine.vintage).toBeNull()
   })
@@ -175,7 +175,6 @@ describe('createWine', () => {
 describe('getWine', () => {
   it('returns the wine after creation', async () => {
     const created = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Giacomo Conterno',
       vintage: 2016,
       region: 'Piedmont',
@@ -194,12 +193,13 @@ describe('getWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(created.id)
     expect(fetched).not.toBeNull()
     expect(fetched!.id).toBe(created.id)
-    expect(fetched!.name).toBe('Barolo')
+    expect(fetched!.denomination).toBe('Barolo')
     expect(fetched!.producer).toBe('Giacomo Conterno')
     expect(fetched!.vintage_rating).toBe('very_good')
   })
@@ -213,7 +213,6 @@ describe('getWine', () => {
 describe('listWines', () => {
   beforeEach(async () => {
     await adapter.createWine({
-      name: 'Muscadet',
       producer: null,
       vintage: 2022,
       region: 'Loire',
@@ -232,9 +231,9 @@ describe('listWines', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     await adapter.createWine({
-      name: 'Chablis Grand Cru',
       producer: 'Raveneau',
       vintage: 2020,
       region: 'Burgundy',
@@ -253,6 +252,7 @@ describe('listWines', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
   })
 
@@ -264,23 +264,23 @@ describe('listWines', () => {
   it('filters by status', async () => {
     const discovered = await adapter.listWines({ status: 'discovered' })
     expect(discovered).toHaveLength(1)
-    expect(discovered[0].name).toBe('Muscadet')
+    expect(discovered[0].denomination).toBe('Muscadet')
 
     const wishlist = await adapter.listWines({ status: 'wishlist' })
     expect(wishlist).toHaveLength(1)
-    expect(wishlist[0].name).toBe('Chablis Grand Cru')
+    expect(wishlist[0].denomination).toBe('Chablis')
   })
 
   it('filters by my_rating', async () => {
     const okWines = await adapter.listWines({ my_rating: 'ok' })
     expect(okWines).toHaveLength(1)
-    expect(okWines[0].name).toBe('Muscadet')
+    expect(okWines[0].denomination).toBe('Muscadet')
   })
 
   it('filters by region', async () => {
     const burgundy = await adapter.listWines({ region: 'Burgundy' })
     expect(burgundy).toHaveLength(1)
-    expect(burgundy[0].name).toBe('Chablis Grand Cru')
+    expect(burgundy[0].denomination).toBe('Chablis')
   })
 
   it('filters by has_tasting_note', async () => {
@@ -308,7 +308,6 @@ describe('listWines', () => {
 describe('updateWine', () => {
   it('updates specified fields without changing others', async () => {
     const wine = await adapter.createWine({
-      name: 'Rioja Reserva',
       producer: 'CVNE',
       vintage: 2017,
       region: 'Rioja',
@@ -327,6 +326,7 @@ describe('updateWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -336,7 +336,6 @@ describe('updateWine', () => {
 
     expect(updated.my_rating).toBe('good')
     expect(updated.my_tags).toEqual(['earthy', 'tobacco'])
-    expect(updated.name).toBe('Rioja Reserva')
     expect(updated.producer).toBe('CVNE')
   })
 
@@ -352,7 +351,6 @@ describe('updateWine', () => {
 describe('promoteWine', () => {
   async function createDiscoveredWine() {
     return adapter.createWine({
-      name: 'Pommard',
       producer: 'Comte Armand',
       vintage: 2015,
       region: 'Burgundy',
@@ -371,6 +369,7 @@ describe('promoteWine', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
   }
 
@@ -432,7 +431,6 @@ describe('tasting notes', () => {
 
   beforeEach(async () => {
     const wine = await adapter.createWine({
-      name: 'Chambolle-Musigny',
       producer: 'Georges Roumier',
       vintage: 2018,
       region: 'Burgundy',
@@ -451,6 +449,7 @@ describe('tasting notes', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     wineId = wine.id
   })
@@ -636,12 +635,11 @@ describe('tasting notes', () => {
 
   it('does not mix up notes between wines', async () => {
     const otherWine = await adapter.createWine({
-      name: 'Other Wine',
       producer: null,
       vintage: 2020,
       region: 'Loire',
       denomination: null,
-      grape_varieties: [],
+      grape_varieties: null,
       label_image_url: null,
       status: 'discovered',
       cellar_category: null,
@@ -655,6 +653,7 @@ describe('tasting notes', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     await adapter.createTastingNote({
@@ -710,7 +709,6 @@ describe('advice', () => {
 
   it('links advice to a wine entry', async () => {
     const wine = await adapter.createWine({
-      name: 'Meursault',
       producer: null,
       vintage: 2021,
       region: 'Burgundy',
@@ -729,6 +727,7 @@ describe('advice', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -749,7 +748,6 @@ describe('advice', () => {
 
   it('appends advice id to advice_linked on the parent wine', async () => {
     const wine = await adapter.createWine({
-      name: 'Puligny-Montrachet',
       producer: 'Leflaive',
       vintage: 2020,
       region: 'Burgundy',
@@ -768,6 +766,7 @@ describe('advice', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const a1 = await adapter.createAdvice({
@@ -839,7 +838,6 @@ describe('cellar entries', () => {
 
   beforeEach(async () => {
     const wine = await adapter.createWine({
-      name: 'Nuits-Saint-Georges',
       producer: 'Domaine Forey',
       vintage: 2017,
       region: 'Burgundy',
@@ -858,6 +856,7 @@ describe('cellar entries', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     wineId = wine.id
   })
@@ -924,7 +923,6 @@ describe('cellar entries', () => {
 
   it('lists all cellar entries', async () => {
     const wine2 = await adapter.createWine({
-      name: 'Sancerre',
       producer: 'Henri Bourgeois',
       vintage: 2022,
       region: 'Loire',
@@ -943,6 +941,7 @@ describe('cellar entries', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     await adapter.upsertCellarEntry(wineId, {
@@ -972,7 +971,6 @@ describe('wishlist entries', () => {
 
   beforeEach(async () => {
     const wine = await adapter.createWine({
-      name: 'Hermitage',
       producer: 'Jean-Louis Chave',
       vintage: 2019,
       region: 'Northern Rhône',
@@ -991,6 +989,7 @@ describe('wishlist entries', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     wineId = wine.id
   })
@@ -1039,7 +1038,6 @@ describe('wishlist entries', () => {
 describe('serialization round-trips', () => {
   it('preserves arrays through Google Sheets (JSON-encoded cells)', async () => {
     const wine = await adapter.createWine({
-      name: 'Châteauneuf-du-Pape',
       producer: 'Château Rayas',
       vintage: 2010,
       region: 'Southern Rhône',
@@ -1058,6 +1056,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1067,12 +1066,11 @@ describe('serialization round-trips', () => {
 
   it('preserves null optional fields', async () => {
     const wine = await adapter.createWine({
-      name: 'Unknown Red',
       producer: null,
       vintage: null,
       region: null,
       denomination: null,
-      grape_varieties: [],
+      grape_varieties: null,
       label_image_url: null,
       status: 'discovered',
       cellar_category: null,
@@ -1086,6 +1084,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1109,7 +1108,6 @@ describe('serialization round-trips', () => {
 
   it('preserves expert_reviews as a JSON round-trip', async () => {
     const wine = await adapter.createWine({
-      name: 'Gevrey-Chambertin',
       producer: 'Rousseau',
       vintage: 2019,
       region: 'Burgundy',
@@ -1128,6 +1126,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const reviews = [
@@ -1150,7 +1149,6 @@ describe('serialization round-trips', () => {
 
   it('preserves price_data as a JSON round-trip', async () => {
     const wine = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Giacomo Conterno',
       vintage: 2016,
       region: 'Piedmont',
@@ -1169,6 +1167,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const priceData = {
@@ -1177,7 +1176,7 @@ describe('serialization round-trips', () => {
       max_price: 140,
       retailers: [
         {
-          name: 'Chambers Street Wines',
+          name: 'K&L Wine Merchants',
           price: 95,
           url: null,
           location: 'New York, NY',
@@ -1196,7 +1195,6 @@ describe('serialization round-trips', () => {
 
   it('preserves community data as JSON round-trips', async () => {
     const wine = await adapter.createWine({
-      name: 'Hermitage',
       producer: 'Jean-Louis Chave',
       vintage: 2017,
       region: 'Northern Rhône',
@@ -1215,6 +1213,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const excerpts = ['Stunning 2017. Hold until 2030+.', 'Opened young — big mistake.']
@@ -1232,7 +1231,6 @@ describe('serialization round-trips', () => {
 
   it('preserves wishlist_notes, price_paid, and purchased_from', async () => {
     const wine = await adapter.createWine({
-      name: 'Côte-Rôtie',
       producer: 'Guigal',
       vintage: 2018,
       region: 'Northern Rhône',
@@ -1251,6 +1249,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1276,7 +1275,6 @@ describe('serialization round-trips', () => {
 
   it('preserves drinking window date range', async () => {
     const wine = await adapter.createWine({
-      name: 'Échézeaux',
       producer: 'DRC',
       vintage: 2015,
       region: 'Burgundy',
@@ -1295,6 +1293,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1303,7 +1302,6 @@ describe('serialization round-trips', () => {
 
   it('preserves numeric fields (vintage, price_paid, quantity)', async () => {
     const wine = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Bartolo Mascarello',
       vintage: 2013,
       region: 'Piedmont',
@@ -1322,6 +1320,7 @@ describe('serialization round-trips', () => {
       date_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const cellarEntry = await adapter.upsertCellarEntry(wine.id, {
