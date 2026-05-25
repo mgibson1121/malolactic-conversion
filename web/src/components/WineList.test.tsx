@@ -5,7 +5,6 @@ import type { WineEntry } from '@shared/types'
 function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
   return {
     id: 'wine-1',
-    name: 'Chambolle-Musigny',
     producer: 'Roumier',
     vintage: 2019,
     region: 'Burgundy',
@@ -13,8 +12,13 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     grape_varieties: ['Pinot Noir'],
     quality_classification: null,
     vineyard: null,
+    cuvee: null,
     label_image_url: null,
-    status: 'cellar',
+    tag_discovered: true,
+    tag_wishlist: false,
+    tag_cellar: false,
+    tag_consumed: false,
+    cellar_quantity: 0,
     cellar_category: null,
     drinking_window: null,
     vintage_rating: null,
@@ -23,71 +27,226 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     wishlist_notes: null,
     price_paid: null,
     purchased_from: null,
-    tasting_note_id: null,
+    latest_tasting_note_id: null,
     advice_linked: null,
     expert_reviews: null,
     community_sentiment: null,
     community_excerpts: null,
     price_data: null,
     date_added: '2024-01-01T00:00:00.000Z',
-    date_consumed: null,
+    date_first_consumed: null,
     ...overrides,
   }
 }
 
+const noop = () => {}
+
 describe('WineList', () => {
   it('renders empty state when no wines', () => {
-    render(<WineList wines={[]} onPromote={() => {}} />)
+    render(
+      <WineList
+        wines={[]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
     expect(screen.getByText('No wines here yet.')).toBeInTheDocument()
   })
 
-  it('renders wine name and producer', () => {
-    render(<WineList wines={[makeWine()]} onPromote={() => {}} />)
-    // name appears in wine-name div; denomination also shows "Chambolle-Musigny" in meta
-    expect(screen.getAllByText('Chambolle-Musigny').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Roumier')).toBeInTheDocument()
+  it('renders producer and denomination', () => {
+    render(
+      <WineList
+        wines={[makeWine()]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByText('Roumier · Chambolle-Musigny')).toBeInTheDocument()
   })
 
   it('renders vintage and region', () => {
-    render(<WineList wines={[makeWine()]} onPromote={() => {}} />)
+    render(
+      <WineList
+        wines={[makeWine()]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
     expect(screen.getByText('2019')).toBeInTheDocument()
     expect(screen.getByText('Burgundy')).toBeInTheDocument()
   })
 
   it('renders multiple wines', () => {
     const wines = [
-      makeWine({ id: '1', name: 'Wine A' }),
-      makeWine({ id: '2', name: 'Wine B' }),
+      makeWine({ id: '1', denomination: 'Barolo', producer: 'Giacomo Conterno' }),
+      makeWine({ id: '2', denomination: 'Chablis', producer: 'Raveneau' }),
     ]
-    render(<WineList wines={wines} onPromote={() => {}} />)
-    expect(screen.getByText('Wine A')).toBeInTheDocument()
-    expect(screen.getByText('Wine B')).toBeInTheDocument()
+    render(
+      <WineList
+        wines={wines}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByText('Giacomo Conterno · Barolo')).toBeInTheDocument()
+    expect(screen.getByText('Raveneau · Chablis')).toBeInTheDocument()
   })
 
-  it('shows promote button for cellar wines', () => {
-    render(<WineList wines={[makeWine({ status: 'cellar' })]} onPromote={() => {}} />)
-    expect(screen.getByRole('button', { name: /Move to Consumed/ })).toBeInTheDocument()
+  it('shows Evaluate button for all wines regardless of tags', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_discovered: true, tag_cellar: false })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
   })
 
-  it('shows correct next status for wishlist wines', () => {
-    render(<WineList wines={[makeWine({ status: 'wishlist' })]} onPromote={() => {}} />)
-    expect(screen.getByRole('button', { name: /Move to Cellar/ })).toBeInTheDocument()
+  it('shows Evaluate button for cellar wines', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_cellar: true })]}
+        activeTab="cellar"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
   })
 
-  it('shows correct next status for discovered wines', () => {
-    render(<WineList wines={[makeWine({ status: 'discovered' })]} onPromote={() => {}} />)
-    expect(screen.getByRole('button', { name: /Move to Wishlist/ })).toBeInTheDocument()
+  it('shows Evaluate button for wishlist wines', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_wishlist: true })]}
+        activeTab="wishlist"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
   })
 
-  it('hides promote button for consumed wines', () => {
-    render(<WineList wines={[makeWine({ status: 'consumed' })]} onPromote={() => {}} />)
-    expect(screen.queryByRole('button', { name: /Move to/ })).not.toBeInTheDocument()
+  it('shows quantity controls on cellar tab when wine has tag_cellar', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_cellar: true, cellar_quantity: 3 })]}
+        activeTab="cellar"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByText('3 btl')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Add one bottle/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Remove one bottle/ })).toBeInTheDocument()
   })
 
-  it('calls onPromote with correct id and next status', () => {
-    const onPromote = vi.fn()
-    render(<WineList wines={[makeWine({ id: 'abc', status: 'wishlist' })]} onPromote={onPromote} />)
-    screen.getByRole('button', { name: /Move to Cellar/ }).click()
-    expect(onPromote).toHaveBeenCalledWith('abc', 'cellar')
+  it('does not show quantity controls on non-cellar tabs', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_cellar: true, cellar_quantity: 3 })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.queryByText('3 btl')).not.toBeInTheDocument()
+  })
+
+  it('shows Reviews button when latest_tasting_note_id is set', () => {
+    render(
+      <WineList
+        wines={[makeWine({ latest_tasting_note_id: 'note-uuid-123' })]}
+        activeTab="tasting_notes"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Reviews/ })).toBeInTheDocument()
+  })
+
+  it('hides Reviews button when no tasting note exists', () => {
+    render(
+      <WineList
+        wines={[makeWine({ latest_tasting_note_id: null })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /Reviews/ })).not.toBeInTheDocument()
+  })
+
+  it('shows rating badge when my_rating is set', () => {
+    render(
+      <WineList
+        wines={[makeWine({ my_rating: 'outstanding' })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByText('Outstanding')).toBeInTheDocument()
+  })
+
+  it('shows active tag badges', () => {
+    render(
+      <WineList
+        wines={[makeWine({ tag_discovered: true, tag_cellar: true })]}
+        activeTab="cellar"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    expect(screen.getByText('Discovered')).toBeInTheDocument()
+    expect(screen.getByText('Cellar')).toBeInTheDocument()
+  })
+
+  it('calls onEvaluate when Evaluate button is clicked', () => {
+    const onEvaluate = vi.fn()
+    const wine = makeWine({ id: 'abc' })
+    render(
+      <WineList
+        wines={[wine]}
+        activeTab="discovered"
+        onEvaluate={onEvaluate}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+      />
+    )
+    screen.getByRole('button', { name: /Evaluate/ }).click()
+    expect(onEvaluate).toHaveBeenCalledWith(wine)
   })
 })
