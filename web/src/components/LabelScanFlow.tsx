@@ -8,12 +8,11 @@
  */
 
 import { useState, useRef, DragEvent, ChangeEvent } from 'react'
-import type { CellarCategory, CreateWineInput, WineStatus } from '@shared/types'
+import type { CellarCategory, CreateWineInput } from '@shared/types'
 import { scanLabel } from '../api'
 import type { LabelScanResult } from '../api'
 
 interface Props {
-  defaultStatus: WineStatus
   onSave: (data: CreateWineInput) => Promise<void>
   onCancel: () => void
 }
@@ -25,19 +24,10 @@ type FlowState =
   | { step: 'review'; scan: LabelScanResult; preview: string }
   | { step: 'error'; message: string }
 
-const TIER1_LABELS: Record<string, string> = {
-  producer: 'Producer',
-  vintage: 'Vintage',
-  region: 'Region',
-  denomination: 'Denomination',
-}
-
-export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
+export function LabelScanFlow({ onSave, onCancel }: Props) {
   const [flow, setFlow] = useState<FlowState>({ step: 'upload' })
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ── File handling ─────────────────────────────────────────────────────────
 
   async function handleFile(file: File) {
     if (!file.type.startsWith('image/')) {
@@ -62,7 +52,7 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
       } else if (msg.includes('IMAGE_FORMAT_UNSUPPORTED')) {
         setFlow({
           step: 'error',
-          message: 'This image format couldn\'t be processed. Please save the photo as a JPEG and try again.',
+          message: "This image format couldn't be processed. Please save the photo as a JPEG and try again.",
         })
       } else {
         setFlow({ step: 'error', message: `Scan failed: ${msg}` })
@@ -81,8 +71,6 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
     const file = e.dataTransfer.files?.[0]
     if (file) handleFile(file)
   }
-
-  // ── Render states ─────────────────────────────────────────────────────────
 
   if (flow.step === 'upload') {
     return (
@@ -165,15 +153,12 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
     )
   }
 
-  // ── Review card ────────────────────────────────────────────────────────────
-
   const { scan, preview } = flow
 
   return (
     <ScanReviewForm
       scan={scan}
       preview={preview}
-      defaultStatus={defaultStatus}
       onSave={onSave}
       onRetry={() => setFlow({ step: 'upload' })}
       onCancel={onCancel}
@@ -186,13 +171,12 @@ export function LabelScanFlow({ defaultStatus, onSave, onCancel }: Props) {
 interface ReviewProps {
   scan: LabelScanResult
   preview: string
-  defaultStatus: WineStatus
   onSave: (data: CreateWineInput) => Promise<void>
   onRetry: () => void
   onCancel: () => void
 }
 
-function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCancel }: ReviewProps) {
+function ScanReviewForm({ scan, preview, onSave, onRetry, onCancel }: ReviewProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
   const [producer, setProducer] = useState(scan.producer ?? '')
@@ -203,7 +187,6 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
   const [vineyard, setVineyard] = useState(scan.vineyard ?? '')
   const [cuvee, setCuvee] = useState(scan.cuvee ?? '')
   const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties?.join(', ') ?? '')
-  const [status, setStatus] = useState<WineStatus>(defaultStatus)
   const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -225,7 +208,11 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
       cuvee: cuvee.trim() || null,
       grape_varieties: grapes.length > 0 ? grapes : null,
       label_image_url: null,
-      status,
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: cellarCategory || null,
       drinking_window: null,
       vintage_rating: null,
@@ -234,7 +221,7 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
     }
 
     setSubmitting(true)
@@ -266,7 +253,6 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
           <img src={preview} alt="Label preview" className="scan-label-preview" />
         </div>
 
-        {/* Tier 1 fields */}
         <label htmlFor="sr-producer" className={fieldClass('producer')}>
           Producer {missing.has('producer') && <span className="scan-field-tag">Needs review</span>}
         </label>
@@ -323,7 +309,6 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
           placeholder="e.g. Pinot Noir"
         />
 
-        {/* Tier 2 fields — no warning, null is valid */}
         <label htmlFor="sr-quality-classification">
           Quality Classification <span className="scan-field-tier2">(Tier 2)</span>
         </label>
@@ -353,18 +338,6 @@ function ScanReviewForm({ scan, preview, defaultStatus, onSave, onRetry, onCance
           onChange={(e) => setCuvee(e.target.value)}
           placeholder="e.g. Cristal, Belle Époque, Opus One"
         />
-
-        <label htmlFor="sr-status">Status</label>
-        <select
-          id="sr-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as WineStatus)}
-        >
-          <option value="discovered">Discovered</option>
-          <option value="wishlist">Wishlist</option>
-          <option value="cellar">Cellar</option>
-          <option value="consumed">Consumed</option>
-        </select>
 
         <label htmlFor="sr-cellar-category">Cellar Category</label>
         <select

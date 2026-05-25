@@ -370,6 +370,418 @@ input.scan-field-missing {
   margin-left: 4px;
 }
 
+/* ── Wine card actions ───────────────────────────────────────────────────── */
+
+.wine-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-evaluate {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #7b3f00;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.btn-evaluate:hover { background: #5e2f00; }
+
+/* Rating badge */
+.rating-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.rating-badge.rating-poor        { background: #fce4e4; color: #b00020; }
+.rating-badge.rating-acceptable  { background: #fff3e0; color: #b05a00; }
+.rating-badge.rating-good        { background: #e8f5e9; color: #2e7d32; }
+.rating-badge.rating-very_good   { background: #e3f2fd; color: #1565c0; }
+.rating-badge.rating-outstanding { background: #f3e5f5; color: #6a1b9a; }
+
+/* ── Evaluate form ───────────────────────────────────────────────────────── */
+
+.evaluate-form {
+  max-width: 600px;
+}
+
+.evaluate-wine-label {
+  font-size: 14px;
+  color: #555;
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
+.wset-section {
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wset-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #7b3f00;
+  margin-bottom: 2px;
+}
+
+.wset-hint {
+  font-weight: 400;
+  color: #999;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+/* Radio rows */
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.radio-opt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s, border-color 0.1s;
+}
+.radio-opt input[type="radio"] { display: none; }
+.radio-opt.selected {
+  background: #7b3f00;
+  color: #fff;
+  border-color: #7b3f00;
+}
+.radio-opt:not(.selected):hover {
+  border-color: #7b3f00;
+  background: #fdf5ee;
+}
+
+/* Aroma input */
+.aroma-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aroma-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.aroma-input-row input {
+  flex: 1;
+}
+
+.aroma-info-btn {
+  padding: 0 10px;
+  background: #f0ebe5;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.aroma-info-btn:hover { background: #e5e0da; }
+
+.aroma-descriptor-panel {
+  background: #fdf5ee;
+  border: 1px solid #e8d9c8;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aroma-category {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.aroma-category-label {
+  font-weight: 700;
+  color: #7b3f00;
+  margin-right: 4px;
+}
+
+.aroma-chip {
+  display: inline-block;
+  margin: 1px 2px;
+  padding: 1px 7px;
+  background: #fff;
+  border: 1px solid #d6c4b0;
+  border-radius: 20px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #444;
+}
+.aroma-chip:hover {
+  background: #7b3f00;
+  color: #fff;
+  border-color: #7b3f00;
+}
+
+/* Validation states */
+.label--required { color: #b00020; }
+.req-mark { color: #b00020; font-weight: 700; margin-left: 1px; }
+
+.input--invalid {
+  border-color: #b00020 !important;
+  background: #fff5f5;
+}
+
+.radio-row--invalid .radio-opt:not(.selected) {
+  border-color: #f87171;
+}
+
+.validation-summary {
+  font-size: 13px;
+  color: #b00020;
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: 5px;
+  padding: 8px 12px;
+}
+
+/* Textarea */
+.evaluate-textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  width: 100%;
+}
+.evaluate-textarea:focus {
+  outline: 2px solid #7b3f00;
+  border-color: transparent;
+}
+
+/* ── Wine tag badges ─────────────────────────────────────────────────────── */
+
+.wine-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.tag-badge.tag-discovered { background: #e8f4fd; color: #1a6da1; }
+.tag-badge.tag-wishlist   { background: #fff3e0; color: #b05a00; }
+.tag-badge.tag-cellar     { background: #e8f5e9; color: #2e7d32; }
+.tag-badge.tag-consumed   { background: #f3e5f5; color: #6a1b9a; }
+
+/* ── Tag toggle controls ─────────────────────────────────────────────────── */
+
+.wine-tag-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.btn-tag-toggle {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  background: #f5f0eb;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.btn-tag-toggle:hover { border-color: #7b3f00; color: #7b3f00; }
+.btn-tag-toggle.active {
+  background: #7b3f00;
+  color: #fff;
+  border-color: #7b3f00;
+}
+
+/* ── Cellar quantity controls ────────────────────────────────────────────── */
+
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-qty {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  background: #f0ebe5;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.btn-qty:hover:not(:disabled) { background: #e5e0da; }
+.btn-qty:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.qty-display {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 42px;
+  text-align: center;
+  color: #333;
+}
+
+/* ── Reviews history button ──────────────────────────────────────────────── */
+
+.btn-history {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1565c0;
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.btn-history:hover { background: #bbdefb; }
+
+/* ── Tag review step (EvaluateForm) ──────────────────────────────────────── */
+
+.tag-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tag-review-form h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tag-review-form p {
+  font-size: 14px;
+  color: #555;
+}
+
+/* ── Tasting note history modal ──────────────────────────────────────────── */
+
+.note-history-modal {
+  max-width: 560px;
+}
+
+.note-history-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.note-history-item {
+  border: 1px solid #e5ddd5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.note-history-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #faf7f4;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+.note-history-header:hover { background: #f5f0eb; }
+
+.note-date {
+  font-weight: 600;
+  flex: 1;
+}
+
+.note-expand-icon {
+  color: #999;
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.fault-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b00020;
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.note-detail {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  border-top: 1px solid #e5ddd5;
+}
+
+.note-detail p { line-height: 1.5; }
+
+.note-free-text {
+  color: #555;
+  font-style: italic;
+  border-left: 3px solid #e5ddd5;
+  padding-left: 10px;
+  margin-top: 2px;
+}
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.note-tag-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #f0ebe5;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  color: #555;
+}
+
 /* ── Feedback ────────────────────────────────────────────────────────────── */
 
 .error-msg {

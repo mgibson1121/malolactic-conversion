@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import type { CellarCategory, CreateWineInput, WineStatus } from '@shared/types'
+import type { CellarCategory, CreateWineInput } from '@shared/types'
 
 interface Props {
-  defaultStatus: WineStatus
   onSubmit: (data: CreateWineInput) => Promise<void>
   onCancel: () => void
 }
 
-export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
+export function AddWineForm({ onSubmit, onCancel }: Props) {
   const [producer, setProducer] = useState('')
   const [vintage, setVintage] = useState('')
   const [region, setRegion] = useState('')
@@ -16,7 +15,6 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
   const [vineyard, setVineyard] = useState('')
   const [cuvee, setCuvee] = useState('')
   const [grapeVarieties, setGrapeVarieties] = useState('')
-  const [status, setStatus] = useState<WineStatus>(defaultStatus)
   const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +34,11 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
       cuvee: cuvee.trim() || null,
       grape_varieties: grapes.length > 0 ? grapes : null,
       label_image_url: null,
-      status,
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: cellarCategory || null,
       drinking_window: null,
       vintage_rating: null,
@@ -45,7 +47,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
     }
 
     setSubmitting(true)
@@ -131,18 +133,6 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           placeholder="e.g. Pinot Noir"
         />
 
-        <label htmlFor="wf-status">Status</label>
-        <select
-          id="wf-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as WineStatus)}
-        >
-          <option value="discovered">Discovered</option>
-          <option value="wishlist">Wishlist</option>
-          <option value="cellar">Cellar</option>
-          <option value="consumed">Consumed</option>
-        </select>
-
         <label htmlFor="wf-cellar-category">Cellar Category</label>
         <select
           id="wf-cellar-category"
@@ -169,4 +159,3 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
     </div>
   )
 }
-
