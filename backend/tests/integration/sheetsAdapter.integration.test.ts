@@ -14,13 +14,16 @@ import { SheetsAdapter } from '../../sheets/SheetsAdapter'
 import { createSheetsClient } from '../../sheets/client'
 import type { SheetsClientInterface } from '../../sheets/SheetsAdapter'
 
+// Opt in by setting SHEETS_INTEGRATION=true in your environment.
 const SKIP =
-  !process.env.GOOGLE_SHEETS_CREDENTIALS || !process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+  process.env.SHEETS_INTEGRATION !== 'true' ||
+  !process.env.GOOGLE_SHEETS_CREDENTIALS ||
+  !process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
 const maybeDescribe = SKIP ? describe.skip : describe
 
 if (SKIP) {
-  test('integration tests skipped — GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_SPREADSHEET_ID not set', () => {
+  test('sheets integration tests skipped — set SHEETS_INTEGRATION=true to enable', () => {
     expect(true).toBe(true)
   })
 }
