@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-16
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-25
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -19,7 +19,7 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 ├── backend/          # Local API server (Node.js / Express)
 │   ├── modules/      # One directory per capability (see section 5)
 │   ├── db/           # SQLite schema, migrations, seed data
-│   ├── sheets/       # Google Sheets adapter (Phase 1 only)
+│   ├── sheets/       # Google Sheets adapter (Phase 1 only — retained for reference)
 │   └── server.ts     # Entry point
 ├── ios/              # Swift iOS app (Xcode project)
 ├── web/              # React web app
@@ -27,6 +27,8 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 ├── docs/
 │   ├── product-context.md   # Product PRD — source of truth for features
 │   └── specs/               # Per-feature spec files (added as features are built)
+├── .github/
+│   └── workflows/           # GitHub Actions CI workflow files
 ├── .env.example      # Template — never commit .env
 ├── .env              # Local secrets — gitignored
 └── CLAUDE.md         # This file
@@ -36,25 +38,30 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 
 ## 3. Build Phases
 
-### Phase 1 — Schema validation (Google Sheets backend)
-The data layer is backed by Google Sheets. The goal is to validate the wine entry schema against real data before committing to a database. Wine entries, cellar state, wishlist, and tasting notes are all stored in Sheets.
+Phases 1–4.5 are complete. The wine entry schema was validated against real data using a Google Sheets backend. The canonical schema is the additive boolean tag model described below — this supersedes any earlier status-enum design.
 
-- Use the Google Sheets API (v4) via the `googleapis` npm package
-- One sheet per entity type (wines, cellar, wishlist, tasting_notes, advice)
-- The Sheets adapter lives in `backend/sheets/` and exposes the same interface as the future SQLite adapter
-- Do not build any feature that assumes SQLite during Phase 1
-- The `wines` sheet must include a `tasting_note_id` column (UUID, nullable) as a foreign key to `tasting_notes`. Null = no note recorded; populated = tasting note exists.
-- `drinking_window_start` and `drinking_window_end` are cached/derived values — overwritten by review data, never manually set
-- `my_tags` must stay consistent with tags on the `tasting_notes` sheet; GPT-4o tag extraction writes back to the `wines` sheet when a note is saved
-- The wine entry schema uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable and follow explicit extraction rules. See `wine-app-product-context.md` Section 3 for the full field definitions and extraction rules before building the label scan module.
-- `name` has been removed from the schema. Wine identity is expressed as `producer` + `denomination` + `vintage`, supplemented by Tier 2 fields. Do not add a `name` column to the wines sheet.
+### Schema decisions locked after Phase 4.5
 
-### Phase 2 — SQLite migration (stable schema)
-When the schema is stable, replace the Sheets adapter with SQLite. The module interface must not change — only the underlying storage implementation.
+- Wine identity uses `producer` + `denomination` + `vintage`. `name` has been removed from the schema. Do not add it back.
+- Status is expressed as four additive boolean tags on the `wines` table: `tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed`. Tags are not mutually exclusive — a row can have multiple set to true simultaneously. Do not add a `status` column.
+- `cellar_quantity` is an integer column on the wine entry. Default 0. Do not derive it from any other field.
+- `latest_tasting_note_id` (UUID, nullable) on the wine entry points to the most recent `tasting_notes` row for that wine. Updated on each note save.
+- `tasting_notes` rows include `wine_id` (UUID, not null), `date` (timestamp), and all WSET fields. Multiple rows per wine are supported.
+- `drinking_window_start` / `drinking_window_end` are cached/derived values — overwritten by review data, never manually set.
+- `my_tags` must stay in sync with tags extracted from `tasting_notes`; GPT-4o writes back to the wine entry when a note is saved.
+- The wine entry uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable. See `wine-app-product-context.md` Section 3 for full definitions before building the label scan module.
 
-- Use `better-sqlite3` (synchronous, simpler than async drivers at this scale)
-- Schema and migrations live in `backend/db/`
-- Phase 2 begins only when the wine entry schema has been validated against real data in Phase 1
+### Phase 5 — SQLite migration (current)
+Schema is validated. Replace the Google Sheets adapter with SQLite. No feature behaviour changes.
+
+- Use `better-sqlite3` (synchronous — do not introduce async database patterns)
+- Schema and migrations in `backend/db/`
+- Storage adapter interface (`backend/modules/storage/`) must not change — only the implementation swaps
+- Google Sheets adapter retained in `backend/sheets/` but no longer in the active code path
+- All Phase 1–4 tests must pass identically against SQLite before this phase is closed
+
+### Phase 6 and beyond
+Defined in `docs/build-phases.md`.
 
 ---
 
@@ -65,8 +72,8 @@ When the schema is stable, replace the Sheets adapter with SQLite. The module in
 | Backend | Node.js + Express + TypeScript | Local API server |
 | iOS | Swift + SwiftUI | Native iOS app — primary capture surface |
 | Web | React + TypeScript | Management and research surface |
-| Database | SQLite via `better-sqlite3` | Phase 2 only; Phase 1 uses Google Sheets |
-| Sheets adapter | Google Sheets API v4 via `googleapis` | Phase 1 only |
+| Database | SQLite via `better-sqlite3` | Phase 5 onward |
+| Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 
 ---
@@ -100,11 +107,11 @@ All credentials stored in iOS Keychain. Never stored on device filesystem or tra
 All credentials stored in a local `.env` file at the project root.
 
 - `.env` is gitignored — never commit it
-- `.env.example` is committed and kept up to date with all required variable names (values empty)
+- `.env.example` is committed with all required variable names and empty values — keep it up to date
 - Load with `dotenv` in the backend entry point
-- Claude Code should reference `.env.example` to know what keys are expected
+- Claude Code must reference `.env.example` to know what keys are expected — never read `.env` directly
 
-Required `.env` variables:
+Required `.env` variables (`.env.example` template — all values empty):
 ```
 OPENAI_API_KEY=
 REDDIT_CLIENT_ID=
@@ -116,8 +123,11 @@ VINOUS_USERNAME=
 VINOUS_PASSWORD=
 SENSORPUSH_EMAIL=
 SENSORPUSH_PASSWORD=
-GOOGLE_SHEETS_CREDENTIALS= ~/Claude_Code_Projects/Wine-Project/config
-GOOGLE_SHEETS_SPREADSHEET_ID= 1oLAVCxV9M5F3Mg4WmNssvbpiD7Nxhyen_th1PlbAU-o/edit?gid=0#gid=0
+GOOGLE_SHEETS_CREDENTIALS=
+GOOGLE_SHEETS_SPREADSHEET_ID=
+```
+
+The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty from Phase 5 onward.
 
 ---
 
@@ -125,7 +135,7 @@ GOOGLE_SHEETS_SPREADSHEET_ID= 1oLAVCxV9M5F3Mg4WmNssvbpiD7Nxhyen_th1PlbAU-o/edit?
 
 - Model: GPT-4o vision, high detail mode
 - Images must be resized to max 1024px on the longest side before the API call — enforce this in the module regardless of input source (file upload or camera)
-- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. `name` has been removed from the schema — do not include it in scan output.
+- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. `name` is not in the schema — do not include it in scan output.
 - The label scan prompt must explicitly target Tier 2 extraction rules as defined in `wine-app-product-context.md` Section 3
 - **Phase 3 capture surface:** web file upload (HTML file input, image/*). The module receives an image file; resize and scan. No native camera in this phase.
 - **Phase 10 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change — only the input path is swapped.
@@ -163,10 +173,21 @@ Offline mode is out of scope for v1. The app requires connectivity. No offline c
 - Test-driven development is followed for all new features
 - Each module has unit tests co-located in its directory (`*.test.ts`)
 - Integration tests live in `backend/tests/integration/`
-- Regression tests are run on every pull request before merge
-- CI pipeline runs: lint → unit tests → integration tests → build
 - Use Jest for the backend and web; XCTest for iOS
-- A new build artifact is produced on every successful merge to `main`
+- All tests must pass before merging to `main`
+
+### GitHub Actions (CI)
+
+From Phase 5 onward, all test runs happen in GitHub Actions — not just locally. A CI workflow file lives in `.github/workflows/ci.yml`.
+
+The CI pipeline runs on every pull request and every push to `main`:
+1. Install dependencies
+2. Lint (`tsc --noEmit` + ESLint)
+3. Run backend unit and integration tests (`jest`)
+4. Run frontend unit tests (`jest`)
+5. Build (`tsc` — confirm no type errors)
+
+Claude Code must create or update `.github/workflows/ci.yml` when starting Phase 5. Tests that pass locally must also pass in CI before a PR is merged. Do not merge a branch while CI is red.
 
 ---
 
@@ -191,6 +212,8 @@ Run these commands in the repo root if not already set. Verify with `git config 
 ### Remote
 GitHub repository: https://github.com/mgibson1121
 
+All work is pushed to the remote. Do not leave branches local-only. Push the branch before opening a PR.
+
 ### Branching
 Branches are scoped to a feature or core technical service. Branch names follow this pattern:
 
@@ -204,11 +227,23 @@ chore/<short-description>       # Refactoring, dependency updates, config change
 Examples:
 - `feature/label-scanning`
 - `feature/cellar-view`
+- `service/sqlite-migration`
 - `service/reddit-module`
-- `service/sheets-adapter`
-- `fix/wine-entry-status-lifecycle`
+- `fix/wine-entry-tag-toggle`
 
-All work happens on a branch. Merge to `main` only when tests pass.
+All work happens on a branch. Merge to `main` only when CI is green.
+
+### Pull requests
+Every phase or discrete unit of work is delivered as a pull request, not a direct push to `main`. This applies from Phase 5 onward.
+
+PR requirements:
+- Title follows the same `<type>: <description>` format as commit messages (e.g. `service: sqlite migration — replace Sheets adapter`)
+- Description includes: what changed, why, and any decisions made. Bullet points are fine. This is the record of intent — write it as if someone reviewing the project 6 months later needs to understand what was done and why.
+- Link to the relevant phase in `docs/build-phases.md` where applicable
+- All CI checks must pass before merge
+- Squash merge to `main` to keep the commit history on `main` clean
+
+Claude Code must open a PR for every phase. Do not merge the PR — leave it open for the developer to review and merge. Notify the developer in the session summary when a PR is ready.
 
 ### Commit message conventions
 Every commit message must follow this format:
@@ -228,11 +263,44 @@ Types:
 
 Examples:
 - `feat: add quick-log capture flow`
-- `service: implement reddit synthesis module`
-- `fix: correct status transition from wishlist to cellar`
+- `service: implement sqlite storage adapter`
+- `fix: correct tag toggle from cellar list view`
 - `test: add integration tests for label scan module`
+- `docs: update CLAUDE.md with phase 5 schema decisions`
 
 Descriptions should be lowercase, present tense, and under 72 characters.
+
+### Commit cadence
+Make multiple small, focused commits rather than one large commit per phase. Each logical unit of work (schema DDL, adapter implementation, test suite, CI config) should be a separate commit. This produces a meaningful commit history and reflects the actual progression of the work.
+
+---
+
+## 14. GitHub Activity
+
+This project is the primary technical portfolio signal for the developer. The GitHub activity graph, PR history, and commit log are likely to be reviewed by prospective employers.
+
+Claude Code should help produce a professional-looking commit history by default:
+
+- Commit frequently with meaningful messages — not in bulk at the end of a session
+- Every phase produces at least one PR with a substantive description
+- Avoid single-commit PRs unless the change genuinely is atomic
+- `docs` commits (updating specs, CLAUDE.md, build-phases.md) are real commits — make them
+- Test commits (`test: ...`) are visible in the log and signal discipline — don't batch them with feature commits
+
+The goal is a history that shows consistent, deliberate progress — not just a series of large drops.
+
+### Planning document commits
+
+`CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents. They are the canonical source of truth — not the copies held in Claude.ai project context.
+
+At the end of every session, Claude Code must:
+1. Check whether any of these three files differ from the versions currently in the repo
+2. If they do, overwrite the repo copy with the updated version
+3. Commit the change with a `docs:` commit message (e.g. `docs: update CLAUDE.md — add github activity section`)
+
+These commits go on the current working branch, not a separate branch. Do not open a separate PR for docs-only changes — include them in the phase PR they belong to. If a planning session in Claude.ai produces updated documents with no accompanying code change, commit them directly to `main` with a `docs:` commit.
+
+The Claude.ai project context copy may lag behind — the repo is always authoritative.
 
 ---
 
@@ -242,11 +310,12 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 - Do not store API keys, credentials, or secrets in the database, in code, or in version control
 - Do not build a hosted backend or cloud database — everything runs locally
-- Do not use Postgres — use SQLite (Phase 2) or Google Sheets (Phase 1)
+- Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
 - Do not add microservice infrastructure (separate deployables, Docker Compose, service mesh) — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
+- Do not merge a PR while CI is red
 
 ---
 

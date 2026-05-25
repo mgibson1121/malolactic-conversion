@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-16 (schema revision: name removed, cuvee + grape_varieties moved to Tier 2)
+> Status: In progress | Last updated: 2026-05-17 (schema revision: status enum replaced with boolean list tags; cellar_quantity added; tag model adopted)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -62,7 +62,11 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | `region` | String | Scan / GPT-4o | Broad geographic region. e.g. Burgundy, Piedmont, Rioja |
 | `denomination` | String | Scan / GPT-4o | The controlled designation of origin for the wine, regardless of country-specific naming convention. Maps to AOC/AOP (France), DOC/DOCG (Italy), DO/DOCa (Spain), AVA (USA). e.g. Volnay, Barolo, Rioja DOCa, Chablis. Second display field alongside producer. |
 | `label_image` | URL | Scan | Resized to max 1024px before storage |
-| `status` | Enum | User action | See status lifecycle below |
+| `tag_discovered` | Boolean | System / User | True when the wine is first logged. Default on creation. Represents wines seen or noted in the wild that have not yet been assigned to another list. |
+| `tag_wishlist` | Boolean | User | True when the user wants to purchase this wine. |
+| `tag_cellar` | Boolean | User | True when the wine is physically in the user's possession. |
+| `tag_consumed` | Boolean | System / User | True when at least one bottle has been consumed. Set automatically when a tasting note is saved; can also be set manually. |
+| `cellar_quantity` | Integer | User | Number of bottles currently in the cellar. Adjustable from the cellar list view. Does not automatically reset to zero when `tag_cellar` is removed — user manages explicitly. |
 | `cellar_category` | Enum | User / inferred | `table`, `near_term`, `long_term` |
 | `drinking_window_start` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
 | `drinking_window_end` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
@@ -71,16 +75,16 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | `community_sentiment` | String | Reddit + LLM | GPT-4o synthesis of Reddit data; null if no OpenAI key configured |
 | `community_excerpts` | Array | Reddit API | Raw Reddit excerpts; shown as fallback if no LLM key configured |
 | `price_data` | Object | Wine-Searcher API | Min/avg/max price, retailer list; null if not configured |
-| `my_rating` | Enum | User | `pass`, `ok`, `good`, `great` |
+| `my_rating` | Enum | User | `poor`, `acceptable`, `good`, `very_good`, `outstanding` |
 | `my_tasting_notes` | Object | User | Structured WSET tags + free text |
 | `my_tags` | Array | User / inferred | Searchable tags derived from tasting notes via GPT-4o tag extraction. Treated as a derived field once a tasting note exists — not manually authored. Must stay consistent with tags on the `tasting_notes` sheet; do not allow the two to diverge. |
-| `tasting_note_id` | UUID | System | Foreign key to the `tasting_notes` sheet/table. Null until a tasting note is recorded. Used by the UI to show the Evaluate CTA (null) or a tasting note summary badge (populated). |
+| `latest_tasting_note_id` | UUID | System | Foreign key to the most recent entry in the `tasting_notes` sheet for this wine. Null until a tasting note is recorded. Updated each time a new note is saved — always points to the most recent. Used by the UI to show the Evaluate CTA (null) or the most recent rating in list views (populated). Full tasting note history is retained in the `tasting_notes` sheet and queryable by `wine_id`. |
 | `advice_linked` | Array | User | UUIDs of advice entries attached to this wine. Foreign keys to the `advice` sheet. |
 | `wishlist_notes` | String | User | Why I want this |
 | `price_paid` | Float | User | |
 | `purchased_from` | String | User | Retailer name |
+| `date_first_consumed` | Timestamp | System | Populated automatically when `tag_consumed` is first set to true. Not updated on subsequent consumptions. |
 | `date_added` | Timestamp | System | |
-| `date_consumed` | Timestamp | User | Populated when status → consumed |
 
 #### Tier 2 — LLM-enriched
 
@@ -93,18 +97,22 @@ These fields are populated by the label scan module using rule-guided extraction
 | `cuvee` | String | Scan / GPT-4o | A proper commercial name for the wine that is distinct from the denomination, vineyard, or producer — typically used by Champagne houses, prestige cuvées, and some New World producers. e.g. Cristal, Belle Époque, Opus One. Also used as the overflow field for uncategorised label text that cannot be confidently assigned to vineyard. | Null if no distinct cuvee name is present. Do not populate with the denomination or producer name. |
 | `grape_varieties` | Array | Scan / GPT-4o | Grape varieties for the wine. Extract directly from the label if listed. If not listed, infer from the denomination using established regional conventions (e.g. Volnay → Pinot Noir, Barolo → Nebbiolo, Rioja Tinto → Tempranillo-dominant). Confidence is high for well-known denominations; leave null for obscure or ambiguous denominations where the blend varies significantly by producer. | Null if denomination is too obscure to infer reliably. Never guess for unknown denominations. |
 
-### Status Lifecycle
+### List Tag Model
 
-```
-discovered → wishlist → cellar → consumed
-```
+A wine entry carries four boolean tags that govern which lists it appears in. Tags are additive — a wine can carry any combination simultaneously. There is no lifecycle or required progression between tags.
 
-- `discovered`: Seen or logged in the wild, not yet on wishlist
-- `wishlist`: Flagged for future purchase
-- `cellar`: Purchased and in physical possession
-- `consumed`: Drunk; entry is archived but retained for review history and learning
+| Tag | When set | When removed |
+|---|---|---|
+| `tag_discovered` | Automatically on creation — every new wine entry starts here | User removes it manually via the tag management UI |
+| `tag_wishlist` | User adds it via tag management | User removes it manually |
+| `tag_cellar` | User adds it via tag management | User removes it manually |
+| `tag_consumed` | Automatically when the first tasting note is saved; or user sets it manually | User removes it manually |
 
-A wine entry can be promoted forward through the lifecycle. It should never need to be recreated.
+**Tag management UI:** Available from any wine entry in any list view. After saving a tasting note the user is prompted to review and update their tags. Tags can also be edited at any time from the wine entry detail screen.
+
+**Example:** A wine that has been consumed but still has bottles in the cellar and is on the wishlist for reordering would carry `tag_cellar`, `tag_consumed`, and `tag_wishlist` simultaneously. It would appear in all three list views.
+
+**Tasting Notes list:** A system-derived list showing all wine entries where `latest_tasting_note_id` is not null, sorted by the date of the most recent tasting note descending. Not a user-managed tag — it is always a reflection of which wines have evaluations.
 
 ---
 
@@ -136,8 +144,8 @@ A wine entry can be promoted forward through the lifecycle. It should never need
 
 **Pain Relievers**
 
-- Quick-log flow: take a photo → tap pass / ok / good → done. No further input required in the moment.
-- End-of-night digest: user initiates (or is prompted) to review all `good`-tagged captures from the session. App auto-populates wine entry fields from label scan via GPT-4o. User confirms or adjusts.
+- Quick-log flow: take a photo → tap poor / acceptable / good / very good / outstanding → done. No further input required in the moment.
+- End-of-night digest: user initiates (or is prompted) to review all `good`-or-above captures from the session. App auto-populates wine entry fields from label scan via GPT-4o. User confirms or adjusts.
 - Conversation capture: dedicated input for logging tips and advice. Records the tip, who gave it (role: sommelier / friend / etc.), category (producer, technique, value, region), and optionally links to a wine entry.
 - Batch processing: a single digest action updates wishlist, creates wine entries, and files advice — replacing the manual spreadsheet workflow.
 
@@ -205,13 +213,18 @@ A wine entry can be promoted forward through the lifecycle. It should never need
 
 - Structured tasting note form using the WSET framework with pre-populated options for each field: clarity, colour, body, nose (fruit types, oak, earth, etc.), palate, finish. Minimises typing.
 - Framework is fixed as WSET in v1.
-- Reviews link automatically to the wine entry — no separate spreadsheet required.
+- The Evaluate CTA is available from any list view a wine entry appears in, and from the wine entry creation confirmation screen. There is no status gate — any wine can be evaluated at any time.
+- When a tasting note is saved, the user is prompted to review their list tags and add or remove any as appropriate. This replaces any "move to consumed" prompt — the user decides explicitly which lists the wine should appear in going forward.
+- Reviews link automatically to the wine entry via `wine_id` on the `tasting_notes` sheet — no separate spreadsheet required.
+- Multiple tasting notes per wine entry are supported and all retained. The most recent note's rating is displayed in list views; the full history is accessible from the wine entry detail screen.
+- Any list view displaying a wine with a tasting note allows the user to click through to view the associated reviews and drill into an individual note.
 
 **Gain Creators**
 
 - Tasting note characteristics are extracted as structured tags (body, finish, primary/secondary/tertiary aromas). Tags are reused across the app so a wine can be understood at a glance without reading the full note.
 - Written or voice notes can be uploaded and transcribed; tags extracted automatically via GPT-4o.
 - Tags build a personal flavour vocabulary over time that informs recommendations and learning.
+- Multiple notes on the same wine across different occasions reveal how a wine evolves with age — a compounding learning asset.
 
 ---
 
@@ -237,7 +250,7 @@ A wine entry can be promoted forward through the lifecycle. It should never need
 
 **Pain Relievers**
 
-- Mark a bottle as consumed directly from the collection view; attach a quick rating and optional note.
+- Cellar list displays `cellar_quantity` alongside each wine entry — the number of bottles currently held. Quantity is adjustable directly from the list view without opening the full entry.
 - Environment monitoring via SensorPush integration: temperature and humidity readings pulled from SensorPush Cloud API and displayed in-app.
 
 **Gain Creators**
@@ -334,7 +347,7 @@ These apply everywhere in the app. An agent building any feature should check th
 
 **Capture is low-friction above all else.** Any capture interaction that requires more than two taps or ten seconds in the moment has failed. Enrichment can happen later.
 
-**Status is a lifecycle, not a category.** A wine moves from discovered → wishlist → cellar → consumed. This progression should be the primary navigation metaphor for managing a collection.
+**List tags are additive, not a lifecycle.** A wine entry carries four boolean tags (`tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed`) that govern which lists it appears in. Tags can be combined freely — a wine can appear in multiple lists simultaneously. There is no required progression between tags. The user manages tags explicitly; the only automatic behaviours are `tag_discovered` set on creation and `tag_consumed` set when a first tasting note is saved.
 
 **Cellar allocation is intentional.** The user has a mental model of what their ideal collection looks like. The app should surface drift from that model, not just report inventory.
 
@@ -418,10 +431,35 @@ Structured tasting note fields:
 - **Nose:** condition, intensity, aroma characteristics (primary fruit, secondary, tertiary)
 - **Palate:** sweetness, acidity, tannin (reds only), body, flavour intensity, finish
 - **Conclusions:** quality assessment (flawed / poor / acceptable / good / very good / outstanding)
-- **My rating:** `pass` / `ok` / `good` / `great` (separate from WSET quality scale)
+- **My rating:** `poor` / `acceptable` / `good` / `very_good` / `outstanding` (aligns with WSET quality scale)
 - **Free text:** open notes field
 
 Tags are extracted from completed notes and attached to the wine entry for cross-app search and display.
+
+### Aroma Tooltip Content
+
+Tooltips are shown on the nose and palate aroma fields only (primary, secondary, tertiary). Each tooltip reveals a curated list of example descriptors to help the user identify and articulate what they are sensing. Tooltips are triggered by a info icon adjacent to the field label — they do not interrupt the form flow.
+
+**Primary aromas** (fruit-derived, from the grape itself):
+- *Red fruit:* raspberry, strawberry, red cherry, cranberry, redcurrant
+- *Black fruit:* blackcurrant, blackberry, black cherry, blueberry, plum
+- *Stone fruit:* peach, apricot, nectarine, cherry, plum
+- *Tropical fruit:* pineapple, mango, passion fruit, lychee, banana
+- *Citrus fruit:* lemon, lime, grapefruit, orange zest
+- *Floral:* rose, violet, jasmine, orange blossom, elderflower
+- *Herbaceous:* green pepper, grass, tomato leaf, eucalyptus, mint
+- *Spice (primary):* black pepper, white pepper, liquorice
+
+**Secondary aromas** (from fermentation):
+- *Yeast-derived:* bread, brioche, biscuit, pastry, cream
+- *Malolactic:* butter, cream, crème fraîche, yoghurt
+- *Other fermentation:* beer, cider, cheese rind, nail polish (fault indicator)
+
+**Tertiary aromas** (from ageing — oak and/or bottle):
+- *Oak-derived:* vanilla, clove, coconut, cedar, sandalwood, smoke, toast, coffee, chocolate
+- *Oxidative:* almond, hazelnut, walnut, marzipan, toffee, caramel, dried fruit
+- *Bottle age (red):* leather, tobacco, forest floor, mushroom, truffle, game, earth, dried herbs
+- *Bottle age (white):* petrol, honey, ginger, toast, nutty, waxy, lanolin
 
 ---
 
@@ -432,7 +470,12 @@ Tags are extracted from completed notes and attached to the wine entry for cross
 - ✅ Platform: iOS primary, web parity follows
 - ✅ v1 scope: single user, developer supplies all keys
 - ✅ Web research trigger: iOS share sheet in v1; browser extension is future
-- ✅ Consumed wines: same wine entry object, status flag (`discovered` → `wishlist` → `cellar` → `consumed`)
+- ✅ Consumed wines: same wine entry object, status flag (`discovered` → `wishlist` → `cellar` → `consumed`) — **superseded by tag model below**
+- ✅ List tag model: `status` enum replaced with four boolean tags (`tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed`). Tags are additive — a wine can appear in multiple lists simultaneously. `tag_discovered` set on creation; `tag_consumed` set automatically on first tasting note save. No lifecycle progression required.
+- ✅ Tasting Notes list: system-derived, shows all wines where `latest_tasting_note_id` is not null, sorted by most recent note date. Not a user-managed tag.
+- ✅ Evaluate CTA: available from any list view and from the creation confirmation screen. No status gate.
+- ✅ Tag review prompt: replaces "move to consumed" — after saving a tasting note, user is prompted to review and update their tags.
+- ✅ `cellar_quantity` added: integer field, adjustable from the cellar list view.
 - ✅ Label scanning: GPT-4o vision, high detail mode, max 1024px resize before API call
 - ✅ Paid subscription APIs at launch: Burghound and Vinous (BYOK)
 - ✅ Environment monitoring hardware: SensorPush + G1 WiFi Gateway
