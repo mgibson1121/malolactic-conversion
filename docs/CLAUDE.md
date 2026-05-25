@@ -210,7 +210,7 @@ git config user.email "mjgibson1121@gmail.com"
 Run these commands in the repo root if not already set. Verify with `git config --list`.
 
 ### Remote
-GitHub repository: https://github.com/mgibson1121
+GitHub repository: https://github.com/mgibson1121/malolactic-conversion
 
 All work is pushed to the remote. Do not leave branches local-only. Push the branch before opening a PR.
 
