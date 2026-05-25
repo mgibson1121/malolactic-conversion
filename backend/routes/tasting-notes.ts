@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
 import { CreateTastingNoteSchema } from '@shared/validation'
+import { extractTags } from '../modules/tasting-notes/tag-extraction'
 
 const router = Router()
 
@@ -16,7 +17,10 @@ router.post(
       res.status(400).json({ error: result.error.format() })
       return
     }
-    const note = await getStorage().createTastingNote(result.data)
+    // Extract tags from aromas + free text before saving.
+    // Degrades gracefully: returns aroma-derived tags if no OpenAI key configured.
+    const tags = await extractTags(result.data)
+    const note = await getStorage().createTastingNote({ ...result.data, tags })
     res.status(201).json(note)
   })
 )

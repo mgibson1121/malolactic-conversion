@@ -3,7 +3,6 @@ import type {
   AdviceCategory,
   AdviceEntry,
   AdviceFilter,
-  CellarEntry,
   CellarCategory,
   CreateAdviceInput,
   CreateTastingNoteInput,
@@ -14,13 +13,9 @@ import type {
   PriceData,
   TastingNote,
   UpdateWineInput,
-  UpsertCellarInput,
-  UpsertWishlistInput,
   VintageRating,
   WineEntry,
   WineFilter,
-  WineStatus,
-  WishlistEntry,
   AdviceSourceRole,
   TastingAcidity,
   TastingBody,
@@ -33,21 +28,16 @@ import type {
   TastingSweetness,
   TastingTannin,
 } from '@shared/types'
-import { STATUS_ORDER } from '@shared/types'
 import type { StorageAdapter } from '../modules/storage/interface'
 import {
   ADVICE_COLS,
   ADVICE_HEADERS,
-  CELLAR_COLS,
-  CELLAR_HEADERS,
   SHEET_COL_RANGE,
   SHEET_NAMES,
   TASTING_NOTE_COLS,
   TASTING_NOTE_HEADERS,
   WINE_COLS,
   WINE_HEADERS,
-  WISHLIST_COLS,
-  WISHLIST_HEADERS,
 } from './columns'
 
 // ─── Minimal Sheets client interface (enables dependency injection for tests) ──
@@ -95,6 +85,10 @@ function orNull<T>(value: string, cast?: (v: string) => T): T | null {
   return cast ? cast(value) : (value as unknown as T)
 }
 
+function boolCell(value: string): boolean {
+  return value === 'true'
+}
+
 // ─── SheetsAdapter ────────────────────────────────────────────────────────────
 
 export class SheetsAdapter implements StorageAdapter {
@@ -105,10 +99,6 @@ export class SheetsAdapter implements StorageAdapter {
 
   // ── Private sheet helpers ──────────────────────────────────────────────────
 
-  /**
-   * Read all data rows from a tab (header row excluded).
-   * Returns an empty array when the tab has no data.
-   */
   private async readSheet(sheetName: string): Promise<string[][]> {
     const res = await this.client.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
@@ -126,10 +116,6 @@ export class SheetsAdapter implements StorageAdapter {
     })
   }
 
-  /**
-   * Update a row by its 0-based index in the data array (i.e. excluding the
-   * header row). Sheet row number = dataIndex + 2.
-   */
   private async updateRow(
     sheetName: string,
     dataIndex: number,
@@ -157,10 +143,6 @@ export class SheetsAdapter implements StorageAdapter {
     return rows.findIndex((row) => row[0] === id)
   }
 
-  private findByWineId(rows: string[][], wineId: string): number {
-    return rows.findIndex((row) => row[1] === wineId)
-  }
-
   // ── WineEntry serialization ────────────────────────────────────────────────
 
   private wineToRow(w: WineEntry): string[] {
@@ -173,7 +155,11 @@ export class SheetsAdapter implements StorageAdapter {
       w.denomination ?? '',
       w.grape_varieties != null ? JSON.stringify(w.grape_varieties) : '',
       w.label_image_url ?? '',
-      w.status,
+      String(w.tag_discovered),
+      String(w.tag_wishlist),
+      String(w.tag_cellar),
+      String(w.tag_consumed),
+      String(w.cellar_quantity),
       w.cellar_category ?? '',
       w.drinking_window?.start ?? '',
       w.drinking_window?.end ?? '',
@@ -181,8 +167,8 @@ export class SheetsAdapter implements StorageAdapter {
       w.my_rating ?? '',
       JSON.stringify(w.my_tags),
       w.date_added,
-      w.date_consumed ?? '',
-      w.tasting_note_id ?? '',
+      w.date_first_consumed ?? '',
+      w.latest_tasting_note_id ?? '',
       w.expert_reviews != null ? JSON.stringify(w.expert_reviews) : '',
       w.community_sentiment ?? '',
       w.community_excerpts != null ? JSON.stringify(w.community_excerpts) : '',
@@ -214,13 +200,17 @@ export class SheetsAdapter implements StorageAdapter {
       quality_classification: orNull(c(WINE_COLS.quality_classification)),
       vineyard: orNull(c(WINE_COLS.vineyard)),
       label_image_url: orNull(c(WINE_COLS.label_image_url)),
-      status: (c(WINE_COLS.status) || 'discovered') as WineStatus,
+      tag_discovered: boolCell(c(WINE_COLS.tag_discovered)),
+      tag_wishlist: boolCell(c(WINE_COLS.tag_wishlist)),
+      tag_cellar: boolCell(c(WINE_COLS.tag_cellar)),
+      tag_consumed: boolCell(c(WINE_COLS.tag_consumed)),
+      cellar_quantity: c(WINE_COLS.cellar_quantity) ? parseInt(c(WINE_COLS.cellar_quantity), 10) : 0,
       cellar_category: orNull<CellarCategory>(c(WINE_COLS.cellar_category)),
       drinking_window: drinkingWindow,
       vintage_rating: orNull<VintageRating>(c(WINE_COLS.vintage_rating)),
       my_rating: orNull<MyRating>(c(WINE_COLS.my_rating)),
       my_tags: safeParseJSON<string[]>(c(WINE_COLS.my_tags), []),
-      tasting_note_id: orNull(c(WINE_COLS.tasting_note_id)),
+      latest_tasting_note_id: orNull(c(WINE_COLS.latest_tasting_note_id)),
       expert_reviews: safeParseJSON<ExpertReview[] | null>(c(WINE_COLS.expert_reviews), null),
       community_sentiment: orNull(c(WINE_COLS.community_sentiment)),
       community_excerpts: safeParseJSON<string[] | null>(c(WINE_COLS.community_excerpts), null),
@@ -230,55 +220,7 @@ export class SheetsAdapter implements StorageAdapter {
       purchased_from: orNull(c(WINE_COLS.purchased_from)),
       advice_linked: safeParseJSON<string[] | null>(c(WINE_COLS.advice_linked), null),
       date_added: c(WINE_COLS.date_added),
-      date_consumed: orNull(c(WINE_COLS.date_consumed)),
-    }
-  }
-
-  // ── CellarEntry serialization ──────────────────────────────────────────────
-
-  private cellarToRow(e: CellarEntry): string[] {
-    return [
-      e.id,
-      e.wine_id,
-      String(e.quantity),
-      e.location_notes ?? '',
-      e.date_acquired ?? '',
-      e.price_paid != null ? String(e.price_paid) : '',
-      e.purchased_from ?? '',
-    ]
-  }
-
-  private rowToCellar(row: string[]): CellarEntry {
-    const c = (i: number) => cell(row, i)
-    return {
-      id: c(CELLAR_COLS.id),
-      wine_id: c(CELLAR_COLS.wine_id),
-      quantity: parseInt(c(CELLAR_COLS.quantity), 10) || 0,
-      location_notes: orNull(c(CELLAR_COLS.location_notes)),
-      date_acquired: orNull(c(CELLAR_COLS.date_acquired)),
-      price_paid: c(CELLAR_COLS.price_paid) ? parseFloat(c(CELLAR_COLS.price_paid)) : null,
-      purchased_from: orNull(c(CELLAR_COLS.purchased_from)),
-    }
-  }
-
-  // ── WishlistEntry serialization ────────────────────────────────────────────
-
-  private wishlistToRow(e: WishlistEntry): string[] {
-    return [
-      e.id,
-      e.wine_id,
-      e.wishlist_notes ?? '',
-      e.priority != null ? String(e.priority) : '',
-    ]
-  }
-
-  private rowToWishlist(row: string[]): WishlistEntry {
-    const c = (i: number) => cell(row, i)
-    return {
-      id: c(WISHLIST_COLS.id),
-      wine_id: c(WISHLIST_COLS.wine_id),
-      wishlist_notes: orNull(c(WISHLIST_COLS.wishlist_notes)),
-      priority: c(WISHLIST_COLS.priority) ? parseInt(c(WISHLIST_COLS.priority), 10) : null,
+      date_first_consumed: orNull(c(WINE_COLS.date_first_consumed)),
     }
   }
 
@@ -377,8 +319,6 @@ export class SheetsAdapter implements StorageAdapter {
   async setupHeaders(): Promise<void> {
     await Promise.all([
       this.writeHeaders(SHEET_NAMES.wines, WINE_HEADERS),
-      this.writeHeaders(SHEET_NAMES.cellar, CELLAR_HEADERS),
-      this.writeHeaders(SHEET_NAMES.wishlist, WISHLIST_HEADERS),
       this.writeHeaders(SHEET_NAMES.tastingNotes, TASTING_NOTE_HEADERS),
       this.writeHeaders(SHEET_NAMES.advice, ADVICE_HEADERS),
     ])
@@ -390,7 +330,9 @@ export class SheetsAdapter implements StorageAdapter {
     const wine: WineEntry = {
       ...data,
       id: randomUUID(),
-      tasting_note_id: null,
+      tag_discovered: data.tag_discovered ?? true,
+      cellar_quantity: data.cellar_quantity ?? 0,
+      latest_tasting_note_id: null,
       advice_linked: null,
       expert_reviews: null,
       community_sentiment: null,
@@ -412,10 +354,13 @@ export class SheetsAdapter implements StorageAdapter {
     const rows = await this.readSheet(SHEET_NAMES.wines)
     let wines = rows.filter((r) => r[0]).map((r) => this.rowToWine(r))
 
-    if (filter?.status) wines = wines.filter((w) => w.status === filter.status)
+    if (filter?.tag_discovered !== undefined) wines = wines.filter((w) => w.tag_discovered === filter.tag_discovered)
+    if (filter?.tag_wishlist !== undefined) wines = wines.filter((w) => w.tag_wishlist === filter.tag_wishlist)
+    if (filter?.tag_cellar !== undefined) wines = wines.filter((w) => w.tag_cellar === filter.tag_cellar)
+    if (filter?.tag_consumed !== undefined) wines = wines.filter((w) => w.tag_consumed === filter.tag_consumed)
+    if (filter?.has_tasting_note) wines = wines.filter((w) => w.latest_tasting_note_id !== null)
     if (filter?.my_rating) wines = wines.filter((w) => w.my_rating === filter.my_rating)
     if (filter?.region) wines = wines.filter((w) => w.region === filter.region)
-    if (filter?.has_tasting_note) wines = wines.filter((w) => w.tasting_note_id !== null)
 
     return wines
   }
@@ -431,37 +376,27 @@ export class SheetsAdapter implements StorageAdapter {
     return updated
   }
 
-  async promoteWine(id: string, toStatus: WineStatus): Promise<WineEntry> {
-    const wine = await this.getWine(id)
-    if (!wine) throw new Error(`Wine not found: ${id}`)
-
-    const currentIdx = STATUS_ORDER.indexOf(wine.status)
-    const targetIdx = STATUS_ORDER.indexOf(toStatus)
-
-    if (targetIdx <= currentIdx) {
-      throw new Error(
-        `Cannot move wine from '${wine.status}' to '${toStatus}'. ` +
-          `Status must advance forward: ${STATUS_ORDER.join(' → ')}`
-      )
-    }
-
-    const updates: UpdateWineInput = { status: toStatus }
-    if (toStatus === 'consumed') {
-      updates.date_consumed = new Date().toISOString()
-    }
-
-    return this.updateWine(id, updates)
-  }
-
   // ── Tasting notes ──────────────────────────────────────────────────────────
 
   async createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
     const note: TastingNote = { ...data, id: randomUUID() }
     await this.appendRow(SHEET_NAMES.tastingNotes, this.tastingNoteToRow(note))
-    await this.updateWine(data.wine_id, {
-      tasting_note_id: note.id,
+
+    const wine = await this.getWine(data.wine_id)
+    if (!wine) throw new Error(`Wine not found: ${data.wine_id}`)
+
+    const updates: UpdateWineInput = {
+      latest_tasting_note_id: note.id,
       my_tags: data.tags,
-    })
+      my_rating: data.my_rating,
+      tag_consumed: true,
+    }
+    // Set date_first_consumed only on the first note ever saved for this wine
+    if (!wine.tag_consumed) {
+      updates.date_first_consumed = new Date().toISOString()
+    }
+
+    await this.updateWine(data.wine_id, updates)
     return note
   }
 
@@ -473,7 +408,10 @@ export class SheetsAdapter implements StorageAdapter {
 
   async listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {
     const rows = await this.readSheet(SHEET_NAMES.tastingNotes)
-    return rows.filter((r) => r[1] === wineId).map((r) => this.rowToTastingNote(r))
+    return rows
+      .filter((r) => r[1] === wineId)
+      .map((r) => this.rowToTastingNote(r))
+      .sort((a, b) => b.tasted_at.localeCompare(a.tasted_at))
   }
 
   // ── Advice ─────────────────────────────────────────────────────────────────
@@ -505,63 +443,5 @@ export class SheetsAdapter implements StorageAdapter {
     if (filter?.wine_id) entries = entries.filter((e) => e.wine_id === filter.wine_id)
 
     return entries
-  }
-
-  // ── Cellar entries ─────────────────────────────────────────────────────────
-
-  async upsertCellarEntry(wineId: string, data: UpsertCellarInput): Promise<CellarEntry> {
-    const rows = await this.readSheet(SHEET_NAMES.cellar)
-    const index = this.findByWineId(rows, wineId)
-
-    if (index === -1) {
-      const entry: CellarEntry = { ...data, id: randomUUID(), wine_id: wineId }
-      await this.appendRow(SHEET_NAMES.cellar, this.cellarToRow(entry))
-      return entry
-    }
-
-    const current = this.rowToCellar(rows[index])
-    const updated: CellarEntry = { ...current, ...data }
-    await this.updateRow(SHEET_NAMES.cellar, index, this.cellarToRow(updated))
-    return updated
-  }
-
-  async getCellarEntry(wineId: string): Promise<CellarEntry | null> {
-    const rows = await this.readSheet(SHEET_NAMES.cellar)
-    const row = rows.find((r) => r[1] === wineId)
-    return row ? this.rowToCellar(row) : null
-  }
-
-  async listCellarEntries(): Promise<CellarEntry[]> {
-    const rows = await this.readSheet(SHEET_NAMES.cellar)
-    return rows.filter((r) => r[0]).map((r) => this.rowToCellar(r))
-  }
-
-  // ── Wishlist entries ───────────────────────────────────────────────────────
-
-  async upsertWishlistEntry(wineId: string, data: UpsertWishlistInput): Promise<WishlistEntry> {
-    const rows = await this.readSheet(SHEET_NAMES.wishlist)
-    const index = this.findByWineId(rows, wineId)
-
-    if (index === -1) {
-      const entry: WishlistEntry = { ...data, id: randomUUID(), wine_id: wineId }
-      await this.appendRow(SHEET_NAMES.wishlist, this.wishlistToRow(entry))
-      return entry
-    }
-
-    const current = this.rowToWishlist(rows[index])
-    const updated: WishlistEntry = { ...current, ...data }
-    await this.updateRow(SHEET_NAMES.wishlist, index, this.wishlistToRow(updated))
-    return updated
-  }
-
-  async getWishlistEntry(wineId: string): Promise<WishlistEntry | null> {
-    const rows = await this.readSheet(SHEET_NAMES.wishlist)
-    const row = rows.find((r) => r[1] === wineId)
-    return row ? this.rowToWishlist(row) : null
-  }
-
-  async listWishlistEntries(): Promise<WishlistEntry[]> {
-    const rows = await this.readSheet(SHEET_NAMES.wishlist)
-    return rows.filter((r) => r[0]).map((r) => this.rowToWishlist(r))
   }
 }

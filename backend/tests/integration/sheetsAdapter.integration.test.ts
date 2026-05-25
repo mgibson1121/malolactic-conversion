@@ -3,13 +3,12 @@
  *
  * Requirements:
  *   GOOGLE_SHEETS_CREDENTIALS  — path to service account JSON
- *   GOOGLE_SHEETS_SPREADSHEET_ID — ID of a sheet with 5 tabs:
- *                                   wines, cellar, wishlist, tasting_notes, advice
+ *   GOOGLE_SHEETS_SPREADSHEET_ID — ID of a sheet with 3 tabs:
+ *                                   wines, tasting_notes, advice
  *
  * Run with: npm run test:integration
  *
- * These tests write real rows to the spreadsheet. The rows are identifiable by
- * the "INTEGRATION_TEST" prefix in the wine name. Manual cleanup may be needed.
+ * These tests write real rows to the spreadsheet. Manual cleanup may be needed.
  */
 import { SheetsAdapter } from '../../sheets/SheetsAdapter'
 import { createSheetsClient } from '../../sheets/client'
@@ -36,7 +35,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
     await adapter.setupHeaders()
   })
 
-  it('full lifecycle: create → list → update → promote → consume', async () => {
+  it('full lifecycle: create → list → update tags → add note', async () => {
     const wine = await adapter.createWine({
       producer: 'Georges Roumier',
       vintage: 2018,
@@ -44,7 +43,11 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       denomination: 'Chambolle-Musigny',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: { start: '2028-01-01', end: '2045-12-31' },
       vintage_rating: 'very_good',
@@ -53,7 +56,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
       cuvee: null,
@@ -69,28 +72,27 @@ maybeDescribe('SheetsAdapter (integration)', () => {
     expect(fetched!.drinking_window?.start).toBe('2028-01-01')
 
     // Update rating
-    const updated = await adapter.updateWine(wine.id, { my_rating: 'great' })
-    expect(updated.my_rating).toBe('great')
+    const updated = await adapter.updateWine(wine.id, { my_rating: 'outstanding' })
+    expect(updated.my_rating).toBe('outstanding')
 
     // Verify update persisted
     const refetched = await adapter.getWine(wine.id)
-    expect(refetched!.my_rating).toBe('great')
+    expect(refetched!.my_rating).toBe('outstanding')
 
-    // Status lifecycle
-    const onWishlist = await adapter.promoteWine(wine.id, 'wishlist')
-    expect(onWishlist.status).toBe('wishlist')
+    // Add to wishlist and cellar via tag toggles
+    const onWishlist = await adapter.updateWine(wine.id, { tag_wishlist: true })
+    expect(onWishlist.tag_wishlist).toBe(true)
 
-    const inCellar = await adapter.promoteWine(wine.id, 'cellar')
-    expect(inCellar.status).toBe('cellar')
-
-    const consumed = await adapter.promoteWine(wine.id, 'consumed')
-    expect(consumed.status).toBe('consumed')
-    expect(consumed.date_consumed).toBeTruthy()
+    const inCellar = await adapter.updateWine(wine.id, { tag_cellar: true, cellar_quantity: 6 })
+    expect(inCellar.tag_cellar).toBe(true)
+    expect(inCellar.cellar_quantity).toBe(6)
 
     // Verify final state persisted
     const final = await adapter.getWine(wine.id)
-    expect(final!.status).toBe('consumed')
-    expect(final!.date_consumed).toBeTruthy()
+    expect(final!.tag_discovered).toBe(true)
+    expect(final!.tag_wishlist).toBe(true)
+    expect(final!.tag_cellar).toBe(true)
+    expect(final!.cellar_quantity).toBe(6)
   })
 
   it('creates and retrieves a tasting note', async () => {
@@ -101,7 +103,11 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       denomination: 'Barolo',
       grape_varieties: ['Nebbiolo'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: 'long_term',
       drinking_window: null,
       vintage_rating: 'very_good',
@@ -110,7 +116,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
       cuvee: null,
@@ -134,7 +140,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       palate_flavour_intensity: 'pronounced',
       palate_finish: 'long',
       quality_assessment: 'outstanding',
-      my_rating: 'great',
+      my_rating: 'outstanding',
       free_text: 'Needs 10+ years. Extraordinary potential.',
       tags: ['barolo', 'nebbiolo', 'cellar-candidate'],
     })
@@ -146,10 +152,12 @@ maybeDescribe('SheetsAdapter (integration)', () => {
     expect(found!.nose_primary_aromas).toEqual(['tar', 'rose', 'cherry'])
     expect(found!.tags).toContain('barolo')
 
-    // tasting_note_id and my_tags should be written back to the wine
+    // latest_tasting_note_id, my_tags, and tag_consumed should be written back to the wine
     const updatedWine = await adapter.getWine(wine.id)
-    expect(updatedWine!.tasting_note_id).toBe(note.id)
+    expect(updatedWine!.latest_tasting_note_id).toBe(note.id)
     expect(updatedWine!.my_tags).toContain('barolo')
+    expect(updatedWine!.tag_consumed).toBe(true)
+    expect(updatedWine!.date_first_consumed).toBeTruthy()
   })
 
   it('creates an advice entry and filters by wine', async () => {
@@ -160,7 +168,11 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       denomination: 'Meursault',
       grape_varieties: ['Chardonnay'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -169,7 +181,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
       cuvee: null,
@@ -191,7 +203,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
     expect(found!.source_role).toBe('sommelier')
   })
 
-  it('manages cellar entry quantity', async () => {
+  it('manages cellar_quantity directly on the wine', async () => {
     const wine = await adapter.createWine({
       producer: null,
       vintage: 2019,
@@ -199,7 +211,11 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       denomination: 'Nuits-Saint-Georges',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 6,
       cellar_category: 'near_term',
       drinking_window: null,
       vintage_rating: null,
@@ -208,33 +224,19 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
       cuvee: null,
     })
 
-    const entry = await adapter.upsertCellarEntry(wine.id, {
-      quantity: 6,
-      location_notes: 'Integration test rack',
-      date_acquired: '2024-01-01',
-      price_paid: 55.0,
-      purchased_from: 'Test Retailer',
-    })
+    expect(wine.cellar_quantity).toBe(6)
 
-    expect(entry.quantity).toBe(6)
+    const reduced = await adapter.updateWine(wine.id, { cellar_quantity: 5 })
+    expect(reduced.cellar_quantity).toBe(5)
 
-    const reduced = await adapter.upsertCellarEntry(wine.id, {
-      quantity: 5,
-      location_notes: entry.location_notes,
-      date_acquired: entry.date_acquired,
-      price_paid: entry.price_paid,
-      purchased_from: entry.purchased_from,
-    })
-
-    expect(reduced.quantity).toBe(5)
-
-    const fetched = await adapter.getCellarEntry(wine.id)
-    expect(fetched!.quantity).toBe(5)
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched!.cellar_quantity).toBe(5)
+    expect(typeof fetched!.cellar_quantity).toBe('number')
   })
 })
