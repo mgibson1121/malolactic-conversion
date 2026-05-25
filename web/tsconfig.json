@@ -9,6 +9,7 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["../shared/*"]

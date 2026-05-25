@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
-import { CreateWineSchema, UpdateWineSchema, PromoteWineSchema } from '@shared/validation'
+import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { WineFilter } from '@shared/types'
 
 const router = Router()
@@ -26,10 +26,13 @@ router.get(
   '/',
   wrap(async (req, res) => {
     const filter: WineFilter = {}
-    if (req.query.status) filter.status = req.query.status as WineFilter['status']
+    if (req.query.tag_discovered === 'true') filter.tag_discovered = true
+    if (req.query.tag_wishlist === 'true') filter.tag_wishlist = true
+    if (req.query.tag_cellar === 'true') filter.tag_cellar = true
+    if (req.query.tag_consumed === 'true') filter.tag_consumed = true
+    if (req.query.has_tasting_note === 'true') filter.has_tasting_note = true
     if (req.query.my_rating) filter.my_rating = req.query.my_rating as WineFilter['my_rating']
     if (req.query.region) filter.region = String(req.query.region)
-    if (req.query.has_tasting_note === 'true') filter.has_tasting_note = true
     const wines = await getStorage().listWines(filter)
     res.json(wines)
   })
@@ -56,19 +59,6 @@ router.patch(
       return
     }
     const wine = await getStorage().updateWine(req.params.id, result.data)
-    res.json(wine)
-  })
-)
-
-router.post(
-  '/:id/promote',
-  wrap(async (req, res) => {
-    const result = PromoteWineSchema.safeParse(req.body)
-    if (!result.success) {
-      res.status(400).json({ error: result.error.format() })
-      return
-    }
-    const wine = await getStorage().promoteWine(req.params.id, result.data.status)
     res.json(wine)
   })
 )

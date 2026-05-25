@@ -11,8 +11,6 @@ class MockSheetsClient implements SheetsClientInterface {
   /** Backing store: sheet name → array of data rows (no header row). */
   private data: Record<string, string[][]> = {
     wines: [],
-    cellar: [],
-    wishlist: [],
     tasting_notes: [],
     advice: [],
   }
@@ -82,14 +80,17 @@ beforeEach(() => {
 describe('createWine', () => {
   it('assigns an id and date_added', async () => {
     const wine = await adapter.createWine({
-      name: 'Gevrey-Chambertin',
       producer: null,
       vintage: 2018,
       region: 'Burgundy',
       denomination: 'Gevrey-Chambertin',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -98,9 +99,10 @@ describe('createWine', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     expect(wine.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -111,25 +113,29 @@ describe('createWine', () => {
 
   it('preserves all optional fields', async () => {
     const wine = await adapter.createWine({
-      name: 'Volnay 1er Cru Caillerets',
       producer: "Domaine de la Pousse d'Or",
       vintage: 2019,
       region: 'Burgundy',
       denomination: 'Volnay',
       grape_varieties: ['Pinot Noir'],
       label_image_url: 'https://example.com/label.jpg',
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 6,
       cellar_category: 'long_term',
       drinking_window: { start: '2027-01-01', end: '2035-12-31' },
       vintage_rating: 'very_good',
-      my_rating: 'great',
+      my_rating: 'outstanding',
       my_tags: ['silky', 'floral'],
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     expect(wine.producer).toBe("Domaine de la Pousse d'Or")
@@ -138,24 +144,28 @@ describe('createWine', () => {
     expect(wine.denomination).toBe('Volnay')
     expect(wine.grape_varieties).toEqual(['Pinot Noir'])
     expect(wine.label_image_url).toBe('https://example.com/label.jpg')
-    expect(wine.status).toBe('cellar')
+    expect(wine.tag_cellar).toBe(true)
+    expect(wine.cellar_quantity).toBe(6)
     expect(wine.cellar_category).toBe('long_term')
     expect(wine.drinking_window).toEqual({ start: '2027-01-01', end: '2035-12-31' })
     expect(wine.vintage_rating).toBe('very_good')
-    expect(wine.my_rating).toBe('great')
+    expect(wine.my_rating).toBe('outstanding')
     expect(wine.my_tags).toEqual(['silky', 'floral'])
   })
 
   it('handles NV wines (null vintage)', async () => {
     const wine = await adapter.createWine({
-      name: 'Bollinger Special Cuvée',
       producer: 'Bollinger',
       vintage: null,
       region: 'Champagne',
       denomination: null,
       grape_varieties: ['Pinot Noir', 'Chardonnay', 'Pinot Meunier'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -164,25 +174,60 @@ describe('createWine', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     expect(wine.vintage).toBeNull()
+  })
+
+  it('defaults tag_discovered to true and cellar_quantity to 0', async () => {
+    const wine = await adapter.createWine({
+      producer: 'Test',
+      vintage: 2020,
+      region: 'Burgundy',
+      denomination: null,
+      grape_varieties: null,
+      label_image_url: null,
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
+      cellar_category: null,
+      drinking_window: null,
+      vintage_rating: null,
+      my_rating: null,
+      my_tags: [],
+      wishlist_notes: null,
+      price_paid: null,
+      purchased_from: null,
+      date_first_consumed: null,
+      quality_classification: null,
+      vineyard: null,
+      cuvee: null,
+    })
+    expect(wine.tag_discovered).toBe(true)
+    expect(wine.cellar_quantity).toBe(0)
+    expect(wine.latest_tasting_note_id).toBeNull()
   })
 })
 
 describe('getWine', () => {
   it('returns the wine after creation', async () => {
     const created = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Giacomo Conterno',
       vintage: 2016,
       region: 'Piedmont',
       denomination: 'Barolo',
       grape_varieties: ['Nebbiolo'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: 'very_good',
@@ -191,15 +236,16 @@ describe('getWine', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(created.id)
     expect(fetched).not.toBeNull()
     expect(fetched!.id).toBe(created.id)
-    expect(fetched!.name).toBe('Barolo')
+    expect(fetched!.denomination).toBe('Barolo')
     expect(fetched!.producer).toBe('Giacomo Conterno')
     expect(fetched!.vintage_rating).toBe('very_good')
   })
@@ -213,35 +259,42 @@ describe('getWine', () => {
 describe('listWines', () => {
   beforeEach(async () => {
     await adapter.createWine({
-      name: 'Muscadet',
       producer: null,
       vintage: 2022,
       region: 'Loire',
       denomination: 'Muscadet',
       grape_varieties: ['Melon de Bourgogne'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
-      my_rating: 'ok',
+      my_rating: 'acceptable',
       my_tags: [],
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     await adapter.createWine({
-      name: 'Chablis Grand Cru',
       producer: 'Raveneau',
       vintage: 2020,
       region: 'Burgundy',
       denomination: 'Chablis',
       grape_varieties: ['Chardonnay'],
       label_image_url: null,
-      status: 'wishlist',
+      tag_discovered: true,
+      tag_wishlist: true,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: 'good',
@@ -250,9 +303,10 @@ describe('listWines', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
   })
 
@@ -261,26 +315,33 @@ describe('listWines', () => {
     expect(wines).toHaveLength(2)
   })
 
-  it('filters by status', async () => {
-    const discovered = await adapter.listWines({ status: 'discovered' })
-    expect(discovered).toHaveLength(1)
-    expect(discovered[0].name).toBe('Muscadet')
+  it('filters by tag_discovered', async () => {
+    const discovered = await adapter.listWines({ tag_discovered: true })
+    expect(discovered).toHaveLength(2)
+  })
 
-    const wishlist = await adapter.listWines({ status: 'wishlist' })
+  it('filters by tag_wishlist', async () => {
+    const wishlist = await adapter.listWines({ tag_wishlist: true })
     expect(wishlist).toHaveLength(1)
-    expect(wishlist[0].name).toBe('Chablis Grand Cru')
+    expect(wishlist[0].denomination).toBe('Chablis')
+  })
+
+  it('filters by tag_wishlist false', async () => {
+    const notWishlist = await adapter.listWines({ tag_wishlist: false })
+    expect(notWishlist).toHaveLength(1)
+    expect(notWishlist[0].denomination).toBe('Muscadet')
   })
 
   it('filters by my_rating', async () => {
-    const okWines = await adapter.listWines({ my_rating: 'ok' })
+    const okWines = await adapter.listWines({ my_rating: 'acceptable' })
     expect(okWines).toHaveLength(1)
-    expect(okWines[0].name).toBe('Muscadet')
+    expect(okWines[0].denomination).toBe('Muscadet')
   })
 
   it('filters by region', async () => {
     const burgundy = await adapter.listWines({ region: 'Burgundy' })
     expect(burgundy).toHaveLength(1)
-    expect(burgundy[0].name).toBe('Chablis Grand Cru')
+    expect(burgundy[0].denomination).toBe('Chablis')
   })
 
   it('filters by has_tasting_note', async () => {
@@ -301,21 +362,24 @@ describe('listWines', () => {
     const withNotes = await adapter.listWines({ has_tasting_note: true })
     expect(withNotes).toHaveLength(1)
     expect(withNotes[0].id).toBe(wineWithNote.id)
-    expect(withNotes[0].tasting_note_id).not.toBeNull()
+    expect(withNotes[0].latest_tasting_note_id).not.toBeNull()
   })
 })
 
 describe('updateWine', () => {
   it('updates specified fields without changing others', async () => {
     const wine = await adapter.createWine({
-      name: 'Rioja Reserva',
       producer: 'CVNE',
       vintage: 2017,
       region: 'Rioja',
       denomination: null,
       grape_varieties: ['Tempranillo'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -324,9 +388,10 @@ describe('updateWine', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -336,91 +401,84 @@ describe('updateWine', () => {
 
     expect(updated.my_rating).toBe('good')
     expect(updated.my_tags).toEqual(['earthy', 'tobacco'])
-    expect(updated.name).toBe('Rioja Reserva')
     expect(updated.producer).toBe('CVNE')
   })
 
-  it('throws when the wine does not exist', async () => {
-    await expect(
-      adapter.updateWine('00000000-0000-0000-0000-000000000000', { my_rating: 'good' })
-    ).rejects.toThrow('Wine not found')
-  })
-})
-
-// ─── Status lifecycle ─────────────────────────────────────────────────────────
-
-describe('promoteWine', () => {
-  async function createDiscoveredWine() {
-    return adapter.createWine({
-      name: 'Pommard',
-      producer: 'Comte Armand',
-      vintage: 2015,
+  it('can toggle individual tags without changing other tags', async () => {
+    const wine = await adapter.createWine({
+      producer: 'DRC',
+      vintage: 2018,
       region: 'Burgundy',
-      denomination: 'Pommard',
+      denomination: 'Vosne-Romanée',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
-      vintage_rating: 'very_good',
+      vintage_rating: null,
       my_rating: null,
       my_tags: [],
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
-  }
 
-  it('advances discovered → wishlist', async () => {
-    const wine = await createDiscoveredWine()
-    const promoted = await adapter.promoteWine(wine.id, 'wishlist')
-    expect(promoted.status).toBe('wishlist')
+    const updated = await adapter.updateWine(wine.id, {
+      tag_wishlist: true,
+      tag_cellar: true,
+    })
+
+    expect(updated.tag_discovered).toBe(true)
+    expect(updated.tag_wishlist).toBe(true)
+    expect(updated.tag_cellar).toBe(true)
+    expect(updated.tag_consumed).toBe(false)
   })
 
-  it('advances wishlist → cellar', async () => {
-    const wine = await createDiscoveredWine()
-    await adapter.promoteWine(wine.id, 'wishlist')
-    const promoted = await adapter.promoteWine(wine.id, 'cellar')
-    expect(promoted.status).toBe('cellar')
-  })
+  it('updates cellar_quantity directly on the wine', async () => {
+    const wine = await adapter.createWine({
+      producer: 'Rousseau',
+      vintage: 2019,
+      region: 'Burgundy',
+      denomination: 'Gevrey-Chambertin',
+      grape_varieties: ['Pinot Noir'],
+      label_image_url: null,
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 0,
+      cellar_category: null,
+      drinking_window: null,
+      vintage_rating: null,
+      my_rating: null,
+      my_tags: [],
+      wishlist_notes: null,
+      price_paid: null,
+      purchased_from: null,
+      date_first_consumed: null,
+      quality_classification: null,
+      vineyard: null,
+      cuvee: null,
+    })
 
-  it('advances cellar → consumed and sets date_consumed', async () => {
-    const wine = await createDiscoveredWine()
-    await adapter.promoteWine(wine.id, 'wishlist')
-    await adapter.promoteWine(wine.id, 'cellar')
-    const promoted = await adapter.promoteWine(wine.id, 'consumed')
-    expect(promoted.status).toBe('consumed')
-    expect(promoted.date_consumed).toBeTruthy()
-    expect(new Date(promoted.date_consumed!).getTime()).not.toBeNaN()
-  })
+    const updated = await adapter.updateWine(wine.id, { cellar_quantity: 6 })
+    expect(updated.cellar_quantity).toBe(6)
 
-  it('can skip steps (discovered → cellar)', async () => {
-    const wine = await createDiscoveredWine()
-    const promoted = await adapter.promoteWine(wine.id, 'cellar')
-    expect(promoted.status).toBe('cellar')
-  })
-
-  it('throws when trying to move backward (cellar → wishlist)', async () => {
-    const wine = await createDiscoveredWine()
-    await adapter.promoteWine(wine.id, 'cellar')
-    await expect(adapter.promoteWine(wine.id, 'wishlist')).rejects.toThrow(
-      /Cannot move wine/
-    )
-  })
-
-  it('throws when trying to move to the same status', async () => {
-    const wine = await createDiscoveredWine()
-    await expect(adapter.promoteWine(wine.id, 'discovered')).rejects.toThrow(
-      /Cannot move wine/
-    )
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched!.cellar_quantity).toBe(6)
   })
 
   it('throws when the wine does not exist', async () => {
     await expect(
-      adapter.promoteWine('00000000-0000-0000-0000-000000000000', 'wishlist')
+      adapter.updateWine('00000000-0000-0000-0000-000000000000', { my_rating: 'good' })
     ).rejects.toThrow('Wine not found')
   })
 })
@@ -432,14 +490,17 @@ describe('tasting notes', () => {
 
   beforeEach(async () => {
     const wine = await adapter.createWine({
-      name: 'Chambolle-Musigny',
       producer: 'Georges Roumier',
       vintage: 2018,
       region: 'Burgundy',
       denomination: 'Chambolle-Musigny',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 3,
       cellar_category: 'long_term',
       drinking_window: null,
       vintage_rating: 'very_good',
@@ -448,9 +509,10 @@ describe('tasting notes', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
     wineId = wine.id
   })
@@ -474,7 +536,7 @@ describe('tasting notes', () => {
       palate_flavour_intensity: 'medium_plus',
       palate_finish: 'long',
       quality_assessment: 'outstanding',
-      my_rating: 'great',
+      my_rating: 'outstanding',
       free_text: 'Silky and complex. Needs time.',
       tags: ['burgundy', 'pinot-noir', 'great-vintage'],
     })
@@ -485,7 +547,7 @@ describe('tasting notes', () => {
     expect(note.nose_primary_aromas).toEqual(['cherry', 'raspberry'])
     expect(note.nose_tertiary_aromas).toEqual(['forest floor', 'mushroom'])
     expect(note.tags).toEqual(['burgundy', 'pinot-noir', 'great-vintage'])
-    expect(note.my_rating).toBe('great')
+    expect(note.my_rating).toBe('outstanding')
   })
 
   it('retrieves a tasting note by id', async () => {
@@ -564,7 +626,7 @@ describe('tasting notes', () => {
       palate_flavour_intensity: null,
       palate_finish: null,
       quality_assessment: null,
-      my_rating: 'great',
+      my_rating: 'outstanding',
       free_text: 'Second note',
       tags: [],
     })
@@ -578,7 +640,7 @@ describe('tasting notes', () => {
     expect(notes).toEqual([])
   })
 
-  it('sets tasting_note_id on the parent wine after creation', async () => {
+  it('sets latest_tasting_note_id on the parent wine after creation', async () => {
     const note = await adapter.createTastingNote({
       wine_id: wineId,
       tasted_at: new Date().toISOString(),
@@ -603,7 +665,70 @@ describe('tasting notes', () => {
     })
 
     const wine = await adapter.getWine(wineId)
-    expect(wine!.tasting_note_id).toBe(note.id)
+    expect(wine!.latest_tasting_note_id).toBe(note.id)
+  })
+
+  it('sets tag_consumed to true on first note save', async () => {
+    const before = await adapter.getWine(wineId)
+    expect(before!.tag_consumed).toBe(false)
+
+    await adapter.createTastingNote({
+      wine_id: wineId,
+      tasted_at: new Date().toISOString(),
+      clarity: null,
+      colour_intensity: null,
+      colour: null,
+      nose_condition: null,
+      nose_intensity: null,
+      nose_primary_aromas: [],
+      nose_secondary_aromas: [],
+      nose_tertiary_aromas: [],
+      palate_sweetness: null,
+      palate_acidity: null,
+      palate_tannin: null,
+      palate_body: null,
+      palate_flavour_intensity: null,
+      palate_finish: null,
+      quality_assessment: null,
+      my_rating: 'good',
+      free_text: null,
+      tags: [],
+    })
+
+    const after = await adapter.getWine(wineId)
+    expect(after!.tag_consumed).toBe(true)
+    expect(after!.date_first_consumed).toBeTruthy()
+    expect(new Date(after!.date_first_consumed!).getTime()).not.toBeNaN()
+  })
+
+  it('does not overwrite date_first_consumed on subsequent notes', async () => {
+    await adapter.createTastingNote({
+      wine_id: wineId,
+      tasted_at: new Date().toISOString(),
+      clarity: null, colour_intensity: null, colour: null,
+      nose_condition: null, nose_intensity: null,
+      nose_primary_aromas: [], nose_secondary_aromas: [], nose_tertiary_aromas: [],
+      palate_sweetness: null, palate_acidity: null, palate_tannin: null,
+      palate_body: null, palate_flavour_intensity: null, palate_finish: null,
+      quality_assessment: null, my_rating: 'good', free_text: 'First', tags: [],
+    })
+
+    const afterFirst = await adapter.getWine(wineId)
+    const firstConsumedDate = afterFirst!.date_first_consumed
+
+    await adapter.createTastingNote({
+      wine_id: wineId,
+      tasted_at: new Date().toISOString(),
+      clarity: null, colour_intensity: null, colour: null,
+      nose_condition: null, nose_intensity: null,
+      nose_primary_aromas: [], nose_secondary_aromas: [], nose_tertiary_aromas: [],
+      palate_sweetness: null, palate_acidity: null, palate_tannin: null,
+      palate_body: null, palate_flavour_intensity: null, palate_finish: null,
+      quality_assessment: null, my_rating: 'outstanding', free_text: 'Second', tags: [],
+    })
+
+    const afterSecond = await adapter.getWine(wineId)
+    expect(afterSecond!.date_first_consumed).toBe(firstConsumedDate)
   })
 
   it('syncs tasting note tags to my_tags on the parent wine', async () => {
@@ -636,14 +761,17 @@ describe('tasting notes', () => {
 
   it('does not mix up notes between wines', async () => {
     const otherWine = await adapter.createWine({
-      name: 'Other Wine',
       producer: null,
       vintage: 2020,
       region: 'Loire',
       denomination: null,
-      grape_varieties: [],
+      grape_varieties: null,
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -652,9 +780,10 @@ describe('tasting notes', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     await adapter.createTastingNote({
@@ -710,14 +839,17 @@ describe('advice', () => {
 
   it('links advice to a wine entry', async () => {
     const wine = await adapter.createWine({
-      name: 'Meursault',
       producer: null,
       vintage: 2021,
       region: 'Burgundy',
       denomination: 'Meursault',
       grape_varieties: ['Chardonnay'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -726,9 +858,10 @@ describe('advice', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -749,14 +882,17 @@ describe('advice', () => {
 
   it('appends advice id to advice_linked on the parent wine', async () => {
     const wine = await adapter.createWine({
-      name: 'Puligny-Montrachet',
       producer: 'Leflaive',
       vintage: 2020,
       region: 'Burgundy',
       denomination: 'Puligny-Montrachet',
       grape_varieties: ['Chardonnay'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -765,9 +901,10 @@ describe('advice', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const a1 = await adapter.createAdvice({
@@ -832,221 +969,22 @@ describe('advice', () => {
   })
 })
 
-// ─── Cellar entries ───────────────────────────────────────────────────────────
-
-describe('cellar entries', () => {
-  let wineId: string
-
-  beforeEach(async () => {
-    const wine = await adapter.createWine({
-      name: 'Nuits-Saint-Georges',
-      producer: 'Domaine Forey',
-      vintage: 2017,
-      region: 'Burgundy',
-      denomination: 'Nuits-Saint-Georges',
-      grape_varieties: ['Pinot Noir'],
-      label_image_url: null,
-      status: 'cellar',
-      cellar_category: 'near_term',
-      drinking_window: null,
-      vintage_rating: null,
-      my_rating: null,
-      my_tags: [],
-      wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_consumed: null,
-      quality_classification: null,
-      vineyard: null,
-    })
-    wineId = wine.id
-  })
-
-  it('creates a cellar entry', async () => {
-    const entry = await adapter.upsertCellarEntry(wineId, {
-      quantity: 6,
-      location_notes: 'Bottom rack, left',
-      date_acquired: '2024-03-15',
-      price_paid: 45.0,
-      purchased_from: 'Astor Wines',
-    })
-
-    expect(entry.id).toBeTruthy()
-    expect(entry.wine_id).toBe(wineId)
-    expect(entry.quantity).toBe(6)
-    expect(entry.location_notes).toBe('Bottom rack, left')
-    expect(entry.price_paid).toBe(45.0)
-    expect(entry.purchased_from).toBe('Astor Wines')
-  })
-
-  it('updates an existing cellar entry (upsert)', async () => {
-    await adapter.upsertCellarEntry(wineId, {
-      quantity: 6,
-      location_notes: null,
-      date_acquired: null,
-      price_paid: null,
-      purchased_from: null,
-    })
-
-    const updated = await adapter.upsertCellarEntry(wineId, {
-      quantity: 5, // consumed one bottle
-      location_notes: 'Middle rack',
-      date_acquired: null,
-      price_paid: null,
-      purchased_from: null,
-    })
-
-    expect(updated.quantity).toBe(5)
-    expect(updated.location_notes).toBe('Middle rack')
-
-    const entries = await adapter.listCellarEntries()
-    expect(entries).toHaveLength(1) // still only one entry for this wine
-  })
-
-  it('retrieves a cellar entry by wine id', async () => {
-    await adapter.upsertCellarEntry(wineId, {
-      quantity: 3,
-      location_notes: null,
-      date_acquired: '2024-01-10',
-      price_paid: 50.0,
-      purchased_from: 'Wine.com',
-    })
-
-    const entry = await adapter.getCellarEntry(wineId)
-    expect(entry).not.toBeNull()
-    expect(entry!.quantity).toBe(3)
-  })
-
-  it('returns null when no cellar entry exists for the wine', async () => {
-    const result = await adapter.getCellarEntry('00000000-0000-0000-0000-000000000000')
-    expect(result).toBeNull()
-  })
-
-  it('lists all cellar entries', async () => {
-    const wine2 = await adapter.createWine({
-      name: 'Sancerre',
-      producer: 'Henri Bourgeois',
-      vintage: 2022,
-      region: 'Loire',
-      denomination: 'Sancerre',
-      grape_varieties: ['Sauvignon Blanc'],
-      label_image_url: null,
-      status: 'cellar',
-      cellar_category: 'table',
-      drinking_window: null,
-      vintage_rating: null,
-      my_rating: null,
-      my_tags: [],
-      wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_consumed: null,
-      quality_classification: null,
-      vineyard: null,
-    })
-
-    await adapter.upsertCellarEntry(wineId, {
-      quantity: 6,
-      location_notes: null,
-      date_acquired: null,
-      price_paid: null,
-      purchased_from: null,
-    })
-    await adapter.upsertCellarEntry(wine2.id, {
-      quantity: 3,
-      location_notes: null,
-      date_acquired: null,
-      price_paid: null,
-      purchased_from: null,
-    })
-
-    const entries = await adapter.listCellarEntries()
-    expect(entries).toHaveLength(2)
-  })
-})
-
-// ─── Wishlist entries ─────────────────────────────────────────────────────────
-
-describe('wishlist entries', () => {
-  let wineId: string
-
-  beforeEach(async () => {
-    const wine = await adapter.createWine({
-      name: 'Hermitage',
-      producer: 'Jean-Louis Chave',
-      vintage: 2019,
-      region: 'Northern Rhône',
-      denomination: 'Hermitage',
-      grape_varieties: ['Syrah'],
-      label_image_url: null,
-      status: 'wishlist',
-      cellar_category: null,
-      drinking_window: null,
-      vintage_rating: 'very_good',
-      my_rating: null,
-      my_tags: [],
-      wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_consumed: null,
-      quality_classification: null,
-      vineyard: null,
-    })
-    wineId = wine.id
-  })
-
-  it('creates a wishlist entry', async () => {
-    const entry = await adapter.upsertWishlistEntry(wineId, {
-      wishlist_notes: 'Seen at Chambers Street — $220. Buy 2 if available.',
-      priority: 1,
-    })
-
-    expect(entry.id).toBeTruthy()
-    expect(entry.wine_id).toBe(wineId)
-    expect(entry.wishlist_notes).toBe('Seen at Chambers Street — $220. Buy 2 if available.')
-    expect(entry.priority).toBe(1)
-  })
-
-  it('updates an existing wishlist entry (upsert)', async () => {
-    await adapter.upsertWishlistEntry(wineId, { wishlist_notes: 'Original note', priority: 2 })
-    const updated = await adapter.upsertWishlistEntry(wineId, {
-      wishlist_notes: 'Updated note',
-      priority: 1,
-    })
-
-    expect(updated.wishlist_notes).toBe('Updated note')
-    expect(updated.priority).toBe(1)
-
-    const entries = await adapter.listWishlistEntries()
-    expect(entries).toHaveLength(1)
-  })
-
-  it('retrieves a wishlist entry by wine id', async () => {
-    await adapter.upsertWishlistEntry(wineId, { wishlist_notes: 'Must buy', priority: null })
-    const entry = await adapter.getWishlistEntry(wineId)
-    expect(entry).not.toBeNull()
-    expect(entry!.wishlist_notes).toBe('Must buy')
-  })
-
-  it('returns null when no wishlist entry exists', async () => {
-    const result = await adapter.getWishlistEntry('00000000-0000-0000-0000-000000000000')
-    expect(result).toBeNull()
-  })
-})
-
 // ─── Serialization round-trips ────────────────────────────────────────────────
 
 describe('serialization round-trips', () => {
   it('preserves arrays through Google Sheets (JSON-encoded cells)', async () => {
     const wine = await adapter.createWine({
-      name: 'Châteauneuf-du-Pape',
       producer: 'Château Rayas',
       vintage: 2010,
       region: 'Southern Rhône',
       denomination: 'Châteauneuf-du-Pape',
       grape_varieties: ['Grenache', 'Mourvèdre', 'Syrah'],
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -1055,9 +993,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1067,14 +1006,17 @@ describe('serialization round-trips', () => {
 
   it('preserves null optional fields', async () => {
     const wine = await adapter.createWine({
-      name: 'Unknown Red',
       producer: null,
       vintage: null,
       region: null,
       denomination: null,
-      grape_varieties: [],
+      grape_varieties: null,
       label_image_url: null,
-      status: 'discovered',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -1083,9 +1025,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1094,7 +1037,7 @@ describe('serialization round-trips', () => {
     expect(fetched!.region).toBeNull()
     expect(fetched!.drinking_window).toBeNull()
     expect(fetched!.my_rating).toBeNull()
-    expect(fetched!.tasting_note_id).toBeNull()
+    expect(fetched!.latest_tasting_note_id).toBeNull()
     expect(fetched!.advice_linked).toBeNull()
     expect(fetched!.expert_reviews).toBeNull()
     expect(fetched!.community_sentiment).toBeNull()
@@ -1105,18 +1048,58 @@ describe('serialization round-trips', () => {
     expect(fetched!.purchased_from).toBeNull()
     expect(fetched!.quality_classification).toBeNull()
     expect(fetched!.vineyard).toBeNull()
+    expect(fetched!.date_first_consumed).toBeNull()
+  })
+
+  it('preserves tag booleans through serialization', async () => {
+    const wine = await adapter.createWine({
+      producer: 'Roumier',
+      vintage: 2018,
+      region: 'Burgundy',
+      denomination: 'Chambolle-Musigny',
+      grape_varieties: ['Pinot Noir'],
+      label_image_url: null,
+      tag_discovered: true,
+      tag_wishlist: true,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 3,
+      cellar_category: 'near_term',
+      drinking_window: null,
+      vintage_rating: null,
+      my_rating: null,
+      my_tags: [],
+      wishlist_notes: null,
+      price_paid: null,
+      purchased_from: null,
+      date_first_consumed: null,
+      quality_classification: null,
+      vineyard: null,
+      cuvee: null,
+    })
+
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched!.tag_discovered).toBe(true)
+    expect(fetched!.tag_wishlist).toBe(true)
+    expect(fetched!.tag_cellar).toBe(true)
+    expect(fetched!.tag_consumed).toBe(false)
+    expect(fetched!.cellar_quantity).toBe(3)
+    expect(typeof fetched!.cellar_quantity).toBe('number')
   })
 
   it('preserves expert_reviews as a JSON round-trip', async () => {
     const wine = await adapter.createWine({
-      name: 'Gevrey-Chambertin',
       producer: 'Rousseau',
       vintage: 2019,
       region: 'Burgundy',
       denomination: 'Gevrey-Chambertin',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: 'long_term',
       drinking_window: null,
       vintage_rating: 'very_good',
@@ -1125,9 +1108,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const reviews = [
@@ -1150,14 +1134,17 @@ describe('serialization round-trips', () => {
 
   it('preserves price_data as a JSON round-trip', async () => {
     const wine = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Giacomo Conterno',
       vintage: 2016,
       region: 'Piedmont',
       denomination: 'Barolo',
       grape_varieties: ['Nebbiolo'],
       label_image_url: null,
-      status: 'wishlist',
+      tag_discovered: true,
+      tag_wishlist: true,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
@@ -1166,9 +1153,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const priceData = {
@@ -1177,7 +1165,7 @@ describe('serialization round-trips', () => {
       max_price: 140,
       retailers: [
         {
-          name: 'Chambers Street Wines',
+          name: 'K&L Wine Merchants',
           price: 95,
           url: null,
           location: 'New York, NY',
@@ -1196,14 +1184,17 @@ describe('serialization round-trips', () => {
 
   it('preserves community data as JSON round-trips', async () => {
     const wine = await adapter.createWine({
-      name: 'Hermitage',
       producer: 'Jean-Louis Chave',
       vintage: 2017,
       region: 'Northern Rhône',
       denomination: 'Hermitage',
       grape_varieties: ['Syrah'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: 'long_term',
       drinking_window: null,
       vintage_rating: 'very_good',
@@ -1212,9 +1203,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const excerpts = ['Stunning 2017. Hold until 2030+.', 'Opened young — big mistake.']
@@ -1232,14 +1224,17 @@ describe('serialization round-trips', () => {
 
   it('preserves wishlist_notes, price_paid, and purchased_from', async () => {
     const wine = await adapter.createWine({
-      name: 'Côte-Rôtie',
       producer: 'Guigal',
       vintage: 2018,
       region: 'Northern Rhône',
       denomination: 'Côte-Rôtie',
       grape_varieties: ['Syrah'],
       label_image_url: null,
-      status: 'wishlist',
+      tag_discovered: true,
+      tag_wishlist: true,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: null,
       drinking_window: null,
       vintage_rating: 'good',
@@ -1248,9 +1243,10 @@ describe('serialization round-trips', () => {
       wishlist_notes: 'Seen at Chambers St — $85. Buy 3 if available.',
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1259,7 +1255,7 @@ describe('serialization round-trips', () => {
     expect(fetched!.purchased_from).toBeNull()
 
     const updated = await adapter.updateWine(wine.id, {
-      status: 'cellar',
+      tag_cellar: true,
       price_paid: 85.0,
       purchased_from: 'Chambers Street Wines',
       wishlist_notes: null,
@@ -1276,14 +1272,17 @@ describe('serialization round-trips', () => {
 
   it('preserves drinking window date range', async () => {
     const wine = await adapter.createWine({
-      name: 'Échézeaux',
       producer: 'DRC',
       vintage: 2015,
       region: 'Burgundy',
       denomination: 'Échézeaux',
       grape_varieties: ['Pinot Noir'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: 'long_term',
       drinking_window: { start: '2025-01-01', end: '2045-12-31' },
       vintage_rating: 'very_good',
@@ -1292,54 +1291,49 @@ describe('serialization round-trips', () => {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
+      cuvee: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
     expect(fetched!.drinking_window).toEqual({ start: '2025-01-01', end: '2045-12-31' })
   })
 
-  it('preserves numeric fields (vintage, price_paid, quantity)', async () => {
+  it('preserves numeric fields (vintage, cellar_quantity, price_paid)', async () => {
     const wine = await adapter.createWine({
-      name: 'Barolo',
       producer: 'Bartolo Mascarello',
       vintage: 2013,
       region: 'Piedmont',
       denomination: 'Barolo',
       grape_varieties: ['Nebbiolo'],
       label_image_url: null,
-      status: 'cellar',
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: true,
+      tag_consumed: false,
+      cellar_quantity: 12,
       cellar_category: 'long_term',
       drinking_window: null,
       vintage_rating: null,
       my_rating: null,
       my_tags: [],
       wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_consumed: null,
-      quality_classification: null,
-      vineyard: null,
-    })
-
-    const cellarEntry = await adapter.upsertCellarEntry(wine.id, {
-      quantity: 12,
-      location_notes: null,
-      date_acquired: '2023-06-01',
       price_paid: 189.99,
       purchased_from: 'Flatiron Wines',
+      date_first_consumed: null,
+      quality_classification: null,
+      vineyard: null,
+      cuvee: null,
     })
 
-    const fetched = await adapter.getCellarEntry(wine.id)
-    expect(fetched!.quantity).toBe(12)
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched!.vintage).toBe(2013)
+    expect(fetched!.cellar_quantity).toBe(12)
     expect(fetched!.price_paid).toBe(189.99)
-    expect(typeof fetched!.quantity).toBe('number')
+    expect(typeof fetched!.vintage).toBe('number')
+    expect(typeof fetched!.cellar_quantity).toBe('number')
     expect(typeof fetched!.price_paid).toBe('number')
-
-    const fetchedWine = await adapter.getWine(wine.id)
-    expect(fetchedWine!.vintage).toBe(2013)
-    expect(typeof fetchedWine!.vintage).toBe('number')
   })
 })

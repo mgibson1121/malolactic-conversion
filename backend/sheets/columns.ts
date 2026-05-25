@@ -5,73 +5,56 @@
  *
  * SHEET_COL_RANGE: upper-bound column letter used in all A:X range strings.
  * Must be updated whenever the widest tab exceeds the current value.
- * Current widest tab: wines (28 cols = A–AB).
+ * Current widest tab: wines (32 cols = A–AF).
  */
-export const SHEET_COL_RANGE = 'AB'
+export const SHEET_COL_RANGE = 'AF'
 
 export const WINE_COLS = {
   id: 0,
-  name: 1,
+  cuvee: 1,                       // Tier 2
   producer: 2,
   vintage: 3,
   region: 4,
   denomination: 5,
-  grape_varieties: 6,        // stored as JSON array string
+  grape_varieties: 6,             // Tier 2 — JSON array string or empty
   label_image_url: 7,
-  status: 8,
-  cellar_category: 9,
-  drinking_window_start: 10,
-  drinking_window_end: 11,
-  vintage_rating: 12,
-  my_rating: 13,
-  my_tags: 14,               // stored as JSON array string
-  date_added: 15,
-  date_consumed: 16,
-  tasting_note_id: 17,       // FK to tasting_notes; set by createTastingNote
-  expert_reviews: 18,        // JSON array of ExpertReview; null until Phase 6
-  community_sentiment: 19,   // string; null until Phase 7
-  community_excerpts: 20,    // JSON array of strings; null until Phase 7
-  price_data: 21,            // JSON PriceData object; null until Phase 6
-  wishlist_notes: 22,
-  price_paid: 23,
-  purchased_from: 24,
-  advice_linked: 25,         // JSON array of advice UUIDs; appended by createAdvice
-  quality_classification: 26, // Tier 2 — null until label scan or manual entry
-  vineyard: 27,               // Tier 2 — null until label scan or manual entry
+  tag_discovered: 8,              // boolean — replaces status enum
+  tag_wishlist: 9,
+  tag_cellar: 10,
+  tag_consumed: 11,
+  cellar_quantity: 12,            // integer; default 0
+  cellar_category: 13,
+  drinking_window_start: 14,
+  drinking_window_end: 15,
+  vintage_rating: 16,
+  my_rating: 17,
+  my_tags: 18,                    // JSON array string
+  date_added: 19,
+  date_first_consumed: 20,        // ISO timestamp; set once on first tag_consumed
+  latest_tasting_note_id: 21,     // FK to tasting_notes; set by createTastingNote
+  expert_reviews: 22,             // JSON array of ExpertReview; null until Phase 6
+  community_sentiment: 23,        // string; null until Phase 7
+  community_excerpts: 24,         // JSON array of strings; null until Phase 7
+  price_data: 25,                 // JSON PriceData object; null until Phase 6
+  wishlist_notes: 26,
+  price_paid: 27,
+  purchased_from: 28,
+  advice_linked: 29,              // JSON array of advice UUIDs
+  quality_classification: 30,    // Tier 2
+  vineyard: 31,                   // Tier 2
 } as const
 
 export const WINE_HEADERS = [
-  'id', 'name', 'producer', 'vintage', 'region', 'denomination',
-  'grape_varieties', 'label_image_url', 'status', 'cellar_category',
+  'id', 'cuvee', 'producer', 'vintage', 'region', 'denomination',
+  'grape_varieties', 'label_image_url',
+  'tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed',
+  'cellar_quantity', 'cellar_category',
   'drinking_window_start', 'drinking_window_end', 'vintage_rating',
-  'my_rating', 'my_tags', 'date_added', 'date_consumed', 'tasting_note_id',
+  'my_rating', 'my_tags', 'date_added', 'date_first_consumed', 'latest_tasting_note_id',
   'expert_reviews', 'community_sentiment', 'community_excerpts', 'price_data',
   'wishlist_notes', 'price_paid', 'purchased_from', 'advice_linked',
   'quality_classification', 'vineyard',
 ]
-
-export const CELLAR_COLS = {
-  id: 0,
-  wine_id: 1,
-  quantity: 2,
-  location_notes: 3,
-  date_acquired: 4,
-  price_paid: 5,
-  purchased_from: 6,
-} as const
-
-export const CELLAR_HEADERS = [
-  'id', 'wine_id', 'quantity', 'location_notes', 'date_acquired', 'price_paid', 'purchased_from',
-]
-
-export const WISHLIST_COLS = {
-  id: 0,
-  wine_id: 1,
-  wishlist_notes: 2,
-  priority: 3,
-} as const
-
-export const WISHLIST_HEADERS = ['id', 'wine_id', 'wishlist_notes', 'priority']
 
 export const TASTING_NOTE_COLS = {
   id: 0,
@@ -121,8 +104,6 @@ export const ADVICE_HEADERS = [
 
 export const SHEET_NAMES = {
   wines: 'wines',
-  cellar: 'cellar',
-  wishlist: 'wishlist',
   tastingNotes: 'tasting_notes',
   advice: 'advice',
 } as const

@@ -2,10 +2,9 @@ import { z } from 'zod'
 
 // ─── Enum schemas ─────────────────────────────────────────────────────────────
 
-export const WineStatusSchema = z.enum(['discovered', 'wishlist', 'cellar', 'consumed'])
 export const CellarCategorySchema = z.enum(['table', 'near_term', 'long_term'])
 export const VintageRatingSchema = z.enum(['below_avg', 'avg', 'good', 'very_good'])
-export const MyRatingSchema = z.enum(['pass', 'ok', 'good', 'great'])
+export const MyRatingSchema = z.enum(['poor', 'acceptable', 'good', 'very_good', 'outstanding'])
 export const AdviceSourceRoleSchema = z.enum([
   'sommelier',
   'friend',
@@ -30,7 +29,6 @@ export const DrinkingWindowSchema = z.object({
 })
 
 export const CreateWineSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
   producer: z.string().nullish().transform((v) => v ?? null),
   vintage: z
     .number()
@@ -41,11 +39,18 @@ export const CreateWineSchema = z.object({
     .transform((v) => v ?? null),
   region: z.string().nullish().transform((v) => v ?? null),
   denomination: z.string().nullish().transform((v) => v ?? null),
+  // Tier 2
   quality_classification: z.string().nullish().transform((v) => v ?? null),
   vineyard: z.string().nullish().transform((v) => v ?? null),
-  grape_varieties: z.array(z.string()).default([]),
+  cuvee: z.string().nullish().transform((v) => v ?? null),
+  grape_varieties: z.array(z.string()).nullish().transform((v) => v ?? null),
   label_image_url: z.string().url().nullish().transform((v) => v ?? null),
-  status: WineStatusSchema.default('discovered'),
+  // List tags — additive booleans
+  tag_discovered: z.boolean().default(true),
+  tag_wishlist: z.boolean().default(false),
+  tag_cellar: z.boolean().default(false),
+  tag_consumed: z.boolean().default(false),
+  cellar_quantity: z.number().int().min(0).default(0),
   cellar_category: CellarCategorySchema.nullish().transform((v) => v ?? null),
   drinking_window: DrinkingWindowSchema.nullish().transform((v) => v ?? null),
   vintage_rating: VintageRatingSchema.nullish().transform((v) => v ?? null),
@@ -54,14 +59,10 @@ export const CreateWineSchema = z.object({
   wishlist_notes: z.string().nullish().transform((v) => v ?? null),
   price_paid: z.number().positive().nullish().transform((v) => v ?? null),
   purchased_from: z.string().nullish().transform((v) => v ?? null),
-  date_consumed: z.string().nullish().transform((v) => v ?? null),
+  date_first_consumed: z.string().nullish().transform((v) => v ?? null),
 })
 
 export const UpdateWineSchema = CreateWineSchema.partial()
-
-export const PromoteWineSchema = z.object({
-  status: WineStatusSchema,
-})
 
 // ─── Tasting note ─────────────────────────────────────────────────────────────
 
@@ -135,25 +136,4 @@ export const CreateAdviceSchema = z.object({
   category: AdviceCategorySchema,
   content: z.string().min(1),
   captured_at: z.string().datetime({ offset: true }).default(() => new Date().toISOString()),
-})
-
-// ─── Cellar entry ─────────────────────────────────────────────────────────────
-
-export const UpsertCellarSchema = z.object({
-  quantity: z.number().int().min(0),
-  location_notes: z.string().nullish().transform((v) => v ?? null),
-  date_acquired: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullish()
-    .transform((v) => v ?? null),
-  price_paid: z.number().positive().nullish().transform((v) => v ?? null),
-  purchased_from: z.string().nullish().transform((v) => v ?? null),
-})
-
-// ─── Wishlist entry ───────────────────────────────────────────────────────────
-
-export const UpsertWishlistSchema = z.object({
-  wishlist_notes: z.string().nullish().transform((v) => v ?? null),
-  priority: z.number().int().positive().nullish().transform((v) => v ?? null),
 })

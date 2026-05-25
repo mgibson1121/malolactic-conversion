@@ -1,44 +1,44 @@
 import { useState } from 'react'
-import type { CellarCategory, CreateWineInput, WineStatus } from '@shared/types'
+import type { CellarCategory, CreateWineInput } from '@shared/types'
 
 interface Props {
-  defaultStatus: WineStatus
   onSubmit: (data: CreateWineInput) => Promise<void>
   onCancel: () => void
 }
 
-export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
-  const [name, setName] = useState('')
+export function AddWineForm({ onSubmit, onCancel }: Props) {
   const [producer, setProducer] = useState('')
   const [vintage, setVintage] = useState('')
   const [region, setRegion] = useState('')
   const [denomination, setDenomination] = useState('')
-  const [grapeVarieties, setGrapeVarieties] = useState('')
   const [qualityClassification, setQualityClassification] = useState('')
   const [vineyard, setVineyard] = useState('')
-  const [status, setStatus] = useState<WineStatus>(defaultStatus)
+  const [cuvee, setCuvee] = useState('')
+  const [grapeVarieties, setGrapeVarieties] = useState('')
   const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!producer.trim() && !denomination.trim()) return
 
+    const grapes = grapeVarieties.split(',').map((s) => s.trim()).filter(Boolean)
     const data: CreateWineInput = {
-      name: name.trim(),
       producer: producer.trim() || null,
       vintage: vintage ? parseInt(vintage, 10) : null,
       region: region.trim() || null,
       denomination: denomination.trim() || null,
-      grape_varieties: grapeVarieties
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-      label_image_url: null,
-      status,
       quality_classification: qualityClassification.trim() || null,
       vineyard: vineyard.trim() || null,
+      cuvee: cuvee.trim() || null,
+      grape_varieties: grapes.length > 0 ? grapes : null,
+      label_image_url: null,
+      tag_discovered: true,
+      tag_wishlist: false,
+      tag_cellar: false,
+      tag_consumed: false,
+      cellar_quantity: 0,
       cellar_category: cellarCategory || null,
       drinking_window: null,
       vintage_rating: null,
@@ -47,7 +47,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
       wishlist_notes: null,
       price_paid: null,
       purchased_from: null,
-      date_consumed: null,
+      date_first_consumed: null,
     }
 
     setSubmitting(true)
@@ -65,22 +65,21 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
       <form className="add-wine-form" onSubmit={handleSubmit}>
         <h2>Add Wine</h2>
 
-        <label htmlFor="wf-name">Name *</label>
-        <input
-          id="wf-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Chambolle-Musigny 1er Cru"
-          required
-          autoFocus
-        />
-
-        <label htmlFor="wf-producer">Producer</label>
+        <label htmlFor="wf-producer">Producer *</label>
         <input
           id="wf-producer"
           value={producer}
           onChange={(e) => setProducer(e.target.value)}
           placeholder="e.g. Roumier"
+          autoFocus
+        />
+
+        <label htmlFor="wf-denomination">Denomination *</label>
+        <input
+          id="wf-denomination"
+          value={denomination}
+          onChange={(e) => setDenomination(e.target.value)}
+          placeholder="e.g. Chambolle-Musigny, Barolo, Rioja DOCa"
         />
 
         <label htmlFor="wf-vintage">Vintage</label>
@@ -89,7 +88,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           type="number"
           value={vintage}
           onChange={(e) => setVintage(e.target.value)}
-          placeholder="e.g. 2019"
+          placeholder="e.g. 2019 — leave blank for NV"
           min="1800"
           max="2026"
         />
@@ -102,23 +101,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           placeholder="e.g. Burgundy"
         />
 
-        <label htmlFor="wf-denomination">Denomination</label>
-        <input
-          id="wf-denomination"
-          value={denomination}
-          onChange={(e) => setDenomination(e.target.value)}
-          placeholder="e.g. Chambolle-Musigny, Barolo, Rioja DOCa"
-        />
-
-        <label htmlFor="wf-grapes">Grape Varieties (comma-separated)</label>
-        <input
-          id="wf-grapes"
-          value={grapeVarieties}
-          onChange={(e) => setGrapeVarieties(e.target.value)}
-          placeholder="e.g. Pinot Noir"
-        />
-
-        <label htmlFor="wf-quality-classification">Quality Classification (optional)</label>
+        <label htmlFor="wf-quality-classification">Quality Classification <span className="scan-field-tier2">(Tier 2)</span></label>
         <input
           id="wf-quality-classification"
           value={qualityClassification}
@@ -126,7 +109,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           placeholder="e.g. Premier Cru, Grand Cru, Riserva, Gran Reserva"
         />
 
-        <label htmlFor="wf-vineyard">Vineyard / Lieu-dit (optional)</label>
+        <label htmlFor="wf-vineyard">Vineyard / Lieu-dit <span className="scan-field-tier2">(Tier 2)</span></label>
         <input
           id="wf-vineyard"
           value={vineyard}
@@ -134,17 +117,21 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           placeholder="e.g. Les Amoureuses, Clos Saint-Jacques"
         />
 
-        <label htmlFor="wf-status">Status</label>
-        <select
-          id="wf-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as WineStatus)}
-        >
-          <option value="discovered">Discovered</option>
-          <option value="wishlist">Wishlist</option>
-          <option value="cellar">Cellar</option>
-          <option value="consumed">Consumed</option>
-        </select>
+        <label htmlFor="wf-cuvee">Cuvée <span className="scan-field-tier2">(Tier 2)</span></label>
+        <input
+          id="wf-cuvee"
+          value={cuvee}
+          onChange={(e) => setCuvee(e.target.value)}
+          placeholder="e.g. Cristal, Belle Époque, Opus One"
+        />
+
+        <label htmlFor="wf-grapes">Grape Varieties <span className="scan-field-tier2">(Tier 2 — comma-separated)</span></label>
+        <input
+          id="wf-grapes"
+          value={grapeVarieties}
+          onChange={(e) => setGrapeVarieties(e.target.value)}
+          placeholder="e.g. Pinot Noir"
+        />
 
         <label htmlFor="wf-cellar-category">Cellar Category</label>
         <select
@@ -164,7 +151,7 @@ export function AddWineForm({ defaultStatus, onSubmit, onCancel }: Props) {
           <button type="button" className="btn-cancel" onClick={onCancel} disabled={submitting}>
             Cancel
           </button>
-          <button type="submit" className="btn-save" disabled={submitting || !name.trim()}>
+          <button type="submit" className="btn-save" disabled={submitting || (!producer.trim() && !denomination.trim())}>
             {submitting ? 'Saving…' : 'Save Wine'}
           </button>
         </div>
