@@ -1,12 +1,16 @@
-import type { WineEntry, WineStatus } from '@shared/types'
+import type { WineEntry, UpdateWineInput } from '@shared/types'
 import { WineCard } from './WineCard'
 
 interface Props {
   wines: WineEntry[]
-  onPromote: (id: string, toStatus: WineStatus) => void
+  activeTab: string
+  onEvaluate: (wine: WineEntry) => void
+  onTagUpdate: (id: string, tags: UpdateWineInput) => void
+  onQuantityChange: (id: string, delta: number) => void
+  onViewHistory: (wine: WineEntry) => void
 }
 
-export function WineList({ wines, onPromote }: Props) {
+export function WineList({ wines, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory }: Props) {
   if (wines.length === 0) {
     return <p className="empty-state">No wines here yet.</p>
   }
@@ -15,7 +19,14 @@ export function WineList({ wines, onPromote }: Props) {
     <ul className="wine-list">
       {wines.map((wine) => (
         <li key={wine.id}>
-          <WineCard wine={wine} onPromote={onPromote} />
+          <WineCard
+            wine={wine}
+            activeTab={activeTab}
+            onEvaluate={onEvaluate}
+            onTagUpdate={onTagUpdate}
+            onQuantityChange={onQuantityChange}
+            onViewHistory={onViewHistory}
+          />
         </li>
       ))}
     </ul>
