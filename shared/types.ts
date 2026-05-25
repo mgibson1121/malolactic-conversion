@@ -24,16 +24,11 @@ export interface PriceData {
   fetched_at: string     // ISO timestamp
 }
 
-// ─── Status lifecycle ─────────────────────────────────────────────────────────
-
-export type WineStatus = 'discovered' | 'wishlist' | 'cellar' | 'consumed'
-export const STATUS_ORDER: WineStatus[] = ['discovered', 'wishlist', 'cellar', 'consumed']
-
 // ─── Enum types ───────────────────────────────────────────────────────────────
 
 export type CellarCategory = 'table' | 'near_term' | 'long_term'
 export type VintageRating = 'below_avg' | 'avg' | 'good' | 'very_good'
-export type MyRating = 'pass' | 'ok' | 'good' | 'great'
+export type MyRating = 'poor' | 'acceptable' | 'good' | 'very_good' | 'outstanding'
 
 export type TastingClarity = 'clear' | 'hazy'
 export type TastingColourIntensity = 'pale' | 'medium' | 'deep'
@@ -82,7 +77,12 @@ export interface WineEntry {
   cuvee: string | null          // prestige/commercial name; also overflow for unclassified label text
   grape_varieties: string[] | null  // extracted or inferred from denomination; null if ambiguous
   label_image_url: string | null
-  status: WineStatus
+  // List tags — additive booleans; a wine can carry any combination simultaneously
+  tag_discovered: boolean   // set automatically on creation
+  tag_wishlist: boolean
+  tag_cellar: boolean
+  tag_consumed: boolean     // set automatically when first tasting note is saved
+  cellar_quantity: number   // number of bottles in the cellar; 0 by default
   cellar_category: CellarCategory | null
   drinking_window: DrinkingWindow | null
   vintage_rating: VintageRating | null
@@ -91,33 +91,14 @@ export interface WineEntry {
   wishlist_notes: string | null
   price_paid: number | null
   purchased_from: string | null
-  tasting_note_id: string | null   // FK to tasting_notes; set by createTastingNote, never user-supplied
-  advice_linked: string[] | null   // advice UUIDs; appended by createAdvice, never user-supplied
-  expert_reviews: ExpertReview[] | null  // null until Phase 6 modules populate
-  community_sentiment: string | null     // GPT-4o synthesis; null if no key configured
-  community_excerpts: string[] | null    // raw Reddit excerpts; fallback when no LLM key
-  price_data: PriceData | null           // null until Phase 6 price module populates
-  date_added: string // ISO timestamp
-  date_consumed: string | null // ISO timestamp; set when status → consumed
-}
-
-// Supplementary cellar data — created when a wine is promoted to status=cellar
-export interface CellarEntry {
-  id: string
-  wine_id: string
-  quantity: number
-  location_notes: string | null
-  date_acquired: string | null // ISO date
-  price_paid: number | null
-  purchased_from: string | null
-}
-
-// Supplementary wishlist data — created when a wine is promoted to status=wishlist
-export interface WishlistEntry {
-  id: string
-  wine_id: string
-  wishlist_notes: string | null
-  priority: number | null
+  latest_tasting_note_id: string | null   // FK to most recent tasting note; set by createTastingNote
+  advice_linked: string[] | null          // advice UUIDs; appended by createAdvice
+  expert_reviews: ExpertReview[] | null   // null until Phase 6 modules populate
+  community_sentiment: string | null      // GPT-4o synthesis; null if no key configured
+  community_excerpts: string[] | null     // raw Reddit excerpts; fallback when no LLM key
+  price_data: PriceData | null            // null until Phase 6 price module populates
+  date_added: string                      // ISO timestamp
+  date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
 }
 
 export interface TastingNote {
@@ -162,21 +143,22 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>
 export type CreateAdviceInput = Omit<AdviceEntry, 'id'>
-export type UpsertCellarInput = Omit<CellarEntry, 'id' | 'wine_id'>
-export type UpsertWishlistInput = Omit<WishlistEntry, 'id' | 'wine_id'>
 
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
 export interface WineFilter {
-  status?: WineStatus
+  tag_discovered?: boolean
+  tag_wishlist?: boolean
+  tag_cellar?: boolean
+  tag_consumed?: boolean
+  has_tasting_note?: boolean
   my_rating?: MyRating
   region?: string
-  has_tasting_note?: boolean
 }
 
 export interface AdviceFilter {
