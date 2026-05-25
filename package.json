@@ -11,6 +11,7 @@
     "test": "cd backend && npm test",
     "test:unit": "cd backend && npm run test:unit",
     "test:integration": "cd backend && npm run test:integration",
-    "test:web": "cd web && npm test"
+    "test:web": "cd web && npm test",
+    "seed": "npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/db/seed.ts"
   }
 }
