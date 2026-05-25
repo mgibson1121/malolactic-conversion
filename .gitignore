@@ -3,3 +3,5 @@ dist/
 .env
 *.log
 .DS_Store
+config/
+backend/db/wine.db
