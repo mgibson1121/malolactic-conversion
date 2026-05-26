@@ -302,6 +302,18 @@ These commits go on the current working branch, not a separate branch. Do not op
 
 The Claude.ai project context copy may lag behind — the repo is always authoritative.
 
+### Session summaries
+
+At the end of every session, Claude Code must write a session summary to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md`. The summary must include:
+
+- What was done (list of commits or logical changes)
+- Key decisions and their rationale
+- Any bugs found and fixed
+- A link to the PR once opened
+- What's next
+
+Commit the session summary with a `docs:` commit on the current working branch, as the final commit before opening the PR.
+
 ---
 
 ## 15. Constraints — Read Before Building

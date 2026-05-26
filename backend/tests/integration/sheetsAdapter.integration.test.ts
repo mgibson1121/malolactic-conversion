@@ -14,6 +14,8 @@ import { SheetsAdapter } from '../../sheets/SheetsAdapter'
 import { createSheetsClient } from '../../sheets/client'
 import type { SheetsClientInterface } from '../../sheets/SheetsAdapter'
 
+// Phase 5+: Sheets adapter is no longer the active storage path.
+// These tests require real credentials and an active spreadsheet.
 // Opt in by setting SHEETS_INTEGRATION=true in your environment.
 const SKIP =
   process.env.SHEETS_INTEGRATION !== 'true' ||
