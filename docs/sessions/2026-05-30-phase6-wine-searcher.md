@@ -40,7 +40,7 @@
 - [x] Module degrades gracefully if `WINE_SEARCHER_API_KEY` not set (returns 503 with clear message, no thrown errors)
 
 ## PR link
-_To be added after PR is opened._
+[feat: phase 6 — Wine-Searcher price integration](https://github.com/mgibson1121/malolactic-conversion/pull/3)
 
 ## What's next
 
