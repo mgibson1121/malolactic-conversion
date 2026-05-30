@@ -795,3 +795,151 @@ input.scan-field-missing {
   padding: 32px 0;
   text-align: center;
 }
+
+/* ── Price Section ───────────────────────────────────────────────────────── */
+
+.price-section {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f9f6f2;
+  border: 1px solid #e8e0d6;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.price-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.price-source-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.ws-score {
+  background: #3a1a00;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.price-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.price-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.price-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #999;
+  letter-spacing: 0.04em;
+}
+
+.price-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.price-divider {
+  color: #ccc;
+  font-size: 16px;
+}
+
+.retailer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.retailer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.retailer-name {
+  flex: 1;
+  color: #333;
+  font-weight: 500;
+}
+
+.retailer-location {
+  color: #888;
+  font-size: 11px;
+}
+
+.retailer-price {
+  font-weight: 600;
+  color: #1a1a1a;
+  min-width: 40px;
+  text-align: right;
+}
+
+.retailer-link {
+  font-size: 11px;
+  color: #7b3f00;
+  text-decoration: none;
+  border: 1px solid #c4864a;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.retailer-link:hover { background: #f5ebe0; }
+
+.price-fetched-at {
+  font-size: 10px;
+  color: #bbb;
+  text-align: right;
+}
+
+.btn-fetch-price {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid #c4864a;
+  border-radius: 4px;
+  color: #7b3f00;
+  cursor: pointer;
+}
+
+.btn-fetch-price:hover { background: #f5ebe0; }
+.btn-fetch-price:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.price-fetch-prompt {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-error {
+  font-size: 12px;
+  color: #b00020;
+}
+
+.drinking-window {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #555;
+  font-style: italic;
+}

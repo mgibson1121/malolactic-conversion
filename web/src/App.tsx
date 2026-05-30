@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
-import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine } from './api'
+import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, fetchWinePrice } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
@@ -50,10 +50,18 @@ export default function App() {
   }, [activeTab, fetchWines])
 
   const handleCreate = async (data: CreateWineInput) => {
-    await createWine(data)
+    const wine = await createWine(data)
     setShowForm(false)
     setShowScan(false)
+    // Auto-trigger price fetch after scan/create so the card is enriched immediately
+    fetchWinePrice(wine.id).catch(() => {
+      // Price fetch is best-effort — failure is silent, user can retry from the card
+    })
     fetchWines(activeTab)
+  }
+
+  const handleWineUpdated = (updated: WineEntry) => {
+    setWines((prev) => prev.map((w) => (w.id === updated.id ? updated : w)))
   }
 
   const handleEvaluateSave = async (data: CreateTastingNoteInput) => {
@@ -148,6 +156,7 @@ export default function App() {
           onTagUpdate={handleTagUpdate}
           onQuantityChange={handleQuantityChange}
           onViewHistory={handleViewHistory}
+          onWineUpdated={handleWineUpdated}
         />
       )}
     </div>

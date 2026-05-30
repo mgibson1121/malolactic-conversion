@@ -85,3 +85,9 @@ export async function createTastingNote(data: CreateTastingNoteInput): Promise<T
 export async function listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {
   return handleResponse(await fetch(`${BASE}/tasting-notes/wine/${wineId}`))
 }
+
+export async function fetchWinePrice(wineId: string): Promise<WineEntry> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${wineId}/fetch-price`, { method: 'POST' })
+  )
+}
