@@ -11,6 +11,7 @@ interface Props {
   onQuantityChange: (id: string, delta: number) => void
   onViewHistory: (wine: WineEntry) => void
   onWineUpdated: (wine: WineEntry) => void
+  onViewDetail: (wine: WineEntry) => void
 }
 
 const TAG_LABELS: Record<string, string> = {
@@ -28,7 +29,7 @@ const RATING_LABELS: Record<string, string> = {
   outstanding: 'Outstanding',
 }
 
-export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated }: Props) {
+export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail }: Props) {
   const [fetchingPrice, setFetchingPrice] = useState(false)
   const [priceError, setPriceError] = useState<string | null>(null)
 
@@ -63,7 +64,9 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
 
   return (
     <div className="wine-card">
-      <div className="wine-name">{primaryLine || '—'}</div>
+      <button className="wine-name wine-name--clickable" onClick={() => onViewDetail(wine)}>
+        {primaryLine || '—'}
+      </button>
 
       <div className="wine-meta">
         {secondaryParts.map((part, i) => (

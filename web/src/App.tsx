@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
-import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, fetchWinePrice } from './api'
+import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
 import { EvaluateForm } from './components/EvaluateForm'
 import { TastingNoteHistory } from './components/TastingNoteHistory'
+import { WineDetailModal } from './components/WineDetailModal'
 import type { CreateWineInput, TastingNote } from '@shared/types'
 
 type TabId = 'discovered' | 'wishlist' | 'cellar' | 'tasting_notes'
@@ -27,6 +28,7 @@ export default function App() {
   const [evaluatingWine, setEvaluatingWine] = useState<WineEntry | null>(null)
   const [historyWine, setHistoryWine] = useState<WineEntry | null>(null)
   const [historyNotes, setHistoryNotes] = useState<TastingNote[]>([])
+  const [detailWine, setDetailWine] = useState<WineEntry | null>(null)
 
   const fetchWines = useCallback(async (tab: TabId) => {
     setLoading(true)
@@ -49,27 +51,33 @@ export default function App() {
     fetchWines(activeTab)
   }, [activeTab, fetchWines])
 
-  const handleCreate = async (data: CreateWineInput) => {
-    const wine = await createWine(data)
+  // ── Manual add form ──────────────────────────────────────────────────────────
+  const handleFormCreate = async (data: CreateWineInput) => {
+    await createWine(data)
     setShowForm(false)
-    setShowScan(false)
-    // Auto-trigger price fetch after scan/create so the card is enriched immediately
-    fetchWinePrice(wine.id).catch(() => {
-      // Price fetch is best-effort — failure is silent, user can retry from the card
-    })
     fetchWines(activeTab)
   }
 
-  const handleWineUpdated = (updated: WineEntry) => {
-    setWines((prev) => prev.map((w) => (w.id === updated.id ? updated : w)))
+  // ── Scan flow — returns WineEntry so scan flow can manage enriching step ────
+  const handleScanSave = async (data: CreateWineInput): Promise<WineEntry> => {
+    const wine = await createWine(data)
+    fetchWines(activeTab)   // Refresh list in background
+    return wine
   }
 
+  const handleScanDone = () => {
+    setShowScan(false)
+    fetchWines(activeTab)   // Ensure list reflects any changes
+  }
+
+  // ── Tasting notes ────────────────────────────────────────────────────────────
   const handleEvaluateSave = async (data: CreateTastingNoteInput) => {
     await createTastingNote(data)
     setEvaluatingWine(null)
     fetchWines(activeTab)
   }
 
+  // ── Tag + quantity ────────────────────────────────────────────────────────────
   const handleTagUpdate = async (id: string, tags: UpdateWineInput) => {
     await updateWine(id, tags)
     fetchWines(activeTab)
@@ -83,10 +91,27 @@ export default function App() {
     fetchWines(activeTab)
   }
 
+  // ── History (legacy review history; still available from tasting notes tab) ─
   const handleViewHistory = async (wine: WineEntry) => {
     const notes = await listTastingNotesByWine(wine.id)
     setHistoryNotes(notes)
     setHistoryWine(wine)
+  }
+
+  // ── Single-wine optimistic update (from WineCard price fetch, detail modal) ─
+  const handleWineUpdated = (updated: WineEntry) => {
+    setWines((prev) => prev.map((w) => (w.id === updated.id ? updated : w)))
+    // Keep detail modal in sync
+    if (detailWine?.id === updated.id) {
+      setDetailWine(updated)
+    }
+  }
+
+  // ── Detail modal ─────────────────────────────────────────────────────────────
+  const handleViewDetail = (wine: WineEntry) => {
+    // Use the freshest copy from state if available
+    const fresh = wines.find(w => w.id === wine.id) ?? wine
+    setDetailWine(fresh)
   }
 
   return (
@@ -115,20 +140,23 @@ export default function App() {
 
       {error && <p className="error-msg">{error}</p>}
 
+      {/* Scan flow */}
       {showScan && (
         <LabelScanFlow
-          onSave={handleCreate}
-          onCancel={() => setShowScan(false)}
+          onSave={handleScanSave}
+          onDone={handleScanDone}
         />
       )}
 
+      {/* Manual add form */}
       {showForm && (
         <AddWineForm
-          onSubmit={handleCreate}
+          onSubmit={handleFormCreate}
           onCancel={() => setShowForm(false)}
         />
       )}
 
+      {/* Evaluate form */}
       {evaluatingWine && (
         <EvaluateForm
           wine={evaluatingWine}
@@ -138,11 +166,24 @@ export default function App() {
         />
       )}
 
+      {/* Tasting note history (legacy view) */}
       {historyWine && (
         <TastingNoteHistory
           wine={historyWine}
           notes={historyNotes}
           onClose={() => setHistoryWine(null)}
+        />
+      )}
+
+      {/* Wine detail modal */}
+      {detailWine && (
+        <WineDetailModal
+          wine={detailWine}
+          onClose={() => setDetailWine(null)}
+          onTagUpdate={handleTagUpdate}
+          onQuantityChange={handleQuantityChange}
+          onEvaluate={(wine) => setEvaluatingWine(wine)}
+          onWineUpdated={handleWineUpdated}
         />
       )}
 
@@ -157,6 +198,7 @@ export default function App() {
           onQuantityChange={handleQuantityChange}
           onViewHistory={handleViewHistory}
           onWineUpdated={handleWineUpdated}
+          onViewDetail={handleViewDetail}
         />
       )}
     </div>
