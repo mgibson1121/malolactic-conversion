@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-27 (expert review API research complete; Burghound/Vinous BYOK replaced by Wine-Searcher + retailer deep links; source evaluation log updated)
+> Status: In progress | Last updated: 2026-05-30 (Phase 6.5 scan UI + wine detail view added; Phase 6.6 retailer links; research and purchasing pain relievers updated)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -180,15 +180,15 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 
 **Pain Relievers**
 
-- Scan or photograph a label → app returns a populated wine entry card: name, producer, vintage, region, trusted reviews, community excerpts or synthesis, vintage rating.
-- Reviewer trust list: user maintains a list of sources they trust and distrust. App surfaces trusted sources first; mistrusted sources flagged, not hidden.
-- Vintage intelligence: for each bottle, a summary of professional and community consensus on vintage quality and approachability.
+- Scan or photograph a label → app returns a two-tab review screen. Tab 1 shows populated wine entry fields (GPT-4o extraction, with Wine-Searcher fallback for region and grape_varieties where scan couldn't extract them — fallback clearly attributed). Tab 2 shows Wine-Searcher Score, average price, and the nearest retailer to NYC with a tappable link.
+- One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) constructed from wine identity data — opens retailer product page in browser where professional reviews are published. User can save a specific product page URL back to the wine entry for future reference.
+- Vintage intelligence: for each bottle, a summary of community consensus on vintage quality and approachability (via Reddit synthesis).
 - In-store trigger: camera scan. Web trigger: iOS share sheet (v1), browser extension (future).
 
 **Gain Creators**
 
 - All configured data sources are displayed as distinct layers on the wine entry card — each source speaks in its own voice. The more sources configured, the more complete the picture.
-- Successful recommendations (bottles rated `good` or above) are tracked to quantify ROI of paid subscriptions.
+- Tapping any wine entry from any list opens a compact read-only detail view showing all known data for that wine: identity fields, status tags, saved review links, Wine-Searcher price and score, and nearest retailer.
 
 ---
 
@@ -289,14 +289,14 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 
 **Pain Relievers**
 
-- Price comparison via Wine-Searcher API: top retailers sorted by price, with location filtering.
-- Shipping policy surfaced inline alongside price — no need to navigate to checkout.
-- Drinking window and vintage rating shown on the purchase decision screen.
+- Price comparison via Wine-Searcher API: min/avg/max price and top retailers. Nearest retailer to NYC surfaced prominently with tappable link — no need to navigate to checkout separately.
+- One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) for quick access to professional reviews before committing to a purchase.
+- Wine detail view shows saved review links, Wine-Searcher score, and nearest retailer in a single compact screen — all purchasing signals in one place.
 - Prior ratings of similar wines from the same producer surfaced as a risk signal.
 
 **Gain Creators**
 
-- Shipping confidence indicator: retailer shipping policies (where publicly available) summarised alongside price comparison.
+- Wine-Searcher offer type surfaced per retailer (Retail vs. Auction vs. Pre Arrival) — flags listings that carry shipping or condition risk.
 - Collection fit summary: cellar category the bottle would fall into, how many bottles from the same producer and vintage are already held, and how the purchase would affect allocation drift.
 - Table wine finder: a dedicated recommendation surface for sub-$30 bottles the user has rated highly — scratch-the-itch alternatives to raiding the cellar.
 

@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-27
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-30
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -321,7 +321,77 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 
 ---
 
-## Phase 6.5 — Retailer review links
+## Phase 6.5 — Scan review UI + wine detail view
+
+**Goal:** Surface Wine-Searcher data meaningfully in two distinct UI contexts: the post-scan review screen and a new read-only wine detail view accessible from any list.
+
+---
+
+### Deliverable 1 — Post-scan review screen: two-tab layout
+
+The existing post-scan screen (where the user reviews and confirms a scanned wine entry before saving) gains a two-tab structure.
+
+**Tab 1 — Wine info**
+
+Displays all fields extracted from the label scan as before. One change:
+
+- If GPT-4o could not populate `region` or `grape_varieties`, the app falls back to the Wine-Searcher Wine Check API response (`region` and `grape` fields) to fill those fields. Where this fallback is used, a small "via Wine-Searcher" attribution label is shown directly beneath the field. The user can still edit the field before confirming.
+- Wine-Searcher never overwrites a field GPT-4o successfully populated.
+- `region` and `grape` are already returned by the Wine Check API call made at scan time — no additional API call required.
+
+**Tab 2 — Price & availability**
+
+Read-only. Populated async — shown as a loading state until Wine-Searcher data arrives; gracefully empty if no result.
+
+- **Wine-Searcher Score** — aggregate critic score, labelled "Wine-Searcher Score". Omit if null.
+- **Average price** — `ws_price_avg`, formatted as currency. Omit if null.
+- **Nearest retailer** — single row: merchant name, price, tappable link opening in the user's default browser. Nearest is determined by Haversine distance from NYC (40.7128° N, 74.0060° W) using retailer `latitude`/`longitude`. If no coordinates are available, fall back to the cheapest retail (`offer-type = R`) listing. Omit if no listings at all.
+
+---
+
+### Deliverable 2 — Wine detail view
+
+A new read-only screen accessible by tapping any wine entry from any list view. Replaces any existing tap behaviour on list rows. Compact label/value layout — not a form.
+
+**Fields displayed, in order:**
+
+| Field | Source | Display rule |
+|---|---|---|
+| Producer | `producer` | Always shown |
+| Denomination | `denomination` | Always shown |
+| Vintage | `vintage` | Always shown; display "NV" if null |
+| Region | `region` | Always shown |
+| Quality classification | `quality_classification` | Omit row if null |
+| Vineyard / lieu-dit | `vineyard` | Omit row if null |
+| Cuvée | `cuvee` | Omit row if null |
+| Grape varieties | `grape_varieties` | Omit row if null |
+| Status tags | `tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed` | Display as badges for whichever tags are currently true. All on one row. Read-only. |
+| Review link(s) | `retailer_links` | If one or more retailer URLs have been saved (from Phase 6.6 workflow), display each as a tappable link labelled with the retailer name (e.g. "K&L review"). Omit row entirely if none saved. |
+| Avg price | `ws_price_avg` | Labelled "Avg price (Wine-Searcher)". Omit if null. |
+| Wine-Searcher Score | `ws_score` | Labelled explicitly "Wine-Searcher Score". Omit if null. |
+| Nearest retailer | `ws_retailers` | Single closest retailer to NYC — name, price, tappable link. Same proximity logic as Tab 2 above. Omit if no retailer data. |
+
+**Layout and behaviour rules:**
+- Null Tier 2 fields are hidden entirely — no empty rows, no placeholder dashes. The view collapses around what exists.
+- Status badges sit together on one row.
+- All links open in the default browser — no in-app webview.
+- No edit controls, no Evaluate CTA. This is a reference view only.
+- Visually more compact than the Add Wine form — tight label/value pairs, not input chrome.
+- Back navigation returns to the originating list.
+
+---
+
+**Shared utility:**
+- Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts` — used by both Tab 2 and the detail view without duplication.
+
+**Schema additions (on top of Phase 6):**
+- Expand `ws_retailers` JSON per-entry to include `latitude`, `longitude`, `zip-code`, `offer-types`, `bottle-size`, `vintage` per listing — needed for proximity calculation. No new top-level columns required.
+
+**Milestone:** Post-scan screen shows wine info and pricing in separate tabs. Wine-Searcher fallback fills missing region/grape with clear attribution. Tapping any wine entry from any list opens the compact detail view.
+
+---
+
+## Phase 6.6 — Retailer review links
 
 **Goal:** Surface pre-constructed deep-link searches to trusted fine wine retailers directly from the wine entry card. Enables fast access to professional reviews and tasting notes published on retailer product pages without any scraping or API dependency.
 
@@ -337,19 +407,19 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
   - **Benchmark Wine Group** (`benchmarkwine.com`) — fine wine specialist, publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling
 - Wine entry card displays a "Find Reviews" section with one tappable button per retailer (e.g. "Search K&L", "Search Zachys")
 - Each button opens the pre-constructed search URL in the user's default browser — no in-app webview
-- User can optionally save a URL (either the search query URL or a specific product page URL) back to the wine entry as `retailer_url` — stored per retailer
-- Saved URLs are displayed as direct links on the wine entry card in subsequent sessions
+- User can optionally save a URL (either the search query URL or a specific product page URL) back to the wine entry — stored in `retailer_links` keyed by retailer slug
+- Saved URLs are displayed as tappable links in the wine detail view (Phase 6.5) in subsequent sessions
 
 **Schema additions:**
 - `retailer_links` TEXT — JSON object; keyed by retailer slug (e.g. `{ "kl": "https://...", "zachys": "https://..." }`); nullable; stores user-saved URLs only, not generated search URLs
 
 **Notes:**
 - The app never visits retailer sites — it only constructs URL strings and hands them to the OS. No ToS implications.
-- Generated search URLs are constructed fresh from wine entry data on each render — they are not stored. Only user-saved URLs (specific product pages the user has chosen to associate) are persisted.
+- Generated search URLs are constructed fresh from wine entry data on each render — they are not stored. Only user-saved URLs are persisted.
 - URL construction uses each retailer's native search endpoint where reliable (e.g. `klwines.com/search?query=...`). Verify search URL patterns against each retailer's live site before building — these can change.
-- The Burgundy Report (`burgundy-report.com`) is a candidate for a future addition. Its ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Deferred pending further evaluation — do not build in this phase.
+- The Burgundy Report (`burgundy-report.com`) is a candidate for a future addition. Its ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Deferred — do not build in this phase.
 
-**Milestone:** Wine entry card shows one-tap search buttons for all four retailers, pre-populated with wine identity data. User-saved retailer URLs persist across sessions.
+**Milestone:** Wine entry card shows one-tap search buttons for all four retailers, pre-populated with wine identity data. User-saved retailer URLs persist across sessions and appear in the wine detail view.
 
 ---
 
@@ -379,7 +449,7 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 **Deliverables:**
 - Manual review of 10–20 real wine entries enriched with pricing, community data, and retailer links
 - Verify Wine-Searcher aggregate score is returning for the wines in the collection
-- Verify retailer search URLs resolve correctly for the four configured retailers
+- Verify retailer search URLs resolve correctly for the four configured retailers (Phase 6.6)
 - Identify any schema gaps, data quality issues, or missing fields
 - Update wine entry schema and storage adapter if required
 - Document any recurring data quality issues as known limitations
@@ -478,5 +548,5 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 - [ ] Free wine data API: no suitable free API identified for Phase 2 enrichment; GPT-4o label scanning (Phase 3) is the primary enrichment path. Revisit if a reliable free option emerges.
 - [ ] Wine-Searcher API tier: start on free trial (100 calls/day) during Phase 6; confirm whether 500 calls/day ($250/month) is needed based on observed usage patterns
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning after Phase 3 is stable — potential 75% cost reduction for clean labels
-- [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition to the retailer links module or as a standalone notes layer. Deferred — do not build until Phase 6.5 is stable.
+- [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition to the retailer links module or as a standalone notes layer. Deferred — do not build until Phase 6.6 is stable.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. All three publications gate programmatic access behind enterprise/trade arrangements (Liv-ex Gold + Enterprise subscriptions, costing thousands per year). Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
