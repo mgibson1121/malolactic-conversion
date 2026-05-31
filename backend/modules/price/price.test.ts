@@ -36,122 +36,162 @@ const baseWine: WineEntry = {
   date_first_consumed: null,
 }
 
+// Minimal HTML fixture for a product page with price and critic scores
+const klHtml = `
+<html><body>
+  <h1>Domaine Leroy Gevrey-Chambertin 2018</h1>
+  <span class="price">$249.99</span>
+  <div class="scores">
+    <span>Burghound: 94</span>
+    <span>Vinous: 96</span>
+  </div>
+</body></html>
+`
+
+const emptyHtml = `<html><body><p>No results found.</p></body></html>`
+
+function mockFetch(htmlByUrl: Record<string, string>) {
+  return jest.spyOn(global, 'fetch').mockImplementation((url) => {
+    const key = Object.keys(htmlByUrl).find(k => String(url).includes(k))
+    const html = key ? htmlByUrl[key] : emptyHtml
+    return Promise.resolve(
+      new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })
+    )
+  })
+}
+
+function mockOpenAI(extractionsBySlug: Record<string, object>) {
+  const openaiModule = jest.requireMock('openai')
+  openaiModule.__setExtractions(extractionsBySlug)
+}
+
+jest.mock('openai', () => {
+  let extractionsBySlug: Record<string, object> = {}
+  const MockOpenAI = jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: jest.fn().mockImplementation(({ messages }) => {
+          const userMsg = messages.find((m: { role: string }) => m.role === 'user')?.content ?? ''
+          const slug = Object.keys(extractionsBySlug).find(s => userMsg.includes(s))
+          const extraction = slug ? extractionsBySlug[slug] : { price: null, url: '', critic_scores: [] }
+          return Promise.resolve({
+            choices: [{ message: { content: JSON.stringify(extraction) } }],
+          })
+        }),
+      },
+    },
+  }))
+  ;(MockOpenAI as unknown as { __setExtractions: (e: Record<string, object>) => void }).__setExtractions = (e: Record<string, object>) => {
+    extractionsBySlug = e
+  }
+  return MockOpenAI
+})
+
 describe('fetchPriceData', () => {
-  const originalEnv = process.env.WINE_SEARCHER_API_KEY
+  const originalKey = process.env.OPENAI_API_KEY
+
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = 'test-key'
+    jest.clearAllMocks()
+  })
 
   afterEach(() => {
-    process.env.WINE_SEARCHER_API_KEY = originalEnv
+    process.env.OPENAI_API_KEY = originalKey
     jest.restoreAllMocks()
   })
 
-  it('returns null when WINE_SEARCHER_API_KEY is not set', async () => {
-    delete process.env.WINE_SEARCHER_API_KEY
+  it('returns null when OPENAI_API_KEY is not set', async () => {
+    delete process.env.OPENAI_API_KEY
     const result = await fetchPriceData(baseWine)
     expect(result).toBeNull()
   })
 
   it('returns null when wine has no producer or denomination', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
     const emptyWine = { ...baseWine, producer: null, denomination: null }
     const result = await fetchPriceData(emptyWine)
     expect(result).toBeNull()
   })
 
-  it('returns null and does not throw when API call fails', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
+  it('returns null when all retailer fetches fail', async () => {
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network error'))
     const result = await fetchPriceData(baseWine)
     expect(result).toBeNull()
   })
 
-  it('returns null when API returns non-OK status', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response('Not Found', { status: 404 })
-    )
-    const result = await fetchPriceData(baseWine)
-    expect(result).toBeNull()
-  })
-
-  it('returns null when Wine-Searcher returns non-zero ReturnCode', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({
-        Status: { ReturnCode: 1, StatusMessage: 'No matching wines found' },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    )
-    const result = await fetchPriceData(baseWine)
-    expect(result).toBeNull()
-  })
-
-  it('parses a successful API response correctly', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
-    const mockResponse = {
-      Status: { ReturnCode: 0, StatusMessage: 'Success' },
-      Statistics: { 'price-min': 85, 'price-avg': 120, 'price-max': 200 },
-      score: 92,
-      'drink-from': '2025',
-      'drink-to': '2035',
-      Price: [
-        {
-          'merchant-name': 'K&L Wine Merchants',
-          price: 85,
-          link: 'https://klwines.com/product/1',
-          state: 'CA',
-          country: 'US',
-          'physical-address': null,
-        },
-        {
-          'merchant-name': 'Zachys',
-          price: 110,
-          link: 'https://zachys.com/product/1',
-          state: 'NY',
-          country: 'US',
-          'physical-address': null,
-        },
-      ],
-    }
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(mockResponse), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
+  it('aggregates price min/avg/max across retailers', async () => {
+    mockFetch({ klwines: klHtml, zachys: klHtml, woodland: klHtml, benchmark: klHtml })
+    mockOpenAI({
+      klwines: { price: 100, url: 'https://klwines.com/p/1', critic_scores: [{ publication: 'Burghound', score: 92 }] },
+      zachys: { price: 120, url: 'https://zachys.com/p/1', critic_scores: [] },
+      woodland: { price: 110, url: 'https://woodlandhillswine.com/p/1', critic_scores: [] },
+      benchmark: { price: 130, url: 'https://benchmarkwine.com/p/1', critic_scores: [{ publication: 'Vinous', score: 94 }] },
+    })
 
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    expect(result!.min_price).toBe(85)
-    expect(result!.avg_price).toBe(120)
-    expect(result!.max_price).toBe(200)
-    expect(result!.ws_score).toBe(92)
-    expect(result!.drinking_window_start).toBe('2025')
-    expect(result!.drinking_window_end).toBe('2035')
-    expect(result!.retailers).toHaveLength(2)
-    expect(result!.retailers[0].name).toBe('K&L Wine Merchants')
-    expect(result!.retailers[0].price).toBe(85)
-    expect(result!.retailers[0].location).toBe('CA, US')
-    expect(result!.fetched_at).toBeTruthy()
+    expect(result!.price_min).toBe(100)
+    expect(result!.price_max).toBe(130)
+    expect(result!.price_avg).toBe(115)
   })
 
-  it('sorts retailers by price ascending', async () => {
-    process.env.WINE_SEARCHER_API_KEY = 'test-key'
-    const mockResponse = {
-      Status: { ReturnCode: 0, StatusMessage: 'Success' },
-      Statistics: { 'price-min': 50, 'price-avg': 75, 'price-max': 100 },
-      Price: [
-        { 'merchant-name': 'Expensive', price: 100, link: null, state: null, country: null, 'physical-address': null },
-        { 'merchant-name': 'Cheap', price: 50, link: null, state: null, country: null, 'physical-address': null },
-        { 'merchant-name': 'Medium', price: 75, link: null, state: null, country: null, 'physical-address': null },
-      ],
-    }
-    jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(mockResponse), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
+  it('extracts attributed critic scores from retailer pages', async () => {
+    mockFetch({ klwines: klHtml })
+    mockOpenAI({
+      klwines: { price: 249, url: 'https://klwines.com/p/1', critic_scores: [{ publication: 'Burghound', score: 94 }, { publication: 'Vinous', score: 96 }] },
+      zachys: { price: null, url: '', critic_scores: [] },
+      woodland: { price: null, url: '', critic_scores: [] },
+      benchmark: { price: null, url: '', critic_scores: [] },
+    })
 
     const result = await fetchPriceData(baseWine)
-    expect(result!.retailers.map(r => r.name)).toEqual(['Cheap', 'Medium', 'Expensive'])
+    const kl = result!.retailers.find(r => r.slug === 'kl')
+    expect(kl?.critic_scores).toHaveLength(2)
+    expect(kl?.critic_scores[0].publication).toBe('Burghound')
+    expect(kl?.critic_scores[0].score).toBe(94)
+  })
+
+  it('identifies nearest retailer to NYC', async () => {
+    mockFetch({ klwines: klHtml, zachys: klHtml, woodland: klHtml, benchmark: klHtml })
+    mockOpenAI({
+      klwines: { price: 100, url: 'https://klwines.com/p/1', critic_scores: [] },
+      zachys: { price: 110, url: 'https://zachys.com/p/1', critic_scores: [] },
+      woodland: { price: 120, url: 'https://woodlandhillswine.com/p/1', critic_scores: [] },
+      benchmark: { price: 130, url: 'https://benchmarkwine.com/p/1', critic_scores: [] },
+    })
+
+    const result = await fetchPriceData(baseWine)
+    // K&L has a NYC store — closest to the NYC reference point
+    expect(result!.nearest_retailer?.slug).toBe('kl')
+  })
+
+  it('handles partial retailer failures gracefully', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation((url) => {
+      if (String(url).includes('klwines')) {
+        return Promise.resolve(new Response(klHtml, { status: 200 }))
+      }
+      return Promise.reject(new Error('timeout'))
+    })
+    mockOpenAI({
+      klwines: { price: 200, url: 'https://klwines.com/p/1', critic_scores: [] },
+    })
+
+    const result = await fetchPriceData(baseWine)
+    expect(result).not.toBeNull()
+    expect(result!.retailers).toHaveLength(1)
+    expect(result!.retailers[0].slug).toBe('kl')
+  })
+
+  it('includes fetched_at timestamp', async () => {
+    mockFetch({ klwines: klHtml })
+    mockOpenAI({
+      klwines: { price: 100, url: 'https://klwines.com/p/1', critic_scores: [] },
+      zachys: { price: null, url: '', critic_scores: [] },
+      woodland: { price: null, url: '', critic_scores: [] },
+      benchmark: { price: null, url: '', critic_scores: [] },
+    })
+
+    const result = await fetchPriceData(baseWine)
+    expect(result!.fetched_at).toBeTruthy()
+    expect(new Date(result!.fetched_at).getTime()).not.toBeNaN()
   })
 })

@@ -64,7 +64,7 @@ router.patch(
   })
 )
 
-// POST /api/wines/:id/fetch-price — trigger Wine-Searcher price lookup and store result
+// POST /api/wines/:id/fetch-price — trigger retailer crawl and store price + critic score data
 router.post(
   '/:id/fetch-price',
   wrap(async (req, res) => {
@@ -76,29 +76,19 @@ router.post(
 
     const result = await fetchPriceData(wine)
     if (!result) {
-      res.status(503).json({ error: 'Price data unavailable — Wine-Searcher API key not configured or no match found' })
+      res.status(503).json({ error: 'Price data unavailable — OpenAI API key not configured or no retailer results found' })
       return
     }
 
-    const priceData = {
-      min_price: result.min_price,
-      avg_price: result.avg_price,
-      max_price: result.max_price,
-      ws_score: result.ws_score,
-      retailers: result.retailers,
-      fetched_at: result.fetched_at,
-    }
-
     const updates: UpdateWineInput = {
-      price_data: priceData,
-    }
-
-    // Cache drinking window from Wine-Searcher if not already set
-    if (result.drinking_window_start && result.drinking_window_end && !wine.drinking_window) {
-      updates.drinking_window = {
-        start: result.drinking_window_start,
-        end: result.drinking_window_end,
-      }
+      price_data: {
+        price_min: result.price_min,
+        price_avg: result.price_avg,
+        price_max: result.price_max,
+        retailers: result.retailers,
+        nearest_retailer: result.nearest_retailer,
+        fetched_at: result.fetched_at,
+      },
     }
 
     const updated = await getStorage().updateWine(req.params.id, updates)
