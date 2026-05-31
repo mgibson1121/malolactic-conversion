@@ -87,7 +87,7 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
 | Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
-| Price lookup | `modules/price/` | Wine-Searcher API → retailer pricing, availability, aggregate score; fallback region/grape population |
+| Price crawl | `modules/price/` | GPT-4o HTML parsing of retailer product pages → price min/avg/max, nearest retailer to NYC, attributed critic scores |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
@@ -119,7 +119,6 @@ Required `.env` variables (`.env.example` template — all values empty):
 OPENAI_API_KEY=
 REDDIT_CLIENT_ID=
 REDDIT_CLIENT_SECRET=
-WINE_SEARCHER_API_KEY=
 SENSORPUSH_EMAIL=
 SENSORPUSH_PASSWORD=
 GOOGLE_SHEETS_CREDENTIALS=
@@ -333,8 +332,9 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 ## 16. Open Technical Questions
 
-- [ ] Wine-Searcher API tier: start on free trial (100 calls/day) in Phase 6; confirm whether paid tier (500 calls/day, $250/month) is needed based on observed usage
+- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates and confirm all four retailers have searchable product pages for Burgundy, Barolo, and Rioja before building Phase 6
+- [ ] Crawl resilience: GPT-4o HTML parsing degrades gracefully on page structure changes, but success rates should be monitored in Phase 8 and retailer search URL patterns verified before building
 - [ ] Retailer search URL patterns: verify K&L, Zachys, Woodland Hills, and Benchmark search URL structures against their live sites before building Phase 6.5 — these can change
-- [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition to the retailer links module after Phase 6.5 is stable
+- [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition to the retailer links module after Phase 6.6 is stable
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers; all require enterprise/trade access. Closed unless a viable individual-subscriber path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable
