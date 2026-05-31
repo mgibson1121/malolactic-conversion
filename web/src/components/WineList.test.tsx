@@ -52,6 +52,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('No wines here yet.')).toBeInTheDocument()
@@ -67,6 +68,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('Roumier · Chambolle-Musigny')).toBeInTheDocument()
@@ -82,6 +84,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('2019')).toBeInTheDocument()
@@ -102,6 +105,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('Giacomo Conterno · Barolo')).toBeInTheDocument()
@@ -118,6 +122,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -133,6 +138,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -148,6 +154,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -163,6 +170,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('3 btl')).toBeInTheDocument()
@@ -180,6 +188,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.queryByText('3 btl')).not.toBeInTheDocument()
@@ -195,6 +204,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Reviews/ })).toBeInTheDocument()
@@ -210,6 +220,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.queryByRole('button', { name: /Reviews/ })).not.toBeInTheDocument()
@@ -225,6 +236,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('Outstanding')).toBeInTheDocument()
@@ -240,6 +252,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     expect(screen.getByText('Discovered')).toBeInTheDocument()
@@ -258,6 +271,7 @@ describe('WineList', () => {
         onQuantityChange={noop}
         onViewHistory={noop}
         onWineUpdated={noop}
+        onViewDetail={noop}
       />
     )
     screen.getByRole('button', { name: /Evaluate/ }).click()

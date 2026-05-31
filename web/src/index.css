@@ -943,3 +943,505 @@ input.scan-field-missing {
   color: #555;
   font-style: italic;
 }
+
+/* ── Wine name clickable ────────────────────────────────────────────────── */
+
+.wine-name--clickable {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.wine-name--clickable:hover {
+  color: #7b3f00;
+  text-decoration: underline;
+}
+
+/* ── Wine Detail Modal ────────────────────────────────────────────────────── */
+
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+@media (min-width: 640px) {
+  .detail-overlay {
+    align-items: center;
+  }
+}
+
+.detail-modal {
+  background: #fff;
+  width: 100%;
+  max-width: 600px;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.18);
+}
+
+@media (min-width: 640px) {
+  .detail-modal {
+    border-radius: 12px;
+    max-height: 88vh;
+  }
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #ede8e2;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.detail-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-producer {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-denomination {
+  font-size: 13px;
+  color: #666;
+}
+
+.detail-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #888;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.detail-close:hover { background: #f5f0ea; color: #333; }
+
+.detail-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 0 24px;
+}
+
+.detail-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0ebe4;
+}
+
+.detail-section:last-child {
+  border-bottom: none;
+}
+
+.detail-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin: 0 0 10px;
+}
+
+.detail-identity {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.detail-label-image {
+  width: 64px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e8e0d6;
+  flex-shrink: 0;
+}
+
+.detail-identity-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-wine-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+
+.detail-identity-meta {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 4px;
+}
+
+.detail-tier2-field {
+  font-size: 13px;
+  color: #777;
+  margin: 2px 0 0;
+  font-style: italic;
+}
+
+.detail-active-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.detail-tag-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.detail-tag-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-cellar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.detail-field-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.detail-drinking-window {
+  font-size: 15px;
+  font-weight: 600;
+  color: #3a1a00;
+}
+
+.detail-empty-hint {
+  font-size: 13px;
+  color: #aaa;
+  margin: 0;
+}
+
+.detail-loading {
+  font-size: 13px;
+  color: #888;
+}
+
+.detail-latest-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-note-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-note-quality {
+  font-size: 12px;
+  color: #666;
+  background: #f5f0ea;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.detail-note-date {
+  font-size: 12px;
+  color: #aaa;
+  margin-left: auto;
+}
+
+.detail-note-excerpt {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.detail-note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.detail-more-notes {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
+.detail-note-count {
+  font-size: 11px;
+  color: #aaa;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.detail-actions-section {
+  border-bottom: none;
+  padding-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-evaluate--large {
+  padding: 12px 40px;
+  font-size: 15px;
+  border-radius: 8px;
+}
+
+/* ── Scan Result Card ─────────────────────────────────────────────────────── */
+
+.scan-result-card {
+  background: #fff;
+  width: 100%;
+  max-width: 480px;
+  border-radius: 16px;
+  overflow-y: auto;
+  max-height: 92vh;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid #f0ebe4;
+}
+
+.scan-result-header--saved {
+  justify-content: center;
+  background: #f0faf2;
+  border-color: #c8e6cc;
+}
+
+.scan-result-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7b3f00;
+  background: #f5ebe0;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.scan-saved-badge {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+.scan-result-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #7b3f00;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.btn-text:hover { background: #f5ebe0; }
+
+.scan-result-image-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 16px 18px 0;
+}
+
+.scan-result-image {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e8e0d6;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+}
+
+.scan-result-identity {
+  padding: 14px 20px 8px;
+  text-align: center;
+}
+
+.scan-result-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+
+.scan-result-name--empty {
+  color: #ccc;
+}
+
+.scan-result-meta {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 3px;
+}
+
+.scan-result-tier2 {
+  font-size: 13px;
+  color: #777;
+  margin: 2px 0 0;
+  font-style: italic;
+}
+
+.scan-result-missing {
+  margin: 0 18px;
+  padding: 12px 14px;
+  background: #fff8f0;
+  border: 1px solid #f0d6b4;
+  border-radius: 8px;
+}
+
+.scan-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+}
+
+.scan-inline-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.scan-inline-field input {
+  padding: 7px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.scan-result-cellar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+}
+
+.scan-result-cellar label {
+  font-size: 13px;
+  color: #666;
+}
+
+.scan-result-cellar select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.scan-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 18px;
+  border-top: 1px solid #f0ebe4;
+}
+
+.btn-save--primary {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.scan-enriching-card .scan-result-actions {
+  justify-content: center;
+}
+
+/* ── Scan enrichment section ─────────────────────────────────────────────── */
+
+.scan-enrichment-section {
+  margin: 0 18px 4px;
+}
+
+.scan-price-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #f9f6f2;
+  border: 1px solid #e8e0d6;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #777;
+}
+
+.scan-price-loading-icon {
+  font-size: 18px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.scan-price-unavailable {
+  font-size: 12px;
+  color: #aaa;
+  text-align: center;
+  padding: 10px 0;
+  margin: 0;
+}
+
+.scan-drinking-window {
+  margin-top: 8px;
+  text-align: center;
+}

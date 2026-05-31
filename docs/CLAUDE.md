@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-27
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-30
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -86,10 +86,13 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 |---|---|---|
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
-| Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark |
-| Price lookup | `modules/price/` | Wine-Searcher API → retailer pricing, availability, aggregate score |
+| Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
+| Price lookup | `modules/price/` | Wine-Searcher API → retailer pricing, availability, aggregate score; fallback region/grape population |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
+
+Shared utilities:
+- `shared/utils/proximity.ts` — Haversine distance calculation used to determine nearest retailer to NYC. Pure function, no side effects. Used by the price module display layer and the wine detail view.
 
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file

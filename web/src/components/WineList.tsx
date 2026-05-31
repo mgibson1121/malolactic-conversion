@@ -9,9 +9,10 @@ interface Props {
   onQuantityChange: (id: string, delta: number) => void
   onViewHistory: (wine: WineEntry) => void
   onWineUpdated: (wine: WineEntry) => void
+  onViewDetail: (wine: WineEntry) => void
 }
 
-export function WineList({ wines, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated }: Props) {
+export function WineList({ wines, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail }: Props) {
   if (wines.length === 0) {
     return <p className="empty-state">No wines here yet.</p>
   }
@@ -28,6 +29,7 @@ export function WineList({ wines, activeTab, onEvaluate, onTagUpdate, onQuantity
             onQuantityChange={onQuantityChange}
             onViewHistory={onViewHistory}
             onWineUpdated={onWineUpdated}
+            onViewDetail={onViewDetail}
           />
         </li>
       ))}
