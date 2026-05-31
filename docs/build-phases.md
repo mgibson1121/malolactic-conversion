@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-25
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-27
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -289,27 +289,67 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 
 ---
 
-## Phase 6 — Paid API integrations (expert reviews + pricing)
+## Phase 6 — Wine-Searcher integration (pricing + aggregate score)
 
-**Goal:** Layer in trusted professional review data and pricing. First paid API integrations.
+**Goal:** Connect the Wine-Searcher API to enrich the wine entry with pricing, retailer availability, and an aggregated critic score. This is the first paid API integration and the foundation of the purchasing decision surface.
 
 **Deliverables:**
-- Burghound BYOK module in `backend/modules/expert-reviews/`
-- Vinous BYOK module in `backend/modules/expert-reviews/`
-- Expert review layer displayed on wine entry card, attributed to source
-- Trusted / distrusted reviewer list — user configurable, persistent
-- Drinking window derived from expert sources
-- Vintage rating: `below_avg` / `avg` / `good` / `very_good` per region + year
-- Wine-Searcher price comparison module in `backend/modules/price/`
-- Top retailers sorted by price with location filtering
-- Shipping policy surfaced inline alongside price
+- Wine-Searcher price module in `backend/modules/price/`
+- Module fetches: min/avg/max price, top retailers with name + price + location + URL, aggregated Wine-Searcher critic score, available vintages
+- Price and score data stored on the wine entry (`price_data` object in the DB — see schema note below)
+- Price layer displayed on the wine entry card as a distinct section, attributed to Wine-Searcher
+- Top retailers sorted by price, filtered to user's location (NYC default; configurable)
+- Wine-Searcher aggregate score displayed alongside price — labelled clearly as a composite score, not a single-critic score
+- Drinking window cached from Wine-Searcher data where available
+
+**Schema additions:**
+- `ws_price_min` REAL — nullable
+- `ws_price_avg` REAL — nullable
+- `ws_price_max` REAL — nullable
+- `ws_score` REAL — nullable; Wine-Searcher aggregate critic score
+- `ws_price_fetched_at` TEXT — ISO timestamp; when the price data was last retrieved
+- `ws_retailers` TEXT — JSON array; each entry: `{ name, price, url, location }`
+- Add as a migration on top of the Phase 5 schema — do not alter existing columns
 
 **Notes:**
-- Confirm Burghound and Vinous credential format (API key vs. username/password) and response schema before building — see open questions below
-- Confirm Wine-Searcher API tier (500 calls/day at $250/month) before building — consider starting on the free trial tier (100 calls/day) to validate usage patterns
-- Each source must speak in its own voice — do not blend or synthesise across sources
+- Start on the free trial tier (100 calls/day) to validate usage patterns before committing to the paid tier (500 calls/day, $250/month)
+- The Wine-Searcher API returns an aggregated composite score only — it does not return individual publication scores or tasting note text (excluded for copyright reasons). Do not describe it as a Burghound or Vinous score.
+- Price data should be treated as a point-in-time snapshot — `ws_price_fetched_at` records when it was last retrieved. A refresh mechanism (manual trigger in the UI) is sufficient for v1; live pricing is not required.
+- The module must degrade gracefully if the API key is not configured — return null for all `ws_*` fields, no error thrown
 
-**Milestone:** Scanning a bottle returns trusted professional reviews, pricing, and vintage context alongside the wine entry.
+**Milestone:** Scanning a bottle populates price range, top retailers, and aggregate critic score on the wine entry card. Pricing data is stored and displayable across all list views.
+
+---
+
+## Phase 6.5 — Retailer review links
+
+**Goal:** Surface pre-constructed deep-link searches to trusted fine wine retailers directly from the wine entry card. Enables fast access to professional reviews and tasting notes published on retailer product pages without any scraping or API dependency.
+
+**Context:** Research confirmed that no professional wine publication (Burghound, Vinous, Wine Advocate) offers API access to individual subscribers. The only programmatic access routes require enterprise-level trade memberships costing thousands per year. The retailer deep-link approach achieves the same practical outcome — fast access to trusted reviews — without any ToS exposure. The app constructs the search URL from structured wine entry data; the user taps to open it in their browser.
+
+**Deliverables:**
+- Link generator module in `backend/modules/retailer-links/`
+- Takes `producer`, `denomination`, `vintage` from the wine entry and constructs retailer-specific search URLs for each configured retailer
+- Four retailers configured in v1:
+  - **K&L Wine Merchants** (`klwines.com`) — highest review density; carries Burghound, Vinous, Wine Spectator, Wine Advocate on product pages
+  - **Zachys** (`zachys.com`) — fine wine specialist, NYC-area, strong Burgundy/Bordeaux depth
+  - **Woodland Hills Wine Company** (`woodlandhillswine.com`) — trusted retailer with solid review coverage
+  - **Benchmark Wine Group** (`benchmarkwine.com`) — fine wine specialist, publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling
+- Wine entry card displays a "Find Reviews" section with one tappable button per retailer (e.g. "Search K&L", "Search Zachys")
+- Each button opens the pre-constructed search URL in the user's default browser — no in-app webview
+- User can optionally save a URL (either the search query URL or a specific product page URL) back to the wine entry as `retailer_url` — stored per retailer
+- Saved URLs are displayed as direct links on the wine entry card in subsequent sessions
+
+**Schema additions:**
+- `retailer_links` TEXT — JSON object; keyed by retailer slug (e.g. `{ "kl": "https://...", "zachys": "https://..." }`); nullable; stores user-saved URLs only, not generated search URLs
+
+**Notes:**
+- The app never visits retailer sites — it only constructs URL strings and hands them to the OS. No ToS implications.
+- Generated search URLs are constructed fresh from wine entry data on each render — they are not stored. Only user-saved URLs (specific product pages the user has chosen to associate) are persisted.
+- URL construction uses each retailer's native search endpoint where reliable (e.g. `klwines.com/search?query=...`). Verify search URL patterns against each retailer's live site before building — these can change.
+- The Burgundy Report (`burgundy-report.com`) is a candidate for a future addition. Its ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Deferred pending further evaluation — do not build in this phase.
+
+**Milestone:** Wine entry card shows one-tap search buttons for all four retailers, pre-populated with wine identity data. User-saved retailer URLs persist across sessions.
 
 ---
 
@@ -325,19 +365,21 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 
 **Notes:**
 - Reddit free tier supports 100 QPM via OAuth 2.0 — sufficient for per-bottle queries at personal usage scale
-- Synthesis and expert review fetches are async / background — they populate the wine entry card after the initial scan result is shown
+- Synthesis and price fetches are async / background — they populate the wine entry card after the initial scan result is shown
 - Raw excerpts must always be available as a fallback — the community layer never disappears entirely
 
-**Milestone:** Scanning a bottle returns community opinion alongside professional reviews and pricing.
+**Milestone:** Scanning a bottle returns community opinion alongside pricing and the Wine-Searcher aggregate score.
 
 ---
 
 ## Phase 8 — Data review checkpoint
 
-**Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all three data layers.
+**Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (pricing, aggregate score, community sentiment, retailer links).
 
 **Deliverables:**
-- Manual review of 10–20 real wine entries enriched with expert reviews, community data, and pricing
+- Manual review of 10–20 real wine entries enriched with pricing, community data, and retailer links
+- Verify Wine-Searcher aggregate score is returning for the wines in the collection
+- Verify retailer search URLs resolve correctly for the four configured retailers
 - Identify any schema gaps, data quality issues, or missing fields
 - Update wine entry schema and storage adapter if required
 - Document any recurring data quality issues as known limitations
@@ -415,7 +457,8 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
 **Deliverables:**
-- BYOK configuration UI for all API keys and subscription credentials (OpenAI, Reddit, Wine-Searcher, Burghound, Vinous, SensorPush)
+- BYOK configuration UI for all API keys and subscription credentials (OpenAI, Reddit, Wine-Searcher, SensorPush)
+- Retailer link configuration: allow additional retailers to be added beyond the four defaults
 - LLM provider made configurable — not hardcoded to OpenAI GPT-4o
 - Onboarding flow for new users: configure credentials, set cellar capacity, set target allocation
 - Documentation: README, setup guide, API key configuration instructions
@@ -433,6 +476,7 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 ## Open questions affecting phases
 
 - [ ] Free wine data API: no suitable free API identified for Phase 2 enrichment; GPT-4o label scanning (Phase 3) is the primary enrichment path. Revisit if a reliable free option emerges.
-- [ ] Wine-Searcher API tier: confirm before building Phase 6
-- [ ] Burghound and Vinous credential format: confirm before building Phase 6
+- [ ] Wine-Searcher API tier: start on free trial (100 calls/day) during Phase 6; confirm whether 500 calls/day ($250/month) is needed based on observed usage patterns
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning after Phase 3 is stable — potential 75% cost reduction for clean labels
+- [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition to the retailer links module or as a standalone notes layer. Deferred — do not build until Phase 6.5 is stable.
+- [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. All three publications gate programmatic access behind enterprise/trade arrangements (Liv-ex Gold + Enterprise subscriptions, costing thousands per year). Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.

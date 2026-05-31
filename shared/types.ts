@@ -13,13 +13,14 @@ export interface RetailerPrice {
   price: number
   url: string | null
   location: string | null
-  shipping_policy: string | null
+  shipping_policy?: string | null
 }
 
 export interface PriceData {
   min_price: number | null
   avg_price: number | null
   max_price: number | null
+  ws_score?: number | null  // Wine-Searcher aggregated critic score
   retailers: RetailerPrice[]
   fetched_at: string     // ISO timestamp
 }
@@ -97,6 +98,7 @@ export interface WineEntry {
   community_sentiment: string | null      // GPT-4o synthesis; null if no key configured
   community_excerpts: string[] | null     // raw Reddit excerpts; fallback when no LLM key
   price_data: PriceData | null            // null until Phase 6 price module populates
+  retailer_links?: Record<string, string> | null  // user-saved retailer URLs keyed by slug; null until user saves
   date_added: string                      // ISO timestamp
   date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
 }

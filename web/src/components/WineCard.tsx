@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import type { WineEntry, UpdateWineInput } from '@shared/types'
+import { fetchWinePrice } from '../api'
+import { PriceSection } from './PriceSection'
 
 interface Props {
   wine: WineEntry
@@ -7,6 +10,7 @@ interface Props {
   onTagUpdate: (id: string, tags: UpdateWineInput) => void
   onQuantityChange: (id: string, delta: number) => void
   onViewHistory: (wine: WineEntry) => void
+  onWineUpdated: (wine: WineEntry) => void
 }
 
 const TAG_LABELS: Record<string, string> = {
@@ -24,7 +28,22 @@ const RATING_LABELS: Record<string, string> = {
   outstanding: 'Outstanding',
 }
 
-export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory }: Props) {
+export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated }: Props) {
+  const [fetchingPrice, setFetchingPrice] = useState(false)
+  const [priceError, setPriceError] = useState<string | null>(null)
+
+  async function handleFetchPrice() {
+    setFetchingPrice(true)
+    setPriceError(null)
+    try {
+      const updated = await fetchWinePrice(wine.id)
+      onWineUpdated(updated)
+    } catch (err) {
+      setPriceError(err instanceof Error ? err.message : 'Price lookup failed')
+    } finally {
+      setFetchingPrice(false)
+    }
+  }
   const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
   const secondaryParts = [
     wine.vintage ? String(wine.vintage) : null,
@@ -117,6 +136,38 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           </button>
         ))}
       </div>
+
+      {/* Drinking window */}
+      {wine.drinking_window && (
+        <div className="drinking-window">
+          Drink {wine.drinking_window.start}–{wine.drinking_window.end}
+        </div>
+      )}
+
+      {/* Price data from Wine-Searcher */}
+      {wine.price_data ? (
+        <div>
+          <PriceSection priceData={wine.price_data} />
+          <button
+            className="btn-fetch-price"
+            onClick={handleFetchPrice}
+            disabled={fetchingPrice}
+          >
+            {fetchingPrice ? 'Refreshing…' : 'Refresh Price'}
+          </button>
+        </div>
+      ) : (
+        <div className="price-fetch-prompt">
+          <button
+            className="btn-fetch-price"
+            onClick={handleFetchPrice}
+            disabled={fetchingPrice}
+          >
+            {fetchingPrice ? 'Fetching price…' : 'Fetch Price'}
+          </button>
+          {priceError && <span className="price-error">{priceError}</span>}
+        </div>
+      )}
     </div>
   )
 }

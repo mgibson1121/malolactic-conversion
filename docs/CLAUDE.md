@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-25
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-27
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -86,8 +86,8 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 |---|---|---|
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
-| Expert reviews | `modules/expert-reviews/` | Burghound + Vinous BYOK credential handling + data fetch |
-| Price lookup | `modules/price/` | Wine-Searcher API → retailer pricing and availability |
+| Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark |
+| Price lookup | `modules/price/` | Wine-Searcher API → retailer pricing, availability, aggregate score |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
@@ -117,10 +117,6 @@ OPENAI_API_KEY=
 REDDIT_CLIENT_ID=
 REDDIT_CLIENT_SECRET=
 WINE_SEARCHER_API_KEY=
-BURGHOUND_USERNAME=
-BURGHOUND_PASSWORD=
-VINOUS_USERNAME=
-VINOUS_PASSWORD=
 SENSORPUSH_EMAIL=
 SENSORPUSH_PASSWORD=
 GOOGLE_SHEETS_CREDENTIALS=
@@ -324,6 +320,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not build a hosted backend or cloud database — everything runs locally
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
+- Do not scrape wine retailer product pages (K&L, Zachys, Woodland Hills, Benchmark, or others) — the retailer links module constructs URL strings only; it never fetches or parses retailer pages
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
 - Do not add microservice infrastructure (separate deployables, Docker Compose, service mesh) — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
@@ -333,6 +330,8 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 ## 16. Open Technical Questions
 
-- [ ] Wine-Searcher API tier: confirm 500 calls/day ($250/month) before building the price module
-- [ ] Burghound and Vinous: confirm credential format (API key vs. username/password) and response schema before building the expert reviews module
+- [ ] Wine-Searcher API tier: start on free trial (100 calls/day) in Phase 6; confirm whether paid tier (500 calls/day, $250/month) is needed based on observed usage
+- [ ] Retailer search URL patterns: verify K&L, Zachys, Woodland Hills, and Benchmark search URL structures against their live sites before building Phase 6.5 — these can change
+- [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition to the retailer links module after Phase 6.5 is stable
+- [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers; all require enterprise/trade access. Closed unless a viable individual-subscriber path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable

@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-17 (schema revision: status enum replaced with boolean list tags; cellar_quantity added; tag model adopted)
+> Status: In progress | Last updated: 2026-05-27 (expert review API research complete; Burghound/Vinous BYOK replaced by Wine-Searcher + retailer deep links; source evaluation log updated)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -71,10 +71,11 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | `drinking_window_start` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
 | `drinking_window_end` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
 | `vintage_rating` | Enum | Data sources | `below_avg`, `avg`, `good`, `very_good` for this region+year |
-| `expert_reviews` | Array | Paid subscription APIs | Burghound, Vinous; null if not configured |
+| `expert_reviews` | Array | Manual entry | Professional tasting notes attached manually by user; no automated API source available for individual subscribers |
 | `community_sentiment` | String | Reddit + LLM | GPT-4o synthesis of Reddit data; null if no OpenAI key configured |
 | `community_excerpts` | Array | Reddit API | Raw Reddit excerpts; shown as fallback if no LLM key configured |
-| `price_data` | Object | Wine-Searcher API | Min/avg/max price, retailer list; null if not configured |
+| `price_data` | Object | Wine-Searcher API | Min/avg/max price, top retailers with URLs, Wine-Searcher aggregate score; null if not configured |
+| `retailer_links` | Object | User-saved | URLs saved by user from retailer search sessions (K&L, Zachys, Woodland Hills, Benchmark); keyed by retailer slug; null until user saves |
 | `my_rating` | Enum | User | `poor`, `acceptable`, `good`, `very_good`, `outstanding` |
 | `my_tasting_notes` | Object | User | Structured WSET tags + free text |
 | `my_tags` | Array | User / inferred | Searchable tags derived from tasting notes via GPT-4o tag extraction. Treated as a derived field once a tasting note exists — not manually authored. Must stay consistent with tags on the `tasting_notes` sheet; do not allow the two to diverge. |
@@ -367,9 +368,11 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 
 | Layer | Source | What it adds | Access model |
 |---|---|---|---|
-| **Expert opinion** | Burghound, Vinous | Professional tasting notes, scores, drinking windows | BYOK — user supplies subscription credentials; stored in iOS Keychain |
+| **Price & availability** | Wine-Searcher API | Retailer pricing, local availability, min/avg/max market price, aggregated critic score | Paid API — start on free trial (100 calls/day); upgrade to 500 calls/day if needed |
 | **Community opinion** | Reddit API + GPT-4o | Synthesised community sentiment, vintage anecdotes, drinking window consensus | Reddit free tier (100 QPM OAuth); GPT-4o key BYOK for synthesis; raw excerpts shown as fallback |
-| **Price & availability** | Wine-Searcher API | Retailer pricing, local availability, min/avg/max market price | Paid API — confirm 500 calls/day tier before committing |
+| **Retailer review access** | K&L, Zachys, Woodland Hills, Benchmark | One-tap search links to retailer product pages carrying professional reviews (Burghound, Vinous, Wine Advocate, Wine Spectator) | No API — app constructs search URL from wine entry data; user reads review on retailer site |
+
+**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. All three publications gate API access behind enterprise/trade arrangements (Liv-ex Gold tier + enterprise subscription, costing several thousand dollars per year). The retailer deep-link approach in Layer 3 achieves the same practical outcome for personal use without any ToS exposure. A future phase may revisit direct integration if individual-subscriber API access becomes available from any publication.
 
 ### Label Scanning
 
@@ -407,10 +410,16 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 | CellarTracker | Personal export only | ToS Section 9 explicitly prohibits scraping. Authenticated personal data export via `xlquery.asp` is permitted for user's own cellar, notes, and consumed bottles. Community-wide data requires partnership — not pursuing. |
 | WineBerserkers | Not pursuing | ToS Section 5 explicitly prohibits automated access. No API exists. Partnership not pursuing. |
 | Reddit | ✅ In use | Official API, free tier, 100 QPM via OAuth 2.0. Sufficient for per-bottle queries at personal usage scale. Key subreddits: r/wine, r/burgundy, r/winetasting, r/barolo, r/wineenthusiast. |
-| Wine-Searcher | ✅ In use | Official RESTful API. Returns pricing, retailer availability, aggregated critic scores. Tasting notes excluded (copyright). Paid — confirm tier before building. |
+| Wine-Searcher | ✅ In use | Official RESTful API. Returns pricing, retailer availability, aggregated critic scores. Tasting notes and individual publication scores excluded (copyright). Paid — start on free trial (100 calls/day). |
 | Vivino | Not pursuing | No public API. Partnership not worth pursuing. Label scanning replaced by GPT-4o vision. |
-| Burghound | ✅ BYOK — v1 priority | Paywalled professional reviews, highly trusted for Burgundy. User supplies own active subscription credentials. |
-| Vinous | ✅ BYOK — v1 priority | Paywalled professional reviews (Antonio Galloni). User supplies own active subscription credentials. |
+| Burghound | ⛔ No API available | Confirmed: web-only database, browser session access, single-device enforcement. No programmatic access for individual subscribers. Accessible via retailer deep links (K&L, Benchmark carry Burghound reviews on product pages). |
+| Vinous | ⛔ No API available | Confirmed: API exists but requires Vinous Enterprise ($2,000/year) + Liv-ex Gold membership. Not viable for personal use. Accessible via retailer deep links. |
+| Wine Advocate | ⛔ No API available | Confirmed: API available via Liv-ex only, for trade businesses. Explicitly declined CellarTracker-style integration for individual subscribers. Accessible via retailer deep links. |
+| K&L Wine Merchants | ✅ Retailer deep links | High review density — carries Burghound, Vinous, Wine Advocate, Wine Spectator on product pages. Search URL constructed from wine entry data. |
+| Zachys | ✅ Retailer deep links | Fine wine specialist, NYC-based. Strong Burgundy/Bordeaux depth. |
+| Woodland Hills Wine Company | ✅ Retailer deep links | Trusted retailer with solid review coverage. |
+| Benchmark Wine Group | ✅ Retailer deep links | Fine wine specialist. Publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling. |
+| Burgundy Report | 🔍 Under evaluation | ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Highly relevant for Burgundy focus. Deferred — evaluate after Phase 6.5 is stable. |
 | GPT-4o | ✅ In use | Label scanning, tasting note transcription tag extraction, Reddit synthesis. OpenAI API key BYOK, stored in iOS Keychain. |
 | SensorPush | ✅ In use | Environment monitoring. Cloud API (OAuth, REST). Credentials stored in iOS Keychain. |
 
@@ -477,7 +486,7 @@ Tooltips are shown on the nose and palate aroma fields only (primary, secondary,
 - ✅ Tag review prompt: replaces "move to consumed" — after saving a tasting note, user is prompted to review and update their tags.
 - ✅ `cellar_quantity` added: integer field, adjustable from the cellar list view.
 - ✅ Label scanning: GPT-4o vision, high detail mode, max 1024px resize before API call
-- ✅ Paid subscription APIs at launch: Burghound and Vinous (BYOK)
+- ✅ Paid subscription APIs at launch: Burghound and Vinous BYOK — **superseded.** Confirmed no API available to individual subscribers. Both publications gate programmatic access behind enterprise/trade arrangements. Professional reviews accessed via retailer deep links instead (Phase 6.5).
 - ✅ Environment monitoring hardware: SensorPush + G1 WiFi Gateway
 - ✅ CellarTracker scraping: prohibited by ToS; personal export is the only legitimate path
 - ✅ WineBerserkers: prohibited by ToS; not pursuing
@@ -497,6 +506,6 @@ Tooltips are shown on the nose and palate aroma fields only (primary, secondary,
 
 ### Remaining
 - [ ] App name
-- [ ] Wine-Searcher API tier: confirm 500 calls/day ($250/month) is sufficient before committing; consider starting on trial (100 free calls/day) to validate usage patterns
+- [ ] Wine-Searcher API tier: start on free trial (100 calls/day) in Phase 6; confirm whether 500 calls/day ($250/month) is needed based on observed usage
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning once feature is built; potential 75% cost reduction for clean labels
-- [ ] Burghound and Vinous BYOK integration specifics: confirm credential format (API key vs. username/password) and data schema for each before building the integration flow
+- [ ] Burgundy Report integration: ToS permits note reproduction for active subscribers with attribution. Evaluate as a future data layer after Phase 6.5 is stable.
