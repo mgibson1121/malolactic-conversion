@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-30
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-06-14
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -74,6 +74,7 @@ Defined in `docs/build-phases.md`.
 | Web | React + TypeScript | Management and research surface |
 | Database | SQLite via `better-sqlite3` | Phase 5 onward |
 | Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
+| Headless browser | Puppeteer | Phase 6 onward — renders SPA retailer pages for score extraction. Do not run in CI; mock in tests using HTML fixtures. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 
 ---
@@ -87,7 +88,7 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
 | Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
-| Price crawl | `modules/price/` | GPT-4o HTML parsing of retailer product pages → price min/avg/max, nearest retailer to NYC, attributed critic scores |
+| Price enrichment | `modules/price/` | Step 1: Google Custom Search JSON API → price/retailer discovery across configured retailers. Step 2: Puppeteer renders SPA product pages → GPT-4o extracts attributed critic scores. Retailer list is config-driven and extensible. |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
@@ -119,6 +120,8 @@ Required `.env` variables (`.env.example` template — all values empty):
 OPENAI_API_KEY=
 REDDIT_CLIENT_ID=
 REDDIT_CLIENT_SECRET=
+GOOGLE_CSE_API_KEY=
+GOOGLE_CSE_ID=
 SENSORPUSH_EMAIL=
 SENSORPUSH_PASSWORD=
 GOOGLE_SHEETS_CREDENTIALS=
@@ -322,7 +325,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not build a hosted backend or cloud database — everything runs locally
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
-- Do not scrape wine retailer product pages (K&L, Zachys, Woodland Hills, Benchmark, or others) — the retailer links module constructs URL strings only; it never fetches or parses retailer pages
+- The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages. Puppeteer fetching is the exclusive responsibility of the price enrichment module (Phase 6) and must not bleed into other modules.
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
 - Do not add microservice infrastructure (separate deployables, Docker Compose, service mesh) — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
@@ -332,9 +335,9 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 ## 16. Open Technical Questions
 
-- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates and confirm all four retailers have searchable product pages for Burgundy, Barolo, and Rioja before building Phase 6
-- [ ] Crawl resilience: GPT-4o HTML parsing degrades gracefully on page structure changes, but success rates should be monitored in Phase 8 and retailer search URL patterns verified before building
-- [ ] Retailer search URL patterns: verify K&L, Zachys, Woodland Hills, and Benchmark search URL structures against their live sites before building Phase 6.5 — these can change
+- [ ] Google CSE setup: create a Programmable Search Engine scoped to Google Shopping before building Phase 6; verify it returns results for Burgundy, Barolo, and Rioja wines from the four configured retailers
+- [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and use those coordinates in `retailers.config.ts`; fall back to the San Francisco flagship if not
+- [ ] Puppeteer score extraction coverage: during Phase 6 manual test, document which retailers successfully return attributed critic scores — adjust Puppeteer targets in config accordingly
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition to the retailer links module after Phase 6.6 is stable
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers; all require enterprise/trade access. Closed unless a viable individual-subscriber path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable

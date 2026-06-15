@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-05-30
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-06-14
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -289,64 +289,120 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 
 ---
 
-## Phase 6 — Web pricing crawl (price enrichment + retailer discovery)
+## Phase 6 — Price enrichment (Google Shopping + Puppeteer)
 
-**Goal:** Enrich the wine entry with current retail pricing and the nearest retailer to NYC by crawling publicly available product pages from a set of trusted fine wine retailers. No paid API required. The crawl also extracts any critic scores published on those pages, which are more valuable than an aggregated composite because they are attributed to specific publications.
+**Goal:** Enrich the wine entry with current retail pricing, retailer availability, and attributed critic scores from trusted fine wine retailers. Phase 6 is not complete until a real wine entry in the database shows populated price, retailer, and score fields resulting from the described workflow. A manual test run against a real bottle is required to close the phase.
 
-**Context:** Wine-Searcher's API was evaluated and ruled out — the Wine Check API costs $335/month and the Market Price API (required for retailer URLs and location data) costs an additional $350/month, totalling $685/month minimum. Research confirmed that comparable apps (Oeni, CellarAI) obtain pricing data by crawling public retailer pages rather than via licensed APIs. For a single-user personal app making per-bottle queries at low frequency, this approach is technically straightforward, practically unenforced from a ToS standpoint, and delivers better data — attributed per-publication scores rather than a blended composite.
+**Context and architecture decision:** The original approach — fetching retailer product pages directly via HTTP — was invalidated when Claude Code discovered that Zachys, Woodland Hills, and Benchmark are all SPAs. Server-side fetches return ~768 bytes of empty shell HTML with no product data. Two tools replace the direct crawl:
 
-**Deliverables:**
-- Price crawl module in `backend/modules/price/`
-- On scan or manual trigger, the module queries each of the four configured retailers using the wine entry's `producer`, `denomination`, and `vintage`
-- For each retailer, the module fetches the product page HTML and passes it to GPT-4o with a structured extraction prompt
-- GPT-4o extracts from each page: price (numeric), product URL, retailer name, and any critic scores present (score value + publication name)
-- Results aggregated across all retailers to compute `price_min`, `price_avg`, `price_max`
-- Nearest retailer to NYC identified using a fixed retailer coordinate lookup (hardcoded lat/long per retailer — these are known fixed locations, no dynamic geocoding needed)
-- Four retailers crawled in v1:
-  - **K&L Wine Merchants** (`klwines.com`) — highest review density; carries Burghound, Vinous, Wine Spectator, Wine Advocate
-  - **Zachys** (`zachys.com`) — fine wine specialist, NYC-area (Port Chester, NY)
-  - **Woodland Hills Wine Company** (`woodlandhillswine.com`) — trusted retailer, solid review coverage
-  - **Benchmark Wine Group** (`benchmarkwine.com`) — fine wine specialist; publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling
-- All crawl results stored as a point-in-time snapshot with a `price_fetched_at` timestamp
-- Module degrades gracefully per retailer — if a fetch fails or returns no result, that retailer is skipped; remaining results are still processed. Never throw uncaught errors.
+1. **Google Custom Search JSON API** — queries Google Shopping for a specific wine and returns structured results including retailer name, price, and product URL. Google has already crawled and rendered the SPA pages; this call returns their indexed data cleanly. Free tier: 100 queries/day — sufficient for personal use.
+2. **Puppeteer** — a headless Chromium browser that executes JavaScript, allowing SPA pages to fully render before extraction. Used only for the targeted Puppeteer pass (see below) — not for the Shopping query.
+
+**Two-step workflow:**
+
+**Step 1 — Google Shopping query (price + retailer discovery)**
+- On scan or manual refresh trigger, the price module queries the Google Custom Search JSON API configured for Google Shopping results
+- Query constructed from wine entry fields: `producer + denomination + vintage`
+- Results filtered for configured retailer domains — the retailer list is extensible via config, not hardcoded in logic
+- From matching results, extract per retailer: name, price, product URL
+- Compute `price_min`, `price_avg`, `price_max` across all matching retailers
+- Identify nearest retailer to NYC using Haversine distance from static retailer coordinate lookup
+- All results stored as a point-in-time snapshot
+
+**Step 2 — Puppeteer score extraction (attributed critic scores)**
+- For each retailer result from Step 1 that returned a product URL, Puppeteer opens the URL in a headless Chromium browser
+- Waits for the page to fully render (product data visible in DOM)
+- Passes rendered HTML to GPT-4o with a structured extraction prompt
+- GPT-4o extracts: any critic scores visibly attributed to a named publication (score value + publication name). Never infer or hallucinate attributions. Never extract tasting note text.
+- Results stored per retailer in `price_retailers` JSON alongside price and URL
+- Runs async in the background — does not block the scan result or Step 1 results from displaying
+- Each retailer page is opened independently — if one fails, the others continue
+
+**Retailer configuration (`backend/modules/price/retailers.config.ts`):**
+
+The retailer list is a typed config array — adding a new retailer requires only a new entry here, no changes to module logic.
+
+```typescript
+export const RETAILER_CONFIG = [
+  { slug: 'kl',        name: 'K&L Wine Merchants',       domain: 'klwines.com',             lat: 40.7580, lng: -73.9855 }, // K&L NYC store
+  { slug: 'zachys',    name: 'Zachys',                   domain: 'zachys.com',              lat: 41.0026, lng: -73.6693 },
+  { slug: 'woodland',  name: 'Woodland Hills Wine Co.',  domain: 'woodlandhillswine.com',   lat: 34.1684, lng: -118.6059 },
+  { slug: 'benchmark', name: 'Benchmark Wine Group',     domain: 'benchmarkwine.com',       lat: 38.2975, lng: -122.2869 },
+]
+```
 
 **Schema additions (migration on top of Phase 5 schema — do not alter existing columns):**
-- `price_min` REAL — nullable; lowest price found across all crawled retailers
-- `price_avg` REAL — nullable; mean price across all crawled retailers
-- `price_max` REAL — nullable; highest price found across all crawled retailers
-- `price_fetched_at` TEXT — ISO timestamp; when the crawl was last run
+- `price_min` REAL — nullable; lowest price found across matching retailers
+- `price_avg` REAL — nullable; mean price across matching retailers
+- `price_max` REAL — nullable; highest price found across matching retailers
+- `price_fetched_at` TEXT — ISO timestamp; when the last query + Puppeteer pass ran
 - `price_retailers` TEXT — JSON array; one entry per retailer result: `{ slug, name, price, url, critic_scores: [{ publication, score }] }`
-- `nearest_retailer` TEXT — JSON object; the single retailer closest to NYC from the last crawl: `{ slug, name, price, url, distance_miles }`
+- `nearest_retailer` TEXT — JSON object: `{ slug, name, price, url, distance_miles }`
+
+**Google Custom Search JSON API setup:**
+- Create a Programmable Search Engine (PSE) scoped to Google Shopping results
+- API key stored in `.env` as `GOOGLE_CSE_API_KEY`
+- Search engine ID stored in `.env` as `GOOGLE_CSE_ID`
+- Free tier: 100 queries/day. Each wine scan triggers one query. Sufficient for personal use.
+- Add both variables to `.env.example`
 
 **GPT-4o extraction prompt requirements:**
-- Input: raw HTML of the retailer product page
-- Output: structured JSON — `{ price: number | null, url: string, critic_scores: [{ publication: string, score: number }] }`
-- Prompt must explicitly instruct the model to extract only scores that are visibly attributed to a named publication — do not infer or hallucinate attributions
-- If no price is found, return `null` for price — never guess
-- Prompt and expected output format must be documented in `backend/modules/price/PROMPT.md`
+- Input: fully rendered HTML from Puppeteer
+- Output: structured JSON — `{ critic_scores: [{ publication: string, score: number }] }`
+- Prompt must instruct the model to extract only scores visibly attributed to a named publication on the page
+- If no attributed scores are found, return an empty array — never guess or infer
+- Prompt and expected output format documented in `backend/modules/price/PROMPT.md`
 
-**Retailer coordinate lookup (`backend/modules/price/retailer-coords.ts`):**
-- Static hardcoded map of retailer slug → `{ lat, lng }` used for proximity calculation
-- K&L: San Francisco flagship (37.7749, -122.4194); use NYC store if one exists — verify before building
-- Zachys: Port Chester, NY (41.0026, -73.6693)
-- Woodland Hills: Woodland Hills, CA (34.1684, -118.6059)
-- Benchmark: Napa, CA (38.2975, -122.2869)
-- Proximity calculated using the Haversine utility in `shared/utils/proximity.ts`
+**Puppeteer configuration:**
+- Installed as a dev dependency via npm: `puppeteer`
+- Runs locally — headless Chromium is downloaded automatically by Puppeteer on first install
+- Each page render has a configurable timeout (default 15 seconds) — if the page doesn't render in time, skip that retailer gracefully
+- User agent set to a standard browser string to avoid bot detection
+- Do not run Puppeteer in CI — mock the Puppeteer layer in tests using pre-captured HTML fixtures
 
-**Notes:**
-- GPT-4o HTML parsing makes the crawler resilient to site redesigns — no brittle CSS selectors. If a page structure changes, the extraction degrades gracefully (returns null) rather than throwing.
-- Price data is a point-in-time snapshot. A manual refresh trigger in the UI is sufficient for v1 — live/real-time pricing is not required.
-- The crawl runs async after the label scan returns — it does not block the scan result from displaying
-- Critic scores extracted here are stored in `price_retailers` JSON per retailer. They are attributed scores (e.g. "Burghound: 92"), not a composite. Display them attributed — never blend across publications.
-- This module does not store or republish review text — scores (numbers) are not copyrightable. Full tasting note text must never be extracted or stored.
+**Module structure (`backend/modules/price/`):**
+```
+price/
+├── index.ts              # Module entry point — orchestrates Step 1 and Step 2
+├── shopping-query.ts     # Google Custom Search JSON API call
+├── puppeteer-extract.ts  # Headless browser render + HTML capture
+├── gpt-extract.ts        # GPT-4o extraction from rendered HTML
+├── retailers.config.ts   # Extensible retailer list
+├── proximity.ts          # Re-exports shared/utils/proximity.ts
+├── PROMPT.md             # GPT-4o extraction prompt documentation
+├── types.ts              # TypeScript types for all module inputs/outputs
+└── price.test.ts         # Unit tests (mocked Shopping API + mocked HTML fixtures)
+```
+
+**Graceful degradation:**
+- If `GOOGLE_CSE_API_KEY` or `GOOGLE_CSE_ID` are not configured, the module returns null for all price fields — no error thrown
+- If the Shopping query returns no matches for a retailer, that retailer is skipped
+- If Puppeteer fails to render a page within the timeout, that retailer's `critic_scores` is left as an empty array — price and URL from Step 1 are still stored
+- If GPT-4o finds no attributed scores, returns empty array — not an error
 
 **Tests:**
-- Unit tests with mocked HTML fixtures for each retailer — verify correct price and score extraction
-- Test graceful degradation when a retailer returns no result or an unexpected page structure
-- Test `price_min`/`price_avg`/`price_max` aggregation logic with known inputs
-- Test nearest-retailer selection using the Haversine utility
+- Unit test: Shopping query correctly filters results by retailer domain config
+- Unit test: price_min/avg/max computed correctly from a set of known retailer prices
+- Unit test: nearest retailer selection using Haversine utility with known coordinates
+- Unit test: GPT-4o extraction prompt returns correct structured output given a fixture HTML file with known scores
+- Unit test: graceful degradation — no API keys configured returns null state without throwing
+- Integration test: end-to-end with mocked Shopping API response and mocked Puppeteer HTML fixtures — verify a wine entry in the DB is correctly updated with all price fields
 
-**Milestone:** Scanning a bottle triggers a background crawl of the four configured retailers. Price range, nearest retailer to NYC, and any attributed critic scores are stored on the wine entry and displayable.
+**Phase 6 completion criteria:**
+Phase 6 is not complete until the following manual test passes:
+1. A real wine bottle is scanned via the web UI
+2. The price module runs (triggered automatically post-scan)
+3. The developer inspects the wine entry in the DB (via sqlite3 CLI or a DB viewer)
+4. The entry shows non-null values for `price_min`, `price_avg`, `price_max`, `price_fetched_at`, `price_retailers`, and `nearest_retailer`
+5. At least one retailer result in `price_retailers` contains a non-empty `critic_scores` array with at least one attributed score
+
+Document the test result (which wine, which retailers responded, which scores were found) in the session summary.
+
+**Branch:** `service/price-enrichment`
+
+**PR title:** `service: price enrichment — Google Shopping + Puppeteer`
+
+**Milestone:** A real wine entry in the database has price, retailer, and attributed critic score fields populated via the two-step workflow. The retailer list is config-driven and extensible.
 
 ---
 
@@ -366,11 +422,16 @@ Displays all fields extracted from the label scan as before. No changes — GPT-
 
 **Tab 2 — Price & availability**
 
-Read-only. Populated async from the Phase 6 crawl — shown as a loading state until crawl results arrive; gracefully empty if no results are found for any retailer.
+Read-only. Populated async from the Phase 6 two-step workflow — shown as a loading state until results arrive; gracefully empty if no results found.
 
-- **Critic scores** — any attributed scores extracted from retailer pages (e.g. "Burghound: 92", "Vinous: 94"), each displayed with publication name. Omit if none found.
+Results arrive in two waves:
+- **Wave 1 (Shopping query, faster):** Average price, retailer list with prices and links, nearest retailer to NYC
+- **Wave 2 (Puppeteer + GPT-4o, slower):** Attributed critic scores per retailer, added to the display as they complete
+
+Contents when populated:
+- **Critic scores** — any attributed scores extracted from rendered retailer pages (e.g. "Burghound: 92", "Vinous: 94"), each displayed with publication name. Omit if none found.
 - **Average price** — `price_avg` across all retailers that returned a result, formatted as currency. Omit if null.
-- **Nearest retailer** — single row: retailer name, price, tappable link opening in the user's default browser. Nearest is determined by Haversine distance from NYC (40.7128° N, 74.0060° W) using the static retailer coordinate lookup defined in Phase 6. Omit if no results at all.
+- **Nearest retailer** — single row: retailer name, price, tappable link opening in the user's default browser. Nearest is determined by Haversine distance from NYC using the retailer coordinate config defined in Phase 6. Omit if no results at all.
 
 ---
 
@@ -407,7 +468,7 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 ---
 
 **Shared utility:**
-- Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts` — used by both Tab 2 and the detail view without duplication. Retailer coordinates come from the static lookup defined in Phase 6 (`backend/modules/price/retailer-coords.ts`).
+- Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts` — used by both Tab 2 and the detail view without duplication. Retailer coordinates come from the config defined in Phase 6 (`backend/modules/price/retailers.config.ts`).
 
 **Schema additions (on top of Phase 6):**
 - No new columns required — all fields used in this phase (`price_avg`, `price_retailers`, `nearest_retailer`, `retailer_links`) are defined in Phase 6 and Phase 6.6 respectively.
@@ -472,13 +533,14 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 **Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (crawled pricing, attributed scores, community sentiment, retailer links).
 
 **Deliverables:**
-- Manual review of 10–20 real wine entries enriched with crawled pricing, community data, and retailer links
-- Verify the price crawl is returning results for the wines in the collection across the four configured retailers
-- Verify attributed critic scores are being extracted correctly from K&L and Benchmark product pages
+- Manual review of 10–20 real wine entries enriched via the Phase 6 two-step workflow
+- Verify Google Shopping query returns results for the wines in the collection across the configured retailers
+- Verify Puppeteer is successfully rendering retailer pages and GPT-4o is extracting attributed critic scores
+- Document which retailers reliably return scores and which do not — adjust Puppeteer targets in config accordingly
 - Verify retailer search URLs resolve correctly for the four configured retailers (Phase 6.6)
 - Identify any schema gaps, data quality issues, or missing fields
 - Update wine entry schema and storage adapter if required
-- Document any recurring data quality issues as known limitations (e.g. wines not found by crawl)
+- Document any recurring data quality issues as known limitations
 
 **Notes:**
 - This is not a build phase — it is a structured review before committing to a UI
@@ -573,7 +635,8 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 
 - [ ] Free wine data API: no suitable free API identified for Phase 2 enrichment; GPT-4o label scanning (Phase 3) is the primary enrichment path. Revisit if a reliable free option emerges.
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning after Phase 3 is stable — potential 75% cost reduction for clean labels
-- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates before building Phase 6; confirm all four retailers have searchable product pages for Burgundy, Barolo, and Rioja before committing to the crawl targets
-- [ ] Crawl resilience: monitor Phase 6 crawl success rates in Phase 8 — if a retailer frequently returns no result, investigate whether their search URL pattern has changed
+- [ ] Google CSE setup: create a Programmable Search Engine scoped to Google Shopping before building Phase 6; verify it returns results for Burgundy, Barolo, and Rioja wines from the four configured retailers
+- [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and use those coordinates in `retailers.config.ts`; fall back to the San Francisco flagship if not
+- [ ] Puppeteer score extraction coverage: during Phase 6 manual test, document which retailers successfully return attributed critic scores — adjust Puppeteer targets based on actual results
 - [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition to the retailer links module or as a standalone notes layer. Deferred — do not build until Phase 6.6 is stable.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. All three publications gate programmatic access behind enterprise/trade arrangements (Liv-ex Gold + Enterprise subscriptions, costing thousands per year). Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.

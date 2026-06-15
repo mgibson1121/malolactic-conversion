@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-30 (Phase 6.5 scan UI + wine detail view added; Phase 6.6 retailer links; research and purchasing pain relievers updated)
+> Status: In progress | Last updated: 2026-06-14 (Phase 6.5 scan UI + wine detail view added; Phase 6.6 retailer links; research and purchasing pain relievers updated)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -368,11 +368,13 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 
 | Layer | Source | What it adds | Access model |
 |---|---|---|---|
-| **Price & retailer data** | Retailer crawl (K&L, Zachys, Woodland Hills, Benchmark) | Min/avg/max price, nearest retailer to NYC with URL, attributed critic scores from retailer product pages | GPT-4o HTML parsing — no paid API; runs async on scan |
+| **Price & retailer data** | Google Custom Search JSON API (Shopping) + Puppeteer | Step 1: price min/avg/max and nearest retailer to NYC from Google Shopping results filtered by configured retailer domains. Step 2: attributed critic scores extracted from Puppeteer-rendered retailer product pages. Retailer list is config-driven and extensible. | Google CSE free tier (100 queries/day); Puppeteer runs locally — no paid dependency |
 | **Community opinion** | Reddit API + GPT-4o | Synthesised community sentiment, vintage anecdotes, drinking window consensus | Reddit free tier (100 QPM OAuth); GPT-4o key BYOK for synthesis; raw excerpts shown as fallback |
 | **Retailer review access** | K&L, Zachys, Woodland Hills, Benchmark | One-tap search links to retailer product pages carrying professional reviews (Burghound, Vinous, Wine Advocate, Wine Spectator) | No API — app constructs search URL from wine entry data; user reads review on retailer site |
 
-**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. All three publications gate API access behind enterprise/trade arrangements (Liv-ex Gold tier + enterprise subscription, costing several thousand dollars per year). The retailer crawl (Layer 1) extracts attributed scores from retailer product pages where they appear publicly. The retailer deep-link approach (Layer 3) provides direct access to the full review text on the retailer's site.
+**Note on architecture:** The four target retailers (Zachys, Woodland Hills, Benchmark, and likely K&L) are Single Page Applications — direct HTTP fetches return empty shell HTML. Google Shopping is used for price/retailer discovery because Google has already crawled and rendered these pages. Puppeteer (headless Chromium) is used for the score extraction pass because it executes JavaScript and renders SPAs fully before extraction. The retailer list is a typed config array — adding a new retailer requires only a new config entry, no logic changes.
+
+**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. All three gate API access behind enterprise/trade arrangements costing thousands per year. The Puppeteer pass extracts attributed scores (numbers only — never tasting note text) from retailer pages where they appear publicly. The retailer deep-link approach (Layer 3) provides direct access to full review text.
 
 ### Label Scanning
 
@@ -415,10 +417,12 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 | Burghound | ⛔ No API available | Confirmed: web-only database, browser session access, single-device enforcement. No programmatic access for individual subscribers. Accessible via retailer deep links (K&L, Benchmark carry Burghound reviews on product pages). |
 | Vinous | ⛔ No API available | Confirmed: API exists but requires Vinous Enterprise ($2,000/year) + Liv-ex Gold membership. Not viable for personal use. Accessible via retailer deep links. |
 | Wine Advocate | ⛔ No API available | Confirmed: API available via Liv-ex only, for trade businesses. Explicitly declined CellarTracker-style integration for individual subscribers. Accessible via retailer deep links. |
-| K&L Wine Merchants | ✅ Retailer deep links | High review density — carries Burghound, Vinous, Wine Advocate, Wine Spectator on product pages. Search URL constructed from wine entry data. |
-| Zachys | ✅ Retailer deep links | Fine wine specialist, NYC-based. Strong Burgundy/Bordeaux depth. |
-| Woodland Hills Wine Company | ✅ Retailer deep links | Trusted retailer with solid review coverage. |
-| Benchmark Wine Group | ✅ Retailer deep links | Fine wine specialist. Publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling. |
+| Google Custom Search JSON API | ✅ In use (Phase 6) | Free tier: 100 queries/day. Queries Google Shopping for a specific wine; returns structured results filtered by configured retailer domains. Provides price, retailer name, and product URL without needing to visit SPA pages directly. |
+| Puppeteer | ✅ In use (Phase 6) | Headless Chromium browser — executes JavaScript so SPA retailer pages render fully before extraction. Used only for the score extraction pass (Step 2 of Phase 6 workflow). Not run in CI; mocked in tests. |
+| K&L Wine Merchants | ✅ Price enrichment + retailer deep links | High review density — carries Burghound, Vinous, Wine Advocate, Wine Spectator on product pages. Included in Google Shopping filter and Puppeteer score pass. Search URL also constructed for Phase 6.6 deep links. |
+| Zachys | ✅ Price enrichment + retailer deep links | Fine wine specialist, NYC-area. SPA — requires Puppeteer for score extraction. Included in Google Shopping filter. Search URL constructed for Phase 6.6 deep links. |
+| Woodland Hills Wine Company | ✅ Price enrichment + retailer deep links | Trusted retailer. SPA — requires Puppeteer for score extraction. Included in Google Shopping filter. Search URL constructed for Phase 6.6 deep links. |
+| Benchmark Wine Group | ✅ Price enrichment + retailer deep links | Fine wine specialist. Publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling. SPA — requires Puppeteer. Included in Google Shopping filter. Search URL constructed for Phase 6.6 deep links. |
 | Burgundy Report | 🔍 Under evaluation | ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Highly relevant for Burgundy focus. Deferred — evaluate after Phase 6.5 is stable. |
 | GPT-4o | ✅ In use | Label scanning, tasting note transcription tag extraction, Reddit synthesis. OpenAI API key BYOK, stored in iOS Keychain. |
 | SensorPush | ✅ In use | Environment monitoring. Cloud API (OAuth, REST). Credentials stored in iOS Keychain. |
