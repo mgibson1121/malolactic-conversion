@@ -1160,18 +1160,20 @@ describe('serialization round-trips', () => {
     })
 
     const priceData = {
-      min_price: 95,
-      avg_price: 112,
-      max_price: 140,
+      price_min: 95,
+      price_avg: 112,
+      price_max: 140,
       retailers: [
         {
+          slug: 'kl',
           name: 'K&L Wine Merchants',
           price: 95,
-          url: null,
-          location: 'New York, NY',
-          shipping_policy: 'Ships to most states',
+          url: 'https://klwines.com/p/1',
+          critic_scores: [],
+          distance_miles: 0,
         },
       ],
+      nearest_retailer: null,
       fetched_at: '2026-01-01T00:00:00.000Z',
     }
     await adapter.updateWine(wine.id, { price_data: priceData })
@@ -1179,7 +1181,7 @@ describe('serialization round-trips', () => {
     const fetched = await adapter.getWine(wine.id)
     expect(fetched!.price_data).toEqual(priceData)
     expect(fetched!.price_data!.retailers).toHaveLength(1)
-    expect(fetched!.price_data!.min_price).toBe(95)
+    expect(fetched!.price_data!.price_min).toBe(95)
   })
 
   it('preserves community data as JSON round-trips', async () => {

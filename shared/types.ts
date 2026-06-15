@@ -8,20 +8,26 @@ export interface ExpertReview {
   fetched_at: string     // ISO timestamp
 }
 
+export interface CriticScore {
+  publication: string   // e.g. "Burghound", "Vinous", "Wine Advocate"
+  score: number
+}
+
 export interface RetailerPrice {
+  slug: string          // e.g. "kl", "zachys"
   name: string
-  price: number
-  url: string | null
-  location: string | null
-  shipping_policy?: string | null
+  price: number | null
+  url: string
+  critic_scores: CriticScore[]
+  distance_miles: number
 }
 
 export interface PriceData {
-  min_price: number | null
-  avg_price: number | null
-  max_price: number | null
-  ws_score?: number | null  // Wine-Searcher aggregated critic score
+  price_min: number | null
+  price_avg: number | null
+  price_max: number | null
   retailers: RetailerPrice[]
+  nearest_retailer: RetailerPrice | null
   fetched_at: string     // ISO timestamp
 }
 

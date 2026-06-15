@@ -1,82 +1,78 @@
+import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
-import type { WineSearcherMerchant, WineSearcherResponse, WineSearcherResult } from './types'
+import { RETAILER_CONFIG } from './retailers.config'
+import { querySerper } from './serper-query'
+import { renderPageHtml } from './puppeteer-extract'
+import { extractFromRenderedHtml } from './gpt-extract'
+import type { PriceData, RetailerResult } from './types'
 
-// Wine-Searcher API v1 — https://www.wine-searcher.com/trade/ws-api
-// Required params: api_key, winename
-// Optional: vintage, location (e.g. "US-NY"), num_results, format=json
-const WS_BASE_URL = 'https://www.wine-searcher.com/api/default/v1/'
-const DEFAULT_LOCATION = 'US-NY'
-const NUM_RESULTS = 10
-
-function buildWineName(wine: WineEntry): string {
+function buildQuery(wine: WineEntry): string {
+  if (!wine.producer && !wine.denomination) return ''
   const parts = [wine.producer, wine.denomination].filter(Boolean)
   if (wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')
 }
 
-function parseLocation(merchant: WineSearcherMerchant): string | null {
-  const parts = [merchant.state, merchant.country].filter(Boolean)
-  return parts.length ? parts.join(', ') : merchant['physical-address'] ?? null
-}
+async function enrichWithCriticScores(
+  openai: OpenAI,
+  retailer: RetailerResult
+): Promise<RetailerResult> {
+  const html = await renderPageHtml(retailer.url)
+  if (!html) return retailer
 
-export async function fetchPriceData(wine: WineEntry): Promise<WineSearcherResult | null> {
-  const apiKey = process.env.WINE_SEARCHER_API_KEY
-  if (!apiKey) return null
-
-  const wineName = buildWineName(wine)
-  if (!wineName.trim()) return null
-
-  const params = new URLSearchParams({
-    api_key: apiKey,
-    winename: wineName,
-    format: 'json',
-    num_results: String(NUM_RESULTS),
-    location: DEFAULT_LOCATION,
-  })
-  if (wine.vintage) params.set('vintage', String(wine.vintage))
-
-  const url = `${WS_BASE_URL}?${params.toString()}`
-
-  let data: WineSearcherResponse
-  try {
-    const res = await fetch(url)
-    if (!res.ok) {
-      console.error(`Wine-Searcher API error: ${res.status} ${res.statusText}`)
-      return null
-    }
-    data = await res.json() as WineSearcherResponse
-  } catch (err) {
-    console.error('Wine-Searcher fetch failed:', err)
-    return null
-  }
-
-  // Return code 0 = success; anything else = no match or error
-  if (data.Status && data.Status.ReturnCode !== 0) {
-    console.warn(`Wine-Searcher returned code ${data.Status.ReturnCode}: ${data.Status.StatusMessage}`)
-    return null
-  }
-
-  const stats = data.Statistics
-  const merchants = (data.Price ?? []).slice(0, NUM_RESULTS)
-
-  const retailers = merchants.map(m => ({
-    name: m['merchant-name'] ?? 'Unknown',
-    price: m.price,
-    url: m.link ?? null,
-    location: parseLocation(m),
-  }))
-
-  // Sort by price ascending
-  retailers.sort((a, b) => a.price - b.price)
+  const extraction = await extractFromRenderedHtml(openai, html, retailer.url)
+  if (!extraction) return retailer
 
   return {
-    min_price: stats?.['price-min'] ?? null,
-    avg_price: stats?.['price-avg'] ?? null,
-    max_price: stats?.['price-max'] ?? null,
-    ws_score: data.score ?? null,
-    retailers,
-    drinking_window_start: data['drink-from'] ?? null,
-    drinking_window_end: data['drink-to'] ?? null,
+    ...retailer,
+    price: extraction.price ?? retailer.price,
+    url: extraction.url || retailer.url,
+    critic_scores: extraction.critic_scores ?? [],
+  }
+}
+
+export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  const serperKey = process.env.SERPER_API_KEY
+
+  if (!apiKey || !serperKey) return null
+
+  const query = buildQuery(wine)
+  if (!query.trim()) return null
+
+  // Step 1 — Serper query: discover retailer URLs + prices
+  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey)
+  if (baseResults.length === 0) return null
+
+  // Step 2 — Puppeteer pass: render each SPA page and extract attributed critic scores
+  const openai = new OpenAI({ apiKey })
+  const enriched = await Promise.all(
+    baseResults.map(r => enrichWithCriticScores(openai, r))
+  )
+
+  const withPrice = enriched.filter(r => r.price !== null)
+  const prices = withPrice.map(r => r.price as number)
+
+  const price_min = prices.length ? Math.min(...prices) : null
+  const price_max = prices.length ? Math.max(...prices) : null
+  const price_avg =
+    prices.length
+      ? Math.round((prices.reduce((s, p) => s + p, 0) / prices.length) * 100) / 100
+      : null
+
+  // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
+  const preferred = enriched.filter(r => r.is_preferred_retailer)
+  const nearest_retailer =
+    preferred.length > 0
+      ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
+      : enriched[0] ?? null
+
+  return {
+    price_min,
+    price_avg,
+    price_max,
+    retailers: enriched,
+    nearest_retailer,
     fetched_at: new Date().toISOString(),
   }
 }

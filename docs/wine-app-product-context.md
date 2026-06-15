@@ -1,5 +1,5 @@
 # Wine App — Product Context
-> Status: In progress | Last updated: 2026-05-30 (Phase 6.5 scan UI + wine detail view added; Phase 6.6 retailer links; research and purchasing pain relievers updated)
+> Status: In progress | Last updated: 2026-06-14 (Phase 6.5 scan UI + wine detail view added; Phase 6.6 retailer links; research and purchasing pain relievers updated)
 > This file is the single source of truth for product context. It is used by both the product owner and AI agents (Claude Code) to make consistent decisions. When in doubt, consult this file before building.
 
 ---
@@ -74,7 +74,7 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | `expert_reviews` | Array | Manual entry | Professional tasting notes attached manually by user; no automated API source available for individual subscribers |
 | `community_sentiment` | String | Reddit + LLM | GPT-4o synthesis of Reddit data; null if no OpenAI key configured |
 | `community_excerpts` | Array | Reddit API | Raw Reddit excerpts; shown as fallback if no LLM key configured |
-| `price_data` | Object | Wine-Searcher API | Min/avg/max price, top retailers with URLs, Wine-Searcher aggregate score; null if not configured |
+| `price_data` | Object | Serper + Puppeteer | Min/avg/max price from Serper Shopping results, nearest retailer to NYC, attributed critic scores from Puppeteer-rendered pages; null until first run |
 | `retailer_links` | Object | User-saved | URLs saved by user from retailer search sessions (K&L, Zachys, Woodland Hills, Benchmark); keyed by retailer slug; null until user saves |
 | `my_rating` | Enum | User | `poor`, `acceptable`, `good`, `very_good`, `outstanding` |
 | `my_tasting_notes` | Object | User | Structured WSET tags + free text |
@@ -180,7 +180,7 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 
 **Pain Relievers**
 
-- Scan or photograph a label → app returns a two-tab review screen. Tab 1 shows populated wine entry fields (GPT-4o extraction, with Wine-Searcher fallback for region and grape_varieties where scan couldn't extract them — fallback clearly attributed). Tab 2 shows Wine-Searcher Score, average price, and the nearest retailer to NYC with a tappable link.
+- Scan or photograph a label → app returns a two-tab review screen. Tab 1 shows populated wine entry fields from GPT-4o extraction — if a Tier 1 field could not be extracted, a manual entry prompt is surfaced. Tab 2 shows attributed critic scores found on retailer pages (e.g. "Burghound: 92"), average price across crawled retailers, and the nearest retailer to NYC with a tappable link.
 - One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) constructed from wine identity data — opens retailer product page in browser where professional reviews are published. User can save a specific product page URL back to the wine entry for future reference.
 - Vintage intelligence: for each bottle, a summary of community consensus on vintage quality and approachability (via Reddit synthesis).
 - In-store trigger: camera scan. Web trigger: iOS share sheet (v1), browser extension (future).
@@ -188,7 +188,7 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 **Gain Creators**
 
 - All configured data sources are displayed as distinct layers on the wine entry card — each source speaks in its own voice. The more sources configured, the more complete the picture.
-- Tapping any wine entry from any list opens a compact read-only detail view showing all known data for that wine: identity fields, status tags, saved review links, Wine-Searcher price and score, and nearest retailer.
+- Tapping any wine entry from any list opens a compact read-only detail view showing all known data for that wine: identity fields, status tags, saved review links, crawled price and attributed scores, and nearest retailer.
 
 ---
 
@@ -289,14 +289,14 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 
 **Pain Relievers**
 
-- Price comparison via Wine-Searcher API: min/avg/max price and top retailers. Nearest retailer to NYC surfaced prominently with tappable link — no need to navigate to checkout separately.
+- Price discovery via Serper: min/avg/max price across preferred retailers (K&L, Zachys, Woodland Hills, Benchmark), with fallback to any retailer Google has indexed. Nearest retailer to NYC surfaced prominently with tappable link.
 - One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) for quick access to professional reviews before committing to a purchase.
-- Wine detail view shows saved review links, Wine-Searcher score, and nearest retailer in a single compact screen — all purchasing signals in one place.
+- Wine detail view shows saved review links, attributed critic scores, crawled avg price, and nearest retailer in a single compact screen — all purchasing signals in one place.
 - Prior ratings of similar wines from the same producer surfaced as a risk signal.
 
 **Gain Creators**
 
-- Wine-Searcher offer type surfaced per retailer (Retail vs. Auction vs. Pre Arrival) — flags listings that carry shipping or condition risk.
+- Attributed critic scores (e.g. Burghound, Vinous, Wine Advocate) extracted from retailer pages and displayed per publication — each source speaks in its own voice.
 - Collection fit summary: cellar category the bottle would fall into, how many bottles from the same producer and vintage are already held, and how the purchase would affect allocation drift.
 - Table wine finder: a dedicated recommendation surface for sub-$30 bottles the user has rated highly — scratch-the-itch alternatives to raiding the cellar.
 
@@ -368,11 +368,13 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 
 | Layer | Source | What it adds | Access model |
 |---|---|---|---|
-| **Price & availability** | Wine-Searcher API | Retailer pricing, local availability, min/avg/max market price, aggregated critic score | Paid API — start on free trial (100 calls/day); upgrade to 500 calls/day if needed |
+| **Price & retailer data** | Serper.dev (Google SERP API) + Puppeteer | Step 1: Serper queries Google Shopping and returns structured price/retailer data — preferred retailers (K&L, Zachys, Woodland Hills, Benchmark) first, any retailer as fallback. Step 2: Puppeteer renders SPA product pages so GPT-4o can extract attributed critic scores. Retailer list is config-driven and extensible. | Serper free tier: 2,500 queries/month — sufficient for personal use. Puppeteer runs locally, no external cost. |
 | **Community opinion** | Reddit API + GPT-4o | Synthesised community sentiment, vintage anecdotes, drinking window consensus | Reddit free tier (100 QPM OAuth); GPT-4o key BYOK for synthesis; raw excerpts shown as fallback |
 | **Retailer review access** | K&L, Zachys, Woodland Hills, Benchmark | One-tap search links to retailer product pages carrying professional reviews (Burghound, Vinous, Wine Advocate, Wine Spectator) | No API — app constructs search URL from wine entry data; user reads review on retailer site |
 
-**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. All three publications gate API access behind enterprise/trade arrangements (Liv-ex Gold tier + enterprise subscription, costing several thousand dollars per year). The retailer deep-link approach in Layer 3 achieves the same practical outcome for personal use without any ToS exposure. A future phase may revisit direct integration if individual-subscriber API access becomes available from any publication.
+**Note on architecture:** The four target retailers (Zachys, Woodland Hills, Benchmark, and likely K&L) are Single Page Applications — direct HTTP fetches return empty shell HTML. Serper.dev is used for price/retailer discovery because Google has already crawled and rendered these pages. Puppeteer handles the score extraction pass because it executes JavaScript and renders SPAs fully. The retailer list is a typed config array — adding a retailer is a one-line config change, no logic changes. If none of the preferred retailers carry a wine, the module falls back to whatever retailers Serper found.
+
+**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. The Puppeteer pass extracts attributed scores (numbers only — never tasting note text) from retailer pages where they appear publicly. The retailer deep-link approach (Layer 3) provides direct access to full review text.
 
 ### Label Scanning
 
@@ -410,7 +412,9 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 | CellarTracker | Personal export only | ToS Section 9 explicitly prohibits scraping. Authenticated personal data export via `xlquery.asp` is permitted for user's own cellar, notes, and consumed bottles. Community-wide data requires partnership — not pursuing. |
 | WineBerserkers | Not pursuing | ToS Section 5 explicitly prohibits automated access. No API exists. Partnership not pursuing. |
 | Reddit | ✅ In use | Official API, free tier, 100 QPM via OAuth 2.0. Sufficient for per-bottle queries at personal usage scale. Key subreddits: r/wine, r/burgundy, r/winetasting, r/barolo, r/wineenthusiast. |
-| Wine-Searcher | ✅ In use | Official RESTful API. Returns pricing, retailer availability, aggregated critic scores. Tasting notes and individual publication scores excluded (copyright). Paid — start on free trial (100 calls/day). |
+| Wine-Searcher | ⛔ Not in use | API evaluated and ruled out — Wine Check API costs $335/month, Market Price API costs an additional $350/month. Replaced by Serper.dev + Puppeteer approach. |
+| Serper.dev | ✅ In use (Phase 6) | Third-party Google SERP API. Free tier: 2,500 queries/month. Returns structured Shopping results including price, retailer name, and product URL. Google has already crawled and rendered SPA pages so Serper returns clean data without any browser required. Single `SERPER_API_KEY`. |
+| Puppeteer | ✅ In use (Phase 6) | Headless Chromium — executes JavaScript so SPA retailer pages render fully before GPT-4o score extraction. Used only in the price enrichment module. Not run in CI; mocked in tests with HTML fixtures. |
 | Vivino | Not pursuing | No public API. Partnership not worth pursuing. Label scanning replaced by GPT-4o vision. |
 | Burghound | ⛔ No API available | Confirmed: web-only database, browser session access, single-device enforcement. No programmatic access for individual subscribers. Accessible via retailer deep links (K&L, Benchmark carry Burghound reviews on product pages). |
 | Vinous | ⛔ No API available | Confirmed: API exists but requires Vinous Enterprise ($2,000/year) + Liv-ex Gold membership. Not viable for personal use. Accessible via retailer deep links. |
@@ -506,6 +510,6 @@ Tooltips are shown on the nose and palate aroma fields only (primary, secondary,
 
 ### Remaining
 - [ ] App name
-- [ ] Wine-Searcher API tier: start on free trial (100 calls/day) in Phase 6; confirm whether 500 calls/day ($250/month) is needed based on observed usage
+- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates and confirm all four retailers have searchable product pages for Burgundy, Barolo, and Rioja before building Phase 6
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning once feature is built; potential 75% cost reduction for clean labels
-- [ ] Burgundy Report integration: ToS permits note reproduction for active subscribers with attribution. Evaluate as a future data layer after Phase 6.5 is stable.
+- [ ] Burgundy Report integration: ToS permits note reproduction for active subscribers with attribution. Evaluate as a future data layer after Phase 6.6 is stable.
