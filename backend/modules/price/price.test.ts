@@ -1,66 +1,64 @@
 import { fetchPriceData } from './index'
 import type { WineEntry } from '@shared/types'
 
-// Module-level config controlled by each test
-const mockConfig = {
-  productUrls: {} as Record<string, string | null>,  // slug → product URL (null = not found)
-  extractions: {} as Record<string, { price: number | null; critic_scores: Array<{ publication: string; score: number }> }>,
-}
+// ─── Puppeteer mock ──────────────────────────────────────────────────────────
+// renderPageHtml is mocked so Puppeteer never runs in tests
+jest.mock('./puppeteer-extract', () => ({
+  renderPageHtml: jest.fn(),
+}))
+import { renderPageHtml } from './puppeteer-extract'
+const mockRenderPageHtml = renderPageHtml as jest.MockedFunction<typeof renderPageHtml>
 
-jest.mock('openai', () => {
-  return jest.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: jest.fn().mockImplementation(({ messages }: { messages: Array<{ role: string; content: string }> }) => {
-          const system = messages.find(m => m.role === 'system')?.content ?? ''
-          const user = messages.find(m => m.role === 'user')?.content ?? ''
-
-          if (system.includes('best-matching product URL')) {
-            // Step 1: find product URL — identify retailer from search URL in user content
-            const slug = user.includes('klwines') ? 'kl'
-              : user.includes('zachys') ? 'zachys'
-              : user.includes('woodland') ? 'woodland'
-              : user.includes('benchmark') ? 'benchmark'
-              : null
-            const productUrl = slug ? (mockConfig.productUrls[slug] ?? null) : null
-            return Promise.resolve({
-              choices: [{ message: { content: JSON.stringify({ product_url: productUrl }) } }],
-            })
-          } else {
-            // Step 2: extract from product page — identify retailer from product URL
-            const slug = user.includes('klwines') ? 'kl'
-              : user.includes('zachys') ? 'zachys'
-              : user.includes('woodland') ? 'woodland'
-              : user.includes('benchmark') ? 'benchmark'
-              : null
-            const extraction = slug ? (mockConfig.extractions[slug] ?? { price: null, critic_scores: [] }) : { price: null, critic_scores: [] }
-            return Promise.resolve({
-              choices: [{ message: { content: JSON.stringify({ price: extraction.price, url: user.match(/Page URL: (\S+)/)?.[1] ?? '', critic_scores: extraction.critic_scores }) } }],
-            })
-          }
-        }),
-      },
-    },
+// ─── OpenAI mock ─────────────────────────────────────────────────────────────
+const mockGptCreate = jest.fn()
+jest.mock('openai', () =>
+  jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: mockGptCreate } },
   }))
+)
+
+// ─── Google CSE fetch mock ────────────────────────────────────────────────────
+// Controlled per-test via mockCseItems
+let mockCseItems: Array<{ link: string; displayLink: string; title: string; snippet?: string; pagemap?: { offer?: Array<{ price?: string }> } }> = []
+
+const originalFetch = global.fetch
+beforeEach(() => {
+  jest.spyOn(global, 'fetch').mockImplementation((url) => {
+    if (String(url).includes('googleapis.com/customsearch')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ items: mockCseItems }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    }
+    return Promise.reject(new Error('unexpected fetch: ' + url))
+  })
 })
 
-const SEARCH_HTML = `<html><body><a href="/p/1">Domaine Leroy Gevrey-Chambertin 2018</a></body></html>`
-const PRODUCT_HTML = `<html><body><span class="price">$249</span></body></html>`
+afterEach(() => {
+  global.fetch = originalFetch
+  jest.clearAllMocks()
+  mockCseItems = []
+})
 
-const PRODUCT_URLS = {
-  kl: 'https://www.klwines.com/p/i?i=1',
-  zachys: 'https://www.zachys.com/product/1',
-  woodland: 'https://www.woodlandhillswine.com/products/1',
-  benchmark: 'https://www.benchmarkwine.com/products/1',
-}
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-function setupFetch() {
-  jest.spyOn(global, 'fetch').mockImplementation((url) => {
-    const u = String(url)
-    const isProduct = /\/p\/i|\/product\/|\/products\//.test(u)
-    const html = isProduct ? PRODUCT_HTML : SEARCH_HTML
-    return Promise.resolve(new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } }))
-  })
+const KL_URL = 'https://www.klwines.com/p/i?i=1234567'
+const ZACHYS_URL = 'https://www.zachys.com/products/leroy-gevrey-2018'
+const WOODLAND_URL = 'https://www.woodlandhillswine.com/products/leroy'
+const BENCHMARK_URL = 'https://www.benchmarkwine.com/products/leroy'
+
+const RENDERED_HTML = '<html><body><span class="price">$249.00</span><span data-pub="Burghound">94</span></body></html>'
+
+function makeCseItem(domain: string, url: string, price?: string) {
+  return {
+    link: url,
+    displayLink: domain,
+    title: 'Domaine Leroy Gevrey-Chambertin 2018',
+    snippet: price ? `$${price} · In stock` : undefined,
+    pagemap: price ? { offer: [{ price }] } : undefined,
+  }
 }
 
 const baseWine: WineEntry = {
@@ -98,70 +96,91 @@ const baseWine: WineEntry = {
   date_first_consumed: null,
 }
 
-describe('fetchPriceData', () => {
-  const originalKey = process.env.OPENAI_API_KEY
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
+describe('fetchPriceData', () => {
   beforeEach(() => {
-    process.env.OPENAI_API_KEY = 'test-key'
-    // Default: all retailers return a product URL and a price of 100
-    mockConfig.productUrls = { kl: PRODUCT_URLS.kl, zachys: PRODUCT_URLS.zachys, woodland: PRODUCT_URLS.woodland, benchmark: PRODUCT_URLS.benchmark }
-    mockConfig.extractions = {
-      kl: { price: 100, critic_scores: [] },
-      zachys: { price: 100, critic_scores: [] },
-      woodland: { price: 100, critic_scores: [] },
-      benchmark: { price: 100, critic_scores: [] },
-    }
+    process.env.OPENAI_API_KEY = 'test-openai-key'
+    process.env.GOOGLE_CSE_API_KEY = 'test-cse-key'
+    process.env.GOOGLE_CSE_ID = 'test-cse-id'
+    // Default: Puppeteer returns rendered HTML; GPT-4o returns empty extraction
+    mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+    mockGptCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ price: null, url: '', critic_scores: [] }) } }],
+    })
   })
 
   afterEach(() => {
-    process.env.OPENAI_API_KEY = originalKey
-    jest.restoreAllMocks()
+    delete process.env.OPENAI_API_KEY
+    delete process.env.GOOGLE_CSE_API_KEY
+    delete process.env.GOOGLE_CSE_ID
   })
 
   it('returns null when OPENAI_API_KEY is not set', async () => {
     delete process.env.OPENAI_API_KEY
-    const result = await fetchPriceData(baseWine)
-    expect(result).toBeNull()
+    expect(await fetchPriceData(baseWine)).toBeNull()
+  })
+
+  it('returns null when GOOGLE_CSE_API_KEY is not set', async () => {
+    delete process.env.GOOGLE_CSE_API_KEY
+    expect(await fetchPriceData(baseWine)).toBeNull()
+  })
+
+  it('returns null when GOOGLE_CSE_ID is not set', async () => {
+    delete process.env.GOOGLE_CSE_ID
+    expect(await fetchPriceData(baseWine)).toBeNull()
   })
 
   it('returns null when wine has no producer or denomination', async () => {
-    const result = await fetchPriceData({ ...baseWine, producer: null, denomination: null })
-    expect(result).toBeNull()
+    expect(await fetchPriceData({ ...baseWine, producer: null, denomination: null })).toBeNull()
   })
 
-  it('returns null when all retailer fetches fail', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network error'))
+  it('returns null when Google Shopping returns no retailer matches', async () => {
+    mockCseItems = [] // CSE returns empty
+    expect(await fetchPriceData(baseWine)).toBeNull()
+  })
+
+  it('filters CSE results by configured retailer domain', async () => {
+    // Only K&L matches; unknown domain should be ignored
+    mockCseItems = [
+      makeCseItem('klwines.com', KL_URL, '249'),
+      makeCseItem('wine-searcher.com', 'https://wine-searcher.com/find/leroy', '200'),
+    ]
     const result = await fetchPriceData(baseWine)
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    expect(result!.retailers).toHaveLength(1)
+    expect(result!.retailers[0].slug).toBe('kl')
   })
 
-  it('returns null when no product URLs are found', async () => {
-    setupFetch()
-    mockConfig.productUrls = { kl: null, zachys: null, woodland: null, benchmark: null }
-    const result = await fetchPriceData(baseWine)
-    expect(result).toBeNull()
-  })
-
-  it('aggregates price min/avg/max across retailers', async () => {
-    setupFetch()
-    mockConfig.extractions = {
-      kl: { price: 100, critic_scores: [] },
-      zachys: { price: 120, critic_scores: [] },
-      woodland: { price: 110, critic_scores: [] },
-      benchmark: { price: 130, critic_scores: [] },
-    }
+  it('computes price_min/avg/max from Google Shopping prices', async () => {
+    mockCseItems = [
+      makeCseItem('klwines.com', KL_URL, '100'),
+      makeCseItem('zachys.com', ZACHYS_URL, '120'),
+      makeCseItem('woodlandhillswine.com', WOODLAND_URL, '110'),
+      makeCseItem('benchmarkwine.com', BENCHMARK_URL, '130'),
+    ]
     const result = await fetchPriceData(baseWine)
     expect(result!.price_min).toBe(100)
     expect(result!.price_max).toBe(130)
     expect(result!.price_avg).toBe(115)
   })
 
-  it('extracts attributed critic scores from product pages', async () => {
-    setupFetch()
-    mockConfig.extractions.kl = {
-      price: 249,
-      critic_scores: [{ publication: 'Burghound', score: 94 }, { publication: 'Vinous', score: 96 }],
-    }
+  it('extracts attributed critic scores from Puppeteer-rendered pages', async () => {
+    mockCseItems = [makeCseItem('klwines.com', KL_URL, '249')]
+    mockGptCreate.mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            price: 249,
+            url: KL_URL,
+            critic_scores: [
+              { publication: 'Burghound', score: 94 },
+              { publication: 'Vinous', score: 96 },
+            ],
+          }),
+        },
+      }],
+    })
     const result = await fetchPriceData(baseWine)
     const kl = result!.retailers.find(r => r.slug === 'kl')
     expect(kl?.critic_scores).toHaveLength(2)
@@ -169,31 +188,57 @@ describe('fetchPriceData', () => {
     expect(kl?.critic_scores[0].score).toBe(94)
   })
 
-  it('identifies nearest retailer to NYC', async () => {
-    setupFetch()
+  it('keeps Step 1 price when Puppeteer fails to render a page', async () => {
+    mockCseItems = [makeCseItem('klwines.com', KL_URL, '199')]
+    mockRenderPageHtml.mockResolvedValue(null) // Puppeteer fails
     const result = await fetchPriceData(baseWine)
-    // K&L has a NYC store — closest to the NYC reference point
+    expect(result).not.toBeNull()
+    // Price from CSE (Step 1) is retained
+    expect(result!.retailers[0].price).toBe(199)
+    expect(result!.retailers[0].critic_scores).toHaveLength(0)
+  })
+
+  it('identifies nearest retailer to NYC by Haversine distance', async () => {
+    mockCseItems = [
+      makeCseItem('klwines.com', KL_URL, '200'),
+      makeCseItem('benchmarkwine.com', BENCHMARK_URL, '200'),
+    ]
+    const result = await fetchPriceData(baseWine)
+    // K&L NYC store is closest to NYC reference point
     expect(result!.nearest_retailer?.slug).toBe('kl')
   })
 
-  it('handles partial retailer fetch failures gracefully', async () => {
-    jest.spyOn(global, 'fetch').mockImplementation((url) => {
-      if (String(url).includes('klwines')) {
-        return Promise.resolve(new Response(SEARCH_HTML, { status: 200 }))
-      }
-      return Promise.reject(new Error('timeout'))
+  it('continues enriching remaining retailers when one Puppeteer call fails', async () => {
+    mockCseItems = [
+      makeCseItem('klwines.com', KL_URL, '200'),
+      makeCseItem('zachys.com', ZACHYS_URL, '210'),
+    ]
+    mockRenderPageHtml
+      .mockResolvedValueOnce(null) // K&L fails
+      .mockResolvedValueOnce(RENDERED_HTML) // Zachys succeeds
+    mockGptCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ price: 210, url: ZACHYS_URL, critic_scores: [{ publication: 'Vinous', score: 93 }] }) } }],
     })
-    mockConfig.productUrls = { kl: PRODUCT_URLS.kl, zachys: null, woodland: null, benchmark: null }
     const result = await fetchPriceData(baseWine)
-    expect(result).not.toBeNull()
-    expect(result!.retailers).toHaveLength(1)
-    expect(result!.retailers[0].slug).toBe('kl')
+    expect(result!.retailers).toHaveLength(2)
+    const zachys = result!.retailers.find(r => r.slug === 'zachys')
+    expect(zachys?.critic_scores[0].publication).toBe('Vinous')
   })
 
-  it('includes fetched_at timestamp', async () => {
-    setupFetch()
+  it('includes fetched_at ISO timestamp', async () => {
+    mockCseItems = [makeCseItem('klwines.com', KL_URL, '249')]
     const result = await fetchPriceData(baseWine)
     expect(result!.fetched_at).toBeTruthy()
     expect(new Date(result!.fetched_at).getTime()).not.toBeNaN()
+  })
+
+  it('uses price from Puppeteer/GPT extraction when it overrides CSE price', async () => {
+    mockCseItems = [makeCseItem('klwines.com', KL_URL, '200')]
+    mockGptCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ price: 249, url: KL_URL, critic_scores: [] }) } }],
+    })
+    const result = await fetchPriceData(baseWine)
+    // GPT extraction price (249) takes precedence over CSE price (200)
+    expect(result!.retailers[0].price).toBe(249)
   })
 })
