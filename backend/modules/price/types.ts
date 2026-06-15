@@ -9,6 +9,7 @@ export interface RetailerResult {
   price: number | null
   url: string
   critic_scores: CriticScore[]
+  is_preferred_retailer: boolean
   distance_miles: number
 }
 
@@ -19,17 +20,6 @@ export interface PriceData {
   retailers: RetailerResult[]
   nearest_retailer: RetailerResult | null
   fetched_at: string
-}
-
-// Shape returned by Google Custom Search JSON API item
-export interface CseItem {
-  link: string
-  displayLink: string
-  title: string
-  snippet?: string
-  pagemap?: {
-    offer?: Array<{ price?: string }>
-  }
 }
 
 // Shape GPT-4o returns per product page

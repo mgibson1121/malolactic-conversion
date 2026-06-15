@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from './retailers.config'
-import { queryGoogleShopping, hitsToRetailerResults } from './shopping-query'
+import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractFromRenderedHtml } from './gpt-extract'
 import type { PriceData, RetailerResult } from './types'
@@ -33,19 +33,16 @@ async function enrichWithCriticScores(
 
 export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null> {
   const apiKey = process.env.OPENAI_API_KEY
-  const cseApiKey = process.env.GOOGLE_CSE_API_KEY
-  const cseId = process.env.GOOGLE_CSE_ID
+  const serperKey = process.env.SERPER_API_KEY
 
-  if (!apiKey || !cseApiKey || !cseId) return null
+  if (!apiKey || !serperKey) return null
 
   const query = buildQuery(wine)
   if (!query.trim()) return null
 
-  // Step 1 — Google Shopping query: discover retailer URLs + prices
-  const hits = await queryGoogleShopping(query, RETAILER_CONFIG, cseApiKey, cseId)
-  if (hits.length === 0) return null
-
-  const baseResults = hitsToRetailerResults(hits)
+  // Step 1 — Serper query: discover retailer URLs + prices
+  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey)
+  if (baseResults.length === 0) return null
 
   // Step 2 — Puppeteer pass: render each SPA page and extract attributed critic scores
   const openai = new OpenAI({ apiKey })
@@ -63,8 +60,12 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
       ? Math.round((prices.reduce((s, p) => s + p, 0) / prices.length) * 100) / 100
       : null
 
+  // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
+  const preferred = enriched.filter(r => r.is_preferred_retailer)
   const nearest_retailer =
-    [...enriched].sort((a, b) => a.distance_miles - b.distance_miles)[0] ?? null
+    preferred.length > 0
+      ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
+      : enriched[0] ?? null
 
   return {
     price_min,

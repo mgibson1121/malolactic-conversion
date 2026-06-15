@@ -2,7 +2,6 @@ import { fetchPriceData } from './index'
 import type { WineEntry } from '@shared/types'
 
 // ─── Puppeteer mock ──────────────────────────────────────────────────────────
-// renderPageHtml is mocked so Puppeteer never runs in tests
 jest.mock('./puppeteer-extract', () => ({
   renderPageHtml: jest.fn(),
 }))
@@ -17,16 +16,15 @@ jest.mock('openai', () =>
   }))
 )
 
-// ─── Google CSE fetch mock ────────────────────────────────────────────────────
-// Controlled per-test via mockCseItems
-let mockCseItems: Array<{ link: string; displayLink: string; title: string; snippet?: string; pagemap?: { offer?: Array<{ price?: string }> } }> = []
+// ─── Serper fetch mock ────────────────────────────────────────────────────────
+let mockSerperItems: Array<{ title: string; source: string; link: string; price?: string }> = []
 
 const originalFetch = global.fetch
 beforeEach(() => {
-  jest.spyOn(global, 'fetch').mockImplementation((url) => {
-    if (String(url).includes('googleapis.com/customsearch')) {
+  jest.spyOn(global, 'fetch').mockImplementation((url, init) => {
+    if (String(url).includes('google.serper.dev')) {
       return Promise.resolve(
-        new Response(JSON.stringify({ items: mockCseItems }), {
+        new Response(JSON.stringify({ shopping: mockSerperItems }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -39,7 +37,7 @@ beforeEach(() => {
 afterEach(() => {
   global.fetch = originalFetch
   jest.clearAllMocks()
-  mockCseItems = []
+  mockSerperItems = []
 })
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -48,17 +46,12 @@ const KL_URL = 'https://www.klwines.com/p/i?i=1234567'
 const ZACHYS_URL = 'https://www.zachys.com/products/leroy-gevrey-2018'
 const WOODLAND_URL = 'https://www.woodlandhillswine.com/products/leroy'
 const BENCHMARK_URL = 'https://www.benchmarkwine.com/products/leroy'
+const OTHER_URL = 'https://www.someotherwinestore.com/products/leroy'
 
-const RENDERED_HTML = '<html><body><span class="price">$249.00</span><span data-pub="Burghound">94</span></body></html>'
+const RENDERED_HTML = '<html><body><span class="price">$249.00</span></body></html>'
 
-function makeCseItem(domain: string, url: string, price?: string) {
-  return {
-    link: url,
-    displayLink: domain,
-    title: 'Domaine Leroy Gevrey-Chambertin 2018',
-    snippet: price ? `$${price} · In stock` : undefined,
-    pagemap: price ? { offer: [{ price }] } : undefined,
-  }
+function makeItem(source: string, link: string, price?: string) {
+  return { title: 'Domaine Leroy Gevrey-Chambertin 2018', source, link, price }
 }
 
 const baseWine: WineEntry = {
@@ -101,9 +94,7 @@ const baseWine: WineEntry = {
 describe('fetchPriceData', () => {
   beforeEach(() => {
     process.env.OPENAI_API_KEY = 'test-openai-key'
-    process.env.GOOGLE_CSE_API_KEY = 'test-cse-key'
-    process.env.GOOGLE_CSE_ID = 'test-cse-id'
-    // Default: Puppeteer returns rendered HTML; GPT-4o returns empty extraction
+    process.env.SERPER_API_KEY = 'test-serper-key'
     mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
     mockGptCreate.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify({ price: null, url: '', critic_scores: [] }) } }],
@@ -112,8 +103,7 @@ describe('fetchPriceData', () => {
 
   afterEach(() => {
     delete process.env.OPENAI_API_KEY
-    delete process.env.GOOGLE_CSE_API_KEY
-    delete process.env.GOOGLE_CSE_ID
+    delete process.env.SERPER_API_KEY
   })
 
   it('returns null when OPENAI_API_KEY is not set', async () => {
@@ -121,13 +111,8 @@ describe('fetchPriceData', () => {
     expect(await fetchPriceData(baseWine)).toBeNull()
   })
 
-  it('returns null when GOOGLE_CSE_API_KEY is not set', async () => {
-    delete process.env.GOOGLE_CSE_API_KEY
-    expect(await fetchPriceData(baseWine)).toBeNull()
-  })
-
-  it('returns null when GOOGLE_CSE_ID is not set', async () => {
-    delete process.env.GOOGLE_CSE_ID
+  it('returns null when SERPER_API_KEY is not set', async () => {
+    delete process.env.SERPER_API_KEY
     expect(await fetchPriceData(baseWine)).toBeNull()
   })
 
@@ -135,29 +120,38 @@ describe('fetchPriceData', () => {
     expect(await fetchPriceData({ ...baseWine, producer: null, denomination: null })).toBeNull()
   })
 
-  it('returns null when Google Shopping returns no retailer matches', async () => {
-    mockCseItems = [] // CSE returns empty
+  it('returns null when Serper returns no results', async () => {
+    mockSerperItems = []
     expect(await fetchPriceData(baseWine)).toBeNull()
   })
 
-  it('filters CSE results by configured retailer domain', async () => {
-    // Only K&L matches; unknown domain should be ignored
-    mockCseItems = [
-      makeCseItem('klwines.com', KL_URL, '249'),
-      makeCseItem('wine-searcher.com', 'https://wine-searcher.com/find/leroy', '200'),
+  it('filters Serper results to preferred retailer domains (Pass 1)', async () => {
+    mockSerperItems = [
+      makeItem('K&L Wine Merchants', KL_URL, '$249.00'),
+      makeItem('Some Other Store', OTHER_URL, '$200.00'),
     ]
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
     expect(result!.retailers).toHaveLength(1)
     expect(result!.retailers[0].slug).toBe('kl')
+    expect(result!.retailers[0].is_preferred_retailer).toBe(true)
   })
 
-  it('computes price_min/avg/max from Google Shopping prices', async () => {
-    mockCseItems = [
-      makeCseItem('klwines.com', KL_URL, '100'),
-      makeCseItem('zachys.com', ZACHYS_URL, '120'),
-      makeCseItem('woodlandhillswine.com', WOODLAND_URL, '110'),
-      makeCseItem('benchmarkwine.com', BENCHMARK_URL, '130'),
+  it('falls back to any retailer results when no preferred retailers match (Pass 2)', async () => {
+    mockSerperItems = [
+      makeItem('Some Other Store', OTHER_URL, '$200.00'),
+    ]
+    const result = await fetchPriceData(baseWine)
+    expect(result).not.toBeNull()
+    expect(result!.retailers[0].is_preferred_retailer).toBe(false)
+  })
+
+  it('computes price_min/avg/max from Serper prices', async () => {
+    mockSerperItems = [
+      makeItem('K&L Wine Merchants', KL_URL, '$100.00'),
+      makeItem('Zachys', ZACHYS_URL, '$120.00'),
+      makeItem('Woodland Hills Wine Co.', WOODLAND_URL, '$110.00'),
+      makeItem('Benchmark Wine Group', BENCHMARK_URL, '$130.00'),
     ]
     const result = await fetchPriceData(baseWine)
     expect(result!.price_min).toBe(100)
@@ -166,7 +160,7 @@ describe('fetchPriceData', () => {
   })
 
   it('extracts attributed critic scores from Puppeteer-rendered pages', async () => {
-    mockCseItems = [makeCseItem('klwines.com', KL_URL, '249')]
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$249.00')]
     mockGptCreate.mockResolvedValue({
       choices: [{
         message: {
@@ -188,34 +182,33 @@ describe('fetchPriceData', () => {
     expect(kl?.critic_scores[0].score).toBe(94)
   })
 
-  it('keeps Step 1 price when Puppeteer fails to render a page', async () => {
-    mockCseItems = [makeCseItem('klwines.com', KL_URL, '199')]
-    mockRenderPageHtml.mockResolvedValue(null) // Puppeteer fails
+  it('retains Step 1 price when Puppeteer fails to render a page', async () => {
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
+    mockRenderPageHtml.mockResolvedValue(null)
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    // Price from CSE (Step 1) is retained
     expect(result!.retailers[0].price).toBe(199)
     expect(result!.retailers[0].critic_scores).toHaveLength(0)
   })
 
-  it('identifies nearest retailer to NYC by Haversine distance', async () => {
-    mockCseItems = [
-      makeCseItem('klwines.com', KL_URL, '200'),
-      makeCseItem('benchmarkwine.com', BENCHMARK_URL, '200'),
+  it('identifies nearest preferred retailer to NYC by Haversine distance', async () => {
+    mockSerperItems = [
+      makeItem('K&L Wine Merchants', KL_URL, '$200.00'),
+      makeItem('Benchmark Wine Group', BENCHMARK_URL, '$200.00'),
     ]
     const result = await fetchPriceData(baseWine)
-    // K&L NYC store is closest to NYC reference point
+    // K&L NYC store is closer to NYC than Benchmark (Napa)
     expect(result!.nearest_retailer?.slug).toBe('kl')
   })
 
-  it('continues enriching remaining retailers when one Puppeteer call fails', async () => {
-    mockCseItems = [
-      makeCseItem('klwines.com', KL_URL, '200'),
-      makeCseItem('zachys.com', ZACHYS_URL, '210'),
+  it('continues enriching other retailers when one Puppeteer call fails', async () => {
+    mockSerperItems = [
+      makeItem('K&L Wine Merchants', KL_URL, '$200.00'),
+      makeItem('Zachys', ZACHYS_URL, '$210.00'),
     ]
     mockRenderPageHtml
-      .mockResolvedValueOnce(null) // K&L fails
-      .mockResolvedValueOnce(RENDERED_HTML) // Zachys succeeds
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(RENDERED_HTML)
     mockGptCreate.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify({ price: 210, url: ZACHYS_URL, critic_scores: [{ publication: 'Vinous', score: 93 }] }) } }],
     })
@@ -226,19 +219,18 @@ describe('fetchPriceData', () => {
   })
 
   it('includes fetched_at ISO timestamp', async () => {
-    mockCseItems = [makeCseItem('klwines.com', KL_URL, '249')]
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$249.00')]
     const result = await fetchPriceData(baseWine)
     expect(result!.fetched_at).toBeTruthy()
     expect(new Date(result!.fetched_at).getTime()).not.toBeNaN()
   })
 
-  it('uses price from Puppeteer/GPT extraction when it overrides CSE price', async () => {
-    mockCseItems = [makeCseItem('klwines.com', KL_URL, '200')]
+  it('Puppeteer/GPT price overrides Serper price when available', async () => {
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$200.00')]
     mockGptCreate.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify({ price: 249, url: KL_URL, critic_scores: [] }) } }],
     })
     const result = await fetchPriceData(baseWine)
-    // GPT extraction price (249) takes precedence over CSE price (200)
     expect(result!.retailers[0].price).toBe(249)
   })
 })

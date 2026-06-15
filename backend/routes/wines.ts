@@ -76,7 +76,7 @@ router.post(
 
     const result = await fetchPriceData(wine)
     if (!result) {
-      res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY, GOOGLE_CSE_API_KEY, or GOOGLE_CSE_ID not configured, or no retailer results found' })
+      res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found' })
       return
     }
 
