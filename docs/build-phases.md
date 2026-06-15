@@ -289,118 +289,118 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 
 ---
 
-## Phase 6 — Price enrichment (Google Shopping + Puppeteer)
+## Phase 6 — Price enrichment (Serper + Puppeteer)
 
-**Goal:** Enrich the wine entry with current retail pricing, retailer availability, and attributed critic scores from trusted fine wine retailers. Phase 6 is not complete until a real wine entry in the database shows populated price, retailer, and score fields resulting from the described workflow. A manual test run against a real bottle is required to close the phase.
+**Goal:** Enrich the wine entry with current retail pricing, retailer availability, and attributed critic scores. Phase 6 is not complete until a real wine entry in the database shows populated price, retailer, and score fields from a live run. A manual test against a real bottle is required to close the phase.
 
-**Context and architecture decision:** The original approach — fetching retailer product pages directly via HTTP — was invalidated when Claude Code discovered that Zachys, Woodland Hills, and Benchmark are all SPAs. Server-side fetches return ~768 bytes of empty shell HTML with no product data. Two tools replace the direct crawl:
+**Context and architecture decision:** The original approach — fetching retailer product pages directly via HTTP — was invalidated when Claude Code discovered that Zachys, Woodland Hills, and Benchmark are all SPAs. Server-side fetches return ~768 bytes of empty shell HTML. Two tools replace it:
 
-1. **Google Custom Search JSON API** — queries Google Shopping for a specific wine and returns structured results including retailer name, price, and product URL. Google has already crawled and rendered the SPA pages; this call returns their indexed data cleanly. Free tier: 100 queries/day — sufficient for personal use.
-2. **Puppeteer** — a headless Chromium browser that executes JavaScript, allowing SPA pages to fully render before extraction. Used only for the targeted Puppeteer pass (see below) — not for the Shopping query.
+1. **Serper.dev** — a third-party Google SERP API that queries Google on your behalf and returns structured JSON including Shopping results. Google has already crawled and rendered the SPA pages; Serper returns their indexed data cleanly without any browser required. Free tier: 2,500 queries/month — well above personal usage. Single API key, no domain restrictions, no expiry risk. Note: Google's own Custom Search JSON API is closed to new customers as of 2025 and deprecated January 2027; Serper is the practical replacement.
+2. **Puppeteer** — a headless Chromium browser that executes JavaScript so SPA pages render fully before extraction. Used only for Step 2 (score extraction from specific product pages) — not for the Serper query.
 
 **Two-step workflow:**
 
-**Step 1 — Google Shopping query (price + retailer discovery)**
-- On scan or manual refresh trigger, the price module queries the Google Custom Search JSON API configured for Google Shopping results
-- Query constructed from wine entry fields: `producer + denomination + vintage`
-- Results filtered for configured retailer domains — the retailer list is extensible via config, not hardcoded in logic
+**Step 1 — Serper query (price + retailer discovery)**
+- On scan or manual refresh trigger, the price module sends a query to the Serper API for the wine (`producer + denomination + vintage`)
+- Response includes Shopping results and organic results from across the web
+- Results are filtered for configured retailer domains — the retailer list is extensible via config, not hardcoded in logic
+- Pass 1: filter results for configured preferred retailers (K&L, Zachys, Woodland Hills, Benchmark)
+- Pass 2 (fallback): if Pass 1 returns no matches, use the unfiltered Serper results — any wine retailer Google found. Flag these as "other retailers" in the stored data.
 - From matching results, extract per retailer: name, price, product URL
-- Compute `price_min`, `price_avg`, `price_max` across all matching retailers
+- Compute `price_min`, `price_avg`, `price_max` across all matching results
 - Identify nearest retailer to NYC using Haversine distance from static retailer coordinate lookup
-- All results stored as a point-in-time snapshot
+- Store all results as a point-in-time snapshot
 
 **Step 2 — Puppeteer score extraction (attributed critic scores)**
-- For each retailer result from Step 1 that returned a product URL, Puppeteer opens the URL in a headless Chromium browser
+- For each product URL returned in Step 1, Puppeteer opens the URL in headless Chromium
 - Waits for the page to fully render (product data visible in DOM)
 - Passes rendered HTML to GPT-4o with a structured extraction prompt
 - GPT-4o extracts: any critic scores visibly attributed to a named publication (score value + publication name). Never infer or hallucinate attributions. Never extract tasting note text.
 - Results stored per retailer in `price_retailers` JSON alongside price and URL
-- Runs async in the background — does not block the scan result or Step 1 results from displaying
-- Each retailer page is opened independently — if one fails, the others continue
+- Runs async — does not block Step 1 results from displaying
+- Each retailer page is independent — if one fails, the others continue
 
 **Retailer configuration (`backend/modules/price/retailers.config.ts`):**
 
-The retailer list is a typed config array — adding a new retailer requires only a new entry here, no changes to module logic.
+Config-driven — adding a retailer requires only a new entry here, no logic changes:
 
 ```typescript
 export const RETAILER_CONFIG = [
-  { slug: 'kl',        name: 'K&L Wine Merchants',       domain: 'klwines.com',             lat: 40.7580, lng: -73.9855 }, // K&L NYC store
-  { slug: 'zachys',    name: 'Zachys',                   domain: 'zachys.com',              lat: 41.0026, lng: -73.6693 },
-  { slug: 'woodland',  name: 'Woodland Hills Wine Co.',  domain: 'woodlandhillswine.com',   lat: 34.1684, lng: -118.6059 },
-  { slug: 'benchmark', name: 'Benchmark Wine Group',     domain: 'benchmarkwine.com',       lat: 38.2975, lng: -122.2869 },
+  { slug: 'kl',        name: 'K&L Wine Merchants',      domain: 'klwines.com',           lat: 40.7580, lng: -73.9855 },
+  { slug: 'zachys',    name: 'Zachys',                  domain: 'zachys.com',            lat: 41.0026, lng: -73.6693 },
+  { slug: 'woodland',  name: 'Woodland Hills Wine Co.', domain: 'woodlandhillswine.com', lat: 34.1684, lng: -118.6059 },
+  { slug: 'benchmark', name: 'Benchmark Wine Group',    domain: 'benchmarkwine.com',     lat: 38.2975, lng: -122.2869 },
 ]
 ```
 
-**Schema additions (migration on top of Phase 5 schema — do not alter existing columns):**
-- `price_min` REAL — nullable; lowest price found across matching retailers
-- `price_avg` REAL — nullable; mean price across matching retailers
-- `price_max` REAL — nullable; highest price found across matching retailers
-- `price_fetched_at` TEXT — ISO timestamp; when the last query + Puppeteer pass ran
-- `price_retailers` TEXT — JSON array; one entry per retailer result: `{ slug, name, price, url, critic_scores: [{ publication, score }] }`
+**Schema additions (migration on top of Phase 5 — do not alter existing columns):**
+- `price_min` REAL — nullable
+- `price_avg` REAL — nullable
+- `price_max` REAL — nullable
+- `price_fetched_at` TEXT — ISO timestamp of last run
+- `price_retailers` TEXT — JSON array: `{ slug, name, price, url, is_preferred_retailer: boolean, critic_scores: [{ publication, score }] }`
 - `nearest_retailer` TEXT — JSON object: `{ slug, name, price, url, distance_miles }`
 
-**Google Custom Search JSON API setup:**
-- Create a Programmable Search Engine (PSE) scoped to Google Shopping results
-- API key stored in `.env` as `GOOGLE_CSE_API_KEY`
-- Search engine ID stored in `.env` as `GOOGLE_CSE_ID`
-- Free tier: 100 queries/day. Each wine scan triggers one query. Sufficient for personal use.
-- Add both variables to `.env.example`
+**Serper API setup:**
+- Sign up at `serper.dev` — free tier gives 2,500 queries/month, no credit card required
+- API key stored in `.env` as `SERPER_API_KEY`
+- Add to `.env.example`
+- Serper Shopping endpoint: `POST https://google.serper.dev/shopping` with `{ q: "producer denomination vintage wine", gl: "us" }`
 
 **GPT-4o extraction prompt requirements:**
 - Input: fully rendered HTML from Puppeteer
-- Output: structured JSON — `{ critic_scores: [{ publication: string, score: number }] }`
-- Prompt must instruct the model to extract only scores visibly attributed to a named publication on the page
-- If no attributed scores are found, return an empty array — never guess or infer
-- Prompt and expected output format documented in `backend/modules/price/PROMPT.md`
+- Output: `{ critic_scores: [{ publication: string, score: number }] }`
+- Extract only scores visibly attributed to a named publication — never infer or hallucinate
+- If no attributed scores found, return empty array
+- Prompt documented in `backend/modules/price/PROMPT.md`
 
 **Puppeteer configuration:**
-- Installed as a dev dependency via npm: `puppeteer`
-- Runs locally — headless Chromium is downloaded automatically by Puppeteer on first install
-- Each page render has a configurable timeout (default 15 seconds) — if the page doesn't render in time, skip that retailer gracefully
-- User agent set to a standard browser string to avoid bot detection
-- Do not run Puppeteer in CI — mock the Puppeteer layer in tests using pre-captured HTML fixtures
+- Installed via npm: `puppeteer`
+- Runs locally — headless Chromium downloaded automatically on first install
+- Per-page timeout: 15 seconds — skip retailer gracefully if exceeded
+- Standard browser user agent to avoid bot detection
+- Do not run Puppeteer in CI — mock using pre-captured HTML fixtures in tests
 
 **Module structure (`backend/modules/price/`):**
 ```
 price/
-├── index.ts              # Module entry point — orchestrates Step 1 and Step 2
-├── shopping-query.ts     # Google Custom Search JSON API call
-├── puppeteer-extract.ts  # Headless browser render + HTML capture
-├── gpt-extract.ts        # GPT-4o extraction from rendered HTML
-├── retailers.config.ts   # Extensible retailer list
-├── proximity.ts          # Re-exports shared/utils/proximity.ts
-├── PROMPT.md             # GPT-4o extraction prompt documentation
-├── types.ts              # TypeScript types for all module inputs/outputs
-└── price.test.ts         # Unit tests (mocked Shopping API + mocked HTML fixtures)
+├── index.ts               # Orchestrates Step 1 and Step 2
+├── serper-query.ts        # Serper API call + retailer filtering
+├── puppeteer-extract.ts   # Headless browser render + HTML capture
+├── gpt-extract.ts         # GPT-4o score extraction from rendered HTML
+├── retailers.config.ts    # Extensible retailer list with coordinates
+├── PROMPT.md              # GPT-4o extraction prompt documentation
+├── types.ts               # TypeScript types
+└── price.test.ts          # Unit tests (mocked Serper responses + HTML fixtures)
 ```
 
 **Graceful degradation:**
-- If `GOOGLE_CSE_API_KEY` or `GOOGLE_CSE_ID` are not configured, the module returns null for all price fields — no error thrown
-- If the Shopping query returns no matches for a retailer, that retailer is skipped
-- If Puppeteer fails to render a page within the timeout, that retailer's `critic_scores` is left as an empty array — price and URL from Step 1 are still stored
-- If GPT-4o finds no attributed scores, returns empty array — not an error
+- `SERPER_API_KEY` not configured → return null for all price fields, no error
+- Serper returns no matches for preferred retailers → fall back to any retailer results
+- Serper returns no results at all → null, no error
+- Puppeteer timeout → `critic_scores: []` for that retailer, price/URL from Step 1 retained
+- GPT-4o finds no attributed scores → `critic_scores: []`, not an error
 
 **Tests:**
-- Unit test: Shopping query correctly filters results by retailer domain config
-- Unit test: price_min/avg/max computed correctly from a set of known retailer prices
-- Unit test: nearest retailer selection using Haversine utility with known coordinates
-- Unit test: GPT-4o extraction prompt returns correct structured output given a fixture HTML file with known scores
-- Unit test: graceful degradation — no API keys configured returns null state without throwing
-- Integration test: end-to-end with mocked Shopping API response and mocked Puppeteer HTML fixtures — verify a wine entry in the DB is correctly updated with all price fields
+- Unit: Serper response correctly filtered by preferred retailer domains
+- Unit: fallback to non-preferred retailers when preferred returns nothing
+- Unit: `price_min`/`price_avg`/`price_max` aggregation from known inputs
+- Unit: nearest retailer selection using Haversine utility
+- Unit: GPT-4o extraction returns correct structure from fixture HTML
+- Unit: graceful degradation — no API key returns null without throwing
+- Integration: end-to-end with mocked Serper response and mocked Puppeteer fixtures — verify wine entry DB fields are correctly populated
 
-**Phase 6 completion criteria:**
-Phase 6 is not complete until the following manual test passes:
+**Phase 6 completion criteria — manual test required:**
 1. A real wine bottle is scanned via the web UI
-2. The price module runs (triggered automatically post-scan)
-3. The developer inspects the wine entry in the DB (via sqlite3 CLI or a DB viewer)
-4. The entry shows non-null values for `price_min`, `price_avg`, `price_max`, `price_fetched_at`, `price_retailers`, and `nearest_retailer`
-5. At least one retailer result in `price_retailers` contains a non-empty `critic_scores` array with at least one attributed score
+2. The price module runs automatically post-scan
+3. Inspect the wine entry: `sqlite3 backend/db/wine.db "SELECT price_min, price_avg, price_max, price_fetched_at, nearest_retailer, price_retailers FROM wines ORDER BY date_added DESC LIMIT 1;"`
+4. Entry shows non-null values for all price fields
+5. At least one retailer in `price_retailers` has a non-empty `critic_scores` array
 
-Document the test result (which wine, which retailers responded, which scores were found) in the session summary.
+Document the test result in the session summary (which wine, which retailers responded, which scores were found).
 
 **Branch:** `service/price-enrichment`
-
-**PR title:** `service: price enrichment — Google Shopping + Puppeteer`
+**PR title:** `service: price enrichment — Serper + Puppeteer`
 
 **Milestone:** A real wine entry in the database has price, retailer, and attributed critic score fields populated via the two-step workflow. The retailer list is config-driven and extensible.
 
@@ -422,16 +422,16 @@ Displays all fields extracted from the label scan as before. No changes — GPT-
 
 **Tab 2 — Price & availability**
 
-Read-only. Populated async from the Phase 6 two-step workflow — shown as a loading state until results arrive; gracefully empty if no results found.
+Read-only. Populated async — shown as a loading state until results arrive; gracefully empty if nothing found.
 
 Results arrive in two waves:
-- **Wave 1 (Shopping query, faster):** Average price, retailer list with prices and links, nearest retailer to NYC
-- **Wave 2 (Puppeteer + GPT-4o, slower):** Attributed critic scores per retailer, added to the display as they complete
+- **Wave 1 (Serper query, faster):** Average price, retailer list with prices and links, nearest retailer to NYC. Preferred retailers flagged if present; fallback retailers labelled "other retailers".
+- **Wave 2 (Puppeteer + GPT-4o, slower):** Attributed critic scores per retailer added as they complete.
 
 Contents when populated:
-- **Critic scores** — any attributed scores extracted from rendered retailer pages (e.g. "Burghound: 92", "Vinous: 94"), each displayed with publication name. Omit if none found.
-- **Average price** — `price_avg` across all retailers that returned a result, formatted as currency. Omit if null.
-- **Nearest retailer** — single row: retailer name, price, tappable link opening in the user's default browser. Nearest is determined by Haversine distance from NYC using the retailer coordinate config defined in Phase 6. Omit if no results at all.
+- **Critic scores** — attributed scores extracted from rendered retailer pages (e.g. "Burghound: 92"). Each displayed with publication name. Omit if none found.
+- **Average price** — `price_avg` formatted as currency. Omit if null.
+- **Nearest retailer** — single row: name, price, tappable link. Nearest to NYC using Haversine distance from retailer config. Omit if no results.
 
 ---
 
@@ -468,7 +468,7 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 ---
 
 **Shared utility:**
-- Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts` — used by both Tab 2 and the detail view without duplication. Retailer coordinates come from the config defined in Phase 6 (`backend/modules/price/retailers.config.ts`).
+- Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts`. Retailer coordinates come from `backend/modules/price/retailers.config.ts` defined in Phase 6.
 
 **Schema additions (on top of Phase 6):**
 - No new columns required — all fields used in this phase (`price_avg`, `price_retailers`, `nearest_retailer`, `retailer_links`) are defined in Phase 6 and Phase 6.6 respectively.
@@ -533,14 +533,13 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 **Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (crawled pricing, attributed scores, community sentiment, retailer links).
 
 **Deliverables:**
-- Manual review of 10–20 real wine entries enriched via the Phase 6 two-step workflow
-- Verify Google Shopping query returns results for the wines in the collection across the configured retailers
-- Verify Puppeteer is successfully rendering retailer pages and GPT-4o is extracting attributed critic scores
-- Document which retailers reliably return scores and which do not — adjust Puppeteer targets in config accordingly
+- Manual review of 10–20 real wine entries enriched with crawled pricing, community data, and retailer links
+- Verify the price crawl is returning results for the wines in the collection across the four configured retailers
+- Verify attributed critic scores are being extracted correctly from K&L and Benchmark product pages
 - Verify retailer search URLs resolve correctly for the four configured retailers (Phase 6.6)
 - Identify any schema gaps, data quality issues, or missing fields
 - Update wine entry schema and storage adapter if required
-- Document any recurring data quality issues as known limitations
+- Document any recurring data quality issues as known limitations (e.g. wines not found by crawl)
 
 **Notes:**
 - This is not a build phase — it is a structured review before committing to a UI
@@ -633,10 +632,10 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 
 ## Open questions affecting phases
 
-- [ ] Free wine data API: no suitable free API identified for Phase 2 enrichment; GPT-4o label scanning (Phase 3) is the primary enrichment path. Revisit if a reliable free option emerges.
+- [ ] Free wine data API: no suitable free API identified for enrichment; GPT-4o label scanning (Phase 3) is the primary enrichment path. Revisit if a reliable free option emerges.
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning after Phase 3 is stable — potential 75% cost reduction for clean labels
-- [ ] Google CSE setup: create a Programmable Search Engine scoped to Google Shopping before building Phase 6; verify it returns results for Burgundy, Barolo, and Rioja wines from the four configured retailers
-- [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and use those coordinates in `retailers.config.ts`; fall back to the San Francisco flagship if not
-- [ ] Puppeteer score extraction coverage: during Phase 6 manual test, document which retailers successfully return attributed critic scores — adjust Puppeteer targets based on actual results
-- [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition to the retailer links module or as a standalone notes layer. Deferred — do not build until Phase 6.6 is stable.
-- [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. All three publications gate programmatic access behind enterprise/trade arrangements (Liv-ex Gold + Enterprise subscriptions, costing thousands per year). Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
+- [ ] Serper Shopping coverage: verify Serper returns Shopping results for Burgundy, Barolo, and Rioja wines from the four configured retailers before closing Phase 6
+- [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly; fall back to San Francisco flagship if not
+- [ ] Puppeteer score extraction coverage: during Phase 6 manual test, document which retailers return attributed critic scores — adjust if any consistently return nothing
+- [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition after Phase 6.6 is stable.
+- [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
