@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-06-14
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-15
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -403,6 +403,29 @@ Document the test result in the session summary (which wine, which retailers res
 **PR title:** `service: price enrichment — Serper + Puppeteer`
 
 **Milestone:** A real wine entry in the database has price, retailer, and attributed critic score fields populated via the two-step workflow. The retailer list is config-driven and extensible.
+
+---
+
+## Phase 6.4 — Repo hygiene checkpoint (commit + open pending PRs)
+
+**Goal:** Before continuing into Phase 6.5, bring the local working tree and remote branches back in sync. Several sessions of Phase 6 work (Google CSE → Puppeteer rewrite → Serper.dev replacement) left uncommitted local changes and at least one PR that was never opened. Close that gap first.
+
+**Context:** As of the last session, `feature/detail-and-scan-ui` has unstaged/untracked changes in the local environment (`.claude/settings.local.json` modified; `.claude/launch.json`, `backend/db/wine.db-shm`, `backend/db/wine.db-wal` untracked). The "Detail Modal + Enhanced Scan UI" session (`docs/sessions/2026-05-30-detail-and-scan-ui.md`) explicitly deferred opening a PR ("_To be opened after this commit._") — it was never opened. Phase 6.5 and 6.6 work has since been built on top of this same branch without a PR ever existing for review.
+
+**Deliverables:**
+
+1. **Gitignore audit** — `backend/db/wine.db-shm` and `backend/db/wine.db-wal` are SQLite WAL/shared-memory artifacts and must never be committed. Confirm `backend/db/wine.db*` (or equivalent pattern) is in `.gitignore`; add it if missing. If either file is already tracked, untrack it (`git rm --cached`) without deleting it locally.
+2. **Local dev config review** — `.claude/settings.local.json` and `.claude/launch.json` are local tooling config. Confirm whether these are meant to be shared (commit) or developer-local (gitignore). Default to gitignoring unless the developer confirms otherwise.
+3. **Stage and commit outstanding source changes** — any remaining legitimate changes on `feature/detail-and-scan-ui` (i.e. not covered by points 1–2) are committed with conventional commit messages matching the existing history style (`service:`, `feat:`, `docs:`, `chore:`, `test:`).
+4. **Push and open the deferred PR** — push `feature/detail-and-scan-ui` to `origin` and open the PR that was never created. Title: `feat: detail modal, enhanced scan UI, phase 6 price enrichment (Serper + Puppeteer), phase 6.5/6.6`. Description should cover: the Google CSE → Puppeteer → Serper pivot, the detail modal, the redesigned scan flow, and note that Phase 6's manual completion test is still outstanding.
+5. **Reconcile older open PRs** — check the status of PR #2 (`service/sqlite-migration`) and PR #3 (`feature/phase6-wine-searcher`) on GitHub. Both branches are superseded by later work already merged into or built on top of `feature/detail-and-scan-ui`. Confirm whether they're already merged; if not, merge or close them explicitly with a comment pointing to the branch that superseded them, rather than leaving them stale.
+
+**Notes:**
+- This is a housekeeping phase, not a feature phase — no new application code should be written here.
+- Do not squash or rewrite existing commit history; this phase only adds new commits and opens/reconciles PRs.
+- Phase 6 (price enrichment) itself remains open pending its manual completion test — this phase does not close Phase 6, it just cleans up the repo state around it.
+
+**Milestone:** Working tree is clean (`git status` shows no unexpected unstaged/untracked files), the deferred PR for `feature/detail-and-scan-ui` is open on GitHub, and PRs #2 and #3 are either merged or explicitly closed with a superseding-branch note.
 
 ---
 
