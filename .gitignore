@@ -4,4 +4,6 @@ dist/
 *.log
 .DS_Store
 config/
-backend/db/wine.db
+backend/db/wine.db*
+.claude/settings.local.json
+.claude/launch.json
