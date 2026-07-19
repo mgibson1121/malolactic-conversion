@@ -76,7 +76,16 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
     baseResults.map(r => enrichWithCriticScores(openai, r))
   )
 
-  const withPrice = enriched.filter(r => r.price !== null)
+  // A confirmed vintage_mismatch means the listing is definitely a different
+  // year of this wine, not this wine at that price — it stays in the
+  // retailers list (badged in the UI) for transparency, but must not feed
+  // the headline price stats or be selectable as "nearest retailer": doing
+  // so would present a wrong-vintage price as if it were the answer to "what
+  // does this wine cost," which is the same class of error as showing a
+  // price for an unrelated wine.
+  const vintageConfirmedOrUnknown = enriched.filter(r => !r.vintage_mismatch)
+
+  const withPrice = vintageConfirmedOrUnknown.filter(r => r.price !== null)
   const prices = withPrice.map(r => r.price as number)
 
   const price_min = prices.length ? Math.min(...prices) : null
@@ -87,11 +96,11 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
       : null
 
   // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
-  const preferred = enriched.filter(r => r.is_preferred_retailer)
+  const preferred = vintageConfirmedOrUnknown.filter(r => r.is_preferred_retailer)
   const nearest_retailer =
     preferred.length > 0
       ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
-      : enriched[0] ?? null
+      : vintageConfirmedOrUnknown[0] ?? null
 
   return {
     price_min,

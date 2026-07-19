@@ -105,24 +105,40 @@ function itemToRetailerResult(
   }
 }
 
-function buildFallbackResult(item: SerperShoppingItem, wine: WineIdentity): RetailerResult {
-  const hostname = (() => {
-    try { return new URL(item.link).hostname.replace(/^www\./, '') } catch { return item.source }
-  })()
+function slugifySource(source: string): string {
+  return source.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'retailer'
+}
+
+// Fallback (Pass 2, non-configured) retailers have no known site-search URL
+// pattern to construct from, unlike the four preferred retailers in
+// retailer-search-url.ts. Serper's `link` field can't stand in for one —
+// it's always a `google.com/search?ibp=oshop` Shopping *product* deep link,
+// for every merchant, with no exception (see the Pass 1 comment above). That
+// deep link frequently 404s or renders "Details aren't available for this
+// product," and the specific merchant it breaks for changes every time a
+// different fallback retailer gets pulled in — the fix has to be structural,
+// not a per-retailer patch. A plain Google web search for the merchant name
+// + wine query is not the product page either, but it's a page that reliably
+// loads and gets the user one click from the real listing, instead of a
+// deep link that's frequently already dead on arrival.
+function buildFallbackUrl(source: string, query: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(`${source} ${query}`)}`
+}
+
+function buildFallbackResult(item: SerperShoppingItem, query: string, wine: WineIdentity): RetailerResult {
   const matched_vintage = extractYearFromTitle(item.title)
   return {
-    slug: hostname,
+    slug: slugifySource(item.source),
     name: item.source,
     price: item.priceRaw ?? parsePriceString(item.price),
-    url: item.link,
+    url: buildFallbackUrl(item.source, query),
     critic_scores: [],
     is_preferred_retailer: false,
     distance_miles: 0,
-    // Unknown — this is Serper's raw link for a non-configured retailer. It
-    // may or may not be a single product page. Leave false so Step 2 still
-    // gets a chance to extract from it (best-effort, not guaranteed null
-    // like the constructed preferred-retailer search URLs).
-    is_search_results_page: false,
+    // Same reasoning as the preferred-retailer case: the URL here is always
+    // a search page, never a single product page, so Step 2 (Puppeteer +
+    // GPT-4o critic score extraction) is a guaranteed-empty call — skip it.
+    is_search_results_page: true,
     matched_vintage,
     vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,
   }
@@ -189,5 +205,5 @@ export async function querySerper(
   return relevantItems
     .filter(item => item.link && item.source)
     .slice(0, 5)
-    .map(item => buildFallbackResult(item, wine))
+    .map(item => buildFallbackResult(item, query, wine))
 }

@@ -80,8 +80,15 @@ export function PriceSection({ priceData }: Props) {
           {priceData.nearest_retailer.price != null && (
             <span className="nearest-price">{fmt(priceData.nearest_retailer.price)}</span>
           )}
-          {priceData.nearest_retailer.vintage_mismatch && (
-            <span className="vintage-mismatch-badge" title="Price shown is for a different vintage than this wine entry">
+          {priceData.nearest_retailer.matched_vintage != null && (
+            <span
+              className={priceData.nearest_retailer.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
+              title={
+                priceData.nearest_retailer.vintage_mismatch
+                  ? 'Price shown is for a different vintage than this wine entry'
+                  : 'Vintage confirmed from the matched listing'
+              }
+            >
               {priceData.nearest_retailer.matched_vintage} vintage
             </span>
           )}
@@ -103,8 +110,15 @@ export function PriceSection({ priceData }: Props) {
             <div key={i} className="retailer-row">
               <span className="retailer-name">{r.name}</span>
               <span className="retailer-price">{fmt(r.price)}</span>
-              {r.vintage_mismatch && (
-                <span className="vintage-mismatch-badge" title="Price shown is for a different vintage than this wine entry">
+              {r.matched_vintage != null && (
+                <span
+                  className={r.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
+                  title={
+                    r.vintage_mismatch
+                      ? 'Price shown is for a different vintage than this wine entry'
+                      : 'Vintage confirmed from the matched listing'
+                  }
+                >
                   {r.matched_vintage} vintage
                 </span>
               )}

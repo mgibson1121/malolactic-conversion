@@ -154,7 +154,7 @@ describe('fetchPriceData', () => {
       price: '$300.00',
     }]
     const result = await fetchPriceData(baseWine) // baseWine.vintage === 2018
-    const other = result!.retailers.find(r => r.slug === 'someotherwinestore.com')
+    const other = result!.retailers.find(r => r.slug === 'some-other-store')
     expect(other?.matched_vintage).toBe(2015)
     expect(other?.vintage_mismatch).toBe(true)
   })
@@ -162,9 +162,27 @@ describe('fetchPriceData', () => {
   it('does not flag vintage_mismatch when the matched listing is the same year as the wine', async () => {
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$300.00')] // title includes "2018"
     const result = await fetchPriceData(baseWine)
-    const other = result!.retailers.find(r => r.slug === 'someotherwinestore.com')
+    const other = result!.retailers.find(r => r.slug === 'some-other-store')
     expect(other?.matched_vintage).toBe(2018)
     expect(other?.vintage_mismatch).toBe(false)
+  })
+
+  it('excludes confirmed vintage-mismatched retailers from price stats and nearest-retailer selection', async () => {
+    // A listing that's definitely a different vintage is not "this wine at
+    // that price" — it must stay visible in the retailer list (badged) but
+    // must not drag price_min/avg/max or "nearest" toward a wrong-vintage
+    // number. Previously these were blended in indistinguishably from a
+    // confirmed match.
+    mockSerperItems = [
+      { title: 'Domaine Leroy Gevrey-Chambertin 2015', source: 'K&L Wine Merchants', link: KL_URL, price: '$50.00' },
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$300.00' },
+    ]
+    const result = await fetchPriceData(baseWine) // baseWine.vintage === 2018
+    expect(result!.retailers).toHaveLength(2) // both still shown
+    expect(result!.price_min).toBe(300)
+    expect(result!.price_max).toBe(300)
+    expect(result!.price_avg).toBe(300)
+    expect(result!.nearest_retailer?.slug).toBe('benchmark')
   })
 
   it('filters Serper results to preferred retailer domains (Pass 1)', async () => {
@@ -220,33 +238,6 @@ describe('fetchPriceData', () => {
     expect(result!.price_avg).toBe(115)
   })
 
-  it('extracts attributed critic scores from Puppeteer-rendered pages (non-preferred / fallback retailer)', async () => {
-    // Preferred-retailer results are always search-results pages now (see
-    // is_search_results_page) and skip Step 2 entirely. Score extraction is
-    // only exercised for Pass 2 fallback retailers, whose URL is Serper's
-    // raw link and may be a real single product page.
-    mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$249.00')]
-    mockGptCreate.mockResolvedValue({
-      choices: [{
-        message: {
-          content: JSON.stringify({
-            price: 249,
-            url: OTHER_URL,
-            critic_scores: [
-              { publication: 'Burghound', score: 94 },
-              { publication: 'Vinous', score: 96 },
-            ],
-          }),
-        },
-      }],
-    })
-    const result = await fetchPriceData(baseWine)
-    const other = result!.retailers.find(r => r.slug === 'someotherwinestore.com')
-    expect(other?.critic_scores).toHaveLength(2)
-    expect(other?.critic_scores[0].publication).toBe('Burghound')
-    expect(other?.critic_scores[0].score).toBe(94)
-  })
-
   it('skips Puppeteer and GPT-4o entirely for preferred retailers (search-results pages)', async () => {
     // Regression guard for the Phase 6 performance fix: Step 2 must never
     // run against a constructed search-results URL, since the extraction
@@ -263,11 +254,22 @@ describe('fetchPriceData', () => {
     expect(result!.retailers[0].critic_scores).toHaveLength(0)
   })
 
-  it('retains Step 1 price when Puppeteer fails to render a page (fallback retailer)', async () => {
+  it('skips Puppeteer and GPT-4o entirely for fallback retailers too (also search-results pages now)', async () => {
+    // Fallback retailers used to leave is_search_results_page: false on the
+    // (mistaken) assumption that Serper's raw `link` might be a real product
+    // page. It never is — it's always a google.com/search?ibp=oshop deep
+    // link — so Step 2 was silently burning a Puppeteer render + GPT-4o call
+    // per fallback retailer for a guaranteed-empty result. Fallback URLs are
+    // now constructed search pages too (see buildFallbackUrl), so they skip
+    // Step 2 the same way preferred retailers do.
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$199.00')]
-    mockRenderPageHtml.mockResolvedValue(null)
+    mockGptCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ price: 999, url: OTHER_URL, critic_scores: [{ publication: 'Burghound', score: 94 }] }) } }],
+    })
     const result = await fetchPriceData(baseWine)
-    expect(result).not.toBeNull()
+    expect(mockRenderPageHtml).not.toHaveBeenCalled()
+    expect(mockGptCreate).not.toHaveBeenCalled()
+    expect(result!.retailers[0].is_search_results_page).toBe(true)
     expect(result!.retailers[0].price).toBe(199)
     expect(result!.retailers[0].critic_scores).toHaveLength(0)
   })
@@ -282,23 +284,18 @@ describe('fetchPriceData', () => {
     expect(result!.nearest_retailer?.slug).toBe('kl')
   })
 
-  it('continues enriching other fallback retailers when one Puppeteer call fails', async () => {
-    // Both URLs are non-preferred so Pass 2 fallback fires for both, keeping
-    // Step 2 active for this scenario.
+  it('includes multiple fallback retailers with independent search URLs and slugs', async () => {
     mockSerperItems = [
       makeItem('Some Other Store', OTHER_URL, '$200.00'),
       makeItem('Another Wine Shop', OTHER_URL_2, '$210.00'),
     ]
-    mockRenderPageHtml
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(RENDERED_HTML)
-    mockGptCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ price: 210, url: OTHER_URL_2, critic_scores: [{ publication: 'Vinous', score: 93 }] }) } }],
-    })
     const result = await fetchPriceData(baseWine)
     expect(result!.retailers).toHaveLength(2)
-    const second = result!.retailers.find(r => r.slug === 'anotherwineshop.com')
-    expect(second?.critic_scores[0].publication).toBe('Vinous')
+    const first = result!.retailers.find(r => r.slug === 'some-other-store')
+    const second = result!.retailers.find(r => r.slug === 'another-wine-shop')
+    expect(first?.price).toBe(200)
+    expect(second?.price).toBe(210)
+    expect(first?.url).not.toBe(second?.url)
   })
 
   it('includes fetched_at ISO timestamp', async () => {
@@ -334,12 +331,18 @@ describe('fetchPriceData', () => {
     expect(bySlug.benchmark).toContain('benchmarkwine.com/search?q=')
   })
 
-  it('Puppeteer/GPT price overrides Serper price when available (fallback retailer)', async () => {
+  it('never uses Serper\'s raw aggregator link as the outbound URL for fallback retailers', async () => {
+    // Root-cause regression guard: Serper's `link` field is always a
+    // google.com/search?ibp=oshop Shopping *product* deep link, for every
+    // merchant, with no exception — it frequently 404s or shows "Details
+    // aren't available for this product." That's a structural property of
+    // Serper's response, not a per-retailer quirk, so whichever fallback
+    // retailer gets pulled in next hits the exact same broken link unless
+    // the fix is generic. buildFallbackUrl must never leak item.link through.
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$200.00')]
-    mockGptCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ price: 249, url: OTHER_URL, critic_scores: [] }) } }],
-    })
     const result = await fetchPriceData(baseWine)
-    expect(result!.retailers[0].price).toBe(249)
+    expect(result!.retailers[0].url).not.toBe(OTHER_URL)
+    expect(result!.retailers[0].url).not.toContain('ibp=oshop')
+    expect(result!.retailers[0].url).toContain('google.com/search?q=')
   })
 })
