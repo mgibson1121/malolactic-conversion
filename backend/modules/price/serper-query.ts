@@ -165,9 +165,22 @@ export async function querySerper(
   // google.com/search?ibp=oshop aggregator URL regardless of merchant — it
   // never contains the retailer's domain — so match against `source` (the
   // merchant display name) instead. See matchKeyword in retailers.config.ts.
+  //
+  // Both sides are stripped to bare alphanumerics before comparing. Serper's
+  // `source` string for a given merchant is not stable — it's been observed
+  // as "K&L Wine Merchants", "K & L Wine Merchants", and "KLWines.com" for
+  // the same retailer. A literal `.includes('k&l')` check misses the spaced
+  // and no-ampersand variants and silently falls through to the Pass 2
+  // fallback (raw Google Shopping aggregator link) for a retailer that
+  // should have matched — this was previously observed as the K&L link
+  // pointing to an empty Google Shopping details page. Stripping punctuation
+  // and whitespace from both `matchKeyword` and `source` before comparing
+  // makes the match resilient to that formatting drift.
+  const alnumOnly = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
   const preferred: RetailerResult[] = []
   for (const retailer of retailers) {
-    const match = relevantItems.find(item => item.source?.toLowerCase().includes(retailer.matchKeyword))
+    const keyword = alnumOnly(retailer.matchKeyword)
+    const match = relevantItems.find(item => item.source && alnumOnly(item.source).includes(keyword))
     if (match) preferred.push(itemToRetailerResult(match, retailer, true, query, wine))
   }
   if (preferred.length > 0) return preferred

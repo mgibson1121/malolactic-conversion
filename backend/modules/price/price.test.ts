@@ -179,6 +179,25 @@ describe('fetchPriceData', () => {
     expect(result!.retailers[0].is_preferred_retailer).toBe(true)
   })
 
+  it('matches a preferred retailer despite formatting drift in Serper\'s source string (Pass 1)', async () => {
+    // Regression guard: Serper's `source` field for the same merchant has been
+    // observed as "K&L Wine Merchants", "K & L Wine Merchants" (spaced
+    // ampersand), and "KLWines.com" (no ampersand at all). A literal
+    // `.includes('k&l')` check only matches the first form — the other two
+    // silently fell through to the Pass 2 fallback, which uses Serper's raw
+    // google.com/search?ibp=oshop aggregator link instead of the constructed
+    // klwines.com search URL. That surfaced as the K&L link pointing to an
+    // empty Google Shopping details page.
+    for (const source of ['K & L Wine Merchants', 'KLWines.com']) {
+      mockSerperItems = [makeItem(source, KL_URL, '$249.00')]
+      const result = await fetchPriceData(baseWine)
+      expect(result!.retailers).toHaveLength(1)
+      expect(result!.retailers[0].slug).toBe('kl')
+      expect(result!.retailers[0].is_preferred_retailer).toBe(true)
+      expect(result!.retailers[0].url).toContain('shop.klwines.com')
+    }
+  })
+
   it('falls back to any retailer results when no preferred retailers match (Pass 2)', async () => {
     mockSerperItems = [
       makeItem('Some Other Store', OTHER_URL, '$200.00'),
