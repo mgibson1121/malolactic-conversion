@@ -20,6 +20,15 @@ export interface RetailerPrice {
   url: string
   critic_scores: CriticScore[]
   distance_miles: number
+  is_preferred_retailer: boolean
+  // True when `url` is a constructed search-results page rather than a
+  // single product page — see backend/modules/price/retailer-search-url.ts.
+  is_search_results_page: boolean
+  // Vintage year parsed from the matched listing's title, if any.
+  matched_vintage: number | null
+  // True when matched_vintage differs from this wine entry's own vintage —
+  // the price/listing shown is for a different year of the same wine.
+  vintage_mismatch: boolean
 }
 
 export interface PriceData {

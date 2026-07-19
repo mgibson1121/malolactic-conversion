@@ -13,7 +13,12 @@ export async function renderPageHtml(url: string): Promise<string | null> {
     })
     const page = await browser.newPage()
     await page.setUserAgent(USER_AGENT)
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT_MS })
+    // 'networkidle2' reliably times out on retail sites running persistent
+    // analytics/chat connections (GTM, Intercom, etc.) — the network never
+    // truly goes idle, so the full PAGE_TIMEOUT_MS gets burned waiting for a
+    // condition that never fires. 'domcontentloaded' reflects real page-load
+    // time instead and is the standard fix for this class of site.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS })
     return await page.content()
   } catch {
     return null

@@ -17,6 +17,12 @@ async function enrichWithCriticScores(
   openai: OpenAI,
   retailer: RetailerResult
 ): Promise<RetailerResult> {
+  // Search-results pages never yield attributed scores (the extraction
+  // prompt explicitly returns null for them) — skip the Puppeteer render and
+  // GPT-4o call entirely rather than paying the full latency cost for a
+  // guaranteed empty result. See is_search_results_page in types.ts.
+  if (retailer.is_search_results_page) return retailer
+
   const html = await renderPageHtml(retailer.url)
   if (!html) return retailer
 
@@ -31,6 +37,22 @@ async function enrichWithCriticScores(
   }
 }
 
+// Distinguishes "never attempted" (returns null — no fetched_at, no stored
+// price_data at all) from "attempted and found nothing" (returns a PriceData
+// with empty retailers and a fetched_at timestamp). The UI needs this
+// distinction to show "no matching listings found" instead of either
+// silently showing nothing or, worse, an unrelated/incorrect price.
+function emptyPriceData(): PriceData {
+  return {
+    price_min: null,
+    price_avg: null,
+    price_max: null,
+    retailers: [],
+    nearest_retailer: null,
+    fetched_at: new Date().toISOString(),
+  }
+}
+
 export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null> {
   const apiKey = process.env.OPENAI_API_KEY
   const serperKey = process.env.SERPER_API_KEY
@@ -41,8 +63,12 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   if (!query.trim()) return null
 
   // Step 1 — Serper query: discover retailer URLs + prices
-  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey)
-  if (baseResults.length === 0) return null
+  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey, {
+    producer: wine.producer ?? '',
+    denomination: wine.denomination ?? '',
+    vintage: wine.vintage ?? null,
+  })
+  if (baseResults.length === 0) return emptyPriceData()
 
   // Step 2 — Puppeteer pass: render each SPA page and extract attributed critic scores
   const openai = new OpenAI({ apiKey })
