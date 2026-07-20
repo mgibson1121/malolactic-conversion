@@ -8,14 +8,6 @@ jest.mock('./puppeteer-extract', () => ({
 import { renderPageHtml } from './puppeteer-extract'
 const mockRenderPageHtml = renderPageHtml as jest.MockedFunction<typeof renderPageHtml>
 
-// ─── OpenAI mock ─────────────────────────────────────────────────────────────
-const mockGptCreate = jest.fn()
-jest.mock('openai', () =>
-  jest.fn().mockImplementation(() => ({
-    chat: { completions: { create: mockGptCreate } },
-  }))
-)
-
 // ─── Serper fetch mock ────────────────────────────────────────────────────────
 let mockSerperItems: Array<{ title: string; source: string; link: string; price?: string }> = []
 
@@ -49,7 +41,8 @@ const BENCHMARK_URL = 'https://www.benchmarkwine.com/products/leroy'
 const OTHER_URL = 'https://www.someotherwinestore.com/products/leroy'
 const OTHER_URL_2 = 'https://www.anotherwineshop.com/products/leroy'
 
-const RENDERED_HTML = '<html><body><span class="price">$249.00</span></body></html>'
+const RENDERED_HTML = '<html><body><span class="price">$249.00</span><p>12 results</p></body></html>'
+const NO_RESULTS_HTML = '<html><body><p>0 Results</p><p>No results.</p></body></html>'
 
 function makeItem(source: string, link: string, price?: string) {
   return { title: 'Domaine Leroy Gevrey-Chambertin 2018', source, link, price }
@@ -97,9 +90,6 @@ describe('fetchPriceData', () => {
     process.env.OPENAI_API_KEY = 'test-openai-key'
     process.env.SERPER_API_KEY = 'test-serper-key'
     mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
-    mockGptCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ price: null, url: '', critic_scores: [] }) } }],
-    })
   })
 
   afterEach(() => {
@@ -238,40 +228,44 @@ describe('fetchPriceData', () => {
     expect(result!.price_avg).toBe(115)
   })
 
-  it('skips Puppeteer and GPT-4o entirely for preferred retailers (search-results pages)', async () => {
-    // Regression guard for the Phase 6 performance fix: Step 2 must never
-    // run against a constructed search-results URL, since the extraction
-    // prompt can only return null for those anyway.
+  it('drops a preferred retailer whose live search page reports no results', async () => {
+    // Root-cause fix for the Domaine Rousseau / K&L case: Serper's shopping
+    // data can attribute a price to a retailer whose own live search no
+    // longer surfaces the wine (delisted, sold out, stale snapshot). K&L's
+    // constructed search URL is rendered and checked before its price is
+    // trusted — if the live page says there are no results, the retailer is
+    // dropped entirely rather than shown with a price nothing backs up.
     mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
-    mockGptCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ price: 999, url: KL_URL, critic_scores: [{ publication: 'Burghound', score: 94 }] }) } }],
-    })
+    mockRenderPageHtml.mockResolvedValue(NO_RESULTS_HTML)
     const result = await fetchPriceData(baseWine)
-    expect(mockRenderPageHtml).not.toHaveBeenCalled()
-    expect(mockGptCreate).not.toHaveBeenCalled()
-    expect(result!.retailers[0].is_search_results_page).toBe(true)
-    expect(result!.retailers[0].price).toBe(199) // Step 1 price only — no override
-    expect(result!.retailers[0].critic_scores).toHaveLength(0)
+    expect(result!.retailers).toHaveLength(0)
+    expect(result!.price_min).toBeNull()
   })
 
-  it('skips Puppeteer and GPT-4o entirely for fallback retailers too (also search-results pages now)', async () => {
-    // Fallback retailers used to leave is_search_results_page: false on the
-    // (mistaken) assumption that Serper's raw `link` might be a real product
-    // page. It never is — it's always a google.com/search?ibp=oshop deep
-    // link — so Step 2 was silently burning a Puppeteer render + GPT-4o call
-    // per fallback retailer for a guaranteed-empty result. Fallback URLs are
-    // now constructed search pages too (see buildFallbackUrl), so they skip
-    // Step 2 the same way preferred retailers do.
+  it('drops a fallback retailer whose live search page reports no results', async () => {
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$199.00')]
-    mockGptCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ price: 999, url: OTHER_URL, critic_scores: [{ publication: 'Burghound', score: 94 }] }) } }],
-    })
+    mockRenderPageHtml.mockResolvedValue(NO_RESULTS_HTML)
     const result = await fetchPriceData(baseWine)
-    expect(mockRenderPageHtml).not.toHaveBeenCalled()
-    expect(mockGptCreate).not.toHaveBeenCalled()
-    expect(result!.retailers[0].is_search_results_page).toBe(true)
+    expect(result!.retailers).toHaveLength(0)
+  })
+
+  it('keeps a retailer\'s Serper price when the live-page render fails', async () => {
+    // A Puppeteer timeout or network hiccup isn't evidence the retailer has
+    // delisted the wine — only an explicit "no results" signal on a page
+    // that did render should drop a retailer.
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
+    mockRenderPageHtml.mockResolvedValue(null)
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers).toHaveLength(1)
     expect(result!.retailers[0].price).toBe(199)
-    expect(result!.retailers[0].critic_scores).toHaveLength(0)
+  })
+
+  it('keeps a retailer when its live search page does show results', async () => {
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
+    mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers).toHaveLength(1)
+    expect(result!.retailers[0].price).toBe(199)
   })
 
   it('identifies nearest preferred retailer to NYC by Haversine distance', async () => {

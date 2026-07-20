@@ -1,9 +1,8 @@
-import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from './retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
-import { extractFromRenderedHtml } from './gpt-extract'
+import { pageShowsNoResults } from './verify-listing'
 import type { PriceData, RetailerResult } from './types'
 
 function buildQuery(wine: WineEntry): string {
@@ -13,28 +12,23 @@ function buildQuery(wine: WineEntry): string {
   return parts.join(' ')
 }
 
-async function enrichWithCriticScores(
-  openai: OpenAI,
-  retailer: RetailerResult
-): Promise<RetailerResult> {
-  // Search-results pages never yield attributed scores (the extraction
-  // prompt explicitly returns null for them) — skip the Puppeteer render and
-  // GPT-4o call entirely rather than paying the full latency cost for a
-  // guaranteed empty result. See is_search_results_page in types.ts.
-  if (retailer.is_search_results_page) return retailer
-
+// Every retailer URL at this point is a constructed search-results page
+// (see retailer-search-url.ts / buildFallbackUrl), never a single product
+// page — but the *price* still comes from Serper's Google Shopping snapshot,
+// which can be stale relative to what the retailer's own live search
+// actually returns today (delisted, sold out, aged-out snapshot). Rendering
+// the real search page and checking for an explicit "no results" signal is
+// what catches that: a price is only kept if the retailer's own site still
+// backs it up. Returns null to signal "drop this retailer entirely" — a
+// wine that isn't actually in this retailer's live search isn't a match,
+// so this is a drop, not a downgrade.
+async function verifyStillListed(retailer: RetailerResult): Promise<RetailerResult | null> {
   const html = await renderPageHtml(retailer.url)
+  // Render failed/timed out — an infra hiccup isn't evidence the listing is
+  // gone, so don't punish the retailer for it; keep Serper's data as-is.
   if (!html) return retailer
-
-  const extraction = await extractFromRenderedHtml(openai, html, retailer.url)
-  if (!extraction) return retailer
-
-  return {
-    ...retailer,
-    price: extraction.price ?? retailer.price,
-    url: extraction.url || retailer.url,
-    critic_scores: extraction.critic_scores ?? [],
-  }
+  if (pageShowsNoResults(html)) return null
+  return retailer
 }
 
 // Distinguishes "never attempted" (returns null — no fetched_at, no stored
@@ -70,11 +64,14 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   })
   if (baseResults.length === 0) return emptyPriceData()
 
-  // Step 2 — Puppeteer pass: render each SPA page and extract attributed critic scores
-  const openai = new OpenAI({ apiKey })
-  const enriched = await Promise.all(
-    baseResults.map(r => enrichWithCriticScores(openai, r))
-  )
+  // Step 2 — Puppeteer pass: render each retailer's live search page and drop
+  // any retailer whose search doesn't actually surface a result today. See
+  // verifyStillListed — this is what keeps a stale Serper/Google Shopping
+  // price from being shown for a wine a retailer's own site no longer lists.
+  const verified = (await Promise.all(baseResults.map(r => verifyStillListed(r))))
+    .filter((r): r is RetailerResult => r !== null)
+  if (verified.length === 0) return emptyPriceData()
+  const enriched = verified
 
   // A confirmed vintage_mismatch means the listing is definitely a different
   // year of this wine, not this wine at that price — it stays in the
