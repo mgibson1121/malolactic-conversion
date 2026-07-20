@@ -55,7 +55,7 @@
 
 ## Phase 3 — Label scanning ✅
 
-**Goal:** Validate the full label scan pipeline — image intake, GPT-4o vision extraction, Tier 1/2 field population, and entry card review — without requiring a native iOS app. The intended production capture surface is the iOS camera (Phase 10); this phase proves the backend pipeline using a web file upload as a pragmatic stand-in.
+**Goal:** Validate the full label scan pipeline — image intake, GPT-4o vision extraction, Tier 1/2 field population, and entry card review — without requiring a native iOS app. The intended production capture surface is the iOS camera (Phase 11); this phase proves the backend pipeline using a web file upload as a pragmatic stand-in.
 
 **Deliverables:**
 - GPT-4o vision label scan module in `backend/modules/label-scan/`
@@ -67,13 +67,13 @@
 
 **Notes:**
 - The capture surface in this phase is a web file upload (HTML file input accepting image/*), not a native camera. This is intentional — the goal is to validate the scan pipeline, not the capture UX.
-- The native iOS camera flow (SwiftUI, AVFoundation) is built in Phase 10. The backend label scan module does not change at that point — only the capture surface is swapped.
+- The native iOS camera flow (SwiftUI, AVFoundation) is built in Phase 11. The backend label scan module does not change at that point — only the capture surface is swapped.
 - Raw image input must always be resized to max 1024px before the API call — enforce this in the module regardless of how the image arrives (file upload now, camera later)
 - Tier 1 fields that the scan cannot populate must surface a manual entry prompt in the UI — never silently omit
 - Tier 2 fields that the scan cannot populate are left null — do not prompt the user unless they choose to edit
 - If the OpenAI key is not configured, label scan is unavailable with a clear UI message; manual entry remains available
 
-**Milestone:** A wine label photo uploaded via the web UI produces a populated entry card — with Tier 2 fields extracted where present — in under 30 seconds. The scan pipeline is validated and ready. iOS camera integration is deferred to Phase 10.
+**Milestone:** A wine label photo uploaded via the web UI produces a populated entry card — with Tier 2 fields extracted where present — in under 30 seconds. The scan pipeline is validated and ready. iOS camera integration is deferred to Phase 11.
 
 ---
 
@@ -97,7 +97,7 @@
 - Multiple tasting notes per wine entry are supported. All notes retained. Most recent rating displayed in list views.
 
 **UI notes:**
-- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 10
+- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 11
 - The `flawed` WSET conclusion indicates a technical wine fault and should trigger a distinct fault indicator — not treated as the lowest point on the `my_rating` scale
 
 **Notes:**
@@ -128,7 +128,7 @@
 - Wine identity is `producer` + `denomination` + `vintage`. `name` has been removed permanently.
 
 **Notes:**
-- HTML UI is sufficient — polish deferred to Phase 10
+- HTML UI is sufficient — polish deferred to Phase 11
 - The Tasting Notes list is read-only in this phase — it surfaces existing notes, does not initiate new ones (Evaluate CTA handles that)
 - Bottle quantity and tag management are the two interactions most likely to surface schema edge cases — if any gaps are found, fix before proceeding to Phase 5
 
@@ -396,7 +396,7 @@ price/
 3. Inspect the wine entry: `sqlite3 backend/db/wine.db "SELECT price_min, price_avg, price_max, price_fetched_at, nearest_retailer, price_retailers FROM wines ORDER BY date_added DESC LIMIT 1;"`
 4. Entry shows non-null values for all price fields
 
-~~5. At least one retailer in `price_retailers` has a non-empty `critic_scores` array~~ — **dropped 2026-07-19.** Attributed critic-score extraction requires rendering an actual single-product page; every retailer URL this module produces (preferred and fallback alike) is a constructed search-results page, and always will be, since Serper never returns a trustworthy product URL to build one from. Score sourcing is real work — locating the correct product link within a rendered search page, then rendering that page too — and is deferred to Phase 6.7, not folded into pricing. See the Phase 8 "Known gap" note and Phase 6.7 below for the decision record.
+~~5. At least one retailer in `price_retailers` has a non-empty `critic_scores` array~~ — **dropped 2026-07-19.** Attributed critic-score extraction requires rendering an actual single-product page; every retailer URL this module produces (preferred and fallback alike) is a constructed search-results page, and always will be, since Serper never returns a trustworthy product URL to build one from. Score sourcing is real work — locating the correct product link within a rendered search page, then rendering that page too — and is scoped as its own phase, not folded into pricing. See the Phase 9 "Known gap" note and Phase 7 below for the decision record.
 
 Document the test result in the session summary (which wine, which retailers responded).
 
@@ -533,30 +533,30 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 
 ---
 
-## Phase 6.7 — Review & critic score sourcing (deferred, not yet scheduled)
+## Phase 7 — Review & critic score sourcing
 
-**Goal:** Extract attributed critic scores (e.g. "Burghound: 92") from retailer product pages — the capability Phase 6 originally described as part of its Step 2, now split out as its own phase.
+**Goal:** Extract attributed critic scores (e.g. "Burghound: 92") from retailer product pages — the capability Phase 6 originally described as part of its Step 2, split out as its own phase and reordered ahead of community data (2026-07-19): scores/reviews are core research functionality for a purchasing decision, and it made more sense to build that out before the more exploratory community-sentiment layer.
 
-**Why this was split out (decided 2026-07-19):** Pricing and review-sourcing turned out to be substantially different problems wearing the same "retailer" label. Pricing only needs a page that reliably loads and shows the right listing — a search-results page is fine, and after the 2026-07-19 pricing fixes, every retailer URL this module produces (preferred and fallback) is deliberately a search-results page, verified live before its price is trusted (see `verify-listing.ts`). Review sourcing needs something search-results pages structurally cannot provide: the specific single-product page, because that's where an attributed score actually lives in the DOM. Serper never returns a trustworthy product URL to start from (its `link` field is always a `google.com/search?ibp=oshop` aggregator link, confirmed empirically — see the Phase 8 notes below), so this was never actually working, before or after today's fixes — today just made that explicit instead of accidental (the GPT-4o extraction step that used to run per-retailer was removed entirely, since it was guaranteed-null against a search-results page).
+**Why this was split out from Phase 6 (decided 2026-07-19):** Pricing and review-sourcing turned out to be substantially different problems wearing the same "retailer" label. Pricing only needs a page that reliably loads and shows the right listing — a search-results page is fine, and after the 2026-07-19 pricing fixes, every retailer URL the price module produces (preferred and fallback) is deliberately a search-results page, verified live before its price is trusted (see `verify-listing.ts`). Review sourcing needs something search-results pages structurally cannot provide: the specific single-product page, because that's where an attributed score actually lives in the DOM. Serper never returns a trustworthy product URL to start from (its `link` field is always a `google.com/search?ibp=oshop` aggregator link, confirmed empirically — see the Phase 9 notes below), so this was never actually working, before or after the 2026-07-19 pricing fixes — those fixes just made that explicit instead of accidental (the GPT-4o extraction step that used to run per-retailer in the price module was removed entirely, since it was guaranteed-null against a search-results page).
 
-Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zachys, Woodland Hills, Benchmark) were chosen because they're known to carry Burghound/Vinous scores on their listings — that was about review sourcing, not about pricing coverage. Pricing already casts a wider net independently via the Pass 2 fallback (any relevant retailer Serper returns, capped at 5, used whenever none of the four preferred retailers have pricing) and doesn't need or benefit from the four-retailer list being expanded. When a preferred retailer happens to supply both a price and, eventually, a review, that should be treated as incidental — not something the architecture assumes or is designed around.
+Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zachys, Woodland Hills, Benchmark) were chosen because they're known to carry Burghound/Vinous scores on their listings — that was about review sourcing, not about pricing coverage. Pricing already casts a wider net independently via the price module's Pass 2 fallback (any relevant retailer Serper returns, capped at 5, used whenever none of the four preferred retailers have pricing) and doesn't need or benefit from the four-retailer list being expanded. When a preferred retailer happens to supply both a price and a review, that's incidental — not something this phase's architecture should assume or be designed around.
 
-**Scope, when this phase is picked up:**
+**Deliverables:**
 - Given a retailer's search-results page, locate the link to the correct single product (matching producer/denomination/vintage — reuse `isRelevantMatch`-style logic against the results page's own listing text)
 - Render that specific product page with Puppeteer
 - Run GPT-4o extraction (`gpt-extract.ts` already has the right prompt shape for this) against the rendered product page, not the search page
 - Store results back onto the wine entry, kept visually and structurally separate from the price section — not blended into `PriceSection.tsx`
 
 **Notes:**
-- Not scheduled against a specific point in the phase sequence yet — deferred until pricing is fully settled and validated (Phase 8)
-- `gpt-extract.ts` and its prompt already exist and don't need to change — only the URL fed into it does
+- `gpt-extract.ts` and its prompt already exist from Phase 6 and don't need to change — only the URL fed into it does
 - This is the natural home for the professional-review BYOK question (Burghound, Vinous, Wine Advocate) if a viable individual-subscriber path ever emerges — see "Open questions affecting phases"
+- Detailed deliverables/schema/test plan to be fleshed out to the same level of detail as Phase 6 when this phase starts
 
-**Milestone:** Not yet defined — to be scoped when this phase is picked up.
+**Milestone:** A real wine entry shows at least one attributed critic score sourced from an actual rendered retailer product page (not a search-results page) — the counterpart to Phase 6's completion test, for scores instead of price.
 
 ---
 
-## Phase 7 — Community data (Reddit + LLM synthesis)
+## Phase 8 — Community data (Reddit + LLM synthesis)
 
 **Goal:** Add community opinion as a third data layer. Validate the BYOK LLM synthesis pattern.
 
@@ -575,14 +575,14 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 
 ---
 
-## Phase 8 — Data review checkpoint
+## Phase 9 — Data review checkpoint
 
 **Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (crawled pricing, attributed scores, community sentiment, retailer links).
 
 **Deliverables:**
 - Manual review of 10–20 real wine entries enriched with crawled pricing, community data, and retailer links
 - Verify the price crawl is returning results for the wines in the collection across the four configured retailers
-- ~~Verify attributed critic scores are being extracted correctly from K&L and Benchmark product pages~~ — moved to Phase 6.7 (deferred); see "Known gap" note below for why this was split out of pricing rather than fixed here
+- ~~Verify attributed critic scores are being extracted correctly from K&L and Benchmark product pages~~ — moved to Phase 7; see "Known gap" note below for why this was split out of pricing rather than fixed here
 - Verify retailer search URLs resolve correctly for the four configured retailers (Phase 6.6)
 - **Re-verify the four retailer search URL patterns in `backend/modules/price/retailer-search-url.ts` are still live** — render each pattern with Puppeteer (real JS execution; a static/curl fetch cannot catch a client-side-only search bug — see 2026-07-19 finding below) and confirm the DOM actually reflects the query, not just that the page returns 200. Current patterns: `shop.klwines.com/products?searchText=`, `zachys.com/search?q=`, `whwc.com/search-results/?search_query=`, `benchmarkwine.com/search?q=`. These were last verified live on 2026-07-19 (Zachys, Woodland Hills, Benchmark via direct Puppeteer render; K&L via an archived `web.archive.org` snapshot — K&L's own site blocks direct automated access, see below). The Woodland Hills Wine Co. domain (`woodlandhillswine.com`) had already gone dead and been replaced by `whwc.com` once before this check — treat retailer domain and search-param changes as an ongoing risk, not a one-time fix.
 - Identify any schema gaps, data quality issues, or missing fields
@@ -598,7 +598,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 - **Fixed 2026-07-19 (later same day):** a price could be shown for a retailer whose own live search doesn't actually return the wine (observed: a K&L price shown for Domaine Rousseau Gevrey-Chambertin 2019 that K&L's own search turns up nothing for). Root cause: the *price* attached to a retailer always comes from Serper's Google Shopping snapshot, which can be stale relative to what the retailer's site currently lists (delisted, sold out, an aged-out index entry) — nothing was checking whether the retailer's live page still backed up that price. `verify-listing.ts` now renders every retailer's constructed search URL and checks for an explicit "no results" signal in the page text (retailer-agnostic phrase matching, not per-site scraping); a retailer is dropped entirely if its own live search doesn't confirm it. A failed/timed-out render is treated as inconclusive, not evidence of delisting, so it doesn't unfairly penalize a retailer for an infra hiccup. This replaced the old GPT-4o Step 2 call, which was already a no-op for every retailer (see "Known gap," below) and just added latency/cost for a guaranteed-null result.
 - **Fixed 2026-07-19 (later same day):** two listing shapes were skewing `price_min`/`price_avg`/`price_max` — a 6-pack/case listing (priced for 6+ bottles) and a non-standard bottle size like a magnum (1.5L, priced well above a standard 750ml bottle, often more than a simple 2x multiplier due to rarity premium). `pack-format.ts` parses pack quantity ("6-Pack", "Case of 6", "6 x 750ml", "dozen") and bottle size (explicit "1.5L"/"375ml", or named formats — Magnum, Half Bottle, Jeroboam, Imperial, etc.) out of the listing title. Same treatment as vintage_mismatch: flagged listings stay visible (badged — "6-pack", "1.5L") but are excluded from the aggregate price stats and nearest-retailer selection.
 
-**Known gap carried in from Phase 6 — resolved 2026-07-19:** Preferred-retailer results point Puppeteer/GPT-4o (Step 2) at a constructed *search-results* page rather than a specific product page, because Serper's returned link could never be trusted as a real product URL. The Step 2 extraction prompt explicitly returns null scores for search-results pages, so attributed critic score extraction was not working for any retailer, preferred or fallback. Of the three options this note originally raised — (a) have Puppeteer follow the top search result to a real product page, (b) accept search-results-only links and drop Step 2 entirely, (c) find another data source for scores — **(b) was chosen**, and the GPT-4o Step 2 call has been removed from the pricing path entirely (replaced by the "no results" verification pass described above, which needed a Puppeteer render anyway). Review/critic-score sourcing (option (a), effectively) is **not abandoned** — it's moved out to its own phase, **Phase 6.7**, on the reasoning that pricing and review-sourcing are different problems with different retailer-URL requirements (a search-results page is sufficient for pricing; a single product page is required for a score) and shouldn't be built as one combined concern.
+**Known gap carried in from Phase 6 — resolved 2026-07-19:** Preferred-retailer results point Puppeteer/GPT-4o (Step 2) at a constructed *search-results* page rather than a specific product page, because Serper's returned link could never be trusted as a real product URL. The Step 2 extraction prompt explicitly returns null scores for search-results pages, so attributed critic score extraction was not working for any retailer, preferred or fallback. Of the three options this note originally raised — (a) have Puppeteer follow the top search result to a real product page, (b) accept search-results-only links and drop Step 2 entirely, (c) find another data source for scores — **(b) was chosen**, and the GPT-4o Step 2 call has been removed from the pricing path entirely (replaced by the "no results" verification pass described above, which needed a Puppeteer render anyway). Review/critic-score sourcing (option (a), effectively) is **not abandoned** — it's moved out to its own phase, **Phase 7**, scheduled ahead of community data on the reasoning that pricing and review-sourcing are different problems with different retailer-URL requirements (a search-results page is sufficient for pricing; a single product page is required for a score) and shouldn't be built as one combined concern.
 
 **Notes:**
 - This is not a build phase — it is a structured review before committing to a UI
@@ -609,7 +609,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 
 ---
 
-## Phase 9 — UX design and prototyping
+## Phase 10 — UX design and prototyping
 
 **Goal:** Map out the full application experience before writing any frontend code.
 
@@ -628,7 +628,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 
 ---
 
-## Phase 10 — Frontend build
+## Phase 11 — Frontend build
 
 **Goal:** Build the full application UI on top of the validated data model and scan pipeline.
 
@@ -638,7 +638,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 - Native iOS camera flow: SwiftUI camera view (AVFoundation) replaces the Phase 3 web file upload as the label scan capture surface. The backend label scan module does not change — only the input path does.
 - iOS share sheet trigger: scan a bottle encountered online by sharing a photo or URL from another app
 - Both frontends consuming the shared backend API
-- All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 11)
+- All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 12)
 
 **Notes:**
 - Implement from Magic Patterns prototypes as visual reference — do not import prototype code
@@ -650,7 +650,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 
 ---
 
-## Phase 11 — Learning features
+## Phase 12 — Learning features
 
 **Goal:** Build the compounding knowledge layer. Requires sufficient data in the system to make quizzes and pattern surfaces meaningful.
 
@@ -668,7 +668,7 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 
 ---
 
-## Phase 12 — Open source release
+## Phase 13 — Open source release
 
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
@@ -695,6 +695,6 @@ Also worth being explicit: the four retailers in `retailers.config.ts` (K&L, Zac
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning after Phase 3 is stable — potential 75% cost reduction for clean labels
 - [ ] Serper Shopping coverage: verify Serper returns Shopping results for Burgundy, Barolo, and Rioja wines from the four configured retailers before closing Phase 6
 - [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly; fall back to San Francisco flagship if not
-- [x] Puppeteer score extraction coverage: **resolved 2026-07-19 — not deferred to "check coverage," moved to Phase 6.7.** Confirmed structurally, not just empirically, that no retailer can return an attributed score under the current pricing-URL design (every retailer URL is a search-results page; the extraction prompt is a no-op against those by design). Scoped as its own phase rather than a Phase 6 fix.
+- [x] Puppeteer score extraction coverage: **resolved 2026-07-19 — not deferred to "check coverage," moved to Phase 7.** Confirmed structurally, not just empirically, that no retailer can return an attributed score under the current pricing-URL design (every retailer URL is a search-results page; the extraction prompt is a no-op against those by design). Scoped as its own phase, scheduled ahead of community data, rather than a Phase 6 fix.
 - [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition after Phase 6.6 is stable.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.

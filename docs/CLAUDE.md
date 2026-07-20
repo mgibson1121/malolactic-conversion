@@ -74,7 +74,7 @@ Defined in `docs/build-phases.md`.
 | Web | React + TypeScript | Management and research surface |
 | Database | SQLite via `better-sqlite3` | Phase 5 onward |
 | Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
-| Headless browser | Puppeteer | Phase 6 onward — renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Attributed critic-score extraction (rendering a *single product* page for GPT-4o) is deferred — see Phase 6.7 in `build-phases.md`. Do not run in CI; mock with HTML fixtures in tests. |
+| Headless browser | Puppeteer | Phase 6 onward — renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Attributed critic-score extraction (rendering a *single product* page for GPT-4o) is Phase 7 — see `build-phases.md`. Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 
 ---
@@ -88,7 +88,8 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
 | Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
-| Price enrichment | `modules/price/` | Step 1: Serper.dev Google SERP API → price/retailer discovery (preferred retailers first via `retailer-search-url.ts`; any relevant retailer as fallback, capped at 5, via `pack-format.ts`-aware parsing). Step 2: Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`) — this replaced the earlier GPT-4o critic-score extraction step, which was a structural no-op (see Phase 6.7 in `build-phases.md`: every URL this module produces is a search-results page, never a single product page, so attributed score extraction has been split into its own not-yet-scheduled phase rather than left silently broken inside this one). Retailer list is config-driven and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats, not silently blended in. |
+| Price enrichment | `modules/price/` | Step 1: Serper.dev Google SERP API → price/retailer discovery (preferred retailers first via `retailer-search-url.ts`; any relevant retailer as fallback, capped at 5, via `pack-format.ts`-aware parsing). Step 2: Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`) — this replaced the earlier GPT-4o critic-score extraction step, which was a structural no-op (see Phase 7 in `build-phases.md`: every URL this module produces is a search-results page, never a single product page, so attributed score extraction has been split into its own phase rather than left silently broken inside this one). Retailer list is config-driven and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats, not silently blended in. |
+| Review & critic score sourcing | `modules/reviews/` (Phase 7, not yet built) | Will locate the correct single product page from a retailer's search results, render it with Puppeteer, and run GPT-4o extraction (`gpt-extract.ts`, already written) against it. Deliberately separate from `modules/price/` — see Phase 7 in `build-phases.md` for why pricing and review-sourcing don't share a module despite sharing a retailer list. |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
@@ -138,7 +139,7 @@ The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty fro
 - Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. `name` is not in the schema — do not include it in scan output.
 - The label scan prompt must explicitly target Tier 2 extraction rules as defined in `wine-app-product-context.md` Section 3
 - **Phase 3 capture surface:** web file upload (HTML file input, image/*). The module receives an image file; resize and scan. No native camera in this phase.
-- **Phase 10 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change — only the input path is swapped.
+- **Phase 11 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change — only the input path is swapped.
 - Estimated cost: ~$0.004 per scan at 1024×1024
 - Future: evaluate GPT-4o Mini once the feature is stable (potential 75% cost saving for clean labels)
 - Key: `OPENAI_API_KEY` from `.env` (web/backend) or iOS Keychain (iOS)
@@ -336,7 +337,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 - [ ] Serper Shopping coverage: verify Serper returns Shopping results for the wines in the collection (Burgundy, Barolo, Rioja) before closing Phase 6
 - [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly
-- [x] Puppeteer score extraction coverage: resolved 2026-07-19 — not a coverage question, a structural one. No retailer URL this module produces is ever a single product page, so attributed score extraction can't work as part of pricing. Split out to Phase 6.7 (`build-phases.md`), not scheduled yet.
+- [x] Puppeteer score extraction coverage: resolved 2026-07-19 — not a coverage question, a structural one. No retailer URL the price module produces is ever a single product page, so attributed score extraction can't work as part of pricing. Split out to Phase 7 (`build-phases.md`), scheduled ahead of community data (Phase 8).
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition after Phase 6.6 is stable
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable
