@@ -3,6 +3,7 @@ import type { RetailerResult } from './types'
 import { haversineDistanceMiles } from './proximity'
 import { NYC } from './retailers.config'
 import { buildRetailerSearchUrl } from './retailer-search-url'
+import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
 
 const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
 
@@ -81,6 +82,7 @@ function itemToRetailerResult(
   wine: WineIdentity
 ): RetailerResult {
   const matched_vintage = extractYearFromTitle(item.title)
+  const pack_format = extractPackFormat(item.title)
   return {
     slug: retailer.slug,
     name: retailer.name,
@@ -102,6 +104,10 @@ function itemToRetailerResult(
     is_search_results_page: true,
     matched_vintage,
     vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,
+    pack_quantity: pack_format.pack_quantity,
+    bottle_size_ml: pack_format.bottle_size_ml,
+    non_standard_format: isNonStandardFormat(pack_format),
+    format_label: describeFormat(pack_format),
   }
 }
 
@@ -127,6 +133,7 @@ function buildFallbackUrl(source: string, query: string): string {
 
 function buildFallbackResult(item: SerperShoppingItem, query: string, wine: WineIdentity): RetailerResult {
   const matched_vintage = extractYearFromTitle(item.title)
+  const pack_format = extractPackFormat(item.title)
   return {
     slug: slugifySource(item.source),
     name: item.source,
@@ -141,6 +148,10 @@ function buildFallbackResult(item: SerperShoppingItem, query: string, wine: Wine
     is_search_results_page: true,
     matched_vintage,
     vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,
+    pack_quantity: pack_format.pack_quantity,
+    bottle_size_ml: pack_format.bottle_size_ml,
+    non_standard_format: isNonStandardFormat(pack_format),
+    format_label: describeFormat(pack_format),
   }
 }
 

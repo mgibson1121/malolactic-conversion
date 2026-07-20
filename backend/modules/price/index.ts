@@ -74,15 +74,19 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   const enriched = verified
 
   // A confirmed vintage_mismatch means the listing is definitely a different
-  // year of this wine, not this wine at that price — it stays in the
-  // retailers list (badged in the UI) for transparency, but must not feed
-  // the headline price stats or be selectable as "nearest retailer": doing
-  // so would present a wrong-vintage price as if it were the answer to "what
-  // does this wine cost," which is the same class of error as showing a
-  // price for an unrelated wine.
-  const vintageConfirmedOrUnknown = enriched.filter(r => !r.vintage_mismatch)
+  // year of this wine, not this wine at that price. A non_standard_format
+  // listing (a 6-pack, a magnum, a half bottle) means the price isn't for a
+  // single standard 750ml bottle at all — a 6-pack can inflate price_max by
+  // 5-6x, a magnum typically carries a rarity premium well past 2x. Both
+  // stay in the retailers list (badged in the UI) for transparency, but
+  // neither may feed the headline price stats or be selectable as "nearest
+  // retailer": doing so would present a wrong-vintage or wrong-quantity
+  // price as if it were the answer to "what does a bottle of this wine
+  // cost," which is the same class of error as showing a price for an
+  // unrelated wine.
+  const eligibleForStats = enriched.filter(r => !r.vintage_mismatch && !r.non_standard_format)
 
-  const withPrice = vintageConfirmedOrUnknown.filter(r => r.price !== null)
+  const withPrice = eligibleForStats.filter(r => r.price !== null)
   const prices = withPrice.map(r => r.price as number)
 
   const price_min = prices.length ? Math.min(...prices) : null
@@ -93,11 +97,11 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
       : null
 
   // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
-  const preferred = vintageConfirmedOrUnknown.filter(r => r.is_preferred_retailer)
+  const preferred = eligibleForStats.filter(r => r.is_preferred_retailer)
   const nearest_retailer =
     preferred.length > 0
       ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
-      : vintageConfirmedOrUnknown[0] ?? null
+      : eligibleForStats[0] ?? null
 
   return {
     price_min,

@@ -29,6 +29,19 @@ export interface RetailerPrice {
   // True when matched_vintage differs from this wine entry's own vintage —
   // the price/listing shown is for a different year of the same wine.
   vintage_mismatch: boolean
+  // Number of standard bottles bundled into this listing's price (1 for an
+  // ordinary single-bottle listing).
+  pack_quantity: number
+  // Parsed bottle volume in mL when the listing states a non-default size
+  // (e.g. 1500 for a magnum). Null when unstated (assumed standard 750ml).
+  bottle_size_ml: number | null
+  // True when this listing is a multi-bottle pack/case or an explicitly
+  // non-750ml bottle — its price is excluded from price_min/avg/max and
+  // nearest-retailer selection, but still shown in the retailer list, badged.
+  non_standard_format: boolean
+  // Short UI label for the badge, e.g. "6-pack", "1.5L". Empty string when
+  // non_standard_format is false.
+  format_label: string
 }
 
 export interface PriceData {

@@ -92,6 +92,14 @@ export function PriceSection({ priceData }: Props) {
               {priceData.nearest_retailer.matched_vintage} vintage
             </span>
           )}
+          {priceData.nearest_retailer.non_standard_format && (
+            <span
+              className="format-badge"
+              title="Price is for this format, not a single standard 750ml bottle"
+            >
+              {priceData.nearest_retailer.format_label}
+            </span>
+          )}
           <span className="nearest-distance">{priceData.nearest_retailer.distance_miles} mi</span>
           <a
             href={priceData.nearest_retailer.url}
@@ -120,6 +128,14 @@ export function PriceSection({ priceData }: Props) {
                   }
                 >
                   {r.matched_vintage} vintage
+                </span>
+              )}
+              {r.non_standard_format && (
+                <span
+                  className="format-badge"
+                  title="Price is for this format, not a single standard 750ml bottle"
+                >
+                  {r.format_label}
                 </span>
               )}
               <a

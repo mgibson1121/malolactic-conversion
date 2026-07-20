@@ -175,6 +175,48 @@ describe('fetchPriceData', () => {
     expect(result!.nearest_retailer?.slug).toBe('benchmark')
   })
 
+  it('flags a multi-bottle pack listing and excludes it from price stats and nearest-retailer selection', async () => {
+    // A 6-pack price is not a single-bottle price — blending it into
+    // price_min/avg/max (or picking it as "nearest") would inflate the
+    // headline numbers by ~6x relative to what a single bottle costs.
+    mockSerperItems = [
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018 6-Pack', source: 'K&L Wine Merchants', link: KL_URL, price: '$1200.00' },
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
+    ]
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers).toHaveLength(2) // both still shown
+    const kl = result!.retailers.find(r => r.slug === 'kl')
+    expect(kl?.pack_quantity).toBe(6)
+    expect(kl?.non_standard_format).toBe(true)
+    expect(kl?.format_label).toBe('6-pack')
+    expect(result!.price_min).toBe(200)
+    expect(result!.price_max).toBe(200)
+    expect(result!.nearest_retailer?.slug).toBe('benchmark')
+  })
+
+  it('flags a non-standard bottle size (magnum) and excludes it from price stats', async () => {
+    mockSerperItems = [
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018 Magnum 1.5L', source: 'K&L Wine Merchants', link: KL_URL, price: '$600.00' },
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
+    ]
+    const result = await fetchPriceData(baseWine)
+    const kl = result!.retailers.find(r => r.slug === 'kl')
+    expect(kl?.bottle_size_ml).toBe(1500)
+    expect(kl?.non_standard_format).toBe(true)
+    expect(kl?.format_label).toBe('1.5L')
+    expect(result!.price_min).toBe(200)
+    expect(result!.price_max).toBe(200)
+  })
+
+  it('does not flag an ordinary single-bottle listing as non-standard format', async () => {
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$249.00')] // baseline title, no size/pack wording
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers[0].pack_quantity).toBe(1)
+    expect(result!.retailers[0].bottle_size_ml).toBeNull()
+    expect(result!.retailers[0].non_standard_format).toBe(false)
+    expect(result!.price_min).toBe(249)
+  })
+
   it('filters Serper results to preferred retailer domains (Pass 1)', async () => {
     mockSerperItems = [
       makeItem('K&L Wine Merchants', KL_URL, '$249.00'),
