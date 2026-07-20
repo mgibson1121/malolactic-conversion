@@ -8,6 +8,25 @@ const fmt = (n: number | null | undefined) =>
   n != null ? `$${n.toFixed(0)}` : '—'
 
 export function PriceSection({ priceData }: Props) {
+  // Fetched successfully but no relevant listing was found — do not fall
+  // through to the price range/retailer list below, which would otherwise
+  // render as all dashes with no explanation of why.
+  if (priceData.retailers.length === 0) {
+    return (
+      <div className="price-section">
+        <div className="price-section-header">
+          <span className="price-source-label">Retailer Crawl</span>
+        </div>
+        <p className="price-not-found">
+          No matching listings found for this wine at the configured retailers.
+        </p>
+        <div className="price-fetched-at">
+          Checked {new Date(priceData.fetched_at).toLocaleDateString()}
+        </div>
+      </div>
+    )
+  }
+
   const allScores = priceData.retailers.flatMap(r =>
     r.critic_scores.map(s => ({ ...s, retailer: r.name }))
   )
@@ -61,6 +80,26 @@ export function PriceSection({ priceData }: Props) {
           {priceData.nearest_retailer.price != null && (
             <span className="nearest-price">{fmt(priceData.nearest_retailer.price)}</span>
           )}
+          {priceData.nearest_retailer.matched_vintage != null && (
+            <span
+              className={priceData.nearest_retailer.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
+              title={
+                priceData.nearest_retailer.vintage_mismatch
+                  ? 'Price shown is for a different vintage than this wine entry'
+                  : 'Vintage confirmed from the matched listing'
+              }
+            >
+              {priceData.nearest_retailer.matched_vintage} vintage
+            </span>
+          )}
+          {priceData.nearest_retailer.non_standard_format && (
+            <span
+              className="format-badge"
+              title="Price is for this format, not a single standard 750ml bottle"
+            >
+              {priceData.nearest_retailer.format_label}
+            </span>
+          )}
           <span className="nearest-distance">{priceData.nearest_retailer.distance_miles} mi</span>
           <a
             href={priceData.nearest_retailer.url}
@@ -79,6 +118,26 @@ export function PriceSection({ priceData }: Props) {
             <div key={i} className="retailer-row">
               <span className="retailer-name">{r.name}</span>
               <span className="retailer-price">{fmt(r.price)}</span>
+              {r.matched_vintage != null && (
+                <span
+                  className={r.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
+                  title={
+                    r.vintage_mismatch
+                      ? 'Price shown is for a different vintage than this wine entry'
+                      : 'Vintage confirmed from the matched listing'
+                  }
+                >
+                  {r.matched_vintage} vintage
+                </span>
+              )}
+              {r.non_standard_format && (
+                <span
+                  className="format-badge"
+                  title="Price is for this format, not a single standard 750ml bottle"
+                >
+                  {r.format_label}
+                </span>
+              )}
               <a
                 href={r.url}
                 target="_blank"

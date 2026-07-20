@@ -1,9 +1,8 @@
-import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from './retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
-import { extractFromRenderedHtml } from './gpt-extract'
+import { pageShowsNoResults } from './verify-listing'
 import type { PriceData, RetailerResult } from './types'
 
 function buildQuery(wine: WineEntry): string {
@@ -13,21 +12,38 @@ function buildQuery(wine: WineEntry): string {
   return parts.join(' ')
 }
 
-async function enrichWithCriticScores(
-  openai: OpenAI,
-  retailer: RetailerResult
-): Promise<RetailerResult> {
+// Every retailer URL at this point is a constructed search-results page
+// (see retailer-search-url.ts / buildFallbackUrl), never a single product
+// page — but the *price* still comes from Serper's Google Shopping snapshot,
+// which can be stale relative to what the retailer's own live search
+// actually returns today (delisted, sold out, aged-out snapshot). Rendering
+// the real search page and checking for an explicit "no results" signal is
+// what catches that: a price is only kept if the retailer's own site still
+// backs it up. Returns null to signal "drop this retailer entirely" — a
+// wine that isn't actually in this retailer's live search isn't a match,
+// so this is a drop, not a downgrade.
+async function verifyStillListed(retailer: RetailerResult): Promise<RetailerResult | null> {
   const html = await renderPageHtml(retailer.url)
+  // Render failed/timed out — an infra hiccup isn't evidence the listing is
+  // gone, so don't punish the retailer for it; keep Serper's data as-is.
   if (!html) return retailer
+  if (pageShowsNoResults(html)) return null
+  return retailer
+}
 
-  const extraction = await extractFromRenderedHtml(openai, html, retailer.url)
-  if (!extraction) return retailer
-
+// Distinguishes "never attempted" (returns null — no fetched_at, no stored
+// price_data at all) from "attempted and found nothing" (returns a PriceData
+// with empty retailers and a fetched_at timestamp). The UI needs this
+// distinction to show "no matching listings found" instead of either
+// silently showing nothing or, worse, an unrelated/incorrect price.
+function emptyPriceData(): PriceData {
   return {
-    ...retailer,
-    price: extraction.price ?? retailer.price,
-    url: extraction.url || retailer.url,
-    critic_scores: extraction.critic_scores ?? [],
+    price_min: null,
+    price_avg: null,
+    price_max: null,
+    retailers: [],
+    nearest_retailer: null,
+    fetched_at: new Date().toISOString(),
   }
 }
 
@@ -41,16 +57,36 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   if (!query.trim()) return null
 
   // Step 1 — Serper query: discover retailer URLs + prices
-  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey)
-  if (baseResults.length === 0) return null
+  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey, {
+    producer: wine.producer ?? '',
+    denomination: wine.denomination ?? '',
+    vintage: wine.vintage ?? null,
+  })
+  if (baseResults.length === 0) return emptyPriceData()
 
-  // Step 2 — Puppeteer pass: render each SPA page and extract attributed critic scores
-  const openai = new OpenAI({ apiKey })
-  const enriched = await Promise.all(
-    baseResults.map(r => enrichWithCriticScores(openai, r))
-  )
+  // Step 2 — Puppeteer pass: render each retailer's live search page and drop
+  // any retailer whose search doesn't actually surface a result today. See
+  // verifyStillListed — this is what keeps a stale Serper/Google Shopping
+  // price from being shown for a wine a retailer's own site no longer lists.
+  const verified = (await Promise.all(baseResults.map(r => verifyStillListed(r))))
+    .filter((r): r is RetailerResult => r !== null)
+  if (verified.length === 0) return emptyPriceData()
+  const enriched = verified
 
-  const withPrice = enriched.filter(r => r.price !== null)
+  // A confirmed vintage_mismatch means the listing is definitely a different
+  // year of this wine, not this wine at that price. A non_standard_format
+  // listing (a 6-pack, a magnum, a half bottle) means the price isn't for a
+  // single standard 750ml bottle at all — a 6-pack can inflate price_max by
+  // 5-6x, a magnum typically carries a rarity premium well past 2x. Both
+  // stay in the retailers list (badged in the UI) for transparency, but
+  // neither may feed the headline price stats or be selectable as "nearest
+  // retailer": doing so would present a wrong-vintage or wrong-quantity
+  // price as if it were the answer to "what does a bottle of this wine
+  // cost," which is the same class of error as showing a price for an
+  // unrelated wine.
+  const eligibleForStats = enriched.filter(r => !r.vintage_mismatch && !r.non_standard_format)
+
+  const withPrice = eligibleForStats.filter(r => r.price !== null)
   const prices = withPrice.map(r => r.price as number)
 
   const price_min = prices.length ? Math.min(...prices) : null
@@ -61,11 +97,11 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
       : null
 
   // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
-  const preferred = enriched.filter(r => r.is_preferred_retailer)
+  const preferred = eligibleForStats.filter(r => r.is_preferred_retailer)
   const nearest_retailer =
     preferred.length > 0
       ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
-      : enriched[0] ?? null
+      : eligibleForStats[0] ?? null
 
   return {
     price_min,
