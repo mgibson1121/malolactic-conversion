@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-06-14
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-19
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -74,7 +74,7 @@ Defined in `docs/build-phases.md`.
 | Web | React + TypeScript | Management and research surface |
 | Database | SQLite via `better-sqlite3` | Phase 5 onward |
 | Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
-| Headless browser | Puppeteer | Phase 6 onward — renders SPA retailer pages for GPT-4o score extraction. Do not run in CI; mock with HTML fixtures in tests. |
+| Headless browser | Puppeteer | Phase 6 onward — renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Attributed critic-score extraction (rendering a *single product* page for GPT-4o) is deferred — see Phase 6.7 in `build-phases.md`. Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 
 ---
@@ -88,7 +88,7 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
 | Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
-| Price enrichment | `modules/price/` | Step 1: Serper.dev Google SERP API → price/retailer discovery (preferred retailers first, any retailer fallback). Step 2: Puppeteer renders SPA product pages → GPT-4o extracts attributed critic scores. Retailer list is config-driven and extensible. |
+| Price enrichment | `modules/price/` | Step 1: Serper.dev Google SERP API → price/retailer discovery (preferred retailers first via `retailer-search-url.ts`; any relevant retailer as fallback, capped at 5, via `pack-format.ts`-aware parsing). Step 2: Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`) — this replaced the earlier GPT-4o critic-score extraction step, which was a structural no-op (see Phase 6.7 in `build-phases.md`: every URL this module produces is a search-results page, never a single product page, so attributed score extraction has been split into its own not-yet-scheduled phase rather than left silently broken inside this one). Retailer list is config-driven and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats, not silently blended in. |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
@@ -336,7 +336,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 
 - [ ] Serper Shopping coverage: verify Serper returns Shopping results for the wines in the collection (Burgundy, Barolo, Rioja) before closing Phase 6
 - [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly
-- [ ] Puppeteer score extraction coverage: document which retailers successfully return attributed critic scores during the Phase 6 manual test
+- [x] Puppeteer score extraction coverage: resolved 2026-07-19 — not a coverage question, a structural one. No retailer URL this module produces is ever a single product page, so attributed score extraction can't work as part of pricing. Split out to Phase 6.7 (`build-phases.md`), not scheduled yet.
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition after Phase 6.6 is stable
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable
