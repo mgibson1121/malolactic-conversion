@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-19
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-20
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -23,7 +23,7 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 │   └── server.ts     # Entry point
 ├── ios/              # Swift iOS app (Xcode project)
 ├── web/              # React web app
-├── shared/           # Shared types, constants, validation schemas
+├── shared/           # Shared types, constants, validation schemas, retailer config (Phase 7+)
 ├── docs/
 │   ├── product-context.md   # Product PRD — source of truth for features
 │   └── specs/               # Per-feature spec files (added as features are built)
@@ -51,7 +51,7 @@ Phases 1–4.5 are complete. The wine entry schema was validated against real da
 - `my_tags` must stay in sync with tags extracted from `tasting_notes`; GPT-4o writes back to the wine entry when a note is saved.
 - The wine entry uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable. See `wine-app-product-context.md` Section 3 for full definitions before building the label scan module.
 
-### Phase 5 — SQLite migration (current)
+### Phase 5 — SQLite migration
 Schema is validated. Replace the Google Sheets adapter with SQLite. No feature behaviour changes.
 
 - Use `better-sqlite3` (synchronous — do not introduce async database patterns)
@@ -60,7 +60,13 @@ Schema is validated. Replace the Google Sheets adapter with SQLite. No feature b
 - Google Sheets adapter retained in `backend/sheets/` but no longer in the active code path
 - All Phase 1–4 tests must pass identically against SQLite before this phase is closed
 
-### Phase 6 and beyond
+### Phase 6 — Price enrichment
+Serper.dev (organic + Shopping) + Puppeteer. Populates `price_min`/`price_avg`/`price_max`, `price_retailers`, `nearest_retailer`. Full detail in `docs/build-phases.md`.
+
+### Phase 7 — Review & critic score sourcing (current)
+Separate module from pricing — locates a real retailer *product* page (not a search-results page) via Serper's organic `/search` endpoint with a `site:`-restricted query, renders it with Puppeteer, and runs GPT-4o extraction (moved from the price module, where it was dead code) to pull attributed critic scores into a new `review_data` column. Full detail, including the K&L robots.txt finding that shaped this design, is in `docs/build-phases.md`.
+
+### Phase 8 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -74,8 +80,10 @@ Defined in `docs/build-phases.md`.
 | Web | React + TypeScript | Management and research surface |
 | Database | SQLite via `better-sqlite3` | Phase 5 onward |
 | Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
-| Headless browser | Puppeteer | Phase 6 onward — renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Attributed critic-score extraction (rendering a *single product* page for GPT-4o) is Phase 7 — see `build-phases.md`. Do not run in CI; mock with HTML fixtures in tests. |
+| SERP data | Serper.dev | Shopping endpoint (Phase 6, price discovery) and organic `/search` endpoint (Phase 7, product page discovery for review sourcing) — different endpoints for different purposes; Shopping links are never trustworthy product URLs, organic links are. |
+| Headless browser | Puppeteer | Phase 6: renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Phase 7: renders a single confirmed *product* page (found via Serper organic search, not by rendering the retailer's own on-site search) for GPT-4o critic-score extraction. Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
+| Shared config | `shared/config/retailers.config.ts` (Phase 7) | Retailer slug/name/domain/coordinates. Moved from `backend/modules/price/` in Phase 7 because both `price` and `reviews` need it and modules cannot import from each other. |
 
 ---
 
@@ -88,17 +96,18 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
 | Reddit synthesis | `modules/reddit/` | Fetch Reddit posts + GPT-4o synthesis → community sentiment |
 | Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; K&L, Zachys, Woodland Hills, Benchmark (Phase 6.6) |
-| Price enrichment | `modules/price/` | Step 1: Serper.dev Google SERP API → price/retailer discovery (preferred retailers first via `retailer-search-url.ts`; any relevant retailer as fallback, capped at 5, via `pack-format.ts`-aware parsing). Step 2: Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`) — this replaced the earlier GPT-4o critic-score extraction step, which was a structural no-op (see Phase 7 in `build-phases.md`: every URL this module produces is a search-results page, never a single product page, so attributed score extraction has been split into its own phase rather than left silently broken inside this one). Retailer list is config-driven and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats, not silently blended in. |
-| Review & critic score sourcing | `modules/reviews/` (Phase 7, not yet built) | Will locate the correct single product page from a retailer's search results, render it with Puppeteer, and run GPT-4o extraction (`gpt-extract.ts`, already written) against it. Deliberately separate from `modules/price/` — see Phase 7 in `build-phases.md` for why pricing and review-sourcing don't share a module despite sharing a retailer list. |
+| Price enrichment | `modules/price/` | Serper.dev Shopping endpoint → price/retailer discovery (preferred retailers first, any relevant retailer as fallback capped at 5). Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`). Retailer list is config-driven (imported from `shared/config/retailers.config.ts` as of Phase 7) and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats. Does not attempt critic-score extraction — see `modules/reviews/`. |
+| Review & critic score sourcing | `modules/reviews/` (Phase 7) | Locates the correct single product page for a retailer via Serper's organic `/search` endpoint (`site:`-restricted query — not by rendering the retailer's own on-site search, which is unreliable and, for K&L specifically, blocked by bot detection even though its robots.txt permits automated access). Renders that product page with Puppeteer and runs GPT-4o extraction (`gpt-extract.ts`, moved here from `modules/price/`) to pull attributed critic scores into `review_data`. Deliberately separate from `modules/price/` — pricing only ever needs a search-results page, review sourcing needs a real product page, and the two shouldn't share a module despite sharing a retailer list. |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
 Shared utilities:
 - `shared/utils/proximity.ts` — Haversine distance calculation used to determine nearest retailer to NYC. Pure function, no side effects. Used by the price module display layer and the wine detail view.
+- `shared/config/retailers.config.ts` (Phase 7) — retailer slug/name/domain/coordinates, used by both `modules/price/` and `modules/reviews/`.
 
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file
-- Modules do not import from each other — they communicate via the backend router only
+- Modules do not import from each other — they communicate via the backend router only. Where two modules genuinely need the same data (e.g. retailer metadata), it belongs in `shared/`, not duplicated or cross-imported.
 - Each module must degrade gracefully if its API key or credential is not configured (return null or empty state, never throw uncaught errors)
 
 ---
@@ -128,7 +137,7 @@ GOOGLE_SHEETS_CREDENTIALS=
 GOOGLE_SHEETS_SPREADSHEET_ID=
 ```
 
-The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty from Phase 5 onward.
+The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty from Phase 5 onward. `SERPER_API_KEY` is used by both `modules/price/` (Shopping endpoint) and `modules/reviews/` (organic search endpoint, Phase 7) — one key covers both.
 
 ---
 
@@ -148,10 +157,10 @@ The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty fro
 
 ## 8. LLM Usage
 
-- Model: GPT-4o for all LLM tasks (label scanning, Reddit synthesis, tasting note tag extraction)
+- Model: GPT-4o for all LLM tasks (label scanning, Reddit synthesis, tasting note tag extraction, critic score extraction)
 - Do not use GPT-4 Turbo or GPT-3.5
 - Key: BYOK — user supplies their own OpenAI API key
-- Fallback: if no key is configured, features that require LLM degrade gracefully (e.g. raw Reddit excerpts shown instead of synthesis; label scan unavailable with clear UI message)
+- Fallback: if no key is configured, features that require LLM degrade gracefully (e.g. raw Reddit excerpts shown instead of synthesis; label scan unavailable with clear UI message; `modules/reviews/` returns empty `review_data`)
 
 ---
 
@@ -159,7 +168,7 @@ The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty fro
 
 - Label scan → populated wine entry card: under 30 seconds end-to-end
 - This is the primary latency constraint for the iOS capture flow
-- Reddit synthesis and expert review fetches can be async / background — they populate the wine entry card after the initial scan result is shown
+- Reddit synthesis, price fetches, and review/critic-score sourcing are all async / background — they populate the wine entry card after the initial scan result is shown
 
 ---
 
@@ -230,6 +239,7 @@ Examples:
 - `feature/cellar-view`
 - `service/sqlite-migration`
 - `service/reddit-module`
+- `service/review-score-sourcing`
 - `fix/wine-entry-tag-toggle`
 
 All work happens on a branch. Merge to `main` only when CI is green.
@@ -325,7 +335,8 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not build a hosted backend or cloud database — everything runs locally
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
-- The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages. Puppeteer fetching is the exclusive responsibility of the price enrichment module (Phase 6) and must not bleed into other modules.
+- The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages. Puppeteer fetching is the responsibility of the price enrichment module (Phase 6, search-results verification) and the reviews module (Phase 7, single product-page rendering) — it must not bleed into other modules.
+- Before treating a retailer as off-limits for automated access, check that retailer's own `robots.txt` on the actual host being used (not just the marketing domain — see the K&L `www.klwines.com` vs. `shop.klwines.com` distinction in `docs/build-phases.md` Phase 7). A live block from bot detection is a technical problem to route around; an explicit ToS/robots.txt prohibition (as with CellarTracker and WineBerserkers) is not.
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
 - Do not add microservice infrastructure (separate deployables, Docker Compose, service mesh) — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
@@ -338,6 +349,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 - [ ] Serper Shopping coverage: verify Serper returns Shopping results for the wines in the collection (Burgundy, Barolo, Rioja) before closing Phase 6
 - [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly
 - [x] Puppeteer score extraction coverage: resolved 2026-07-19 — not a coverage question, a structural one. No retailer URL the price module produces is ever a single product page, so attributed score extraction can't work as part of pricing. Split out to Phase 7 (`build-phases.md`), scheduled ahead of community data (Phase 8).
+- [ ] **New 2026-07-20 — Serper organic search coverage:** confirm Serper's organic `/search` endpoint (Phase 7's Step 1) reliably returns real product pages on all four retailer domains for the wines actually in the collection — validated so far for only one wine on one retailer during scoping. Close out during Phase 7 testing.
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition after Phase 6.6 is stable
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable
