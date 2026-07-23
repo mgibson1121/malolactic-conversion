@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { WineEntry, UpdateWineInput } from '@shared/types'
 import { fetchWinePrice } from '../api'
 import { PriceSection } from './PriceSection'
+import { RetailerLinksSection } from './RetailerLinksSection'
 
 interface Props {
   wine: WineEntry
@@ -171,6 +172,8 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           {priceError && <span className="price-error">{priceError}</span>}
         </div>
       )}
+
+      <RetailerLinksSection wine={wine} onWineUpdated={onWineUpdated} />
     </div>
   )
 }
