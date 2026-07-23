@@ -60,6 +60,9 @@ export const CreateWineSchema = z.object({
   price_paid: z.number().positive().nullish().transform((v) => v ?? null),
   purchased_from: z.string().nullish().transform((v) => v ?? null),
   date_first_consumed: z.string().nullish().transform((v) => v ?? null),
+  // User-saved retailer URLs keyed by slug (Phase 6.6) — generated search
+  // URLs are never persisted, only ones the user explicitly saves.
+  retailer_links: z.record(z.string(), z.string().url()).nullish().transform((v) => v ?? null),
 })
 
 export const UpdateWineSchema = CreateWineSchema.partial()

@@ -44,6 +44,12 @@ export interface RetailerPrice {
   format_label: string
 }
 
+export interface RetailerLink {
+  slug: string
+  name: string
+  url: string
+}
+
 export interface PriceData {
   price_min: number | null
   price_avg: number | null
