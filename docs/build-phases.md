@@ -178,6 +178,14 @@
 | `purchased_from` | TEXT | Nullable |
 | `date_added` | TEXT NOT NULL | ISO timestamp — set on insert |
 | `date_first_consumed` | TEXT | ISO timestamp — set once on first note save, never overwritten |
+| `advice_linked` | TEXT | JSON array of `advice.id` UUIDs — nullable; kept in sync by `createAdvice` when linked to a wine |
+| `expert_reviews` | TEXT | JSON — nullable; reserved column, not populated by any shipped phase. Early design intent, superseded by `price_data` (Phase 6) and `review_data` (Phase 7) for scores/reviews. Leave in place; do not populate or remove without a separate decision. |
+| `community_sentiment` | TEXT | Nullable — reserved for Phase 8 |
+| `community_excerpts` | TEXT | JSON array — nullable; reserved for Phase 8 |
+| `price_data` | TEXT | JSON object — nullable. **The actual storage for all Phase 6 pricing/retailer output** (see Phase 6): `{ price_min, price_avg, price_max, retailers: RetailerResult[], nearest_retailer, fetched_at }`. One blob, not separate flat columns — `price_min`/`price_avg`/`price_max`/`nearest_retailer` are keys inside this JSON, never top-level SQL columns. |
+| `retailer_links` | TEXT | JSON object — nullable; keyed by retailer slug (Phase 6.6). User-saved URLs only. |
+
+> **Note (corrected 2026-07-22):** the six rows above already exist in `backend/db/schema.sql` as of the current codebase but were missing from this table — a documentation gap, not a schema gap. A separate, unrelated migration, `backend/db/migrations/001_phase6_wine_searcher.sql`, also added flat `ws_price_min` / `ws_price_avg` / `ws_price_max` / `ws_score` / `ws_price_fetched_at` / `ws_retailers` columns from an earlier Wine-Searcher-API-based design that was later abandoned in favor of Serper. **`sqlite-adapter.ts` never reads or writes those `ws_*` columns** — they are vestigial and not part of the live data flow. Build against `price_data` and `retailer_links` only. Removing the `ws_*` columns via a follow-up migration is optional cleanup, not a blocker for Phase 6.6 or Phase 7.
 
 **`tasting_notes` table**
 
@@ -304,23 +312,23 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 - On scan or manual refresh trigger, the price module sends a query to the Serper API for the wine (`producer + denomination + vintage`)
 - Response includes Shopping results and organic results from across the web
 - Results are filtered for configured retailer domains — the retailer list is extensible via config, not hardcoded in logic
-- Pass 1: filter results for configured preferred retailers (K&L, Zachys, Woodland Hills, Benchmark)
+- Pass 1: filter results for configured preferred retailers (K&L, Zachys, Woodland Hills, Benchmark at launch — expanded to eight retailers in Phase 6.7)
 - Pass 2 (fallback): if Pass 1 returns no matches, use the unfiltered Serper results — any wine retailer Google found. Flag these as "other retailers" in the stored data.
 - From matching results, extract per retailer: name, price, product URL
 - Compute `price_min`, `price_avg`, `price_max` across all matching results
 - Identify nearest retailer to NYC using Haversine distance from static retailer coordinate lookup
-- Store all results as a point-in-time snapshot
+- Store all results as a point-in-time snapshot in the `price_data` JSON column (see Phase 5 schema) — `price_min`, `price_avg`, `price_max`, `retailers`, `nearest_retailer`, and `fetched_at` are keys inside that one blob, not separate SQL columns
 
 **Step 2 — Puppeteer score extraction (attributed critic scores)**
 - For each product URL returned in Step 1, Puppeteer opens the URL in headless Chromium
 - Waits for the page to fully render (product data visible in DOM)
 - Passes rendered HTML to GPT-4o with a structured extraction prompt
 - GPT-4o extracts: any critic scores visibly attributed to a named publication (score value + publication name). Never infer or hallucinate attributions. Never extract tasting note text.
-- Results stored per retailer in `price_retailers` JSON alongside price and URL
+- Results stored per retailer inside the `retailers` array within the `price_data` JSON blob, alongside price and URL
 - Runs async — does not block Step 1 results from displaying
 - Each retailer page is independent — if one fails, the others continue
 
-> **Superseded 2026-07-19 / 2026-07-20:** Step 2 as described above stopped being viable once every retailer URL the price module produces was confirmed to be a search-results page rather than a real product page (see the Phase 9 "Known gap" note). The GPT-4o call was removed from the pricing path entirely. Attributed critic-score extraction now happens in **Phase 7**, against a real product page located via a different mechanism. `price_retailers` no longer carries a `critic_scores` field — see Phase 7.
+> **Superseded 2026-07-19 / 2026-07-20:** Step 2 as described above stopped being viable once every retailer URL the price module produces was confirmed to be a search-results page rather than a real product page (see the Phase 9 "Known gap" note). The GPT-4o call was removed from the pricing path entirely. Attributed critic-score extraction now happens in **Phase 7**, against a real product page located via a different mechanism. The `retailers` array inside `price_data` no longer carries a `critic_scores` field — see Phase 7.
 
 **Retailer configuration (`backend/modules/price/retailers.config.ts`):**
 
@@ -391,10 +399,10 @@ price/
 **Phase 6 completion criteria — manual test required:**
 1. A real wine bottle is scanned via the web UI
 2. The price module runs automatically post-scan
-3. Inspect the wine entry: `sqlite3 backend/db/wine.db "SELECT price_min, price_avg, price_max, price_fetched_at, nearest_retailer, price_retailers FROM wines ORDER BY date_added DESC LIMIT 1;"`
-4. Entry shows non-null values for all price fields
+3. Inspect the wine entry: `sqlite3 backend/db/wine.db "SELECT price_data FROM wines ORDER BY date_added DESC LIMIT 1;"` — `price_data` is a single JSON blob (see Phase 5 schema); parse it and confirm `price_min`, `price_avg`, `price_max`, `nearest_retailer`, and `retailers` are all populated. There are no separate flat columns for these.
+4. Entry shows non-null values for all price fields within the parsed `price_data` object
 
-~~5. At least one retailer in `price_retailers` has a non-empty `critic_scores` array~~ — **dropped 2026-07-19.** Attributed critic-score extraction requires rendering an actual single-product page; every retailer URL this module produces (preferred and fallback alike) is a constructed search-results page, and always will be, since Serper never returns a trustworthy product URL to build one from. Score sourcing is real work — locating the correct product link within a rendered search page, then rendering that page too — and is scoped as its own phase, not folded into pricing. See the Phase 9 "Known gap" note and Phase 7 below for the decision record.
+~~5. At least one retailer in `price_data.retailers` has a non-empty `critic_scores` array~~ — **dropped 2026-07-19.** Attributed critic-score extraction requires rendering an actual single-product page; every retailer URL this module produces (preferred and fallback alike) is a constructed search-results page, and always will be, since Serper never returns a trustworthy product URL to build one from. Score sourcing is real work — locating the correct product link within a rendered search page, then rendering that page too — and is scoped as its own phase, not folded into pricing. See the Phase 9 "Known gap" note and Phase 7 below for the decision record.
 
 Document the test result in the session summary (which wine, which retailers responded).
 
@@ -454,8 +462,8 @@ Results arrive in two waves:
 
 Contents when populated:
 - **Critic scores** — attributed scores extracted from rendered retailer pages (e.g. "Burghound: 92"). Each displayed with publication name. Omit if none found.
-- **Average price** — `price_avg` formatted as currency. Omit if null.
-- **Nearest retailer** — single row: name, price, tappable link. Nearest to NYC using Haversine distance from retailer config. Omit if no results.
+- **Average price** — `price_data.price_avg` formatted as currency. Omit if null.
+- **Nearest retailer** — single row: name, price, tappable link. Sourced from `price_data.nearest_retailer`. Nearest to NYC using Haversine distance from retailer config. Omit if no results.
 
 ---
 
@@ -477,9 +485,9 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 | Grape varieties | `grape_varieties` | Omit row if null |
 | Status tags | `tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed` | Display as badges for whichever tags are currently true. All on one row. Read-only. |
 | Review link(s) | `retailer_links` | If one or more retailer URLs have been saved (from Phase 6.6 workflow), display each as a tappable link labelled with the retailer name (e.g. "K&L review"). Omit row entirely if none saved. |
-| Avg price | `price_avg` | Labelled "Avg price (crawled retailers)". Omit if null. |
-| Critic scores | `review_data` (Phase 7 — was `price_retailers` prior to Phase 7; see note above) | Any attributed scores extracted from retailer product pages (e.g. "Burghound: 92"). Each score shown with publication name. Omit row if none found. |
-| Nearest retailer | `nearest_retailer` | Single closest retailer to NYC — name, price, tappable link. Omit if null. |
+| Avg price | `price_data.price_avg` | Labelled "Avg price (crawled retailers)". Omit if null. |
+| Critic scores | `review_data` (Phase 7 — was `price_data.retailers[].critic_scores` prior to Phase 7; see note above) | Any attributed scores extracted from retailer product pages (e.g. "Burghound: 92"). Each score shown with publication name. Omit row if none found. |
+| Nearest retailer | `price_data.nearest_retailer` | Single closest retailer to NYC — name, price, tappable link. Omit if null. |
 
 **Layout and behaviour rules:**
 - Null Tier 2 fields are hidden entirely — no empty rows, no placeholder dashes. The view collapses around what exists.
@@ -495,7 +503,7 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 - Haversine distance calculation (nearest retailer to NYC) is implemented as a pure function in `shared/utils/proximity.ts`. Retailer coordinates come from `backend/modules/price/retailers.config.ts` defined in Phase 6 (relocated to `shared/config/retailers.config.ts` in Phase 7).
 
 **Schema additions (on top of Phase 6):**
-- No new columns required — all fields used in this phase (`price_avg`, `price_retailers`, `nearest_retailer`, `retailer_links`) are defined in Phase 6 and Phase 6.6 respectively. The critic scores row's source column changes to `review_data` in Phase 7 (new column) — see Phase 7 deliverable 6.
+- No new columns required — all fields used in this phase (`price_data.price_avg`, `price_data.retailers`, `price_data.nearest_retailer`, `retailer_links`) already exist per the Phase 5 schema table. `price_avg`, `retailers`, and `nearest_retailer` are keys inside the single `price_data` JSON column, not separate SQL columns. The critic scores row's source column changes to `review_data` in Phase 7 (new column) — see Phase 7 deliverable 6.
 
 **Milestone:** Post-scan screen shows wine info and crawled pricing in separate tabs. Tapping any wine entry from any list opens the compact detail view showing attributed critic scores, avg price, and nearest retailer.
 
@@ -510,7 +518,7 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 **Deliverables:**
 - Link generator module in `backend/modules/retailer-links/`
 - Takes `producer`, `denomination`, `vintage` from the wine entry and constructs retailer-specific search URLs for each configured retailer
-- Four retailers configured in v1:
+- Four retailers configured in v1 (expanded to eight in Phase 6.7 — see below):
   - **K&L Wine Merchants** (`klwines.com`) — highest review density; carries Burghound, Vinous, Wine Spectator, Wine Advocate on product pages
   - **Zachys** (`zachys.com`) — fine wine specialist, NYC-area, strong Burgundy/Bordeaux depth
   - **Woodland Hills Wine Company** (`woodlandhillswine.com`) — trusted retailer with solid review coverage
@@ -530,6 +538,49 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 - The Burgundy Report (`burgundy-report.com`) is a candidate for a future addition. Its ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Deferred — do not build in this phase.
 
 **Milestone:** Wine entry card shows one-tap search buttons for all four retailers, pre-populated with wine identity data. User-saved retailer URLs persist across sessions and appear in the wine detail view.
+
+---
+
+## Phase 6.7 — Retailer list expansion (tri-state)
+
+**Goal:** Expand the four-retailer config beyond the original K&L / Zachys / Woodland Hills / Benchmark set to increase coverage of the critic publications the developer actually trusts, with a preference for retailers based in the NYC tri-state area — matching the app's NYC-centric proximity and shipping-risk logic from `wine-app-product-context.md` (heat/transit damage is a named purchasing pain point).
+
+**Context (decided 2026-07-20):** The original four were selected purely for Burghound/Vinous review density, with no geographic constraint — K&L and Benchmark are California-based, Woodland Hills/whwc is Los Angeles. The developer's trusted publication list is broader than originally scoped: Burghound, Vinous, Wine Advocate, Decanter, and Wine Enthusiast. Four tri-state candidates were sourced and vetted against both criteria:
+
+- **Source list:** Cross-referenced against Burghound.com's own published "Wine Retailers" page — a list of Burghound subscriber-retailers Burghound itself vouches for (they explicitly take no paid advertising for this list) — filtered to Connecticut / New Jersey / New York entries.
+- **Vetting:** For each tri-state candidate, confirmed via search that its product pages actually display attributed scores from the target publications (not just that the retailer subscribes to Burghound), and checked `robots.txt` on the live site to confirm no blanket automated-access block — same diligence as the K&L `robots.txt` check in Phase 7.
+
+**New retailers added to `RETAILER_CONFIG`, bringing the total to eight:**
+
+| Slug | Name | Domain | Location | Confirmed publications on product pages |
+|---|---|---|---|---|
+| `sokolin` | Sokolin | `sokolin.com` | Bridgehampton, NY (Hamptons) | Burghound, Vinous, Wine Advocate, Decanter, Wine Enthusiast — all five. Has a dedicated `/wine-ratings` page. |
+| `acker` | Acker Wines | `ackerwines.com` | Manhattan, NY (160 W 72nd St) | Wine Advocate, Vinous confirmed |
+| `winelibrary` | Wine Library | `winelibrary.com` | Springfield, NJ | Wine Advocate, Vinous, Decanter confirmed |
+| `morrell` | Morrell & Company | `morrellwine.com` | Briarcliff Manor, NY (Westchester — relocated from Rockefeller Center) | Wine Advocate confirmed |
+
+```typescript
+export const RETAILER_CONFIG = [
+  { slug: 'kl',          name: 'K&L Wine Merchants',      domain: 'klwines.com',           lat: 40.7580, lng: -73.9855 },
+  { slug: 'zachys',      name: 'Zachys',                  domain: 'zachys.com',            lat: 41.0026, lng: -73.6693 },
+  { slug: 'woodland',    name: 'Woodland Hills Wine Co.', domain: 'woodlandhillswine.com', lat: 34.1684, lng: -118.6059 },
+  { slug: 'benchmark',   name: 'Benchmark Wine Group',    domain: 'benchmarkwine.com',     lat: 38.2975, lng: -122.2869 },
+  { slug: 'sokolin',     name: 'Sokolin',                 domain: 'sokolin.com',           lat: 40.9376, lng: -72.3009 },
+  { slug: 'acker',       name: 'Acker Wines',             domain: 'ackerwines.com',        lat: 40.7796, lng: -73.9800 },
+  { slug: 'winelibrary', name: 'Wine Library',            domain: 'winelibrary.com',       lat: 40.6976, lng: -74.3421 },
+  { slug: 'morrell',     name: 'Morrell & Company',       domain: 'morrellwine.com',       lat: 41.1445, lng: -73.8557 },
+]
+```
+
+**Notes:**
+- `RETAILER_CONFIG` is defined in `backend/modules/price/retailers.config.ts` per Phase 6, relocating to `shared/config/retailers.config.ts` per Phase 7 — this expansion applies wherever the config lives at implementation time.
+- Coordinates are approximate (town/street-level), consistent with the precision used for the original four — sufficient for Haversine nearest-retailer ranking, not for driving directions.
+- Morrell & Company's address moved out of Manhattan proper to Briarcliff Manor, NY after the Rockefeller Center location closed — still tri-state, just no longer the closest-to-Manhattan option its old address would have suggested.
+- Score-display confirmation above is from search-indexed snippets, not a live Puppeteer render — the same "verify empirically" caveat that applied to the original four's Serper/robots.txt findings applies here too. Re-confirm during Phase 6 / Phase 7 implementation, not just at doc-writing time.
+- This expansion touches three places downstream: `RETAILER_CONFIG` itself (Pass 1 "preferred retailers" in the price module, Phase 6), the "Four retailers configured in v1" list in Phase 6.6 (retailer deep-links — now eight), and Phase 7's product-page discovery (Step 1 runs the same `site:<domain>` Serper query per retailer, so it scales to eight with no logic change).
+- `CLAUDE.md`'s retailer-links module description is updated to reflect eight retailers, for consistency with this file.
+
+**Milestone:** `RETAILER_CONFIG` lists eight retailers. Price module Pass 1, retailer deep-links (Phase 6.6), and review sourcing (Phase 7) all operate over the same eight-retailer set with no per-retailer special-casing beyond what already exists for K&L (the `www.klwines.com` vs. `shop.klwines.com` robots.txt / bot-detection distinction).
 
 ---
 
@@ -578,9 +629,9 @@ Given both findings, Step 1 uses Serper's organic `/search` endpoint (not `/shop
    ├── types.ts
    └── reviews.test.ts
    ```
-4. **Schema addition** — `review_data` TEXT column on `wines`: JSON array, `[{ slug, name, product_url, critic_scores: [{ publication, score }], fetched_at }]`. Nullable; empty array if no retailer returned a match.
-5. **Remove `critic_scores` from the `price_retailers` JSON shape** in the price module's types — it has been a guaranteed-empty field since the 2026-07-19 fixes and is being replaced by `review_data`. This is a type-level change only (JSON blob, not a DB migration) but should ship in the same PR to avoid the two fields coexisting in a confusing half-dead state.
-6. **Repoint the wine detail view** (`WineDetailView`, built in Phase 6.5) — the "Critic scores" row currently reads from `price_retailers`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
+4. **Schema addition** — `review_data` TEXT column on `wines`: JSON array, `[{ slug, name, product_url, critic_scores: [{ publication, score }], fetched_at }]`. Nullable; empty array if no retailer returned a match. This is a real new column — an actual `ALTER TABLE wines ADD COLUMN review_data TEXT` migration, unlike `price_data`/`retailer_links` which already exist (see Phase 5 schema note).
+5. **Remove `critic_scores` from the `retailers` array shape** inside `price_data` (in the price module's types) — it has been a guaranteed-empty field since the 2026-07-19 fixes and is being replaced by `review_data`. This is a type-level change only (JSON blob shape, not a DB migration) but should ship in the same PR to avoid the two fields coexisting in a confusing half-dead state.
+6. **Repoint the wine detail view** (`WineDetailView`, built in Phase 6.5) — the "Critic scores" row currently reads from `price_data.retailers[].critic_scores`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
 
 **Graceful degradation:**
 - Serper returns no relevant organic result for a retailer → skip that retailer for that wine, no error
@@ -611,7 +662,7 @@ Document the test result in the session summary (which wine, which retailers res
 **Branch:** `service/review-score-sourcing`
 **PR title:** `service: review & critic score sourcing (Phase 7)`
 
-**Milestone:** A real wine entry shows at least one attributed critic score sourced from an actual rendered retailer product page (not a search-results page) — the counterpart to Phase 6's completion test, for scores instead of price. `review_data` is populated independently of `price_retailers`. The wine detail view's critic scores row displays correctly for the first time since Phase 6.5.
+**Milestone:** A real wine entry shows at least one attributed critic score sourced from an actual rendered retailer product page (not a search-results page) — the counterpart to Phase 6's completion test, for scores instead of price. `review_data` is populated independently of `price_data`. The wine detail view's critic scores row displays correctly for the first time since Phase 6.5.
 
 ---
 
