@@ -3,6 +3,7 @@ import { getStorage } from '../modules/storage'
 import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { UpdateWineInput, WineFilter } from '@shared/types'
 import { fetchPriceData } from '../modules/price'
+import { getRetailerLinks } from '../modules/retailer-links'
 
 const router = Router()
 
@@ -93,6 +94,23 @@ router.post(
 
     const updated = await getStorage().updateWine(req.params.id, updates)
     res.json(updated)
+  })
+)
+
+// GET /api/wines/:id/retailer-links — generated retailer search links (Phase 6.6)
+// Computed fresh from wine identity fields on every call — never stored.
+// Distinct from the `retailer_links` field on the wine entry itself, which
+// holds only URLs the user has explicitly saved (via PATCH /:id).
+router.get(
+  '/:id/retailer-links',
+  wrap(async (req, res) => {
+    const wine = await getStorage().getWine(req.params.id)
+    if (!wine) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    res.json(getRetailerLinks(wine))
   })
 )
 

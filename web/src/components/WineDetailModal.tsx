@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
 import { fetchWinePrice, listTastingNotesByWine } from '../api'
 import { PriceSection } from './PriceSection'
+import { RetailerLinksSection } from './RetailerLinksSection'
 
 interface Props {
   wine: WineEntry
@@ -32,6 +33,13 @@ const RATING_LABELS: Record<string, string> = {
   good: 'Good',
   very_good: 'Very Good',
   outstanding: 'Outstanding',
+}
+
+const RETAILER_LABELS: Record<string, string> = {
+  kl: 'K&L',
+  zachys: 'Zachys',
+  woodland: 'Woodland Hills',
+  benchmark: 'Benchmark',
 }
 
 const QUALITY_LABELS: Record<string, string> = {
@@ -205,6 +213,28 @@ export function WineDetailModal({
             )}
           </section>
 
+          {/* Review links — saved retailer URLs only; generated search links
+              live in the Find Reviews section below Pricing. Omitted entirely
+              if nothing has been saved. */}
+          {wine.retailer_links && Object.keys(wine.retailer_links).length > 0 && (
+            <section className="detail-section">
+              <h3 className="detail-section-title">Review Links</h3>
+              <div className="detail-review-links">
+                {Object.entries(wine.retailer_links).map(([slug, url]) => (
+                  <a
+                    key={slug}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="retailer-link"
+                  >
+                    {RETAILER_LABELS[slug] ?? slug} review
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Drinking window */}
           {wine.drinking_window && (
             <section className="detail-section">
@@ -242,6 +272,12 @@ export function WineDetailModal({
                 {priceError && <span className="price-error">{priceError}</span>}
               </div>
             )}
+          </section>
+
+          {/* Find / save retailer review links */}
+          <section className="detail-section">
+            <h3 className="detail-section-title">Find Reviews</h3>
+            <RetailerLinksSection wine={wine} onWineUpdated={(updated) => { setWine(updated); onWineUpdated(updated) }} />
           </section>
 
           {/* Tasting notes */}

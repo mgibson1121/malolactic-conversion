@@ -1,4 +1,4 @@
-import type { CreateWineInput, CreateTastingNoteInput, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
+import type { CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
 
 const BASE = '/api'
 
@@ -90,4 +90,8 @@ export async function fetchWinePrice(wineId: string): Promise<WineEntry> {
   return handleResponse(
     await fetch(`${BASE}/wines/${wineId}/fetch-price`, { method: 'POST' })
   )
+}
+
+export async function fetchRetailerLinks(wineId: string): Promise<RetailerLink[]> {
+  return handleResponse(await fetch(`${BASE}/wines/${wineId}/retailer-links`))
 }

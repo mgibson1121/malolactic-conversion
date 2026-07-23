@@ -911,6 +911,122 @@ input.scan-field-missing {
   text-align: right;
 }
 
+/* ── Retailer review links (Phase 6.6) ────────────────────────────────────── */
+
+.retailer-links-section {
+  margin-top: 8px;
+}
+
+.btn-find-reviews {
+  font-size: 12px;
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid #c4864a;
+  border-radius: 4px;
+  color: #7b3f00;
+  cursor: pointer;
+}
+
+.btn-find-reviews:hover { background: #f5ebe0; }
+
+.retailer-links-body {
+  margin-top: 8px;
+}
+
+.retailer-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.retailer-link-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.retailer-link-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.retailer-link-name {
+  flex: 1;
+  min-width: 100px;
+  color: #333;
+  font-weight: 500;
+}
+
+.btn-retailer-search {
+  font-size: 11px;
+  color: #7b3f00;
+  text-decoration: none;
+  border: 1px solid #c4864a;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.btn-retailer-search:hover { background: #f5ebe0; }
+
+.retailer-link-saved {
+  font-size: 11px;
+  color: #2e7d32;
+  text-decoration: none;
+  border: 1px solid #a5d6a7;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: #eaf5ea;
+}
+
+.btn-retailer-link-edit,
+.btn-retailer-link-clear,
+.btn-retailer-link-save,
+.btn-retailer-link-cancel {
+  font-size: 11px;
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #555;
+  cursor: pointer;
+}
+
+.btn-retailer-link-edit:hover,
+.btn-retailer-link-save:hover,
+.btn-retailer-link-cancel:hover { background: #f0f0f0; }
+
+.btn-retailer-link-clear {
+  color: #b00020;
+  border-color: #e0b0b8;
+}
+.btn-retailer-link-clear:hover { background: #fdecee; }
+.btn-retailer-link-clear:disabled,
+.btn-retailer-link-save:disabled,
+.btn-retailer-link-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.retailer-link-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.retailer-link-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.detail-review-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .price-not-found {
   font-size: 12px;
   color: #888;
