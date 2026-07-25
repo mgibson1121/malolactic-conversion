@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-20
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-24
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -597,6 +597,41 @@ export const RETAILER_CONFIG = [
 
 Given both findings, Step 1 uses Serper's organic `/search` endpoint (not `/shopping`) with a `site:`-restricted query, applied to all four retailers — not a K&L-specific patch. This removes a full Puppeteer render pass from Step 1 entirely (it becomes a single Serper API call), and it doesn't depend on any individual retailer's on-site search behaving predictably or being crawlable at all.
 
+**Architecture decision — extraction windowing, not blind truncation (decided 2026-07-24):** Phase 7 was fully built, code-reviewed, and passing 10 mocked unit tests, then live-tested end-to-end against 21 real wines from the actual collection (3 already in the database plus 18 more, for broader coverage) using real Serper/Puppeteer/OpenAI calls. Result: 0 of 21 wines produced any attributed critic score, even though roughly half found genuinely correct product pages on at least one retailer (verified by eyeballing matched URLs — e.g. an exact "Clos des Papes Châteauneuf-du-Pape 2020" match on all three responsive retailers).
+
+Root cause, diagnosed by rendering three confirmed-correct product pages directly and inspecting the raw HTML independent of GPT-4o's interpretation:
+- `gpt-extract.ts` truncates rendered HTML to the first 80,000 characters before sending it to GPT-4o (`html.slice(0, 80_000)`) — code inherited unchanged from the pricing module, where it never mattered because pricing only ever rendered search-results pages, not long single-product pages.
+- On real product pages this cutoff lands well before the actual review content. Zachys's page rendered at 879,212 characters, with the "Professional Reviews" section starting at offset 384,907 — nearly 5x past the cutoff. Benchmark's page rendered at 189,524 characters, review section at offset 116,366 — also past it. The scores are genuinely on the page; truncation just throws them away before the model ever sees them.
+- K&L's page (`shop.klwines.com`) rendered as only ~2,600 characters — a bot-detection stub, not real content. This is a new finding, not the same issue as the truncation bug: K&L blocks Puppeteer on **product** pages too, not just the on-site search page already known to be blocked (see the architecture decision above). The whole Phase 7 design was betting this wouldn't be blocked, and it is.
+
+**K&L decision (2026-07-24): accept as a known gap, do not pursue stealth-Puppeteer or other bot-detection-evasion techniques.** This is a different category of action than the earlier Serper-organic-search decision. Routing product-page *discovery* through Serper instead of K&L's own on-site search was justified as avoiding a technical obstacle without crossing an ethical line (K&L's `robots.txt` is permissive; only their live bot detection blocks direct access, and the project never touches K&L's own search endpoint as a result). Actively masking a headless browser's fingerprint to defeat that same detection system on the product-render step is a step further — it moves from "finding an alternate path" to "circumventing a security control," which is a materially different judgment call the project isn't making here. K&L is expected to contribute zero critic scores going forward; this does not block Phase 7 completion, which only requires at least one retailer to succeed (see completion criteria below), and the other seven configured retailers (Zachys, Benchmark, and the five added in Phase 6.7) are unaffected.
+
+**Chosen fix — a generic score-citation pattern as the primary anchor, not a known-publication list (revised 2026-07-24):** The first pass at this fix anchored windowing on `CRITIC_KEYWORDS` matches — extraction only looked at text near a publication/critic name the app already knew about. That's the wrong shape for what's actually wanted: any attributed score on a page should be captured regardless of whether its publication is one the developer has configured yet. Trust between publications ("Wine Advocate matters more to me than a site I've never heard of") is the developer's own downstream judgment call, not something that should gate whether the data gets captured at all. This wasn't a hypothetical concern: cross-referencing the wines already in the test collection (Barolo, Rioja) against real critic coverage for those regions turned up Tim Atkin (the defining critic for Rioja/Spain), Guía Peñín (Spain's own domestic 100-point guide), Kerin O'Keefe (Wine Enthusiast's Italy critic), and Gambero Rosso (Italy's domestic guide) — none of which were in the original Burgundy/Bordeaux-sourced keyword list. A keyword-gated anchor would have silently missed real, correctly attributed scores on exactly the kind of wine this app is meant to cover.
+
+So the primary anchor is now a generic, publication-agnostic score-citation pattern: a number in a plausible critic-score range (50–100, or a range/plus form like "94-96" / "94+") adjacent to a scoring word ("points", "pts", "/100", "score"), in either ordering ("96 points" or "Points: 96"). This catches a citation's *shape* — number, scoring word, nearby attribution text — without needing to already know the critic or publication involved. `CRITIC_KEYWORDS` no longer gates whether a window gets extracted; it's applied afterward, purely to canonicalize whatever attribution text GPT-4o returns and to flag whether that attribution is already known (see below). An attribution that doesn't match anything in the list still gets captured and stored under its own raw text — a regional guide the developer hasn't configured yet shows up rather than being silently dropped.
+
+A capped full-page fallback (stripped of `<script>`/`<style>`/`<svg>` tags and HTML comments, then truncated at 280,000 characters — verified sufficient for both the Zachys and Benchmark pages after stripping) is still used if the generic pattern finds zero matches at all on a page, so a genuinely unusual citation format still gets a shot at extraction rather than silently returning nothing. This should trigger far less often than it would have under the old keyword-gated design, since the generic pattern doesn't depend on the developer having pre-configured the right names.
+
+This is also the direct answer to the cost problem: each retailer's GPT-4o call is billed independently (`reviews/index.ts` runs one `extractFromRenderedHtml` call per retailer via `Promise.all`, never batched), so a blind 280K-character cap across up to eight configured retailers could run close to $1.40 for one manual "Fetch Reviews" click. Windowing around actual score citations — known or unknown publication alike — sends only the few thousand characters actually surrounding each one, typically well under even the original 80K budget regardless of how large or bloated the source page is, which matters because this app is expected to cast a wide net across all eight retailers routinely, not just spot-check one at a time.
+
+**`CRITIC_KEYWORDS` (`backend/modules/reviews/critic-keywords.ts`) — canonicalization and known/unknown tagging, not a gate (revised 2026-07-24):**
+
+Given whatever attribution text GPT-4o extracted alongside a score, this config is consulted afterward to (a) normalize it to one canonical publication name if it matches an entry, and (b) mark the result `known_publication: true` if so, `false` otherwise — raw attribution text is preserved either way (see the schema addition below). It plays no part in deciding whether a window gets extracted in the first place; the generic score pattern above does that job now.
+
+This is still living data, and still needs periodic updates — critics change publications on a timescale of a couple of years (William Kelley became The Wine Advocate's Editor-in-Chief in April 2024, succeeding Joe Czerwinski, who'd held the role only since December 2021; Neal Martin moved from Wine Advocate to Vinous in 2022) — but a miss here is now low-stakes: an unrecognized publication still shows up in `review_data`, just unnormalized and flagged `known_publication: false`, rather than being silently dropped the way it would have been under the gated design. Same principle as `RETAILER_CONFIG`: a plain data array, imported by the logic that uses it, never inlined into that logic.
+
+Structure:
+```typescript
+export interface CriticKeyword {
+  term: string        // exact text to match against extracted attribution (case-insensitive)
+  publication: string // canonical publication name to normalize to
+}
+```
+
+Known entries, Burgundy/Bordeaux/Rhône-sourced (original research): Wine Advocate, Vinous, Burghound, Wine Spectator, James Suckling, Decanter, Wine Enthusiast, Jeb Dunnuck, International Wine Cellar (legacy, folds into Vinous), plus critic surnames Kelley, Galloni, Neal Martin, Dunnuck, Allen Meadows, Parker, Suckling, Tanzer, Czerwinski, Perrotti-Brown, plus abbreviations WA, JS, RP, BH, JD, WS, WE.
+
+Added 2026-07-24 for regional coverage already known to be needed (Barolo, Rioja — both in the test collection): Tim Atkin (independent, Rioja/Spain's defining critic), Guía Peñín / Peñín Guide (Spain's domestic guide), Kerin O'Keefe → Wine Enthusiast (Italy critic), Luis Gutiérrez → Wine Advocate (Spain critic), Gambero Rosso → Gambero Rosso (Italy's domestic guide, abbreviation GR).
+
 **Two-step workflow:**
 
 **Step 1 — Find the product page** (`backend/modules/reviews/find-product-page.ts`)
@@ -608,54 +643,63 @@ Given both findings, Step 1 uses Serper's organic `/search` endpoint (not `/shop
 - No request is made to the retailer's own site in this step
 
 **Step 2 — Render and extract** (`backend/modules/reviews/index.ts`)
-- For each of the four retailers, if Step 1 returned a URL, render that specific product page with Puppeteer (15-second timeout, standard browser user agent — same conventions as the price module)
-- Pass the rendered HTML to GPT-4o extraction via `gpt-extract.ts` (moved from `backend/modules/price/` — see deliverables below)
-- Output: `{ critic_scores: [{ publication, score }] }`. Never infer or hallucinate attribution. Never extract tasting-note prose (copyright boundary — numbers only).
+- For each configured retailer, if Step 1 returned a URL, render that specific product page with Puppeteer (15-second timeout, standard browser user agent — same conventions as the price module)
+- Strip `<script>`, `<style>`, `<svg>` tags and HTML comments from the rendered HTML (`keyword-window.ts`) — removes the largest sources of page bloat (SPA tracking payloads, inline CSS) without touching visible text or attributes like `alt` text
+- Search the stripped text for the generic score-citation pattern (a number 50–100, or a range/plus form, adjacent to "points"/"pts"/"/100"/"score" — see architecture decision above) and extract a bounded window of text around each hit; merge overlapping/nearby windows and concatenate in document order, capped at a combined length safety net. This anchor does not require the nearby attribution to be a publication the app already knows about.
+- If zero score-pattern matches are found, fall back to the stripped HTML truncated at 280,000 characters, so an unusual citation format still gets a real extraction attempt rather than silently returning nothing
+- Pass the windowed (or fallback capped) text to GPT-4o extraction via `gpt-extract.ts` (moved from `backend/modules/price/`, then updated 2026-07-24 to accept pre-windowed text instead of doing its own blind 80K slice — see deliverables below)
+- Output: `{ critic_scores: [{ publication, score, known_publication }] }`. Never infer or hallucinate attribution. Never extract tasting-note prose (copyright boundary — numbers only). After GPT-4o returns whatever attribution text it found (a full publication name, a critic surname, an abbreviation, or something the app has never seen), look it up against `CRITIC_KEYWORDS` in code: on a match, normalize to the canonical publication name and set `known_publication: true`; on no match, keep the raw attribution text as `publication` and set `known_publication: false` — captured either way, never dropped for being unrecognized
 - Store per-retailer result: `{ slug, name, product_url, critic_scores, fetched_at }`
 - Runs async, does not block the price/scan flow
-- Each retailer is independent — if one fails (no match in Step 1, render timeout, no attributed score found), the others continue
+- Each retailer is independent — if one fails (no match in Step 1, render timeout, no attributed score found), the others continue. K&L is expected to always fail here (bot-blocked at the product-page render, not just the search page — see architecture decision above); this is expected, not a bug to chase.
 
 **Deliverables:**
 
 1. **Move `retailers.config.ts`** from `backend/modules/price/` → `shared/config/retailers.config.ts`. Both `price` and `reviews` need the same retailer metadata (slug, name, domain, coordinates); modules can't import from each other, so shared config has to live in `shared/`. No behaviour change to the price module — only the import path changes.
-2. **Move `gpt-extract.ts` and `PROMPT.md`** from `backend/modules/price/` → `backend/modules/reviews/`. This code has been dead in `price/` since the 2026-07-19 fixes removed the Step 2 GPT-4o call there (it was a structural no-op against search-results pages). It's exactly the extraction logic Phase 7 needs, unchanged.
-3. **New module** `backend/modules/reviews/`:
+2. **Move `gpt-extract.ts` and `PROMPT.md`** from `backend/modules/price/` → `backend/modules/reviews/`. This code has been dead in `price/` since the 2026-07-19 fixes removed the Step 2 GPT-4o call there (it was a structural no-op against search-results pages).
+3. **New file** `backend/modules/reviews/critic-keywords.ts` — the `CRITIC_KEYWORDS` lookup table described in the architecture decision above (full publication names, critic surnames, and abbreviations, each mapped to a canonical `publication` name). Used only for post-extraction canonicalization and known/unknown tagging — never consulted before a window is extracted. Config-driven, same principle as `RETAILER_CONFIG`: adding a newly discovered critic or publication is a one-line addition here, never a change to matching logic.
+4. **New file** `backend/modules/reviews/keyword-window.ts` — strips `<script>`/`<style>`/`<svg>` tags and HTML comments from rendered HTML, searches the result for the generic score-citation pattern (number + scoring word, publication-agnostic), extracts and merges bounded windows around each hit, and falls back to the stripped text truncated at 280,000 characters if no score-pattern matches are found.
+5. **Update `gpt-extract.ts`** — no longer does its own `html.slice(0, 80_000)`; instead receives the already-windowed (or fallback-capped) text from `keyword-window.ts`. After GPT-4o returns each `{ publication, score }` pair, look up the returned `publication` string against `CRITIC_KEYWORDS`: normalize and set `known_publication: true` on a match, otherwise keep the raw text and set `known_publication: false`.
+6. **New module** `backend/modules/reviews/`:
    ```
    reviews/
-   ├── index.ts               # Orchestrates Step 1 (Serper) and Step 2 (Puppeteer + GPT-4o)
+   ├── index.ts               # Orchestrates Step 1 (Serper) and Step 2 (Puppeteer + windowing + GPT-4o)
    ├── find-product-page.ts   # Serper organic search + relevance matching
-   ├── gpt-extract.ts         # Moved from price/ — unchanged
+   ├── critic-keywords.ts     # CRITIC_KEYWORDS lookup — canonicalization/known-tagging only, living data (2026-07-24)
+   ├── keyword-window.ts      # HTML stripping + generic score-pattern windowing + capped fallback (2026-07-24)
+   ├── gpt-extract.ts         # Moved from price/, updated 2026-07-24 to accept pre-windowed text + canonicalize output
    ├── PROMPT.md              # Moved from price/ — unchanged
    ├── types.ts
    └── reviews.test.ts
    ```
-4. **Schema addition** — `review_data` TEXT column on `wines`: JSON array, `[{ slug, name, product_url, critic_scores: [{ publication, score }], fetched_at }]`. Nullable; empty array if no retailer returned a match. This is a real new column — an actual `ALTER TABLE wines ADD COLUMN review_data TEXT` migration, unlike `price_data`/`retailer_links` which already exist (see Phase 5 schema note).
-5. **Remove `critic_scores` from the `retailers` array shape** inside `price_data` (in the price module's types) — it has been a guaranteed-empty field since the 2026-07-19 fixes and is being replaced by `review_data`. This is a type-level change only (JSON blob shape, not a DB migration) but should ship in the same PR to avoid the two fields coexisting in a confusing half-dead state.
-6. **Repoint the wine detail view** (`WineDetailView`, built in Phase 6.5) — the "Critic scores" row currently reads from `price_data.retailers[].critic_scores`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
+7. **Schema addition** — `review_data` TEXT column on `wines`: JSON array, `[{ slug, name, product_url, critic_scores: [{ publication, score, known_publication }], fetched_at }]`. `known_publication` is `true` when `publication` was normalized via `CRITIC_KEYWORDS`, `false` when it's raw text from an attribution the app didn't already recognize — this is what lets a future UI pass distinguish trusted/known sources from unvetted ones without re-deriving it at display time. Nullable column; empty array if no retailer returned a match. This is a real new column — an actual `ALTER TABLE wines ADD COLUMN review_data TEXT` migration, unlike `price_data`/`retailer_links` which already exist (see Phase 5 schema note).
+8. **Remove `critic_scores` from the `retailers` array shape** inside `price_data` (in the price module's types) — it has been a guaranteed-empty field since the 2026-07-19 fixes and is being replaced by `review_data`. This is a type-level change only (JSON blob shape, not a DB migration) but should ship in the same PR to avoid the two fields coexisting in a confusing half-dead state.
+9. **Repoint the wine detail view** (`WineDetailView`, built in Phase 6.5) — the "Critic scores" row currently reads from `price_data.retailers[].critic_scores`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
 
 **Graceful degradation:**
 - Serper returns no relevant organic result for a retailer → skip that retailer for that wine, no error
-- Puppeteer render of the product page times out (15s) → skip that retailer, others continue
-- GPT-4o finds no attributed score on a rendered page → `critic_scores: []`, not an error
+- Puppeteer render of the product page times out (15s) → skip that retailer, others continue — this is the expected outcome for K&L specifically (bot-blocked at render), not treated as a fault
+- No score-citation pattern matches found on a rendered page → fall back to stripped-and-capped (280K) full-page text, not an error
+- GPT-4o finds no attributed score on a rendered page (windowed or fallback text) → `critic_scores: []`, not an error
 - `SERPER_API_KEY` or `OPENAI_API_KEY` not configured → module returns empty `review_data`, no error (consistent with existing modules)
 
 **Tests:**
 - Unit: relevance matching correctly picks the right organic result from fixture Serper responses (match and no-match cases)
-- Unit: GPT-4o extraction returns correct structure from fixture single-product-page HTML (adapt Phase 6 fixtures where applicable)
+- Unit: `keyword-window.ts` — the generic score pattern matches both orderings ("96 points", "Points: 96") and range/plus forms ("94-96", "94+"); matches a citation from a publication not in `CRITIC_KEYWORDS` at all (proving capture isn't gated on the known list); overlapping windows are merged rather than duplicated; zero-match input correctly falls through to the stripped/capped fallback
+- Unit: GPT-4o extraction returns correct structure from windowed-text fixtures, including: known-publication canonicalization (a window containing "Kelley: 96" normalized to `{ publication: "Wine Advocate", known_publication: true }`) and unknown-publication passthrough (a window citing a publication not in `CRITIC_KEYWORDS` returns the raw attribution text with `known_publication: false`, not dropped)
 - Unit: graceful degradation — no API key, no match, render timeout — all return empty/null without throwing
 - Integration: end-to-end with mocked Serper response + mocked product-page HTML fixture — verify `review_data` is correctly populated on the wine entry
+- Regression fixtures: the three real rendered pages captured during the 2026-07-24 live test (K&L's ~2,600-character bot-detection stub, Zachys's 879,212-character page, Benchmark's 189,524-character page) are known-good/known-bad cases — use them directly as fixtures rather than synthesizing new ones, since they already demonstrate the failure this rework fixes
 - Do not run Puppeteer in CI — mock with HTML fixtures, same rule as Phase 6
 
-**Open validation question (same shape as Phase 6's Serper Shopping question):** confirm Serper's organic `/search` endpoint reliably surfaces indexed product pages on the four configured retailer domains for the wines actually in the collection (Burgundy, Barolo, Rioja) — not just the one example (Domaine Leflaive) checked during scoping. Validate during Phase 7 testing; if hit rate is low for a given retailer, consider a stealth-Puppeteer on-site-search fallback for that retailer specifically rather than redesigning Step 1 for all four.
-
 **Notes:**
-- `gpt-extract.ts` and its prompt already exist from Phase 6 and don't need to change — only the URL fed into it does, and its location moves to `reviews/`
 - This is the natural home for the professional-review BYOK question (Burghound, Vinous, Wine Advocate) if a viable individual-subscriber path ever emerges — see "Open questions affecting phases"
+- The `CRITIC_KEYWORDS` list is expected to need periodic updates as critics change publications or new ones are added to what the developer tracks — treat this the same way Phase 9 treats retailer search-URL liveness: an ongoing maintenance item, not a one-time build task. Because capture no longer depends on this list (see architecture decision above), a stale entry only means a publication shows up unnormalized/`known_publication: false` rather than missing entirely — lower stakes than before, but still worth tidying up periodically. See "Open questions affecting phases."
 
 **Phase 7 completion criteria — manual test required:**
 1. A real wine bottle already in the database (with existing price data from Phase 6) is run through the reviews module
 2. Inspect: `sqlite3 backend/db/wine.db "SELECT review_data FROM wines WHERE id = '<id>';"`
-3. At least one retailer entry in `review_data` has a non-empty `critic_scores` array, sourced from an actual rendered product page (not a search-results page)
+3. At least one retailer entry in `review_data` has a non-empty `critic_scores` array, sourced from an actual rendered product page (not a search-results page). K&L is not expected to contribute and its absence does not block this criterion — see the K&L decision above.
 
 Document the test result in the session summary (which wine, which retailers responded).
 
@@ -806,6 +850,8 @@ Document the test result in the session summary (which wine, which retailers res
 - [ ] Serper Shopping coverage: verify Serper returns Shopping results for Burgundy, Barolo, and Rioja wines from the four configured retailers before closing Phase 6
 - [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly; fall back to San Francisco flagship if not
 - [x] Puppeteer score extraction coverage: **resolved 2026-07-19 — not deferred to "check coverage," moved to Phase 7.** Confirmed structurally, not just empirically, that no retailer can return an attributed score under the current pricing-URL design (every retailer URL is a search-results page; the extraction prompt is a no-op against those by design). Scoped as its own phase, scheduled ahead of community data, rather than a Phase 6 fix.
-- [ ] **New 2026-07-20 — Serper organic search coverage for review sourcing:** confirm Serper's organic `/search` endpoint (used by Phase 7's Step 1) reliably returns indexed product pages on all four retailer domains for the wines actually in the collection — validated so far only for one wine (Domaine Leflaive) on one retailer (K&L). Validate during Phase 7 testing before considering the phase's design settled.
+- [x] **Serper organic search coverage for review sourcing:** validated 2026-07-24 via a live test against 21 real collection wines — Step 1 (Serper organic search + `site:` filtering) reliably found genuinely correct product pages on roughly half the wines tested, across multiple retailers per wine in several cases. Step 1 is not the bottleneck; the extraction bug diagnosed the same day (see Phase 7's keyword-windowing architecture decision) was.
+- [ ] **New 2026-07-24 — `CRITIC_KEYWORDS` maintenance:** the critic/publication lookup table (`backend/modules/reviews/critic-keywords.ts`) is living data, expected to drift as critics change publications (already observed twice during research: William Kelley succeeded Joe Czerwinski as The Wine Advocate's Editor-in-Chief in April 2024; Neal Martin moved Wine Advocate → Vinous in 2022) or as the developer discovers new publications/critics worth tracking. Lower stakes than originally scoped — since the generic score-pattern anchor (see Phase 7 architecture decision) no longer gates capture on this list, a stale or missing entry just means a real publication shows up unnormalized with `known_publication: false` rather than being missed entirely. Revisit periodically; no fixed cadence yet.
+- [ ] **New 2026-07-24 — keyword-window hit rate:** the 280,000-character stripped/capped fallback and the window-merging logic in `keyword-window.ts` were designed against three real captured pages (K&L, Zachys, Benchmark). Validate the generic score-pattern anchor against a broader sample of the other configured retailers (Sokolin, Acker, Wine Library, Morrell, Woodland Hills) during Phase 7 testing before treating the 280K cap or window sizing as settled — the project's history (K&L search param, Serper Shopping links, the 80K truncation bug itself) is that fixes validated against one or two examples tend to need a second pass once more real sites are exercised.
 - [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition after Phase 6.6 is stable.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
