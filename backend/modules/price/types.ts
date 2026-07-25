@@ -1,22 +1,16 @@
-export interface CriticScore {
-  publication: string
-  score: number
-}
-
 export interface RetailerResult {
   slug: string
   name: string
   price: number | null
   url: string
-  critic_scores: CriticScore[]
   is_preferred_retailer: boolean
   distance_miles: number
   // True when `url` is a constructed search-results page rather than a
-  // single product page (currently true for all preferred-retailer matches
-  // — see retailer-search-url.ts). Step 2 (Puppeteer + GPT-4o critic score
-  // extraction) is skipped for these: the extraction prompt only extracts
-  // from single product pages, so running it against a search-results page
-  // burns a full Puppeteer render + GPT-4o call for a guaranteed null result.
+  // single product page (currently true for every match this module
+  // produces, preferred or fallback — see retailer-search-url.ts). Pricing
+  // only ever needs a page that reliably loads and shows the right listing,
+  // so this is fine for pricing; it's exactly what modules/reviews/ (Phase
+  // 7) needs a *different* page for — see build-phases.md.
   is_search_results_page: boolean
   // Vintage year parsed from the matched listing's title, if any (e.g. a
   // 4-digit 19xx/20xx year). Null if no year could be parsed.
@@ -50,11 +44,4 @@ export interface PriceData {
   retailers: RetailerResult[]
   nearest_retailer: RetailerResult | null
   fetched_at: string
-}
-
-// Shape GPT-4o returns per product page
-export interface GptPageExtraction {
-  price: number | null
-  url: string
-  critic_scores: CriticScore[]
 }

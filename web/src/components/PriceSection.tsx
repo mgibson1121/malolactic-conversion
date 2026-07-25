@@ -27,17 +27,6 @@ export function PriceSection({ priceData }: Props) {
     )
   }
 
-  const allScores = priceData.retailers.flatMap(r =>
-    r.critic_scores.map(s => ({ ...s, retailer: r.name }))
-  )
-  // Deduplicate by publication — keep first occurrence
-  const seenPublications = new Set<string>()
-  const deduped = allScores.filter(s => {
-    if (seenPublications.has(s.publication)) return false
-    seenPublications.add(s.publication)
-    return true
-  })
-
   return (
     <div className="price-section">
       <div className="price-section-header">
@@ -61,17 +50,6 @@ export function PriceSection({ priceData }: Props) {
           <span className="price-value">{fmt(priceData.price_max)}</span>
         </span>
       </div>
-
-      {deduped.length > 0 && (
-        <div className="critic-scores">
-          {deduped.map((s, i) => (
-            <span key={i} className="critic-score-badge">
-              <span className="critic-publication">{s.publication}</span>
-              <span className="critic-score">{s.score}</span>
-            </span>
-          ))}
-        </div>
-      )}
 
       {priceData.nearest_retailer && (
         <div className="nearest-retailer">

@@ -1169,7 +1169,6 @@ describe('serialization round-trips', () => {
           name: 'K&L Wine Merchants',
           price: 95,
           url: 'https://klwines.com/p/1',
-          critic_scores: [],
           distance_miles: 0,
           is_preferred_retailer: true,
           is_search_results_page: true,
