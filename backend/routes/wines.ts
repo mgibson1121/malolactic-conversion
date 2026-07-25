@@ -4,6 +4,7 @@ import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { UpdateWineInput, WineFilter } from '@shared/types'
 import { fetchPriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
+import { fetchReviewData } from '../modules/reviews'
 
 const router = Router()
 
@@ -93,6 +94,25 @@ router.post(
     }
 
     const updated = await getStorage().updateWine(req.params.id, updates)
+    res.json(updated)
+  })
+)
+
+// POST /api/wines/:id/fetch-reviews — trigger review/critic-score sourcing (Phase 7)
+// Unlike /fetch-price, this always succeeds: an empty review_data array
+// covers "not configured" and "nothing found" alike (modules/reviews/
+// degrades gracefully rather than distinguishing them — see CLAUDE.md §5).
+router.post(
+  '/:id/fetch-reviews',
+  wrap(async (req, res) => {
+    const wine = await getStorage().getWine(req.params.id)
+    if (!wine) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    const review_data = await fetchReviewData(wine)
+    const updated = await getStorage().updateWine(req.params.id, { review_data })
     res.json(updated)
   })
 )
