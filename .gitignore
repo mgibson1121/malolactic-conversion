@@ -5,5 +5,7 @@ dist/
 .DS_Store
 config/
 backend/db/wine.db*
+validate-reviews-results.json
+backend/modules/reviews/__fixtures__/adhoc-*.html
 .claude/settings.local.json
 .claude/launch.json
