@@ -1,7 +1,7 @@
-import type { RetailerConfig } from './retailers.config'
+import type { RetailerConfig } from '@shared/config/retailers.config'
 import type { RetailerResult } from './types'
 import { haversineDistanceMiles } from './proximity'
-import { NYC } from './retailers.config'
+import { NYC } from '@shared/config/retailers.config'
 import { buildRetailerSearchUrl } from './retailer-search-url'
 import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
 
@@ -91,11 +91,8 @@ function itemToRetailerResult(
     // aggregator page rather than the retailer's own product page (this is
     // what caused "Details aren't available for this product"). For known
     // preferred retailers we construct a live search URL on their own site
-    // instead — see retailer-search-url.ts. This is also the URL Puppeteer
-    // renders in Step 2 for critic score extraction, so fixing it here fixes
-    // both the click-through and the score extraction quality.
+    // instead — see retailer-search-url.ts.
     url: buildRetailerSearchUrl(retailer, query),
-    critic_scores: [],
     is_preferred_retailer: isPreferred,
     distance_miles: Math.round(
       haversineDistanceMiles(NYC.lat, NYC.lng, retailer.lat, retailer.lng)
@@ -139,12 +136,11 @@ function buildFallbackResult(item: SerperShoppingItem, query: string, wine: Wine
     name: item.source,
     price: item.priceRaw ?? parsePriceString(item.price),
     url: buildFallbackUrl(item.source, query),
-    critic_scores: [],
     is_preferred_retailer: false,
     distance_miles: 0,
-    // Same reasoning as the preferred-retailer case: the URL here is always
-    // a search page, never a single product page, so Step 2 (Puppeteer +
-    // GPT-4o critic score extraction) is a guaranteed-empty call — skip it.
+    // Always a search page, never a single product page — see
+    // is_preferred_retailer's case above. Critic-score sourcing (which
+    // needs a real product page) lives in modules/reviews/, not here.
     is_search_results_page: true,
     matched_vintage,
     vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,

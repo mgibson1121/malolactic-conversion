@@ -1,4 +1,4 @@
-import type { RetailerConfig } from './retailers.config'
+import type { RetailerConfig } from '@shared/config/retailers.config'
 
 /**
  * Constructs a live search-results URL on the retailer's own site, using the
