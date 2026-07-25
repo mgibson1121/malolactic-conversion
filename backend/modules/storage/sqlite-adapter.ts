@@ -73,6 +73,7 @@ interface WineRow {
   community_excerpts: string | null
   price_data: string | null
   retailer_links: string | null
+  review_data: string | null
   date_added: string
   date_first_consumed: string | null
 }
@@ -150,6 +151,7 @@ function rowToWine(row: WineRow): WineEntry {
     community_excerpts: fromJson<string[] | null>(row.community_excerpts, null),
     price_data: fromJson(row.price_data, null),
     retailer_links: fromJson<Record<string, string> | null>(row.retailer_links, null),
+    review_data: fromJson(row.review_data, null),
     date_added: row.date_added,
     date_first_consumed: row.date_first_consumed,
   }
@@ -222,6 +224,7 @@ export class SQLiteAdapter implements StorageAdapter {
       community_excerpts: null,
       price_data: null,
       retailer_links: null,
+      review_data: null,
       date_added: new Date().toISOString(),
     }
 
@@ -235,7 +238,7 @@ export class SQLiteAdapter implements StorageAdapter {
         my_rating, my_tags, latest_tasting_note_id,
         wishlist_notes, price_paid, purchased_from,
         advice_linked, expert_reviews, community_sentiment, community_excerpts, price_data,
-        retailer_links, date_added, date_first_consumed
+        retailer_links, review_data, date_added, date_first_consumed
       ) VALUES (
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
@@ -245,7 +248,7 @@ export class SQLiteAdapter implements StorageAdapter {
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?, ?,
-        ?, ?, ?
+        ?, ?, ?, ?
       )
     `).run(
       wine.id, wine.producer, wine.denomination, wine.vintage, wine.region,
@@ -260,7 +263,7 @@ export class SQLiteAdapter implements StorageAdapter {
       wine.wishlist_notes, wine.price_paid, wine.purchased_from,
       toJson(wine.advice_linked), toJson(wine.expert_reviews),
       wine.community_sentiment, toJson(wine.community_excerpts), toJson(wine.price_data),
-      toJson(wine.retailer_links), wine.date_added, wine.date_first_consumed
+      toJson(wine.retailer_links), toJson(wine.review_data), wine.date_added, wine.date_first_consumed
     )
 
     return wine
@@ -327,7 +330,7 @@ export class SQLiteAdapter implements StorageAdapter {
         wishlist_notes = ?, price_paid = ?, purchased_from = ?,
         advice_linked = ?, expert_reviews = ?,
         community_sentiment = ?, community_excerpts = ?, price_data = ?,
-        retailer_links = ?, date_first_consumed = ?
+        retailer_links = ?, review_data = ?, date_first_consumed = ?
       WHERE id = ?
     `).run(
       updated.producer, updated.denomination, updated.vintage, updated.region,
@@ -342,7 +345,7 @@ export class SQLiteAdapter implements StorageAdapter {
       updated.wishlist_notes, updated.price_paid, updated.purchased_from,
       toJson(updated.advice_linked), toJson(updated.expert_reviews),
       updated.community_sentiment, toJson(updated.community_excerpts), toJson(updated.price_data),
-      toJson(updated.retailer_links), updated.date_first_consumed,
+      toJson(updated.retailer_links), toJson(updated.review_data), updated.date_first_consumed,
       id
     )
 
