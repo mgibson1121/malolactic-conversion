@@ -831,6 +831,34 @@ input.scan-field-missing {
   border-radius: 12px;
 }
 
+.critic-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.critic-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  background: #f5ebe0;
+  border: 1px solid #c4864a;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.critic-publication {
+  color: #7b3f00;
+  font-weight: 500;
+}
+
+.critic-score {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
 .price-range {
   display: flex;
   align-items: center;

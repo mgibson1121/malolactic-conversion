@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
-import { fetchWinePrice, listTastingNotesByWine } from '../api'
+import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
 
@@ -64,6 +64,8 @@ export function WineDetailModal({
   const [notesLoading, setNotesLoading] = useState(false)
   const [fetchingPrice, setFetchingPrice] = useState(false)
   const [priceError, setPriceError] = useState<string | null>(null)
+  const [fetchingReviews, setFetchingReviews] = useState(false)
+  const [reviewsError, setReviewsError] = useState<string | null>(null)
 
   // Keep local wine in sync if parent updates it
   useEffect(() => { setWine(initialWine) }, [initialWine])
@@ -99,6 +101,20 @@ export function WineDetailModal({
     }
   }
 
+  async function handleFetchReviews() {
+    setFetchingReviews(true)
+    setReviewsError(null)
+    try {
+      const updated = await fetchWineReviews(wine.id)
+      setWine(updated)
+      onWineUpdated(updated)
+    } catch (err) {
+      setReviewsError(err instanceof Error ? err.message : 'Review lookup failed')
+    } finally {
+      setFetchingReviews(false)
+    }
+  }
+
   function handleTagToggle(tag: 'tag_discovered' | 'tag_wishlist' | 'tag_cellar' | 'tag_consumed') {
     const updated = { [tag]: !wine[tag] }
     // Optimistic local update
@@ -127,6 +143,23 @@ export function WineDetailModal({
   ].filter(Boolean)
 
   const activeTags = (['tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed'] as const).filter(t => wine[t])
+
+  // Attributed critic scores sourced from real rendered retailer product
+  // pages (Phase 7's review_data) — not price_data.retailers[].critic_scores,
+  // which was always guaranteed empty (see build-phases.md Phase 9). Deduped
+  // by publication, first occurrence wins.
+  const criticScores = (() => {
+    const seen = new Set<string>()
+    const scores: Array<{ publication: string; score: number }> = []
+    for (const retailer of wine.review_data ?? []) {
+      for (const s of retailer.critic_scores) {
+        if (seen.has(s.publication)) continue
+        seen.add(s.publication)
+        scores.push(s)
+      }
+    }
+    return scores
+  })()
 
   const latestNote = notes[0] ?? null
 
@@ -244,6 +277,32 @@ export function WineDetailModal({
               </p>
             </section>
           )}
+
+          {/* Critic scores — sourced from review_data (Phase 7), a rendered
+              single product page per retailer, not a search-results page. */}
+          <section className="detail-section">
+            <h3 className="detail-section-title">Critic Scores</h3>
+            {criticScores.length > 0 ? (
+              <div className="critic-scores">
+                {criticScores.map((s, i) => (
+                  <span key={i} className="critic-score-badge">
+                    <span className="critic-publication">{s.publication}</span>
+                    <span className="critic-score">{s.score}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="detail-empty-hint">No attributed critic scores found yet.</p>
+            )}
+            <button
+              className="btn-fetch-price"
+              onClick={handleFetchReviews}
+              disabled={fetchingReviews}
+            >
+              {fetchingReviews ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
+            </button>
+            {reviewsError && <span className="price-error">{reviewsError}</span>}
+          </section>
 
           {/* Price section */}
           <section className="detail-section">
