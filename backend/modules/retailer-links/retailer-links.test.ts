@@ -6,16 +6,20 @@ describe('getRetailerLinks', () => {
     expect(links.map((l) => l.slug).sort()).toEqual(['benchmark', 'kl', 'woodland', 'zachys'])
   })
 
-  it('builds a query from producer + denomination + vintage, URL-encoded', () => {
+  it('builds a query from producer + denomination only, URL-encoded — no vintage token', () => {
     const links = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: 2019 })
     const kl = links.find((l) => l.slug === 'kl')!
-    expect(kl.url).toBe('https://shop.klwines.com/products?searchText=Roumier%20Chambolle-Musigny%202019')
+    expect(kl.url).toBe('https://shop.klwines.com/products?searchText=Roumier%20Chambolle-Musigny')
   })
 
-  it('omits vintage from the query when null (NV wine)', () => {
-    const links = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: null })
-    const kl = links.find((l) => l.slug === 'kl')!
-    expect(kl.url).toBe('https://shop.klwines.com/products?searchText=Roumier%20Chambolle-Musigny')
+  it('drops the vintage even when known — a retailer search is broader than a single-SKU lookup (Phase 7.2)', () => {
+    // Confirmed live 2026-07-26: Zachys's own search returns 0 results for
+    // "Clos des Papes Châteauneuf-du-Pape 2020" but 4 for the same query
+    // without the year — an added vintage risks a false "no results" even
+    // when the retailer carries the wine under a different vintage.
+    const withVintage = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: 2019 })
+    const withoutVintage = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: null })
+    expect(withVintage).toEqual(withoutVintage)
   })
 
   it('uses each retailer\'s own native search endpoint', () => {
