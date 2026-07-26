@@ -247,6 +247,7 @@ describe('fetchReviewData', () => {
     mockExtract.mockResolvedValue({
       price: 1200,
       url: 'https://shop.klwines.com/products/details/1557135',
+      vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true }],
     })
 
@@ -270,7 +271,7 @@ describe('fetchReviewData', () => {
       'zachys.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.zachys.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
-    mockExtract.mockResolvedValue({ price: null, url: 'https://www.zachys.com/p/1', critic_scores: [] })
+    mockExtract.mockResolvedValue({ price: null, url: 'https://www.zachys.com/p/1', vintage: null, critic_scores: [] })
 
     const result = await fetchReviewData(makeWine())
 
@@ -303,7 +304,7 @@ describe('fetchReviewData', () => {
       'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
-    mockExtract.mockResolvedValue({ price: 1200, url: 'https://shop.klwines.com/p/1', critic_scores: [] })
+    mockExtract.mockResolvedValue({ price: 1200, url: 'https://shop.klwines.com/p/1', vintage: 2019, critic_scores: [] })
 
     const result = await fetchReviewData(makeWine())
 
