@@ -1,5 +1,6 @@
-import { fetchPriceData } from './index'
+import { fetchPriceData, aggregatePriceData } from './index'
 import type { WineEntry } from '@shared/types'
+import type { RetailerResult } from './types'
 
 // ─── Puppeteer mock ──────────────────────────────────────────────────────────
 jest.mock('./puppeteer-extract', () => ({
@@ -380,5 +381,76 @@ describe('fetchPriceData', () => {
     expect(result!.retailers[0].url).not.toBe(OTHER_URL)
     expect(result!.retailers[0].url).not.toContain('ibp=oshop')
     expect(result!.retailers[0].url).toContain('google.com/search?q=')
+  })
+})
+
+// ─── aggregatePriceData (Phase 7.2) ────────────────────────────────────────────
+// Extracted from fetchPriceData so the confirm-retailer-link route (which
+// updates one retailer's entry outside the normal Serper flow) can recompute
+// the aggregate without duplicating this math.
+
+function makeRetailer(overrides: Partial<RetailerResult> = {}): RetailerResult {
+  return {
+    slug: 'kl',
+    name: 'K&L Wine Merchants',
+    price: 100,
+    url: 'https://shop.klwines.com/x',
+    is_preferred_retailer: true,
+    distance_miles: 3,
+    is_search_results_page: true,
+    matched_vintage: null,
+    vintage_mismatch: false,
+    pack_quantity: 1,
+    bottle_size_ml: null,
+    non_standard_format: false,
+    format_label: '',
+    ...overrides,
+  }
+}
+
+describe('aggregatePriceData', () => {
+  it('computes min/avg/max across all priced retailers', () => {
+    const result = aggregatePriceData([
+      makeRetailer({ price: 100 }),
+      makeRetailer({ slug: 'zachys', price: 200 }),
+      makeRetailer({ slug: 'benchmark', price: 300 }),
+    ])
+    expect(result.price_min).toBe(100)
+    expect(result.price_max).toBe(300)
+    expect(result.price_avg).toBe(200)
+  })
+
+  it('excludes vintage_mismatch and non_standard_format listings from the aggregate stats', () => {
+    const result = aggregatePriceData([
+      makeRetailer({ price: 100 }),
+      makeRetailer({ slug: 'zachys', price: 9999, vintage_mismatch: true }),
+      makeRetailer({ slug: 'benchmark', price: 9999, non_standard_format: true }),
+    ])
+    expect(result.price_min).toBe(100)
+    expect(result.price_max).toBe(100)
+    expect(result.price_avg).toBe(100)
+  })
+
+  it('picks the nearest preferred retailer as nearest_retailer', () => {
+    const result = aggregatePriceData([
+      makeRetailer({ slug: 'kl', distance_miles: 50 }),
+      makeRetailer({ slug: 'zachys', distance_miles: 3 }),
+    ])
+    expect(result.nearest_retailer?.slug).toBe('zachys')
+  })
+
+  it('still includes all retailers in the returned list, even ones excluded from stats', () => {
+    const result = aggregatePriceData([
+      makeRetailer({ price: 100 }),
+      makeRetailer({ slug: 'zachys', price: 9999, vintage_mismatch: true }),
+    ])
+    expect(result.retailers).toHaveLength(2)
+  })
+
+  it('returns null stats when no retailer has a price', () => {
+    const result = aggregatePriceData([makeRetailer({ price: null })])
+    expect(result.price_min).toBeNull()
+    expect(result.price_avg).toBeNull()
+    expect(result.price_max).toBeNull()
   })
 })
