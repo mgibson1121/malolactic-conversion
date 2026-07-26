@@ -313,6 +313,7 @@ docs: update CLAUDE.md — mark sheets adapter as inactive
 - Response includes Shopping results and organic results from across the web
 - Results are filtered for configured retailer domains — the retailer list is extensible via config, not hardcoded in logic
 - Pass 1: filter results for configured preferred retailers (K&L, Zachys, Woodland Hills, Benchmark at launch — expanded to eight retailers in Phase 6.7)
+- **Corrected in Phase 7.1 (2026-07-26):** the retailer's own on-site search URL (rendered by `verify-listing.ts` to confirm a price is still live) was being built from the same vintage-qualified query as the Serper Shopping call, causing false negatives on retailers whose own search is a literal token match rather than relevance-ranked. See Phase 7.1 for the fix — the retailer-search URL now uses a vintage-free query; the Serper Shopping query itself is unchanged.
 - Pass 2 (fallback): if Pass 1 returns no matches, use the unfiltered Serper results — any wine retailer Google found. Flag these as "other retailers" in the stored data.
 - From matching results, extract per retailer: name, price, product URL
 - Compute `price_min`, `price_avg`, `price_max` across all matching results
@@ -636,6 +637,7 @@ Added 2026-07-24 for regional coverage already known to be needed (Barolo, Rioja
 
 **Step 1 — Find the product page** (`backend/modules/reviews/find-product-page.ts`)
 - Build a query from the wine entry and a retailer's domain: `site:<domain> "<producer>" "<denomination>" <vintage>`
+  > **Corrected in Phase 7.1 (2026-07-26):** appending the vintage here caused false negatives when a retailer carried the wine only under a different vintage's page (observed on Zachys/Clos des Papes). Phase 7.1 drops the vintage from this query and adds vintage-aware ranking of the results that come back instead. See Phase 7.1 for the full fix.
 - Send it to Serper's organic search endpoint: `POST https://google.serper.dev/search` with `{ q: "site:<domain> \"<producer>\" \"<denomination>\" <vintage>", gl: "us" }`
 - Response is a list of `{ title, link, snippet }` organic results
 - Filter/rank results using `isRelevantMatch`-style logic against `title` + `snippet` (reimplemented locally — modules don't import from each other, per `CLAUDE.md` §5), checking for producer + denomination text
@@ -707,6 +709,113 @@ Document the test result in the session summary (which wine, which retailers res
 **PR title:** `service: review & critic score sourcing (Phase 7)`
 
 **Milestone:** A real wine entry shows at least one attributed critic score sourced from an actual rendered retailer product page (not a search-results page) — the counterpart to Phase 6's completion test, for scores instead of price. `review_data` is populated independently of `price_data`. The wine detail view's critic scores row displays correctly for the first time since Phase 6.5.
+
+---
+
+## Phase 7.1 — Retailer search query genericization (price + reviews)
+
+> **RETRACTED — no bug confirmed (2026-07-26):** Claude Code tested the specific mechanism described below against real live queries before implementing, and it did not reproduce for the exact case cited as evidence (Zachys / Clos des Papes / 2020): Serper's organic search found the correct 2020 listing near the top whether or not the vintage was included in the query; Zachys's own on-site search returned 140+ results for both the vintage-qualified and vintage-free URLs; and the actual production `pageShowsNoResults()` function returned `false` (no false "no results" signal) against both real rendered pages. No code was changed.
+>
+> Source of the original observation, confirmed with the developer: the "4 correct results across vintages" behavior was seen by typing "Clos des Papes" directly into Zachys.com's own search bar in a browser — a manual test of the retailer's website, not a run of the app's price or reviews module. That observation is actually consistent with Claude Code's findings, not in tension with them: Zachys's search is broad/fuzzy and returns a wide result set regardless of an added vintage token, which is exactly what both tests found. The inference that the *app's* query construction must therefore be "too specific" and dropping results doesn't hold — nothing demonstrates the app itself producing a false negative for this retailer.
+>
+> Conclusion: no code fix is warranted from what's been shown so far. This section is retracted, not merely pending — treat it as closed unless a real run of the price or reviews module (not a manual retailer-website search) is observed returning a missing or empty result for a wine known to be in stock. Left in place, unedited below, as a record of what was tried and disproven.
+>
+> **Update (2026-07-26, later same day):** the real bug surfaced separately — the developer directly clicked the "Find Reviews" search button in the UI (not a manual retailer-website search) and got zero results for Clos des Papes at Zachys, then confirmed a simplified manual query worked. That button's query is built by `backend/modules/retailer-links/index.ts`, a *third* independent copy of this query-building logic distinct from both `price/retailer-search-url.ts` (what was tested above) and `reviews/find-product-page.ts` — the three modules each maintain their own copy per `CLAUDE.md` §5, and they'd drifted. See **Phase 7.2** for the confirmed fix and the guided-confirmation workflow built around it.
+
+**Goal:** Fix a shared false-negative bug: both the price module's retailer-search verification and the reviews module's product-page discovery build their search query by appending the wine's vintage as a literal token, and neither Zachys's own site search nor Google's `site:`-restricted organic search reliably matches on that exact combination — even though the retailer clearly carries the wine, just possibly under a different vintage's listing. Query construction was too specific; this phase makes it generic where it needs to be, while preserving the vintage-aware tagging that already exists downstream.
+
+**Context (found 2026-07-26):** Manually searching Zachys for "Clos des Papes" (no vintage) returns four correct product-page results — all genuinely Clos des Papes Châteauneuf-du-Pape, just for different vintages. That's the desired outcome: the retailer does carry the wine, across several vintages, and any of those pages is a legitimate candidate. But both modules that search retailers programmatically append the vintage to the query before searching, which risks returning nothing when the exact vintage phrase isn't indexed the way a plain-name search is — a false negative, not evidence the retailer doesn't carry the wine.
+
+This is the same root-cause pattern in two places:
+
+1. **Price module (`backend/modules/price/index.ts`)** — `buildQuery()` builds one combined string (`producer + denomination + vintage`) used both for the Serper Shopping API call and, via `serper-query.ts` → `retailer-search-url.ts`, for the constructed URL that `verify-listing.ts` renders to confirm a retailer's live search still backs up Serper's price (`verifyStillListed` / `pageShowsNoResults`). Google Shopping's own ranking is relevance-based and tolerant of the extra vintage token — that part isn't the problem. A retailer's own on-site search box is typically far more literal, so the vintage-qualified query risks `pageShowsNoResults` returning true (or simply not surfacing a result) even when the retailer's page is real and current, just for a different vintage — and `verifyStillListed` then drops the retailer entirely instead of surfacing it with a `vintage_mismatch` badge, which is exactly the mechanism already built to handle this correctly once a result comes back.
+2. **Reviews module (`backend/modules/reviews/find-product-page.ts`)** — `buildQuery()` appends the vintage (unquoted) to the Serper organic `site:`-restricted query. Same risk: if the exact vintage isn't indexed the way the query expects, Step 1 returns nothing for a retailer that clearly carries the wine under a different vintage's page — which then never gets a chance to be rendered or checked for a critic score in Step 2 at all.
+
+**Fix — drop vintage from the query used to search, keep (or add) vintage matching in the ranking/tagging step that follows:**
+
+**Price module:**
+- `itemToRetailerResult()` and `buildFallbackResult()` (`serper-query.ts`) already receive the `wine: WineIdentity` object and already compute `matched_vintage` / `vintage_mismatch` from the Serper Shopping item's own title — that logic is correct and unchanged. The only change: when calling `buildRetailerSearchUrl(retailer, query)` / `buildFallbackUrl(item.source, query)`, use a vintage-free query (`producer + denomination` only, derived from `wine.producer`/`wine.denomination` already in scope) instead of the vintage-qualified `query` string threaded in from `index.ts`. The Serper Shopping call itself (`index.ts`'s `fetchPriceData`, `querySerper(query, ...)`) keeps the full vintage-qualified query unchanged — that call goes to Google's own relevance-ranked index, not a retailer's own search box, and isn't the part that's failing.
+- No change to `verify-listing.ts` itself — `pageShowsNoResults` just now renders a page built from a query that reliably surfaces the retailer's real listings, so a genuine "no results" signal means what it says.
+
+**Reviews module:**
+- `find-product-page.ts`'s `buildQuery(wine, domain)` drops the vintage token: `site:<domain> "<producer>" "<denomination>"` only.
+- Since this can now return organic results spanning multiple vintages (as directly observed for Zachys), `findProductPage()` needs the same vintage-ranking step the price module already has: parse a vintage year from each relevant result's `title` + `snippet` (reimplemented locally, same convention as `isRelevantMatch` already is in this file — modules don't import from each other), prefer the result whose parsed vintage matches `wine.vintage` exactly, and fall back to the first relevant match if no exact vintage is found — never return null just because the specific vintage isn't available, matching the price module's "never drop for vintage, tag it instead" principle.
+- `findProductPage()`'s return value needs to carry that mismatch signal forward, since Step 2 renders whatever page Step 1 returns, and a critic score from a different vintage's page shouldn't be presented as if it's for the vintage in the cellar. Change the return type from `string | null` to `{ url: string; matched_vintage: number | null; vintage_mismatch: boolean } | null`.
+- `reviews/index.ts` carries `matched_vintage` / `vintage_mismatch` through into the stored per-retailer result: `{ slug, name, product_url, critic_scores, fetched_at, matched_vintage, vintage_mismatch }` — same field names as the price module's `RetailerResult`, for consistency across both modules.
+- `review_data`'s JSON shape gains these two fields per retailer entry. This is a type-level/JSON-shape change only (still the same `review_data` TEXT column from Phase 7) — no new migration required.
+
+**Deliverables:**
+1. `backend/modules/price/serper-query.ts` — `itemToRetailerResult()` and `buildFallbackResult()` build the retailer-search URL from a vintage-free query derived from `wine.producer`/`wine.denomination`, not the vintage-qualified `query` parameter. `index.ts`'s Serper Shopping call is unchanged.
+2. `backend/modules/reviews/find-product-page.ts` — `buildQuery()` drops the vintage token. Add a locally-reimplemented year-extraction helper (same pattern as `extractYearFromTitle` in the price module's `serper-query.ts` — not imported, since modules don't import from each other). `findProductPage()` ranks relevant results by exact-vintage match first, falls back to the first relevant match otherwise, and returns `{ url, matched_vintage, vintage_mismatch }` instead of a bare URL string.
+3. `backend/modules/reviews/index.ts` and `types.ts` — thread `matched_vintage` / `vintage_mismatch` from Step 1 into the stored per-retailer `review_data` entry.
+4. Re-run the Phase 6 and Phase 7 manual completion tests against Clos des Papes specifically (the wine that surfaced this bug) to confirm: the price module no longer drops Zachys for this wine, and the reviews module finds and renders a product page (exact vintage if available, otherwise the closest available vintage, correctly flagged) instead of returning nothing.
+
+**Tests:**
+- Unit: `buildRetailerSearchUrl`/`buildFallbackUrl` receive a vintage-free query even when the wine has a known vintage
+- Unit: `serper-query.ts`'s existing `matched_vintage`/`vintage_mismatch` computation is unaffected (still derived from the Serper Shopping item's own title, not from the query)
+- Unit: `find-product-page.ts` — a fixture Serper organic response with multiple vintage-variant results correctly prefers the exact-vintage match; a fixture with no exact-vintage match falls back to the first relevant result with `vintage_mismatch: true` rather than returning null
+- Integration: mocked Zachys-style fixture reproducing the observed case (query without vintage returns 4 relevant results across vintages) — confirm the module selects a page and doesn't return empty-handed
+- Regression fixture: capture the actual Clos des Papes / Zachys organic search response that surfaced this bug and use it directly as a test fixture, same practice as the three real HTML pages captured for the Phase 7 windowing fix
+
+**Notes:**
+- This does not change `isRelevantMatch` in either module — producer/denomination relevance filtering is a separate, already-correct concern from vintage specificity. Only the vintage token's role changes: it moves from a query-time hard filter (causing false negatives) to a post-hoc ranking/tagging signal (already proven correct in the price module, now applied the same way in reviews).
+- This is a targeted bug fix inside already-shipped Phase 6 and Phase 7 modules — it does not change either phase's completion status, milestone, or external interface beyond the two per-retailer vintage fields added to `review_data`.
+
+**Branch:** `fix/retailer-search-query-genericization`
+**PR title:** `fix: drop vintage from retailer search queries, rank by vintage post-hoc instead`
+
+**Milestone:** Searching for a wine known to be carried under multiple vintages (Clos des Papes at Zachys) no longer returns a false negative in either the price module or the reviews module — the retailer surfaces correctly, tagged with `vintage_mismatch` when the matched page isn't the exact vintage in the cellar, instead of disappearing from results entirely.
+
+---
+
+## Phase 7.2 — Guided retailer search with confirmed-URL extraction
+
+**Goal:** Fix the real, now-confirmed bug behind the original report, and build the manual fallback workflow it was actually pointing at. The "Find Reviews" button's generated search URL includes the wine's vintage; for Clos des Papes at Zachys this returns zero results on Zachys's own site, even though a plain producer + denomination query returns the correct listing (confirmed directly by the developer clicking the button, then manually simplifying the search). Beyond the query fix, replace the current "open a link, then maybe remember to paste a URL back later" behavior with a guided one: click search → find the product yourself → copy its URL → switch back to the app → the app notices and offers to save it → saving immediately extracts price, vintage, and critic scores from that exact page.
+
+**Root cause, now correctly identified:** The button's search URL is generated by `backend/modules/retailer-links/index.ts`'s `buildQuery()`, which appends the vintage — a *third*, independently-duplicated copy of the same query-building pattern already present in `backend/modules/price/index.ts` and `backend/modules/reviews/find-product-page.ts` (each module maintains its own copy per the "modules don't import from each other" convention in `CLAUDE.md` §5, and the three copies had drifted apart). Phase 7.1's retraction tested the *price* module's on-site search behavior (`price/retailer-search-url.ts`, exercised via `verify-listing.ts`) and found nothing wrong — correctly, but that's a different module's copy of similar-looking code, not the one behind the actual button. The developer's own reproduction (click button → zero results; simplify query manually → correct results) is the real signal, and it points at `retailer-links/index.ts` specifically.
+
+**UX intent — this is a fallback, reached for when automation comes up empty, not a parallel always-on path:** Phase 7's fully-automated discovery (Serper organic search → Puppeteer → GPT-4o, no human involved) is unchanged and continues to run as the default. When it finds a match and GPT-4o extracts a score, that automated result takes precedence — this phase does not second-guess or override it. The primary use case for the guided manual flow is the opposite case: automation returned nothing for a wine, and the developer wants to personally check the retailers they trust rather than accept an empty result. The UI should make this legible — for a retailer where `review_data` already has a result, show it; for a retailer where automation found nothing, that's exactly where the "Search <Retailer>" button becomes the primary next action, not a redundant option sitting next to an automated result that already answered the question.
+
+**Deliverables:**
+
+1. **Broaden the button's query.** `backend/modules/retailer-links/index.ts`'s `buildQuery()` drops the vintage token — `producer + denomination` only. This directly fixes the observed failure without depending on further reproduction of exactly why Zachys's search behaves this way for this specific combination; it matches the query the developer confirmed works when searching manually.
+
+2. **Guided-confirmation flow, replacing today's one-way "click button, hope to remember to paste a URL back" behavior:**
+   - User clicks "Search <Retailer>" for a wine where automated review sourcing found nothing — opens the (now broader) search URL in the default browser, same as today otherwise.
+   - User finds the correct product on the retailer's site and copies its URL (standard browser action — address bar copy, or right-click → Copy Link).
+   - User switches back to the app tab. On regaining focus/visibility (`document.visibilitychange` / `window.onfocus`), the web app checks the clipboard (`navigator.clipboard.readText()`, behind a one-time permission grant) for a URL whose hostname matches the retailer that was just searched. The app needs to track, client-side, which retailer/wine a search was just opened for, so it knows what to check the clipboard against.
+   - If a matching URL is found, show a lightweight confirmation ("Save this Zachys product link for [wine]?"). If clipboard read fails, permission is denied, or no matching URL is found, fall back to a manual "paste URL" field so the flow can still be completed — graceful degradation, not the primary path.
+   - On confirmation, the URL is saved (existing `retailer_links` mechanism, via `PATCH /:id`) and immediately triggers extraction against that exact page — no separate "now click Extract" step.
+
+3. **New extraction endpoint/orchestration** (`backend/routes/wines.ts` — the route layer can import from both `price` and `reviews`, which can't import from each other): `POST /:id/confirm-retailer-link` given `{ slug, url }`:
+   - Renders `url` with Puppeteer (reuse `reviews/puppeteer-extract.ts`'s `renderPageHtml`).
+   - Runs the existing keyword-window + GPT-4o extraction pipeline (`reviews/keyword-window.ts` + `reviews/gpt-extract.ts`), extended to also extract the vintage stated on the page — `gpt-extract.ts`'s output shape and prompt gain a `vintage: number | null` field alongside the existing `price`, `url`, `critic_scores`.
+   - Writes results to **both** schemas from this single extraction, since the existing UI reads price from `price_data` and scores from `review_data` separately: updates (or inserts) this retailer's entry in `price_data.retailers[]` (`price`, `url` now the real product page, `is_search_results_page: false`, `matched_vintage`, `vintage_mismatch`) and this retailer's entry in `review_data` (`product_url`, `critic_scores`, `fetched_at`), then recomputes `price_data.price_min`/`price_avg`/`price_max`/`nearest_retailer` the same way `fetchPriceData` already does.
+   - Also saves the confirmed URL into `retailer_links[slug]`, same as today's manual-save mechanism.
+
+4. **Frontend (`WineDetailModal.tsx`):** track "awaiting confirmation for retailer X on wine Y" client-side state when a search button is clicked; add the focus/visibility listener + clipboard check + confirmation UI + manual-paste fallback; call the new confirm endpoint on save. Surface the "Search <Retailer>" affordance as the primary action specifically for retailers where `review_data` has no entry yet — not as a redundant option next to an already-populated automated result.
+
+**Graceful degradation:**
+- Clipboard permission denied → manual paste field is shown instead, no error
+- Clipboard has no URL matching the searched retailer's domain → no confirmation prompt appears; manual paste field remains available
+- Puppeteer render or GPT-4o extraction fails on a confirmed URL → the URL is still saved to `retailer_links` (so the user doesn't lose their find), but no price/vintage/score data populates; treat as retryable, not a lost state
+
+**Tests:**
+- Unit: `retailer-links/index.ts`'s `buildQuery()` no longer includes vintage
+- Unit: confirm-URL extraction correctly writes to both `price_data.retailers[]` and `review_data`, and recomputes aggregate price stats
+- Unit: extraction prompt/shape returns `vintage` alongside existing fields; graceful null when not statable from the page
+- Integration: mocked confirm-flow end to end — given a URL, verify both schemas update correctly
+- Frontend: clipboard-check-on-focus logic (mock `navigator.clipboard`, mock visibility change) triggers the confirmation prompt only when the clipboard URL's hostname matches the pending retailer, and only surfaces as the primary action when `review_data` has no entry for that retailer
+
+**Manual completion test:**
+1. Click "Search Zachys" for Clos des Papes — confirm the opened URL no longer includes a vintage token and returns real results (not zero)
+2. Manually find and copy the correct product URL, switch back to the app, confirm the save prompt appears and the save completes
+3. Confirm price, vintage, and critic scores (if present on the page) populate on the wine entry from that single confirmed URL, and that this didn't touch or override any retailer where automated review sourcing had already found a result
+
+**Branch:** `feature/guided-retailer-search`
+**PR title:** `feat: guided retailer search with confirmed-URL extraction`
+
+**Milestone:** The "Find Reviews" button's search reliably returns results for wines carried under a different vintage (fixing the originally reported Zachys/Clos des Papes failure). For a retailer where automated review sourcing found nothing, manually confirming the correct product extracts price, vintage, and critic scores from that exact page and populates both the price and review sections of the wine entry — without needing separate manual re-entry, and without overriding any retailer where automation already succeeded.
 
 ---
 

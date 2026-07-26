@@ -6,14 +6,15 @@ const SYSTEM_PROMPT =
   'You are a structured data extractor. Given an excerpt of a wine retailer product page (HTML or plain text, possibly just the portion surrounding a critic score citation), extract:\n' +
   '1. The bottle price in USD (number or null if not found)\n' +
   '2. The canonical product page URL\n' +
-  '3. Any critic scores explicitly attributed to a named publication or critic in the excerpt\n\n' +
+  '3. The vintage year of the wine on this specific page (4-digit year, or null if not stated or the wine is non-vintage)\n' +
+  '4. Any critic scores explicitly attributed to a named publication or critic in the excerpt\n\n' +
   'Return ONLY valid JSON in this exact shape:\n' +
-  '{"price": <number|null>, "url": "<string>", "critic_scores": [{"publication": "<string>", "score": <number>}]}\n\n' +
+  '{"price": <number|null>, "url": "<string>", "vintage": <number|null>, "critic_scores": [{"publication": "<string>", "score": <number>}]}\n\n' +
   'Only include scores with a clearly named publication or critic — this can be a full publication name (e.g. Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling, Jancis Robinson, Decanter), a critic\'s name, or a short abbreviation shown right next to the score (e.g. "WA", "JD", "V"). ' +
   'If a score is given as a range or plus form (e.g. "94-96" or "94+"), return the higher number. ' +
   'Do not include review text — scores (numbers) only. ' +
   'If no attributed scores are found, return an empty array. ' +
-  'If the excerpt is from a search results page rather than a single product page, return price: null and an empty critic_scores array.'
+  'If the excerpt is from a search results page rather than a single product page, return price: null, vintage: null, and an empty critic_scores array.'
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -66,13 +67,18 @@ export async function extractFromRenderedHtml(
     const content = response.choices[0]?.message?.content
     if (!content) return null
 
-    const parsed = JSON.parse(content) as { price: number | null; url: string; critic_scores: Array<{ publication: string; score: number }> }
+    const parsed = JSON.parse(content) as {
+      price: number | null
+      url: string
+      vintage: number | null
+      critic_scores: Array<{ publication: string; score: number }>
+    }
     const critic_scores: CriticScore[] = parsed.critic_scores.map((s) => ({
       score: s.score,
       ...canonicalizePublication(s.publication),
     }))
 
-    return { price: parsed.price, url: parsed.url, critic_scores }
+    return { price: parsed.price, url: parsed.url, vintage: parsed.vintage ?? null, critic_scores }
   } catch {
     return null
   }

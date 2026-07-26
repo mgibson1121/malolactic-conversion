@@ -2,11 +2,18 @@ import type { RetailerLink, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from './retailers.config'
 import { buildRetailerSearchUrl } from './build-search-url'
 
-function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination' | 'vintage'>): string {
+// No vintage token (Phase 7.2, 2026-07-26) — a retailer's own search can be
+// a literal/narrow match rather than relevance-ranked, and an added vintage
+// risks a false "no results" even when the retailer carries the wine under
+// a different vintage's listing (confirmed live: Zachys returns 0 results
+// for "Clos des Papes Châteauneuf-du-Pape 2020" but 4 for the same query
+// without the year). This is a search-results page, not a lookup for one
+// exact SKU — a broader query that reliably surfaces the retailer's actual
+// listings is more useful here than a narrower one that risks nothing at
+// all.
+function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination'>): string {
   if (!wine.producer && !wine.denomination) return ''
-  const parts = [wine.producer, wine.denomination].filter(Boolean)
-  if (wine.vintage) parts.push(String(wine.vintage))
-  return parts.join(' ')
+  return [wine.producer, wine.denomination].filter(Boolean).join(' ')
 }
 
 /**

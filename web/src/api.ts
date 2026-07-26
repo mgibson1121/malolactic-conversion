@@ -101,3 +101,13 @@ export async function fetchWineReviews(wineId: string): Promise<WineEntry> {
     await fetch(`${BASE}/wines/${wineId}/fetch-reviews`, { method: 'POST' })
   )
 }
+
+export async function confirmRetailerLink(wineId: string, slug: string, url: string): Promise<WineEntry> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${wineId}/confirm-retailer-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, url }),
+    })
+  )
+}
