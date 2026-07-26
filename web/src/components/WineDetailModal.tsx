@@ -336,7 +336,7 @@ export function WineDetailModal({
           {/* Find / save retailer review links */}
           <section className="detail-section">
             <h3 className="detail-section-title">Find Reviews</h3>
-            <RetailerLinksSection wine={wine} onWineUpdated={(updated) => { setWine(updated); onWineUpdated(updated) }} />
+            <RetailerLinksSection wine={wine} onWineUpdated={(updated) => { setWine(updated); onWineUpdated(updated) }} guided />
           </section>
 
           {/* Tasting notes */}
