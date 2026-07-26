@@ -9,8 +9,13 @@ export interface ExpertReview {
 }
 
 export interface CriticScore {
-  publication: string   // e.g. "Burghound", "Vinous", "Wine Advocate"
+  publication: string   // canonical name if known_publication, otherwise raw attribution text as GPT-4o returned it
   score: number
+  // True when `publication` was normalized against CRITIC_KEYWORDS
+  // (backend/modules/reviews/critic-keywords.ts). False means the score was
+  // still captured — capture is never gated on this list — but the
+  // attribution is unrecognized/unnormalized raw text.
+  known_publication: boolean
 }
 
 export interface RetailerPrice {
@@ -18,7 +23,6 @@ export interface RetailerPrice {
   name: string
   price: number | null
   url: string
-  critic_scores: CriticScore[]
   distance_miles: number
   is_preferred_retailer: boolean
   // True when `url` is a constructed search-results page rather than a
@@ -48,6 +52,18 @@ export interface RetailerLink {
   slug: string
   name: string
   url: string
+}
+
+// Per-retailer result stored in review_data (Phase 7) — sourced from a real
+// rendered product page, never a search-results page. Deliberately separate
+// from RetailerPrice.critic_scores, which was always guaranteed empty (see
+// docs/build-phases.md Phase 9 "Known gap") and has been removed above.
+export interface RetailerReview {
+  slug: string
+  name: string
+  product_url: string
+  critic_scores: CriticScore[]
+  fetched_at: string     // ISO timestamp
 }
 
 export interface PriceData {
@@ -133,6 +149,7 @@ export interface WineEntry {
   community_excerpts: string[] | null     // raw Reddit excerpts; fallback when no LLM key
   price_data: PriceData | null            // null until Phase 6 price module populates
   retailer_links?: Record<string, string> | null  // user-saved retailer URLs keyed by slug; null until user saves
+  review_data?: RetailerReview[] | null   // null until Phase 7 reviews module populates
   date_added: string                      // ISO timestamp
   date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
 }
@@ -179,7 +196,7 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>

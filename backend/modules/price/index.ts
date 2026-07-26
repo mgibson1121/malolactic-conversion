@@ -1,5 +1,5 @@
 import type { WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from './retailers.config'
+import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
 import { pageShowsNoResults } from './verify-listing'

@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-20
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-24
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -64,7 +64,7 @@ Schema is validated. Replace the Google Sheets adapter with SQLite. No feature b
 Serper.dev (organic + Shopping) + Puppeteer. Populates a single `price_data` JSON column (`price_min`/`price_avg`/`price_max`/`retailers`/`nearest_retailer` are keys inside it, not separate SQL columns) plus `retailer_links`. A dead migration (`ws_price_min` etc., from an earlier Wine-Searcher-based design) exists in the DB but is never read/written by the adapter — don't build against it. Full detail in `docs/build-phases.md`.
 
 ### Phase 7 — Review & critic score sourcing (current)
-Separate module from pricing — locates a real retailer *product* page (not a search-results page) via Serper's organic `/search` endpoint with a `site:`-restricted query, renders it with Puppeteer, and runs GPT-4o extraction (moved from the price module, where it was dead code) to pull attributed critic scores into a new `review_data` column. Full detail, including the K&L robots.txt finding that shaped this design, is in `docs/build-phases.md`.
+Separate module from pricing — locates a real retailer *product* page (not a search-results page) via Serper's organic `/search` endpoint with a `site:`-restricted query, renders it with Puppeteer, and runs GPT-4o extraction (moved from the price module, where it was dead code) to pull attributed critic scores into a new `review_data` column. Extraction windows the rendered page (`keyword-window.ts`, decided 2026-07-24 after live testing showed a blind 80K-character truncation was discarding review content on real product pages) around a generic, publication-agnostic score-citation pattern rather than sending the full rendered page to GPT-4o — cheaper per call and more robust to page size than a fixed truncation limit, and it captures any attributed score, not just ones from a pre-known list. `critic-keywords.ts` is applied only after extraction, to canonicalize a recognized publication's name and flag it `known_publication: true`/`false` — it never gates whether a score gets captured. That lookup is living config, expected to need periodic updates as critics change publications, but a miss there is now low-stakes (unnormalized name, not a dropped score). K&L is a known gap (bot-blocked at the product-page render, not just search) and is not pursued via bot-detection evasion. Full detail is in `docs/build-phases.md`.
 
 ### Phase 8 and beyond
 Defined in `docs/build-phases.md`.

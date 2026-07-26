@@ -95,3 +95,9 @@ export async function fetchWinePrice(wineId: string): Promise<WineEntry> {
 export async function fetchRetailerLinks(wineId: string): Promise<RetailerLink[]> {
   return handleResponse(await fetch(`${BASE}/wines/${wineId}/retailer-links`))
 }
+
+export async function fetchWineReviews(wineId: string): Promise<WineEntry> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${wineId}/fetch-reviews`, { method: 'POST' })
+  )
+}
