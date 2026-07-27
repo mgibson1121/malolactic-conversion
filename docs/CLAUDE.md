@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-24
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-26
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -189,7 +189,7 @@ Offline mode is out of scope for v1. The app requires connectivity. No offline c
 - Test-driven development is followed for all new features
 - Each module has unit tests co-located in its directory (`*.test.ts`)
 - Integration tests live in `backend/tests/integration/`
-- Use Jest for the backend and web; XCTest for iOS
+- Use Jest for the backend, Vitest for web (`web/package.json`'s `test` script is `vitest run`; test files use `vi.mock`/`vi.fn`, not Jest APIs — corrected 2026-07-26); XCTest for iOS
 - All tests must pass before merging to `main`
 
 ### GitHub Actions (CI)
