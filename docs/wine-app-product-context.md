@@ -68,14 +68,14 @@ Wine entry fields are divided into two tiers based on extraction reliability and
 | `tag_consumed` | Boolean | System / User | True when at least one bottle has been consumed. Set automatically when a tasting note is saved; can also be set manually. |
 | `cellar_quantity` | Integer | User | Number of bottles currently in the cellar. Adjustable from the cellar list view. Does not automatically reset to zero when `tag_cellar` is removed — user manages explicitly. |
 | `cellar_category` | Enum | User / inferred | `table`, `near_term`, `long_term` |
-| `drinking_window_start` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
-| `drinking_window_end` | Date | Data sources | Cached/derived value. Overwritten when new review data arrives. Never manually set. |
-| `vintage_rating` | Enum | Data sources | `below_avg`, `avg`, `good`, `very_good` for this region+year |
-| `expert_reviews` | Array | Manual entry | Professional tasting notes attached manually by user; no automated API source available for individual subscribers |
-| `community_sentiment` | String | Reddit + LLM | GPT-4o synthesis of Reddit data; null if no OpenAI key configured |
-| `community_excerpts` | Array | Reddit API | Raw Reddit excerpts; shown as fallback if no LLM key configured |
+| `drinking_window_start` | Date | Professional reviews (Phase 8) / manual | Derived from professional review extraction when unambiguous — never blended across disagreeing critics (see Section 6). User-editable at any time, at manual wine-entry creation or later; a manually-set value is never overwritten by a later automated run. |
+| `drinking_window_end` | Date | Professional reviews (Phase 8) / manual | Same rules as `drinking_window_start`. |
+| `vintage_rating` | Enum | Professional reviews (Phase 8) | `below_avg`, `avg`, `good`, `very_good` for this region+year. Displayed as **"Year"** in the UI (developer preference, not a field rename). Never blended across critics — populated only when sources agree, otherwise left null. |
+| `expert_reviews` | Array | Reserved, unused | Early design intent — attributed critic scores are now sourced automatically via `review_data` (Phase 7, extended Phase 8), not manually attached. This field is not currently populated by any shipped phase; see `build-phases.md` schema note. |
+| `community_sentiment` | String | Reserved for PoC | Reserved for an optional, exploratory YouTube-based community-sentiment PoC (`build-phases.md` Phase 8.5) — not currently populated. The originally planned Reddit-based version was retired 2026-07-28; see Section 6 and Section 8 Open Questions. |
+| `community_excerpts` | Array | Reserved for PoC | Same reservation as `community_sentiment`, see Phase 8.5. |
 | `price_data` | Object | Serper + Puppeteer | Min/avg/max price from Serper Shopping results (vintage-mismatched and non-standard pack/bottle-size listings excluded from the aggregate), nearest retailer to NYC; null until first run. Attributed critic scores are Phase 7, a separate module — not currently part of this object. |
-| `retailer_links` | Object | User-saved | URLs saved by user from retailer search sessions (K&L, Zachys, Woodland Hills, Benchmark); keyed by retailer slug; null until user saves |
+| `retailer_links` | Object | User-saved | URLs saved by user from retailer search sessions, across eleven configured retailers as of Phase 7.3 (2026-07-29) — see Section 6's Source Evaluation Log; keyed by retailer slug; null until user saves |
 | `my_rating` | Enum | User | `poor`, `acceptable`, `good`, `very_good`, `outstanding` |
 | `my_tasting_notes` | Object | User | Structured WSET tags + free text |
 | `my_tags` | Array | User / inferred | Searchable tags derived from tasting notes via GPT-4o tag extraction. Treated as a derived field once a tasting note exists — not manually authored. Must stay consistent with tags on the `tasting_notes` sheet; do not allow the two to diverge. |
@@ -181,8 +181,8 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 **Pain Relievers**
 
 - Scan or photograph a label → app returns a two-tab review screen. Tab 1 shows populated wine entry fields from GPT-4o extraction — if a Tier 1 field could not be extracted, a manual entry prompt is surfaced. Tab 2 shows average price across crawled retailers and the nearest retailer to NYC with a tappable link. Attributed critic scores (e.g. "Burghound: 92") are Phase 7 (`build-phases.md`) — pricing and review-sourcing turned out to need different retailer-page shapes (a search-results page is enough for a price; a score requires the actual product page), so they're being built as separate concerns rather than one combined tab feature.
-- One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) constructed from wine identity data — opens retailer product page in browser where professional reviews are published. User can save a specific product page URL back to the wine entry for future reference.
-- Vintage intelligence: for each bottle, a summary of community consensus on vintage quality and approachability (via Reddit synthesis).
+- One-tap retailer search buttons, across eleven configured retailers as of Phase 7.3, constructed from wine identity data — opens retailer product page in browser where professional reviews are published. User can save a specific product page URL back to the wine entry for future reference.
+- Vintage intelligence: for each bottle, a vintage character read (`vintage_rating`, displayed as "Year" in the UI) drawn from professional review extraction (Phase 8) — never blended across critics; populated only when sources agree.
 - In-store trigger: camera scan. Web trigger: iOS share sheet (v1), browser extension (future).
 
 **Gain Creators**
@@ -289,14 +289,15 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 
 **Pain Relievers**
 
-- Price discovery via Serper: min/avg/max price across preferred retailers (K&L, Zachys, Woodland Hills, Benchmark), with fallback to any retailer Google has indexed. Nearest retailer to NYC surfaced prominently with tappable link.
-- One-tap retailer search buttons (K&L, Zachys, Woodland Hills, Benchmark) for quick access to professional reviews before committing to a purchase.
+- Price discovery via Serper: min/avg/max price across eleven preferred retailers (Phase 7.3), with fallback to any retailer Google has indexed, plus a dedicated open-web fallback specifically for review sourcing when none of the eleven carry an attributed score (Phase 7.3). Nearest retailer to NYC surfaced prominently with tappable link.
+- One-tap retailer search buttons, across the same eleven retailers, for quick access to professional reviews before committing to a purchase.
 - Wine detail view shows saved review links, crawled avg price, and nearest retailer in a single compact screen — all purchasing signals in one place. Attributed critic scores are Phase 7.
 - Prior ratings of similar wines from the same producer surfaced as a risk signal.
 
 **Gain Creators**
 
 - Attributed critic scores (e.g. Burghound, Vinous, Wine Advocate) extracted from retailer pages and displayed per publication, each source speaking in its own voice — **Phase 7** (`build-phases.md`). Requires rendering the actual single-product page on a retailer's site; the price module's retailer URLs are deliberately search-results pages, not product pages, so this needs its own page-location step and isn't part of pricing.
+- A "Deal" badge surfaces on the wine entry when a professional review explicitly states strong value/QPR for the wine (e.g. "overdelivers for the price") — extracted alongside critic scores and drinking windows, per critic, **Phase 8** (`build-phases.md`). Not inferred from a score-to-price ratio; text-stated only.
 - Collection fit summary: cellar category the bottle would fall into, how many bottles from the same producer and vintage are already held, and how the purchase would affect allocation drift.
 - Table wine finder: a dedicated recommendation surface for sub-$30 bottles the user has rated highly — scratch-the-itch alternatives to raiding the cellar.
 
@@ -317,7 +318,7 @@ A wine entry carries four boolean tags that govern which lists it appears in. Ta
 |---|---|---|
 | Discover similar wines to long-term cellared bottles | 5 | Scratch the itch and avoid raiding the cellar too early |
 | Know which spots in the cellar are worth holding | 5 | Each bottle is allocated intentionally |
-| Tap all professional and community opinion on a vintage | 4 | Confident drink-or-hold decisions |
+| Tap all available professional opinion on a vintage | 4 | Confident drink-or-hold decisions. Community opinion is a possible future addition, pending a viable data source — see Section 8 Open Questions. |
 | New reviews are integrated as they are published | 4 | Knowledge is never stale |
 | Build a mental map that sticks | 4 | Wine feels like a language I speak, not translate |
 | Understand good vs. bad years by region | 4 | Vintage context informs every decision |
@@ -344,7 +345,7 @@ These apply everywhere in the app. An agent building any feature should check th
 
 **Trusted reviewer system.** The user maintains a personal list of sources they trust and distrust. This list influences every review surface in the app. It is configurable and persistent. No review is shown without attribution to its source.
 
-**Live-updating data.** Drinking windows, vintage ratings, and community scores are not static values set at the time of entry. They are recalculated as new reviews are published. The app should reflect the current state of knowledge, not the state at the time of purchase.
+**Live-updating data.** Drinking windows and vintage ratings are not static values set at the time of entry — they're recalculated as new reviews are published, unless the user has manually set or overridden them, in which case the manual value takes precedence and is never silently replaced. The app should reflect the current state of knowledge, not the state at the time of purchase.
 
 **Capture is low-friction above all else.** Any capture interaction that requires more than two taps or ten seconds in the moment has failed. Enrichment can happen later.
 
@@ -369,12 +370,14 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 | Layer | Source | What it adds | Access model |
 |---|---|---|---|
 | **Price & retailer data** | Serper.dev (Google SERP API) + Puppeteer | Step 1: Serper queries Google Shopping and returns structured price/retailer data — preferred retailers (K&L, Zachys, Woodland Hills, Benchmark) first, any retailer as fallback. Step 2: Puppeteer renders SPA product pages so GPT-4o can extract attributed critic scores. Retailer list is config-driven and extensible. | Serper free tier: 2,500 queries/month — sufficient for personal use. Puppeteer runs locally, no external cost. |
-| **Community opinion** | Reddit API + GPT-4o | Synthesised community sentiment, vintage anecdotes, drinking window consensus | Reddit free tier (100 QPM OAuth); GPT-4o key BYOK for synthesis; raw excerpts shown as fallback |
-| **Retailer review access** | K&L, Zachys, Woodland Hills, Benchmark | One-tap search links to retailer product pages carrying professional reviews (Burghound, Vinous, Wine Advocate, Wine Spectator) | No API — app constructs search URL from wine entry data; user reads review on retailer site |
+| **Professional review extraction** | Serper (organic search) + Puppeteer + GPT-4o | Attributed critic scores, per-critic drinking windows, vintage character, and value/deal signal — extracted from real rendered retailer product pages, never blended across critics. Phase 7 (scores) extended by Phase 8 (drinking window, vintage character, deal). | Same Serper/Puppeteer infrastructure as pricing; one `SERPER_API_KEY` covers both. GPT-4o key BYOK for extraction. |
+| **Retailer review access** | Eleven configured retailers as of Phase 7.3 (2026-07-29): K&L, Zachys, Woodland Hills, Benchmark, Sokolin, Acker Wines, Wine Library, Morrell & Company, Crush Wine & Spirits, Flatiron Wines & Spirits, Thatcher's Wine | One-tap search links to retailer product pages carrying professional reviews (Burghound, Vinous, Wine Advocate, Wine Spectator) — the manual-reading complement to the automated extraction above. Professional review extraction (the row above) also has its own open-web fallback beyond this named list — see Phase 7.3. | No API — app constructs search URL from wine entry data; user reads review on retailer site |
+
+A fourth layer, **community opinion**, was originally planned around the Reddit API but was retired 2026-07-28 after Reddit closed self-service API registration (see Section 8 Open Questions for the full record). A YouTube-based alternative is being evaluated as a separate, optional proof-of-concept (`build-phases.md` Phase 8.5) — not yet a committed layer.
 
 **Note on architecture:** The four target retailers (Zachys, Woodland Hills, Benchmark, and likely K&L) are Single Page Applications — direct HTTP fetches return empty shell HTML. Serper.dev is used for price/retailer discovery because Google has already crawled and rendered these pages. Puppeteer renders each retailer's constructed search-results page to verify it still shows results before its price is trusted — not to extract critic scores (see note below). The retailer list is a typed config array — adding a retailer is a one-line config change, no logic changes. If none of the preferred retailers carry a wine, the module falls back to whatever relevant retailers Serper found, capped at 5.
 
-**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. The original plan was for a Puppeteer pass to extract attributed scores (numbers only — never tasting note text) from retailer pages where they appear publicly. That's now Phase 7 (`build-phases.md`), scheduled ahead of community data: it needs a specific single-product page to read a score off of, and the price module's retailer URLs are deliberately search-results pages (verified live before a price is trusted, not rendered for content extraction) — the two turned out to be different problems that happened to share a retailer list, not one feature. The retailer deep-link approach (Layer 3) still provides direct access to full review text in the meantime — that doesn't depend on Puppeteer at all, it's just a constructed URL handed to the browser.
+**Note on professional review APIs:** Burghound, Vinous, and Wine Advocate do not offer programmatic access to individual subscribers. The original plan was for a Puppeteer pass to extract attributed scores (numbers only — never tasting note text) from retailer pages where they appear publicly. That's now Phase 7 (`build-phases.md`), extended in Phase 8 to also pull drinking window, vintage character, and a value/deal signal from the same rendered pages — same copyright boundary throughout: structured facts only, never source prose. The price module's retailer URLs are deliberately search-results pages (verified live before a price is trusted, not rendered for content extraction) — pricing and review extraction turned out to be different problems that happened to share a retailer list, not one feature. The retailer deep-link approach (Layer 3) still provides direct access to full review text in the meantime — that doesn't depend on Puppeteer at all, it's just a constructed URL handed to the browser.
 
 ### Label Scanning
 
@@ -387,12 +390,12 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 **Key:** User-supplied OpenAI API key, stored in iOS Keychain
 **Future optimisation:** Test GPT-4o Mini ($0.60/1M input) once feature is stable — potential 75% cost saving for clean labels
 
-### LLM Layer (Reddit Synthesis)
+### LLM Layer (Review Extraction)
 
 **Model:** GPT-4o
-**Purpose:** Synthesise unstructured Reddit posts and comments into structured drinking window signals and community sentiment summaries for a specific wine and vintage
+**Purpose:** Extract structured facts from rendered retailer product pages — attributed critic scores (Phase 7), plus per-critic drinking window, vintage character, and value/deal signal (Phase 8). Structured output only; never stores or reproduces source review prose (copyright boundary).
 **Key management:** BYOK. OpenAI API key stored in iOS Keychain, never on server
-**Fallback:** If no key configured, raw Reddit excerpts are displayed. Feature degrades gracefully, never disappears entirely
+**Fallback:** If no key configured, `modules/reviews/` returns empty `review_data`. Feature degrades gracefully, never throws.
 **v1:** Developer supplies their own key
 
 ### Environment Monitoring
@@ -411,7 +414,8 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 |---|---|---|
 | CellarTracker | Personal export only | ToS Section 9 explicitly prohibits scraping. Authenticated personal data export via `xlquery.asp` is permitted for user's own cellar, notes, and consumed bottles. Community-wide data requires partnership — not pursuing. |
 | WineBerserkers | Not pursuing | ToS Section 5 explicitly prohibits automated access. No API exists. Partnership not pursuing. |
-| Reddit | ✅ In use | Official API, free tier, 100 QPM via OAuth 2.0. Sufficient for per-bottle queries at personal usage scale. Key subreddits: r/wine, r/burgundy, r/winetasting, r/barolo, r/wineenthusiast. |
+| Reddit | ⛔ Not pursuing | Self-service Data API registration closed 2026 under Reddit's Responsible Builder Policy — every new token now requires manual approval, and personal/hobbyist use is reported rejected or ignored at a high rate. The unofficial `.json` fallback was itself shut down 2026-05-28. Official commercial tier requires a contract, four-to-five-figure annual minimum, not self-service. Third-party resellers are unlicensed scraping — same category already ruled out for CellarTracker/WineBerserkers. Retired 2026-07-28; superseded by Phase 8's professional-review-extraction approach. |
+| YouTube Data API v3 | 🔍 Under evaluation (PoC) | Official, self-service (instant API key, no approval queue), free within quota (10,000 units/day). The only alternative researched for community sentiment that's simultaneously official, self-service, and free. Coverage is uncertain — comments on wine review videos are reactions to a video, not targeted per-bottle discussion the way Reddit threads were. Scoped as an explicitly optional PoC, `build-phases.md` Phase 8.5, not a committed layer. |
 | Wine-Searcher | ⛔ Not in use | API evaluated and ruled out — Wine Check API costs $335/month, Market Price API costs an additional $350/month. Replaced by Serper.dev + Puppeteer approach. |
 | Serper.dev | ✅ In use (Phase 6) | Third-party Google SERP API. Free tier: 2,500 queries/month. Returns structured Shopping results including price, retailer name, and product URL. Google has already crawled and rendered SPA pages so Serper returns clean data without any browser required. Single `SERPER_API_KEY`. |
 | Puppeteer | ✅ In use (Phase 6) | Headless Chromium — executes JavaScript so SPA retailer pages render fully before GPT-4o score extraction. Used only in the price enrichment module. Not run in CI; mocked in tests with HTML fixtures. |
@@ -423,8 +427,15 @@ Three independent layers. Each unlocks a distinct type of information. Configure
 | Zachys | ✅ Retailer deep links | Fine wine specialist, NYC-based. Strong Burgundy/Bordeaux depth. |
 | Woodland Hills Wine Company | ✅ Retailer deep links | Trusted retailer with solid review coverage. |
 | Benchmark Wine Group | ✅ Retailer deep links | Fine wine specialist. Publishes Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling. |
+| Sokolin | ✅ Retailer deep links (Phase 6.7, shipped Phase 7.3) | Bridgehampton, NY. Sourced from Burghound.com's own published tri-state retailer list. Carries Burghound, Vinous, Wine Advocate, Decanter, Wine Enthusiast — a dedicated `/wine-ratings` page. |
+| Acker Wines | ✅ Retailer deep links (Phase 6.7, shipped Phase 7.3) | Manhattan, NY. Wine Advocate, Vinous confirmed. |
+| Wine Library | ✅ Retailer deep links (Phase 6.7, shipped Phase 7.3) | Springfield, NJ. Wine Advocate, Vinous, Decanter confirmed. |
+| Morrell & Company | ✅ Retailer deep links (Phase 6.7, shipped Phase 7.3) | Briarcliff Manor, NY (Westchester). Wine Advocate confirmed. |
+| Crush Wine & Spirits | ✅ Retailer deep links (Phase 7.3) | Manhattan, NY. Developer-nominated — personal shopping relationship, consistent review coverage. On-site search URL pattern not yet live-verified. |
+| Flatiron Wines & Spirits | ✅ Retailer deep links (Phase 7.3) | Manhattan, NY (also has an SF location — configured domain is the NYC-specific subdomain). Developer-nominated. On-site search URL pattern not yet live-verified. |
+| Thatcher's Wine | ✅ Retailer deep links (Phase 7.3) | Brentwood, Los Angeles — not tri-state, included for review coverage only. Developer-nominated. On-site search URL pattern not yet live-verified. |
 | Burgundy Report | 🔍 Under evaluation | ToS explicitly permits reproduction of tasting notes for currently available wines with attribution, for active subscribers. Highly relevant for Burgundy focus. Deferred — evaluate after Phase 6.5 is stable. |
-| GPT-4o | ✅ In use | Label scanning, tasting note transcription tag extraction, Reddit synthesis. OpenAI API key BYOK, stored in iOS Keychain. |
+| GPT-4o | ✅ In use | Label scanning, tasting note transcription tag extraction, review extraction (critic scores, drinking window, vintage character, value signal — Phase 7–8). OpenAI API key BYOK, stored in iOS Keychain. |
 | SensorPush | ✅ In use | Environment monitoring. Cloud API (OAuth, REST). Credentials stored in iOS Keychain. |
 
 ### Reference Projects
@@ -494,8 +505,8 @@ Tooltips are shown on the nose and palate aroma fields only (primary, secondary,
 - ✅ Environment monitoring hardware: SensorPush + G1 WiFi Gateway
 - ✅ CellarTracker scraping: prohibited by ToS; personal export is the only legitimate path
 - ✅ WineBerserkers: prohibited by ToS; not pursuing
-- ✅ Reddit API: viable on free tier for per-bottle queries
-- ✅ LLM architecture: GPT-4o BYOK, iOS Keychain, raw Reddit excerpt fallback
+- ✅ Reddit API: viable on free tier for per-bottle queries — **superseded 2026-07-28.** Self-service registration closed under Reddit's Responsible Builder Policy; see Section 6 and "Remaining" below. Community-sentiment layer retired in favor of extending professional review extraction (Phase 8); a YouTube-based alternative is a separate, optional PoC (Phase 8.5).
+- ✅ LLM architecture: GPT-4o BYOK, iOS Keychain — **updated 2026-07-28:** covers label scanning, tag extraction, and review extraction (Phase 7–8); no longer includes Reddit synthesis or a raw-excerpt fallback.
 - ✅ Data source architecture: additive layer model — each source distinct, not blended
 - ✅ WSET framework: fixed at launch
 - ✅ The Broke Sommeliers project: reference only, not forking
@@ -510,6 +521,10 @@ Tooltips are shown on the nose and palate aroma fields only (primary, secondary,
 
 ### Remaining
 - [ ] App name
-- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates and confirm all four retailers have searchable product pages for Burgundy, Barolo, and Rioja before building Phase 6
+- [ ] Price crawl retailer coverage: verify K&L NYC store coordinates and confirm all configured retailers (eleven as of Phase 7.3) have searchable product pages for Burgundy, Barolo, and Rioja
+- [ ] On-site search URL patterns for the seven retailers added in Phase 7.3 (Sokolin, Acker, Wine Library, Morrell, Crush, Flatiron, Thatcher's) are unverified — currently fall through to a generic guess. Live-check with Puppeteer before trusting search-button click-throughs against them.
 - [ ] GPT-4o Mini evaluation: test against GPT-4o for label scanning once feature is built; potential 75% cost reduction for clean labels
 - [ ] Burgundy Report integration: ToS permits note reproduction for active subscribers with attribution. Evaluate as a future data layer after Phase 6.6 is stable.
+- [ ] Community sentiment via YouTube: optional PoC (`build-phases.md` Phase 8.5) — determine whether YouTube comment-thread synthesis is actually useful before building it as a real module. Not a dependency of anything else.
+- [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 as too prose-like to extract reliably as a structured fact. Revisit only if a structured (non-prose) capture method is found.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28, personal-reference/edification idea — likely just an extension of the already-planned Vintage index (Section 4.6 Learn), fed by Phase 8's `vintage_rating` extraction once enough data has accumulated.
