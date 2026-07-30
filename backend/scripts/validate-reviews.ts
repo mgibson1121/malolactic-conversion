@@ -2,8 +2,10 @@
  * Real-world hit-rate check for modules/reviews/. Runs fetchReviewData
  * against a broader set of real wines than what's seeded in the dev
  * database, to gauge how often Step 1 finds a correct product page and
- * Step 2 extracts a real attributed score. Uses real Serper/Puppeteer/
- * OpenAI calls (not mocked) — costs real API usage per run.
+ * Step 2 extracts a real attributed score — plus, as of Phase 8, how often
+ * a drinking window / vintage character / value signal is captured
+ * alongside the score. Uses real Serper/Puppeteer/OpenAI calls (not
+ * mocked) — costs real API usage per run.
  *
  * Kept as a dev tool per build-phases.md Phase 7's open question on
  * keyword-window hit rate: re-run whenever RETAILER_CONFIG changes (e.g.
@@ -29,25 +31,25 @@ interface WineProbe {
   vintage: number | null
 }
 
+// Phase 8 real-world validation set (2026-07-29) — developer's cellar list.
 const WINES: WineProbe[] = [
-  { label: '2019 Domaine Tempier Bandol', producer: 'Domaine Tempier', denomination: 'Bandol', vintage: 2019 },
-  { label: '2019 Châteauneuf-du-Pape "La Crau"', producer: null, denomination: 'Châteauneuf-du-Pape La Crau', vintage: 2019 },
-  { label: '2018 Domaine Follin-Arbelet Aloxe-Corton', producer: 'Domaine Follin-Arbelet', denomination: 'Aloxe-Corton', vintage: 2018 },
-  { label: '2020 Sancerre (Hippolyte Reverdy)', producer: 'Hippolyte Reverdy', denomination: 'Sancerre', vintage: 2020 },
-  { label: '2020 Domaine Daniel Chotard Sancerre', producer: 'Domaine Daniel Chotard', denomination: 'Sancerre', vintage: 2020 },
-  { label: '2017 Domaine Bernard Baudry Chinon La Croix Boissée', producer: 'Domaine Bernard Baudry', denomination: 'Chinon La Croix Boissée', vintage: 2017 },
-  { label: '2017 Catherine et Pierre Breton Bourgueil Les Perrières', producer: 'Catherine et Pierre Breton', denomination: 'Bourgueil Les Perrières', vintage: 2017 },
-  { label: '2017 Guido Porro Barolo Vigna Lazzairasco', producer: 'Guido Porro', denomination: 'Barolo Vigna Lazzairasco', vintage: 2017 },
-  { label: '2019 Domaine William Fevre Chablis 1er Cru Montée de Tonnerre', producer: 'Domaine William Fevre', denomination: 'Chablis 1er Cru Montée de Tonnerre', vintage: 2019 },
-  { label: '2018 Clos du Caillou Cotes du Rhone Les Quartz', producer: 'Clos du Caillou', denomination: 'Cotes du Rhone Les Quartz', vintage: 2018 },
-  { label: '2019 Domaine André Brunel Châteauneuf-du-Pape Cuvée Réservée', producer: 'Domaine André Brunel', denomination: 'Châteauneuf-du-Pape Cuvée Réservée', vintage: 2019 },
-  { label: '2018 Burgaud Bernard Cote Rotie', producer: 'Bernard Burgaud', denomination: 'Cote Rotie', vintage: 2018 },
-  { label: '2019 Domaine Saint-Damien Gigondas Vieilles Vignes', producer: 'Domaine Saint-Damien', denomination: 'Gigondas Vieilles Vignes', vintage: 2019 },
-  { label: '2017 Produttori del Barbaresco', producer: 'Produttori del Barbaresco', denomination: 'Barbaresco', vintage: 2017 },
-  { label: 'Terres Dorees (Jean Paul Brun) Fleurie Grille Midi 2019', producer: 'Terres Dorees Jean Paul Brun', denomination: 'Fleurie Grille Midi', vintage: 2019 },
-  { label: 'Sansonnet St Emilion 2017', producer: 'Chateau Sansonnet', denomination: 'St Emilion', vintage: 2017 },
-  { label: 'St. Préfert Châteauneuf-du-Pape Auguste Favier Réserve 2019', producer: 'Domaine Saint Prefert', denomination: 'Châteauneuf-du-Pape Auguste Favier Réserve', vintage: 2019 },
-  { label: 'Clos des Papes Châteauneuf-du-Pape 2020', producer: 'Clos des Papes', denomination: 'Châteauneuf-du-Pape', vintage: 2020 },
+  { label: "2018 Château du Petit Thouars Chinon L'Epée", producer: 'Château du Petit Thouars', denomination: "Chinon L'Epée", vintage: 2018 },
+  { label: '2020 Domaine de Montille Bourgogne Blanc Le Clos du Chateau', producer: 'Domaine de Montille', denomination: 'Bourgogne Blanc Le Clos du Chateau', vintage: 2020 },
+  { label: "2019 Etienne Bécheras (Le Prieuré d'Arras) St. Joseph", producer: "Etienne Bécheras (Le Prieuré d'Arras)", denomination: 'St. Joseph', vintage: 2019 },
+  { label: '2020 Jaeger-Defaux Rully Rouge', producer: 'Jaeger-Defaux', denomination: 'Rully Rouge', vintage: 2020 },
+  { label: 'Domaine Maurice Schoech Grand Cru Riesling Furstentum', producer: 'Domaine Maurice Schoech', denomination: 'Grand Cru Riesling Furstentum', vintage: null },
+  { label: 'DEI Vino Nobile di Montepulciano 2018', producer: 'Dei', denomination: 'Vino Nobile di Montepulciano', vintage: 2018 },
+  { label: "2021 Roagna Dolcetto d'Alba", producer: 'Roagna', denomination: "Dolcetto d'Alba", vintage: 2021 },
+  { label: 'Villaine Bourgogne Côte Chalonnaise Les Clous 2019', producer: 'Villaine', denomination: 'Bourgogne Côte Chalonnaise Les Clous', vintage: 2019 },
+  { label: '2019 Domaine de la Charbonnière Châteauneuf-du-Pape', producer: 'Domaine de la Charbonnière', denomination: 'Châteauneuf-du-Pape', vintage: 2019 },
+  { label: "2019 Etienne Bécheras (Le Prieuré d'Arras) St. Joseph Cuvée Tour Joviac", producer: "Etienne Bécheras (Le Prieuré d'Arras)", denomination: 'St. Joseph Cuvée Tour Joviac', vintage: 2019 },
+  { label: 'Château du Chatelard Fleurie Les Vieux Granits', producer: 'Château du Chatelard', denomination: 'Fleurie Les Vieux Granits', vintage: null },
+  { label: '2018 Castello di Volpaia Chianti Classico Riserva', producer: 'Castello di Volpaia', denomination: 'Chianti Classico Riserva', vintage: 2018 },
+  { label: '2020 Marc Brédif Chinon', producer: 'Marc Brédif', denomination: 'Chinon', vintage: 2020 },
+  { label: '2018 Castagnoli Chianti Classico', producer: 'Castagnoli', denomination: 'Chianti Classico', vintage: 2018 },
+  { label: '2015 La Rioja Alta "904 Selección Especial" Gran Reserva Rioja', producer: 'La Rioja Alta', denomination: '904 Selección Especial Gran Reserva Rioja', vintage: 2015 },
+  { label: '2023 Domaine Joseph Colin St-Aubin 1er Cru "En Remilly"', producer: 'Domaine Joseph Colin', denomination: 'St-Aubin 1er Cru En Remilly', vintage: 2023 },
+  { label: '2020 Domaine Franck Balthazar "Chaillot" Cornas', producer: 'Domaine Franck Balthazar', denomination: 'Cornas Chaillot', vintage: 2020 },
 ]
 
 function makeWineEntry(w: WineProbe): WineEntry {
@@ -69,7 +71,9 @@ function makeWineEntry(w: WineProbe): WineEntry {
     cellar_quantity: 0,
     cellar_category: null,
     drinking_window: null,
+    drinking_window_source: null,
     vintage_rating: null,
+    vintage_rating_source: null,
     my_rating: null,
     my_tags: [],
     wishlist_notes: null,
@@ -101,7 +105,11 @@ async function main() {
     for (const r of review_data) {
       console.log(`    ${r.slug}: ${r.product_url}`)
       for (const s of r.critic_scores) {
-        console.log(`      ★ ${s.publication}: ${s.score}`)
+        const bits: string[] = [`★ ${s.publication}: ${s.score}`]
+        if (s.drinking_window) bits.push(`drink ${s.drinking_window.start ?? '?'}–${s.drinking_window.end ?? '?'}`)
+        if (s.vintage_character) bits.push(`vintage: ${s.vintage_character}`)
+        if (s.deal) bits.push('DEAL')
+        console.log(`      ${bits.join('  |  ')}`)
       }
     }
     results.push({ label: w.label, review_data })
@@ -111,9 +119,14 @@ async function main() {
   fs.writeFileSync(outPath, JSON.stringify(results, null, 2))
   console.log(`\nWrote ${outPath}`)
 
-  const totalScores = results.reduce((n, r) => n + r.review_data.reduce((m, x) => m + x.critic_scores.length, 0), 0)
+  const allScores = results.flatMap(r => r.review_data.flatMap(x => x.critic_scores))
+  const totalScores = allScores.length
   const winesWithAnyScore = results.filter(r => r.review_data.some(x => x.critic_scores.length > 0)).length
+  const withWindow = allScores.filter(s => s.drinking_window !== null).length
+  const withVintageChar = allScores.filter(s => s.vintage_character !== null).length
+  const withDeal = allScores.filter(s => s.deal).length
   console.log(`\nSummary: ${winesWithAnyScore}/${results.length} wines had at least one attributed score. ${totalScores} total scores found.`)
+  console.log(`Phase 8 fields (of ${totalScores} scores): ${withWindow} with a drinking window, ${withVintageChar} with a vintage character, ${withDeal} flagged as a deal.`)
 }
 
 main().catch(err => {
