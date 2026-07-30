@@ -1,5 +1,5 @@
 import type { RetailerLink, WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from './retailers.config'
+import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { buildRetailerSearchUrl } from './build-search-url'
 
 // No vintage token (Phase 7.2, 2026-07-26) — a retailer's own search can be
