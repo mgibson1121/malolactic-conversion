@@ -207,7 +207,11 @@ export class SheetsAdapter implements StorageAdapter {
       cellar_quantity: c(WINE_COLS.cellar_quantity) ? parseInt(c(WINE_COLS.cellar_quantity), 10) : 0,
       cellar_category: orNull<CellarCategory>(c(WINE_COLS.cellar_category)),
       drinking_window: drinkingWindow,
+      // Legacy adapter (Phase 1-4, reference only) never tracked provenance —
+      // Phase 8's manual/derived distinction is SQLite-adapter-only.
+      drinking_window_source: null,
       vintage_rating: orNull<VintageRating>(c(WINE_COLS.vintage_rating)),
+      vintage_rating_source: null,
       my_rating: orNull<MyRating>(c(WINE_COLS.my_rating)),
       my_tags: safeParseJSON<string[]>(c(WINE_COLS.my_tags), []),
       latest_tasting_note_id: orNull(c(WINE_COLS.latest_tasting_note_id)),
@@ -332,6 +336,8 @@ export class SheetsAdapter implements StorageAdapter {
       id: randomUUID(),
       tag_discovered: data.tag_discovered ?? true,
       cellar_quantity: data.cellar_quantity ?? 0,
+      drinking_window_source: data.drinking_window ? 'manual' : null,
+      vintage_rating_source: data.vintage_rating ? 'manual' : null,
       latest_tasting_note_id: null,
       advice_linked: null,
       expert_reviews: null,
