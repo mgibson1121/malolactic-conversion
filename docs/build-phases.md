@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-24
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-26
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -167,9 +167,9 @@
 | `tag_consumed` | INTEGER NOT NULL DEFAULT 0 | Boolean: 0 or 1 |
 | `cellar_category` | TEXT | `table`, `near_term`, or `long_term` — nullable |
 | `cellar_quantity` | INTEGER NOT NULL DEFAULT 0 | |
-| `drinking_window_start` | TEXT | ISO date string — derived/cached, never manually set |
-| `drinking_window_end` | TEXT | ISO date string — derived/cached, never manually set |
-| `vintage_rating` | TEXT | `below_avg`, `avg`, `good`, `very_good` — nullable |
+| `drinking_window_start` | TEXT | ISO date string — nullable. Derived from professional review extraction (Phase 8) when unambiguous — never blended across disagreeing critics, see Phase 8. User-editable at any time, at manual wine-entry creation or later; a manually-set value is never overwritten by a later automated run. |
+| `drinking_window_end` | TEXT | ISO date string — nullable. Same rules as `drinking_window_start`. |
+| `vintage_rating` | TEXT | `below_avg`, `avg`, `good`, `very_good` — nullable. Displayed as **"Year"** in the UI (developer preference — not a field rename). Sourced from professional review vintage-character extraction (Phase 8) — never blended across critics; populated only when sources agree, otherwise left null. |
 | `my_rating` | TEXT | `poor`, `acceptable`, `good`, `very_good`, `outstanding` — nullable |
 | `my_tags` | TEXT | JSON array string — kept in sync with tasting note tags |
 | `latest_tasting_note_id` | TEXT | UUID FK → `tasting_notes.id` — nullable |
@@ -179,13 +179,13 @@
 | `date_added` | TEXT NOT NULL | ISO timestamp — set on insert |
 | `date_first_consumed` | TEXT | ISO timestamp — set once on first note save, never overwritten |
 | `advice_linked` | TEXT | JSON array of `advice.id` UUIDs — nullable; kept in sync by `createAdvice` when linked to a wine |
-| `expert_reviews` | TEXT | JSON — nullable; reserved column, not populated by any shipped phase. Early design intent, superseded by `price_data` (Phase 6) and `review_data` (Phase 7) for scores/reviews. Leave in place; do not populate or remove without a separate decision. |
-| `community_sentiment` | TEXT | Nullable — reserved for Phase 8 |
-| `community_excerpts` | TEXT | JSON array — nullable; reserved for Phase 8 |
+| `expert_reviews` | TEXT | JSON — nullable; reserved column, not populated by any shipped phase. Early design intent, superseded by `price_data` (Phase 6) and `review_data` (Phase 7) for scores/reviews. Leave in place; do not populate or remove without a separate decision. Cleanup debt noted 2026-07-26: `backend/modules/expert-reviews/` is a leftover empty directory (predates this session's work, not referenced by any current phase or code) — safe to delete, or leave as a placeholder; not blocking anything. Same applies to `backend/modules/reddit/` (also empty, noted 2026-07-28) — a leftover from the original Reddit-based Phase 8 plan, retired before any code was written into it; safe to delete or leave in place, not blocking Phase 8. |
+| `community_sentiment` | TEXT | Nullable — reserved for the community-sentiment PoC (Phase 8.5, exploratory, not committed). Phase 8 itself no longer targets these columns — see Phase 8's context note for why the original Reddit-based plan was retired. |
+| `community_excerpts` | TEXT | JSON array — nullable; same reservation as `community_sentiment`, see Phase 8.5. |
 | `price_data` | TEXT | JSON object — nullable. **The actual storage for all Phase 6 pricing/retailer output** (see Phase 6): `{ price_min, price_avg, price_max, retailers: RetailerResult[], nearest_retailer, fetched_at }`. One blob, not separate flat columns — `price_min`/`price_avg`/`price_max`/`nearest_retailer` are keys inside this JSON, never top-level SQL columns. |
 | `retailer_links` | TEXT | JSON object — nullable; keyed by retailer slug (Phase 6.6). User-saved URLs only. |
 
-> **Note (corrected 2026-07-22):** the six rows above already exist in `backend/db/schema.sql` as of the current codebase but were missing from this table — a documentation gap, not a schema gap. A separate, unrelated migration, `backend/db/migrations/001_phase6_wine_searcher.sql`, also added flat `ws_price_min` / `ws_price_avg` / `ws_price_max` / `ws_score` / `ws_price_fetched_at` / `ws_retailers` columns from an earlier Wine-Searcher-API-based design that was later abandoned in favor of Serper. **`sqlite-adapter.ts` never reads or writes those `ws_*` columns** — they are vestigial and not part of the live data flow. Build against `price_data` and `retailer_links` only. Removing the `ws_*` columns via a follow-up migration is optional cleanup, not a blocker for Phase 6.6 or Phase 7.
+> **Note (corrected 2026-07-22, refined 2026-07-26):** five of the six rows above — `advice_linked`, `expert_reviews`, `community_sentiment`, `community_excerpts`, `price_data` — already exist in `backend/db/schema.sql`'s base `CREATE TABLE` as of the current codebase but were missing from this table; a documentation gap, not a schema gap. `retailer_links` is the exception: it isn't in `schema.sql` at all — it's added via `ALTER TABLE` in `backend/db/migrations/001_phase6_wine_searcher.sql`, applied at startup by the migration runner alongside that migration's other (vestigial) columns. Functionally identical either way — the column exists in the live DB regardless of which file defines it — but the two are worth distinguishing since one is a base schema field and the other is a migration-added one. That same migration also added flat `ws_price_min` / `ws_price_avg` / `ws_price_max` / `ws_score` / `ws_price_fetched_at` / `ws_retailers` columns from an earlier Wine-Searcher-API-based design that was later abandoned in favor of Serper. **`sqlite-adapter.ts` never reads or writes those `ws_*` columns** — they are vestigial and not part of the live data flow. Build against `price_data` and `retailer_links` only. Removing the `ws_*` columns via a follow-up migration is optional cleanup, not a blocker for Phase 6.6 or Phase 7.
 
 **`tasting_notes` table**
 
@@ -374,12 +374,14 @@ price/
 ├── index.ts               # Orchestrates Step 1 and Step 2
 ├── serper-query.ts        # Serper API call + retailer filtering
 ├── puppeteer-extract.ts   # Headless browser render + HTML capture
-├── verify-listing.ts      # Renders each retailer's search-results page and confirms it still shows a result before trusting Serper's price (added 2026-07-19, replaces the old Step 2 GPT-4o call above)
+├── verify-listing.ts      # Renders each retailer's search-results page and confirms it still shows a result before trusting Serper's price (added 2026-07-19, replaces the old Step 2 GPT-4o call above) — known fidelity gap found 2026-07-26, see note below
 ├── retailers.config.ts    # Extensible retailer list with coordinates — moved to shared/ in Phase 7
 ├── PROMPT.md              # Moved to backend/modules/reviews/ in Phase 7
 ├── types.ts               # TypeScript types
 └── price.test.ts          # Unit tests (mocked Serper responses + HTML fixtures)
 ```
+
+> **Known fidelity gap, found 2026-07-26 (not yet fixed):** headless Puppeteer can capture a retailer search page before its client-side search has actually finished resolving. Rendering a Zachys search URL with `waitUntil: 'domcontentloaded'` showed 140+ results for a query that, in a real browser after the page fully settles, actually shows 0 — the initial HTML shell carries a stale/placeholder result count that gets replaced once the client-side search resolves. This is a real risk for any headless-Puppeteer "does this page show results" check, `verify-listing.ts`'s `pageShowsNoResults` specifically included: a `domcontentloaded` render can report "results found" when the settled page would show none, the opposite failure direction from the false negatives this module was built to catch. It didn't block Phase 7.2 (which renders a specific known product page, not a search-results page, so this timing issue doesn't apply there), but `verify-listing.ts`'s existing logic hasn't been re-audited against it. Worth its own investigation — e.g. switching to `waitUntil: 'networkidle0'` or waiting for a specific results-count element to stabilize — rather than folding into an unrelated phase.
 
 **Graceful degradation:**
 - `SERPER_API_KEY` not configured → return null for all price fields, no error
@@ -459,7 +461,7 @@ Results arrive in two waves:
 - **Wave 1 (Serper query, faster):** Average price, retailer list with prices and links, nearest retailer to NYC. Preferred retailers flagged if present; fallback retailers labelled "other retailers".
 - **Wave 2 (Puppeteer + GPT-4o, slower):** Attributed critic scores per retailer added as they complete.
 
-> **Note (Phase 7):** Wave 2 as described here never actually populated (see Phase 6's superseded Step 2 note above). Critic scores now arrive from the `reviews` module's own async run, sourced from `review_data`, not from the price module's wave 2. `WineDetailView`'s critic scores row was repointed accordingly in Phase 7 — see below. This post-scan screen's Tab 2 should get the same treatment when it's next touched, but it is not in scope for Phase 7's deliverables.
+> **Note (Phase 7):** Wave 2 as described here never actually populated (see Phase 6's superseded Step 2 note above). Critic scores now arrive from the `reviews` module's own async run, sourced from `review_data`, not from the price module's wave 2. `WineDetailModal`'s critic scores row was repointed accordingly in Phase 7 — see below. This post-scan screen's Tab 2 should get the same treatment when it's next touched, but it is not in scope for Phase 7's deliverables.
 
 Contents when populated:
 - **Critic scores** — attributed scores extracted from rendered retailer pages (e.g. "Burghound: 92"). Each displayed with publication name. Omit if none found.
@@ -543,6 +545,10 @@ A new read-only screen accessible by tapping any wine entry from any list view. 
 ---
 
 ## Phase 6.7 — Retailer list expansion (tri-state)
+
+> **Status check (2026-07-26): scoped here, not yet built in code.** `RETAILER_CONFIG` in both `shared/config/retailers.config.ts` and `backend/modules/retailer-links/retailers.config.ts` still lists exactly the original four retailers (K&L, Zachys, Woodland Hills, Benchmark) — Sokolin, Acker Wines, Wine Library, and Morrell & Company have not been added to either copy. Later doc passages (e.g. the open-questions list) that refer to "the other configured retailers" or an eight-retailer set are describing this phase's intended end state, not the current live config. Don't build further on the assumption that the eight-retailer set already exists until this phase's deliverables actually ship.
+>
+> **Resolved 2026-07-29:** shipped as part of Phase 7.3, alongside three more developer-nominated retailers (Crush, Flatiron, Thatcher's) and an architectural fix to `backend/modules/retailer-links/retailers.config.ts`, which turned out to be a second, never-migrated duplicate of this same data — see Phase 7.3. `RETAILER_CONFIG` now lists eleven retailers, not eight.
 
 **Goal:** Expand the four-retailer config beyond the original K&L / Zachys / Woodland Hills / Benchmark set to increase coverage of the critic publications the developer actually trusts, with a preference for retailers based in the NYC tri-state area — matching the app's NYC-centric proximity and shipping-risk logic from `wine-app-product-context.md` (heat/transit damage is a named purchasing pain point).
 
@@ -676,7 +682,7 @@ Added 2026-07-24 for regional coverage already known to be needed (Barolo, Rioja
    ```
 7. **Schema addition** — `review_data` TEXT column on `wines`: JSON array, `[{ slug, name, product_url, critic_scores: [{ publication, score, known_publication }], fetched_at }]`. `known_publication` is `true` when `publication` was normalized via `CRITIC_KEYWORDS`, `false` when it's raw text from an attribution the app didn't already recognize — this is what lets a future UI pass distinguish trusted/known sources from unvetted ones without re-deriving it at display time. Nullable column; empty array if no retailer returned a match. This is a real new column — an actual `ALTER TABLE wines ADD COLUMN review_data TEXT` migration, unlike `price_data`/`retailer_links` which already exist (see Phase 5 schema note).
 8. **Remove `critic_scores` from the `retailers` array shape** inside `price_data` (in the price module's types) — it has been a guaranteed-empty field since the 2026-07-19 fixes and is being replaced by `review_data`. This is a type-level change only (JSON blob shape, not a DB migration) but should ship in the same PR to avoid the two fields coexisting in a confusing half-dead state.
-9. **Repoint the wine detail view** (`WineDetailView`, built in Phase 6.5) — the "Critic scores" row currently reads from `price_data.retailers[].critic_scores`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
+9. **Repoint the wine detail view** (`WineDetailModal` — the actual shipped component name; corrected 2026-07-26, built in Phase 6.5) — the "Critic scores" row currently reads from `price_data.retailers[].critic_scores`, which can never populate that field. Update it to read from `review_data` instead. This is a required fix, not a deferred one — the row has been silently broken since Phase 6.5 shipped.
 
 **Graceful degradation:**
 - Serper returns no relevant organic result for a retailer → skip that retailer for that wine, no error
@@ -800,6 +806,8 @@ This is the same root-cause pattern in two places:
 - Clipboard has no URL matching the searched retailer's domain → no confirmation prompt appears; manual paste field remains available
 - Puppeteer render or GPT-4o extraction fails on a confirmed URL → the URL is still saved to `retailer_links` (so the user doesn't lose their find), but no price/vintage/score data populates; treat as retryable, not a lost state
 
+**Known limitation, found 2026-07-26 during implementation:** `keyword-window.ts` windows the rendered page around score citations, which is exactly right for critic scores but means price text sitting outside those windows never reaches GPT-4o. On the real Clos des Papes / Zachys test, this correctly extracted 5 critic scores but returned `price: null`, even though a price was visible on the page — not a bug (the extraction prompt correctly returns null rather than guessing at a price it wasn't shown), but a real gap if price accuracy on confirmed links ever matters as much as the scores do. Not fixed here; worth its own pass (e.g. a second, separate price-anchored window, or including a fixed head/price-region slice of the page alongside the score windows) if it turns out to matter in practice.
+
 **Tests:**
 - Unit: `retailer-links/index.ts`'s `buildQuery()` no longer includes vintage
 - Unit: confirm-URL extraction correctly writes to both `price_data.retailers[]` and `review_data`, and recomputes aggregate price stats
@@ -819,31 +827,122 @@ This is the same root-cause pattern in two places:
 
 ---
 
-## Phase 8 — Community data (Reddit + LLM synthesis)
+## Phase 7.3 — Open-web fallback for review sourcing + retailer list expansion
 
-**Goal:** Add community opinion as a third data layer. Validate the BYOK LLM synthesis pattern.
+**Context (decided 2026-07-29):** Two things prompted this phase together, both about where attributed critic scores can come from. First, Phase 6.7's four tri-state retailers (Sokolin, Acker Wines, Wine Library, Morrell & Company) were fully specced and vetted back on 2026-07-20 but never actually landed in `shared/config/retailers.config.ts` — the phase's own "status check" note flagged this gap as of 2026-07-26. That gap is closed as part of this phase. Second, the developer flagged three more retailers with a personal shopping relationship and consistent review coverage — Crush Wine & Spirits, Flatiron Wines & Spirits, and Thatcher's Wine — and asked whether review sourcing could be opened up past a fixed named list altogether, since the actual goal (attributed expert reviews) doesn't depend on which retailer happens to host them.
+
+**Goal:** Two changes, one config and one architectural. Config: bring `RETAILER_CONFIG` to eleven retailers — the original four, Phase 6.7's four, and three developer-nominated ones. Architecture: give the reviews module (Phase 7) an open-web fallback pass, so review sourcing isn't limited to whatever's in the configured list at all — mirroring the price module's existing Pass 1 (preferred) / Pass 2 (open fallback) pattern, which the reviews module never had.
 
 **Deliverables:**
-- Reddit API module in `backend/modules/reddit/`: fetch posts from r/wine, r/burgundy, r/winetasting, r/barolo, r/wineenthusiast by wine + vintage query
-- GPT-4o synthesis module: community sentiment summary + drinking window signal
-- Raw Reddit excerpt fallback if no OpenAI key is configured
-- Community layer displayed on wine entry card, clearly attributed
 
-**Notes:**
-- Reddit free tier supports 100 QPM via OAuth 2.0 — sufficient for per-bottle queries at personal usage scale
-- Synthesis and price fetches are async / background — they populate the wine entry card after the initial scan result is shown
-- Raw excerpts must always be available as a fallback — the community layer never disappears entirely
+1. **`shared/config/retailers.config.ts` expanded to eleven retailers** (landed 2026-07-29): Sokolin (`sokolin.com`, Bridgehampton NY), Acker Wines (`ackerwines.com`, Manhattan), Wine Library (`winelibrary.com`, Springfield NJ), Morrell & Company (`morrellwine.com`, Briarcliff Manor NY) — closing the Phase 6.7 gap — plus Crush Wine & Spirits (`crushwineco.com`, Manhattan), Flatiron Wines & Spirits (`nyc.flatiron-wines.com` — the NYC-specific subdomain, not the shared root domain that also serves their SF store), and Thatcher's Wine (`thatcherswine.com`, Brentwood/LA — not tri-state, included for review coverage only, will essentially never win nearest-retailer ranking). Each new entry includes a `matchKeyword` for Serper shopping-source matching, consistent with the existing four.
+   - **Not yet done for any of the seven new retailers:** a verified on-site search URL pattern. `price/retailer-search-url.ts` and `retailer-links/build-search-url.ts` both fall through to a generic `https://<domain>/search?q=` guess for any slug not in their explicit switch statement — unverified, same caveat Phase 6.7 already flagged for its own four before this phase shipped them. Live-check each with Puppeteer (same method as the original four, Phase 6 2026-07-19) before trusting search-button click-throughs or price-verification against these seven.
+2. **Fixed a stale duplicate found while doing the above:** `backend/modules/retailer-links/retailers.config.ts` was a local copy of `RETAILER_CONFIG` that Phase 7's own documentation said would move to `shared/config/` — it never did, so `retailer-links` had been silently stuck at the original four retailers regardless of what the price/reviews modules' shared config contained. Deleted; `retailer-links/index.ts` and `build-search-url.ts` now import `RETAILER_CONFIG`/`RetailerConfig` from `@shared/config/retailers.config` directly, same as `price` and `reviews` already did. `retailer-links.test.ts` updated to expect all eleven slugs.
+3. **Open-web fallback pass in the reviews module** (`backend/modules/reviews/find-product-page.ts`, `index.ts`): when the configured-retailer loop (Step 1 against all eleven `RETAILER_CONFIG` entries) produces zero critic scores for a wine, run one additional Serper organic search *without* a `site:` restriction — `"<producer>" "<denomination>" <vintage> review` — and apply the same `isRelevantMatch`-style relevance filter already used for configured-retailer results. If a relevant, non-denylisted result comes back, render it with Puppeteer and run the existing extraction pipeline (`keyword-window.ts` + `gpt-extract.ts`) unchanged — both are already retailer-agnostic by design (the generic score-citation pattern from Phase 7's architecture decision doesn't care who's hosting the page), so no new extraction logic is needed, only a new discovery path.
+   - **Gated on Pass 1 yielding nothing**, not run unconditionally — same cost discipline as the price module's Pass 2 and Phase 7's own windowing-cost reasoning (an unconditional extra Puppeteer render + GPT-4o call per wine, on top of eleven configured retailers, adds up).
+   - **Denylist guardrail:** exclude CellarTracker and WineBerserkers domains from fallback candidate results before ranking/rendering — an open search could otherwise surface either, and both are explicitly off-limits by ToS (`CLAUDE.md` §15). Reuse the exclusion regardless of what Serper returns; don't rely on Serper simply not indexing them.
+   - **Store fallback results distinctly from configured-retailer results** in `review_data` — add a `source: 'configured' | 'fallback'` field per entry, so the UI (whenever built) can show "found via open search" differently from a retailer the developer explicitly trusts. This mirrors the price module's existing preferred-vs-"other retailers" distinction (Pass 2 fallback results are flagged there too).
 
-**Milestone:** Scanning a bottle returns community opinion alongside crawled pricing and attributed critic scores.
+**Graceful degradation:** Same pattern as the rest of Phase 7 — the open fallback finding nothing relevant returns no additional result, not an error. A wine already fully covered by configured retailers never triggers the fallback call at all (Pass-1-first gating), so this phase adds zero cost to the common case.
+
+**Tests:**
+- Unit: `RETAILER_CONFIG` has eleven entries, correct slugs, domains, and `matchKeyword`s for the seven added this phase
+- Unit: `retailer-links`'s `getRetailerLinks` returns all eleven slugs (updated existing test)
+- Unit: the fallback pass is not triggered when at least one configured retailer already returned a critic score for the wine
+- Unit: the fallback pass excludes CellarTracker/WineBerserkers domains even when Serper returns them as organic results
+- Unit: a `review_data` entry sourced via fallback is tagged `source: 'fallback'`; a configured-retailer entry is tagged `source: 'configured'`
+- Integration: mocked Serper organic response (no `site:` restriction) + mocked product-page HTML fixture — verify a fallback result populates `review_data` when all eleven configured retailers returned nothing
+
+**Phase 7.3 completion criteria — manual test required:**
+1. Confirm all eleven retailers appear in both `RETAILER_CONFIG` (`shared/config/retailers.config.ts`) and the "Search <Retailer>" buttons rendered by `retailer-links`
+2. Run a real wine known to have no coverage across the eleven configured retailers through the reviews module; confirm the open fallback pass fires and, if a relevant page exists, populates `review_data` with a `source: 'fallback'` entry
+3. Run a real wine already covered by a configured retailer through the reviews module; confirm the fallback pass does **not** fire (verify via a request-count assertion or log, not just the end result)
+
+**Branch:** `service/review-sourcing-open-fallback`
+**PR title:** `service: open-web fallback for review sourcing + retailer list expansion (Phase 7.3)`
+
+**Milestone:** `RETAILER_CONFIG` lists eleven retailers, consistently reflected everywhere it's consumed (price, reviews, retailer-links — no more stale duplicate). Review sourcing is no longer limited to a fixed named list — when configured retailers find nothing, an open web search gets one more attempt before the wine is left with no review data at all.
+
+---
+
+## Phase 8 — Professional review parsing extension (drinking windows, vintage character, value signal)
+
+**Context — supersedes the original Reddit-based plan (decided 2026-07-28):** This phase was originally scoped as a Reddit API + GPT-4o community-sentiment layer. That plan is retired. Reddit closed self-service Data API registration under its Responsible Builder Policy (announced late 2025); every new OAuth token now requires a manual approval ticket, and personal/hobbyist use cases are reported — via Reddit's own developer community and help documentation — to be rejected or ignored at a high rate, with moderator tooling and funded research prioritized instead. The unofficial `.json` endpoint that would have been a free fallback was itself shut down by Reddit on 2026-05-28 (announced on r/modnews, no deprecation window, confirmed via direct testing returning 403). Reddit's own commercial tier requires a contract, reported at a four-to-five-figure annual minimum, and isn't self-service at any price. Third-party resellers (Apify actors, redditapis.com, and similar) offering self-service pay-per-call access are, by their own descriptions, scraping Reddit's public pages with rotated residential proxies rather than using a licensed relationship — the same category of unauthorized automated access already ruled out for CellarTracker and WineBerserkers (`CLAUDE.md` §15). No option survived that combination of self-service, affordable, and consistent with the project's own ToS principle.
+
+Reassessing the actual goal behind the community layer — balancing professional review scores with independent signal, and specifically filling the gap where professional reviews under-deliver on drinking-window guidance — the decision was to redirect that need at its source rather than keep chasing a community data provider: extend the extraction already running against retailer product pages (Phase 7) to pull more of the structured signal those same pages already contain, rather than add an entirely new external data source. A YouTube-based community-sentiment approach was scoped as a possible alternative and may still be tried — see **Phase 8.5**, a small, explicitly optional PoC, not a dependency of this phase.
+
+**Goal:** Extend the Phase 7 reviews module's GPT-4o extraction — already running against real, rendered retailer product pages — to also capture, per critic citation: a drinking window, a vintage-character read, and an explicit value/deal signal, when the source text states one. No new data source, no new fetch — same rendered pages, same extraction pass, more structured fields pulled from it. Phase 8 is not complete until a real wine entry already in the database (with existing `review_data` from Phase 7) shows at least one of these three new fields populated from a live extraction run.
+
+**Deliverables:**
+
+1. **Extend the GPT-4o extraction prompt** (`backend/modules/reviews/PROMPT.md`, `gpt-extract.ts`) to additionally extract, per score citation window already being processed:
+   - `drinking_window`: `{ start: number | null, end: number | null } | null` — a year range, if the citation states one. Extract only years explicitly stated ("drink 2028–2040"); never infer or interpolate.
+   - `vintage_character`: one of `below_avg` / `avg` / `good` / `very_good`, or `null` — populated only when the source characterizes the vintage as a whole (not just this specific wine), which critics frequently do even in a single-wine review ("2019 was an excellent vintage in Barolo"). Map the source's own language to the fixed enum; if the source doesn't characterize the vintage broadly, leave null.
+   - `deal`: `boolean` — `true` only when the source explicitly signals strong value/QPR ("overdelivers for the price," "great value," "fairly priced"); `false`/absent otherwise. Not inferred from a score-to-price ratio — text-stated only.
+   - Same copyright boundary as Phase 7 applies to all three: structured facts only, extracted the same way a numeric score already is. Never quote, paraphrase at length, or store the source's actual sentence — the extraction prompt must explicitly instruct GPT-4o to output the derived fact only, not source text.
+2. **Extend `review_data`'s JSON shape** — each entry in a retailer's `critic_scores` array gains the three optional fields above, alongside the existing `{ publication, score, known_publication }`. Type-level change only, same as Phase 7.1's `matched_vintage`/`vintage_mismatch` addition — no new migration required, `review_data` already exists as a column (Phase 7).
+3. **Populate the wine-level `drinking_window_start`/`drinking_window_end` and `vintage_rating` columns from `review_data` — without blending across critics** (`CLAUDE.md` §15, "do not blend or synthesise data across sources" — this phase is bound by the same rule Phase 6/7 already follow for price and scores):
+   - If exactly one critic in `review_data` provides a drinking window (or vintage character), populate the wine-level field from it.
+   - If more than one critic provides a window (or character) and they disagree, leave the wine-level field `null` — do not average, blend, or pick one silently. The UI (once built) is expected to show each critic's window/character distinctly, the same way `critic_scores` already shows each publication's score distinctly, rather than collapsing them into one number.
+   - **The wine-level field is user-editable at any time — manually creating or overriding it is always preserved.** This reverses the field's original "cached/derived, never manually set" documentation (see schema section above) — the developer specifically wants to set or correct a drinking window by hand, whether at manual wine-entry creation or later research, and an automated run must never silently overwrite a value the user has set. The adapter must track whether a value was set manually vs. derived (e.g. a provenance marker — implementation detail for whoever builds this) so a later automated extraction pass doesn't clobber it.
+4. **UI label note (for whichever phase builds the frontend — Phase 10/11):** `vintage_rating` should be labeled "Year" in the UI, not "Vintage Rating" — developer preference, for clarity. No functional change, just the display label to carry forward into Phase 10's prototypes.
+5. **Product page URLs, already captured in `review_data.product_url` since Phase 7, are the durable manual-reference mechanism** — no change needed here, just confirming the existing field already satisfies "let me click through and read the real review myself." Never used to re-fetch or re-render beyond this module's own refresh cycle.
+
+**Explicitly tabled — do not build without revisiting:** A "why" field explaining the reasoning behind a drinking window (e.g. "high tannin, needs time to resolve" vs. "already balanced, no rush") was considered and set aside 2026-07-28. It's less cleanly fact-based than the three fields above — a short reasoning phrase risks drifting into paraphrased or lightly-reworded source prose, a harder line to hold consistently than a date range, an enum value, or a boolean. Revisit only if a reliably structured (non-prose) way to capture it is found — e.g. a fixed set of reasoning categories (tannin-driven, acid-driven, already-balanced) rather than freeform text.
+
+**Graceful degradation:** Same pattern as Phase 7 — a citation window with no drinking-window language present returns `drinking_window: null` for that entry, not an error. No broad vintage characterization on the page → `vintage_character: null`. No value language → `deal: false`. A wine with disagreeing critic windows leaves the wine-level field `null`, an expected state, not a bug — the per-critic data is still present in `review_data`.
+
+**Tests:**
+- Unit: extraction prompt output shape — `drinking_window`/`vintage_character`/`deal` all correctly parsed from fixture text, and all three correctly return `null`/`false` when the source text doesn't mention them
+- Unit: the non-blending rule — a fixture with two critics citing different drinking windows for the same wine correctly leaves the wine-level `drinking_window_start`/`drinking_window_end` `null`, while both critics' windows are still present in their respective `review_data` entries
+- Unit: manual-override protection — once a wine's `drinking_window_start`/`drinking_window_end` has been manually set, a subsequent automated extraction run does not overwrite it
+- Unit: `vintage_character` only populates from broad-vintage language, not from a wine-specific tasting note that happens to mention a year
+- Regression: reuse the same three real HTML page fixtures captured for Phase 7's windowing fix (K&L bot-detection stub, Zachys, Benchmark) to confirm the extended prompt doesn't regress existing `critic_scores` extraction
+
+**Phase 8 completion criteria — manual test required:**
+1. A real wine bottle already in the database (with existing `review_data` from Phase 7) is run through the extended extraction
+2. Inspect: `sqlite3 backend/db/wine.db "SELECT drinking_window_start, drinking_window_end, vintage_rating, review_data FROM wines WHERE id = '<id>';"`
+3. At least one of the three new fields (`drinking_window`, `vintage_character`, `deal`) is populated for at least one critic citation in `review_data`, sourced from a real rendered product page — not a hallucinated or inferred value
+
+Document the test result in the session summary (which wine, which field(s) populated, which publication).
+
+**Branch:** `service/review-extraction-extension`
+**PR title:** `service: extend review extraction — drinking windows, vintage character, value signal (Phase 8)`
+
+**Milestone:** A real wine entry shows drinking window and/or vintage character and/or a value/deal flag, sourced from the same retailer product pages Phase 7 already renders — attributed per critic, never blended, and user-editable without being silently overwritten by a later automated run.
+
+---
+
+## Phase 8.5 — Community sentiment PoC (YouTube)
+
+**Status: optional, exploratory. Not a dependency of Phase 8 or any later phase — build only if there's appetite to spend a small, bounded amount of time validating it.**
+
+**Goal:** Determine whether YouTube Data API v3 comment threads on wine review videos can produce genuinely useful community-sentiment synthesis, now that Reddit access is closed off (see Phase 8's context note). This is a spike, not a committed feature — the explicit success bar is whether it adds real signal beyond what Phase 8's professional-review extraction already provides, not whether it technically works.
+
+**Why YouTube specifically:** Of the alternatives researched 2026-07-28 (Vivino, Delectable, wine forums, X/Twitter, social-listening tools, Reddit resellers), YouTube Data API v3 was the only option that is simultaneously: an official, documented API (not scraping); genuinely self-service (create a project, enable the API, get a key — no approval queue); and free within a quota generous enough for personal volume (10,000 units/day; `commentThreads.list` costs 1 unit/call, `search.list` costs 100). Every other option researched failed at least one of those three — Vivino/Delectable explicitly prohibit scraping and have no API; wine forums have no public API; X/Twitter's affordable tier only searches the last 7 days, useless for accumulated vintage consensus; social-listening tools with Reddit coverage start at $29+/month and aren't licensed Reddit partnerships anyway; Reddit's own official paid tier requires a contract at a four-to-five-figure annual minimum.
+
+**Scope for the PoC:**
+- A small standalone script (not a shipped module) against ~10 real wines from the collection, spanning the regions actually cellared (Burgundy, Barolo, Rioja, Rhône)
+- Query cascade: `{producer} {denomination} {vintage} review` → drop vintage → `{producer} {denomination} review` → drop to producer + region level → region + vintage "vintage report" as a last resort. Stop at the first tier that returns a passing match; `search.list` is the quota-expensive call (100 units vs. 1 for reading comments), so don't run every tier by default.
+- Relevance verification before trusting a match — reuse the shape of `isRelevantMatch` (price module) / Phase 7's organic-result relevance filter: does the video title/description actually reference the producer and (when available) the vintage. A cheap GPT-4o classification pass on title + description + channel name is an acceptable fallback for ambiguous cases.
+- Pool comments from 2–3 relevant videos per wine, not just one — a single video's comment section is reaction to one reviewer, not community sentiment
+- Feed pooled comments to GPT-4o for synthesis, same extraction-boundary rule as everything else: structured output, never store or reproduce comment text verbatim beyond what's needed for the synthesis call itself
+- Manual eyeball review of the output across all ~10 test wines — is the synthesis actually useful, or is it thin/generic/off-topic
+
+**Explicitly not in scope for the PoC:** production error handling, caching, the trusted-reviewer-list integration, or any UI. If the PoC clears the usefulness bar, those become a real follow-up phase; if it doesn't, this section is the record of why it wasn't pursued further.
+
+**`community_sentiment`/`community_excerpts` columns** (reserved since Phase 5, see schema section) are held for this phase's eventual output if it's adopted — not populated by anything currently.
+
+**Milestone:** A clear yes/no on whether YouTube-sourced community sentiment is worth building into a real module — backed by looking at actual synthesis output against real wines from the collection, not a theoretical assessment.
 
 ---
 
 ## Phase 9 — Data review checkpoint
 
-**Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (crawled pricing, attributed scores, community sentiment, retailer links).
+**Goal:** Before building the frontend, verify that the enriched wine object is returning useful, accurate output in practice across all data layers (crawled pricing, attributed scores, drinking window / vintage character / value-signal extraction, retailer links).
 
 **Deliverables:**
-- Manual review of 10–20 real wine entries enriched with crawled pricing, community data, and retailer links
+- Manual review of 10–20 real wine entries enriched with crawled pricing, review extraction (scores, drinking windows, vintage character, value signal), and retailer links
 - Verify the price crawl is returning results for the wines in the collection across the four configured retailers
 - ~~Verify attributed critic scores are being extracted correctly from K&L and Benchmark product pages~~ — moved to Phase 7; see "Known gap" note below for why this was split out of pricing rather than fixed here
 - Verify retailer search URLs resolve correctly for the four configured retailers (Phase 6.6)
@@ -926,6 +1025,7 @@ This is the same root-cause pattern in two places:
 **Notes:**
 - This phase requires a meaningful volume of real data in the system — do not build quizzes against an empty or sparse dataset
 - The advice archive depends on conversation capture being implemented (Phase 2); verify that data exists before building the archive UI
+- Vintage index's underlying data is `vintage_rating`, extracted per wine in Phase 8 (professional review vintage-character extraction) and accumulated over time — this phase aggregates what Phase 8 has already been collecting, not a new data source. Flagged 2026-07-28 as a personal-reference/edification goal — see "Open questions affecting phases."
 
 **Milestone:** The app actively teaches rather than just stores. Pattern recognition and fluency features are live.
 
@@ -936,7 +1036,7 @@ This is the same root-cause pattern in two places:
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
 **Deliverables:**
-- BYOK configuration UI for all API keys and subscription credentials (OpenAI, Reddit, SensorPush)
+- BYOK configuration UI for all API keys and subscription credentials (OpenAI, Serper, SensorPush, plus YouTube if Phase 8.5's PoC is adopted)
 - Retailer link configuration: allow additional retailers to be added beyond the four defaults
 - LLM provider made configurable — not hardcoded to OpenAI GPT-4o
 - Onboarding flow for new users: configure credentials, set cellar capacity, set target allocation
@@ -961,6 +1061,11 @@ This is the same root-cause pattern in two places:
 - [x] Puppeteer score extraction coverage: **resolved 2026-07-19 — not deferred to "check coverage," moved to Phase 7.** Confirmed structurally, not just empirically, that no retailer can return an attributed score under the current pricing-URL design (every retailer URL is a search-results page; the extraction prompt is a no-op against those by design). Scoped as its own phase, scheduled ahead of community data, rather than a Phase 6 fix.
 - [x] **Serper organic search coverage for review sourcing:** validated 2026-07-24 via a live test against 21 real collection wines — Step 1 (Serper organic search + `site:` filtering) reliably found genuinely correct product pages on roughly half the wines tested, across multiple retailers per wine in several cases. Step 1 is not the bottleneck; the extraction bug diagnosed the same day (see Phase 7's keyword-windowing architecture decision) was.
 - [ ] **New 2026-07-24 — `CRITIC_KEYWORDS` maintenance:** the critic/publication lookup table (`backend/modules/reviews/critic-keywords.ts`) is living data, expected to drift as critics change publications (already observed twice during research: William Kelley succeeded Joe Czerwinski as The Wine Advocate's Editor-in-Chief in April 2024; Neal Martin moved Wine Advocate → Vinous in 2022) or as the developer discovers new publications/critics worth tracking. Lower stakes than originally scoped — since the generic score-pattern anchor (see Phase 7 architecture decision) no longer gates capture on this list, a stale or missing entry just means a real publication shows up unnormalized with `known_publication: false` rather than being missed entirely. Revisit periodically; no fixed cadence yet.
-- [ ] **New 2026-07-24 — keyword-window hit rate:** the 280,000-character stripped/capped fallback and the window-merging logic in `keyword-window.ts` were designed against three real captured pages (K&L, Zachys, Benchmark). Validate the generic score-pattern anchor against a broader sample of the other configured retailers (Sokolin, Acker, Wine Library, Morrell, Woodland Hills) during Phase 7 testing before treating the 280K cap or window sizing as settled — the project's history (K&L search param, Serper Shopping links, the 80K truncation bug itself) is that fixes validated against one or two examples tend to need a second pass once more real sites are exercised.
+- [ ] **New 2026-07-24 — keyword-window hit rate:** the 280,000-character stripped/capped fallback and the window-merging logic in `keyword-window.ts` were designed against three real captured pages (K&L, Zachys, Benchmark). Validate the generic score-pattern anchor against a broader sample of retailers during Phase 7 testing before treating the 280K cap or window sizing as settled — the project's history (K&L search param, Serper Shopping links, the 80K truncation bug itself) is that fixes validated against one or two examples tend to need a second pass once more real sites are exercised. Note (2026-07-26): Sokolin, Acker, Wine Library, and Morrell weren't in `RETAILER_CONFIG` yet at the time this was written — see Phase 6.7's status check — so "broader sample" meant Woodland Hills plus repeat testing on the existing four, not the eight-retailer set this bullet originally implied. **Update 2026-07-29:** `RETAILER_CONFIG` now has all eleven retailers (Phase 7.3) — this validation gap is now wider than originally scoped, not narrower; still open.
+- [ ] **New 2026-07-26 — Puppeteer `domcontentloaded` fidelity gap:** `verify-listing.ts`'s `pageShowsNoResults` (and any similar headless-render "does this page show results" check) may be reading a stale/placeholder result count from the initial HTML shell rather than the client-side-resolved page — observed on a Zachys search URL that showed 140+ results at `domcontentloaded` but 0 once the page actually settled. Needs its own investigation (e.g. `waitUntil: 'networkidle0'`, or waiting on a specific DOM signal) — see the note in Phase 6's module structure above. **Still not fixed for `price/verify-listing.ts`.**
+  - **Confirmed 2026-07-29 to also affect `reviews/puppeteer-extract.ts`'s single-*product*-page render** (a differently-shaped failure than the count-based one above): re-running the identical `domcontentloaded` render against a real product page (amsterwine.com, not in `RETAILER_CONFIG` — encountered via manual developer testing) 2 times returned a page missing a client-side-rendered description paragraph; re-running it 7 more times all included it — a genuine intermittent race between `domcontentloaded` firing and a client-side data fetch resolving, not a deterministic gap. **Partial mitigation applied in Phase 8:** `renderPageHtml` now waits a fixed `POST_LOAD_SETTLE_MS` (1.5s) after `domcontentloaded` before reading page content — 6/6 in a follow-up test with the fix applied. Deliberately not switched to `networkidle0`/`networkidle2`: validated only against one uncontrolled external site (not one of the 8 configured retailers), and the existing `domcontentloaded` choice was itself deliberate — real retailer sites with persistent analytics/chat connections can prevent network-idle from ever firing, which would turn a slow-but-working render into an outright timeout. The fixed-delay approach doesn't carry that risk. `price/verify-listing.ts`'s count-based check above is a different failure shape (stale count vs. missing content) and was not touched.
 - [ ] Burgundy Report integration: ToS explicitly permits reproduction of currently available wine tasting notes for active subscribers with attribution. Evaluate as a future addition after Phase 6.6 is stable.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
+- [x] Reddit community-sentiment layer: closed off 2026-07-28. Self-service Data API registration ended under Reddit's Responsible Builder Policy; the unofficial `.json` fallback was itself shut down 2026-05-28; the official commercial tier requires a contract at a four-to-five-figure annual minimum; third-party resellers are unlicensed scraping, inconsistent with the project's own CellarTracker/WineBerserkers principle (`CLAUDE.md` §15). Superseded by Phase 8's professional-review-extraction approach; a YouTube-based alternative is a separate, optional PoC — see Phase 8.5.
+- [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 — less cleanly fact-based than a date range, enum, or boolean; risks drifting into stored prose. Revisit only if a reliably structured (non-prose) capture method is found.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 12's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.

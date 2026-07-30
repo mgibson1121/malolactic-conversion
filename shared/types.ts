@@ -8,6 +8,14 @@ export interface ExpertReview {
   fetched_at: string     // ISO timestamp
 }
 
+// Year range stated in a critic citation (e.g. "drink 2028-2040"). Distinct
+// from DrinkingWindow (wine-level, ISO dates) — this is what's directly
+// extractable from source text, a year, not a date.
+export interface CriticDrinkingWindow {
+  start: number | null
+  end: number | null
+}
+
 export interface CriticScore {
   publication: string   // canonical name if known_publication, otherwise raw attribution text as GPT-4o returned it
   score: number
@@ -16,6 +24,15 @@ export interface CriticScore {
   // still captured — capture is never gated on this list — but the
   // attribution is unrecognized/unnormalized raw text.
   known_publication: boolean
+  // Phase 8 — extracted from the same citation window, when the source text
+  // states one. Null when absent; never inferred or interpolated.
+  drinking_window: CriticDrinkingWindow | null
+  // Phase 8 — populated only when the source characterizes the vintage as a
+  // whole, not just this specific wine. Null when the source doesn't.
+  vintage_character: VintageRating | null
+  // Phase 8 — true only when the source explicitly signals value/QPR
+  // ("great value", "overdelivers"). Never inferred from score-to-price ratio.
+  deal: boolean
 }
 
 export interface RetailerPrice {
@@ -79,6 +96,9 @@ export interface PriceData {
 
 export type CellarCategory = 'table' | 'near_term' | 'long_term'
 export type VintageRating = 'below_avg' | 'avg' | 'good' | 'very_good'
+// Phase 8 — tracks whether drinking_window/vintage_rating on a WineEntry was
+// set by hand or derived from review extraction; see WineEntry fields below.
+export type FieldProvenance = 'manual' | 'derived' | null
 export type MyRating = 'poor' | 'acceptable' | 'good' | 'very_good' | 'outstanding'
 
 export type TastingClarity = 'clear' | 'hazy'
@@ -136,7 +156,16 @@ export interface WineEntry {
   cellar_quantity: number   // number of bottles in the cellar; 0 by default
   cellar_category: CellarCategory | null
   drinking_window: DrinkingWindow | null
+  // Phase 8 — 'manual' once the developer has set/edited drinking_window
+  // directly; a manual value is never overwritten by a later automated
+  // extraction run. 'derived' means the current value came from a single
+  // non-disagreeing critic citation in review_data. Null before either has
+  // happened.
+  drinking_window_source: FieldProvenance
   vintage_rating: VintageRating | null
+  // Phase 8 — same manual/derived/null provenance as drinking_window_source,
+  // guarding vintage_rating the same way.
+  vintage_rating_source: FieldProvenance
   my_rating: MyRating | null
   my_tags: string[]
   wishlist_notes: string | null
@@ -196,7 +225,7 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>

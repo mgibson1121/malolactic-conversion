@@ -1,9 +1,21 @@
 import { getRetailerLinks } from './index'
 
 describe('getRetailerLinks', () => {
-  it('returns one link per configured retailer, all four slugs present', () => {
+  it('returns one link per configured retailer, all eleven slugs present (updated 2026-07-29 — Phase 6.7\'s four plus three developer-nominated retailers)', () => {
     const links = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: 2019 })
-    expect(links.map((l) => l.slug).sort()).toEqual(['benchmark', 'kl', 'woodland', 'zachys'])
+    expect(links.map((l) => l.slug).sort()).toEqual([
+      'acker',
+      'benchmark',
+      'crush',
+      'flatiron',
+      'kl',
+      'morrell',
+      'sokolin',
+      'thatchers',
+      'winelibrary',
+      'woodland',
+      'zachys',
+    ])
   })
 
   it('builds a query from producer + denomination only, URL-encoded — no vintage token', () => {

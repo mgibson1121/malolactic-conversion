@@ -12,6 +12,7 @@ import { fetchReviewData } from '../modules/reviews'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
+import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
 
 const router = Router()
 
@@ -68,7 +69,14 @@ router.patch(
       res.status(400).json({ error: result.error.format() })
       return
     }
-    const wine = await getStorage().updateWine(req.params.id, result.data)
+    const updates: UpdateWineInput = { ...result.data }
+    // A drinking_window/vintage_rating key present in the raw request body
+    // means the developer is setting or overriding it by hand — mark it
+    // 'manual' so a later automated review-extraction run never clobbers it
+    // (Phase 8, CLAUDE.md §15 non-blending rule).
+    if ('drinking_window' in req.body) updates.drinking_window_source = 'manual'
+    if ('vintage_rating' in req.body) updates.vintage_rating_source = 'manual'
+    const wine = await getStorage().updateWine(req.params.id, updates)
     res.json(wine)
   })
 )
@@ -119,7 +127,11 @@ router.post(
     }
 
     const review_data = await fetchReviewData(wine)
-    const updated = await getStorage().updateWine(req.params.id, { review_data })
+    const derived = deriveWineLevelFields(review_data, {
+      drinking_window_source: wine.drinking_window_source,
+      vintage_rating_source: wine.vintage_rating_source,
+    })
+    const updated = await getStorage().updateWine(req.params.id, { review_data, ...derived })
     res.json(updated)
   })
 )
@@ -208,7 +220,12 @@ router.post(
       retailerReview,
     ]
 
-    const updated = await getStorage().updateWine(req.params.id, { retailer_links, price_data, review_data })
+    const derived = deriveWineLevelFields(review_data, {
+      drinking_window_source: wine.drinking_window_source,
+      vintage_rating_source: wine.vintage_rating_source,
+    })
+
+    const updated = await getStorage().updateWine(req.params.id, { retailer_links, price_data, review_data, ...derived })
     res.json(updated)
   })
 )
