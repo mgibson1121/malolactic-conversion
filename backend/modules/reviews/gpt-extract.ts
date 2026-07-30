@@ -7,14 +7,19 @@ const SYSTEM_PROMPT =
   '1. The bottle price in USD (number or null if not found)\n' +
   '2. The canonical product page URL\n' +
   '3. The vintage year of the wine on this specific page (4-digit year, or null if not stated or the wine is non-vintage)\n' +
-  '4. Any critic scores explicitly attributed to a named publication or critic in the excerpt\n\n' +
+  '4. Any critic scores explicitly attributed to a named publication or critic in the excerpt, each with three additional facts drawn from the same citation\n\n' +
   'Return ONLY valid JSON in this exact shape:\n' +
-  '{"price": <number|null>, "url": "<string>", "vintage": <number|null>, "critic_scores": [{"publication": "<string>", "score": <number>}]}\n\n' +
+  '{"price": <number|null>, "url": "<string>", "vintage": <number|null>, "critic_scores": [{"publication": "<string>", "score": <number>, "drinking_window": {"start": <number|null>, "end": <number|null>}|null, "vintage_character": "below_avg"|"avg"|"good"|"very_good"|null, "deal": <boolean>}]}\n\n' +
   'Only include scores with a clearly named publication or critic — this can be a full publication name (e.g. Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling, Jancis Robinson, Decanter), a critic\'s name, or a short abbreviation shown right next to the score (e.g. "WA", "JD", "V"). ' +
   'If a score is given as a range or plus form (e.g. "94-96" or "94+"), return the higher number. ' +
   'Do not include review text — scores (numbers) only. ' +
   'If no attributed scores are found, return an empty array. ' +
-  'If the excerpt is from a search results page rather than a single product page, return price: null, vintage: null, and an empty critic_scores array.'
+  'If the excerpt is from a search results page rather than a single product page, return price: null, vintage: null, and an empty critic_scores array.\n\n' +
+  'For each critic score, also extract:\n' +
+  '- drinking_window: a year range the citation explicitly states for when to drink the wine (e.g. "drink 2028-2040" -> {"start": 2028, "end": 2040}). Only extract years explicitly stated in the text — never infer, estimate, or interpolate a window from the score or vintage. null if no window is stated.\n' +
+  '- vintage_character: one of "below_avg", "avg", "good", "very_good" — set ONLY when the source characterizes the vintage as a whole for the region/appellation (e.g. "2019 was an excellent vintage in Barolo"), not when it only describes this specific wine. Map the source\'s own language to the closest of these four levels. null if the source does not characterize the vintage broadly.\n' +
+  '- deal: true only when the source explicitly signals strong value or QPR (e.g. "overdelivers for the price", "great value", "fairly priced"). Never infer this from the score-to-price ratio yourself — text-stated only. false if not explicitly stated.\n' +
+  'These three fields describe a fact stated in the source text, not your own assessment — never paraphrase or reproduce the source\'s sentence, extract only the derived value (a date range, an enum, or a boolean).'
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -71,11 +76,20 @@ export async function extractFromRenderedHtml(
       price: number | null
       url: string
       vintage: number | null
-      critic_scores: Array<{ publication: string; score: number }>
+      critic_scores: Array<{
+        publication: string
+        score: number
+        drinking_window?: { start: number | null; end: number | null } | null
+        vintage_character?: 'below_avg' | 'avg' | 'good' | 'very_good' | null
+        deal?: boolean
+      }>
     }
     const critic_scores: CriticScore[] = parsed.critic_scores.map((s) => ({
       score: s.score,
       ...canonicalizePublication(s.publication),
+      drinking_window: s.drinking_window ?? null,
+      vintage_character: s.vintage_character ?? null,
+      deal: s.deal ?? false,
     }))
 
     return { price: parsed.price, url: parsed.url, vintage: parsed.vintage ?? null, critic_scores }
