@@ -60,7 +60,9 @@ interface WineRow {
   cellar_quantity: number
   drinking_window_start: string | null
   drinking_window_end: string | null
+  drinking_window_source: string | null
   vintage_rating: string | null
+  vintage_rating_source: string | null
   my_rating: string | null
   my_tags: string | null
   latest_tasting_note_id: string | null
@@ -138,7 +140,9 @@ function rowToWine(row: WineRow): WineEntry {
     cellar_category: (row.cellar_category as WineEntry['cellar_category']) ?? null,
     cellar_quantity: row.cellar_quantity ?? 0,
     drinking_window: drinkingWindow,
+    drinking_window_source: (row.drinking_window_source as WineEntry['drinking_window_source']) ?? null,
     vintage_rating: (row.vintage_rating as WineEntry['vintage_rating']) ?? null,
+    vintage_rating_source: (row.vintage_rating_source as WineEntry['vintage_rating_source']) ?? null,
     my_rating: (row.my_rating as WineEntry['my_rating']) ?? null,
     my_tags: fromJson<string[]>(row.my_tags, []),
     latest_tasting_note_id: row.latest_tasting_note_id,
@@ -217,6 +221,8 @@ export class SQLiteAdapter implements StorageAdapter {
       id: randomUUID(),
       tag_discovered: data.tag_discovered ?? true,
       cellar_quantity: data.cellar_quantity ?? 0,
+      drinking_window_source: data.drinking_window ? 'manual' : null,
+      vintage_rating_source: data.vintage_rating ? 'manual' : null,
       latest_tasting_note_id: null,
       advice_linked: null,
       expert_reviews: null,
@@ -234,7 +240,8 @@ export class SQLiteAdapter implements StorageAdapter {
         quality_classification, vineyard, cuvee, grape_varieties, label_image_url,
         tag_discovered, tag_wishlist, tag_cellar, tag_consumed,
         cellar_category, cellar_quantity,
-        drinking_window_start, drinking_window_end, vintage_rating,
+        drinking_window_start, drinking_window_end, drinking_window_source,
+        vintage_rating, vintage_rating_source,
         my_rating, my_tags, latest_tasting_note_id,
         wishlist_notes, price_paid, purchased_from,
         advice_linked, expert_reviews, community_sentiment, community_excerpts, price_data,
@@ -245,6 +252,7 @@ export class SQLiteAdapter implements StorageAdapter {
         ?, ?, ?, ?,
         ?, ?,
         ?, ?, ?,
+        ?, ?,
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?, ?,
@@ -257,8 +265,8 @@ export class SQLiteAdapter implements StorageAdapter {
       toBool(wine.tag_discovered), toBool(wine.tag_wishlist),
       toBool(wine.tag_cellar), toBool(wine.tag_consumed),
       wine.cellar_category, wine.cellar_quantity,
-      wine.drinking_window?.start ?? null, wine.drinking_window?.end ?? null,
-      wine.vintage_rating,
+      wine.drinking_window?.start ?? null, wine.drinking_window?.end ?? null, wine.drinking_window_source,
+      wine.vintage_rating, wine.vintage_rating_source,
       wine.my_rating, toJson(wine.my_tags), wine.latest_tasting_note_id,
       wine.wishlist_notes, wine.price_paid, wine.purchased_from,
       toJson(wine.advice_linked), toJson(wine.expert_reviews),
@@ -324,8 +332,8 @@ export class SQLiteAdapter implements StorageAdapter {
         grape_varieties = ?, label_image_url = ?,
         tag_discovered = ?, tag_wishlist = ?, tag_cellar = ?, tag_consumed = ?,
         cellar_category = ?, cellar_quantity = ?,
-        drinking_window_start = ?, drinking_window_end = ?,
-        vintage_rating = ?, my_rating = ?, my_tags = ?,
+        drinking_window_start = ?, drinking_window_end = ?, drinking_window_source = ?,
+        vintage_rating = ?, vintage_rating_source = ?, my_rating = ?, my_tags = ?,
         latest_tasting_note_id = ?,
         wishlist_notes = ?, price_paid = ?, purchased_from = ?,
         advice_linked = ?, expert_reviews = ?,
@@ -339,8 +347,8 @@ export class SQLiteAdapter implements StorageAdapter {
       toBool(updated.tag_discovered), toBool(updated.tag_wishlist),
       toBool(updated.tag_cellar), toBool(updated.tag_consumed),
       updated.cellar_category, updated.cellar_quantity,
-      updated.drinking_window?.start ?? null, updated.drinking_window?.end ?? null,
-      updated.vintage_rating, updated.my_rating, toJson(updated.my_tags),
+      updated.drinking_window?.start ?? null, updated.drinking_window?.end ?? null, updated.drinking_window_source,
+      updated.vintage_rating, updated.vintage_rating_source, updated.my_rating, toJson(updated.my_tags),
       updated.latest_tasting_note_id,
       updated.wishlist_notes, updated.price_paid, updated.purchased_from,
       toJson(updated.advice_linked), toJson(updated.expert_reviews),
