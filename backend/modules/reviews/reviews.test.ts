@@ -75,7 +75,9 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     cellar_quantity: 0,
     cellar_category: null,
     drinking_window: null,
+    drinking_window_source: null,
     vintage_rating: null,
+    vintage_rating_source: null,
     my_rating: null,
     my_tags: [],
     wishlist_notes: null,
@@ -248,7 +250,7 @@ describe('fetchReviewData', () => {
       price: 1200,
       url: 'https://shop.klwines.com/products/details/1557135',
       vintage: 2019,
-      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true }],
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })
 
     const result = await fetchReviewData(makeWine())
@@ -258,7 +260,7 @@ describe('fetchReviewData', () => {
         slug: 'kl',
         name: 'K&L Wine Merchants',
         product_url: 'https://shop.klwines.com/products/details/1557135',
-        critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true }],
+        critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
       },
     ])
