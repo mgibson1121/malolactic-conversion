@@ -1,7 +1,18 @@
+export interface CriticDrinkingWindow {
+  start: number | null
+  end: number | null
+}
+
 export interface CriticScore {
   publication: string
   score: number
   known_publication: boolean
+  // Phase 8 fields — see shared/types.ts CriticScore for the field-level docs
+  // this local type mirrors (kept structurally identical, never imported
+  // across modules — see CLAUDE.md §5).
+  drinking_window: CriticDrinkingWindow | null
+  vintage_character: 'below_avg' | 'avg' | 'good' | 'very_good' | null
+  deal: boolean
 }
 
 // Shape GPT-4o returns per rendered product page (gpt-extract.ts)
