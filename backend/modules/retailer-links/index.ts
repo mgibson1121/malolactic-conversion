@@ -11,9 +11,14 @@ import { buildRetailerSearchUrl } from './build-search-url'
 // exact SKU — a broader query that reliably surfaces the retailer's actual
 // listings is more useful here than a narrower one that risks nothing at
 // all.
-function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination'>): string {
+// cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
+// too generic to land the search on the right bottling: "Drappier
+// Champagne" or "Louis Latour Pommard" covers every product a producer
+// sells at that denomination, not specifically "Grande Sendrée" or "Les
+// Épenots". Same reasoning as price/index.ts's buildQuery.
+function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination' | 'cuvee' | 'vineyard'>): string {
   if (!wine.producer && !wine.denomination) return ''
-  return [wine.producer, wine.denomination].filter(Boolean).join(' ')
+  return [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean).join(' ')
 }
 
 /**
@@ -24,7 +29,7 @@ function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination'>): string 
  * wine entry) are persisted, never these generated ones.
  */
 export function getRetailerLinks(
-  wine: Pick<WineEntry, 'producer' | 'denomination' | 'vintage'>
+  wine: Pick<WineEntry, 'producer' | 'denomination' | 'vintage' | 'cuvee' | 'vineyard'>
 ): RetailerLink[] {
   const query = buildQuery(wine)
   if (!query.trim()) return []

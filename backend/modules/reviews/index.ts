@@ -31,6 +31,8 @@ export async function fetchReviewData(wine: WineEntry): Promise<ReviewResult[]> 
     producer: wine.producer ?? '',
     denomination: wine.denomination ?? '',
     vintage: wine.vintage ?? null,
+    cuvee: wine.cuvee,
+    vineyard: wine.vineyard,
   }
   const openai = new OpenAI({ apiKey: openaiKey })
 

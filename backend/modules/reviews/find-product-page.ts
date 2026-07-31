@@ -6,6 +6,10 @@ export interface WineIdentity {
   producer: string
   denomination: string
   vintage: number | null
+  // Optional — see isRelevantMatch below. Denomination alone can be too
+  // generic to distinguish one bottling from another.
+  cuvee?: string | null
+  vineyard?: string | null
 }
 
 interface SerperOrganicItem {
@@ -44,21 +48,32 @@ function significantWords(s: string): string[] {
  * Requires the result text (title + snippet) to contain a distinguishing
  * word from both the producer and the denomination — same bar as pricing's
  * isRelevantMatch, so an unrelated page on the right domain can't masquerade
- * as this wine's product page.
+ * as this wine's product page. When the wine has a cuvee or vineyard set,
+ * also requires a word from it (2026-07-30 fix, mirrors price/serper-query.ts)
+ * — denomination alone can be too generic to reach the specific bottling,
+ * which for review sourcing means a critic score could be attributed to the
+ * wrong product entirely, not just a wrong price.
  */
 export function isRelevantMatch(text: string, wine: WineIdentity): boolean {
   const normText = normalize(text)
   const producerWords = significantWords(wine.producer)
   const denomWords = significantWords(wine.denomination)
+  const distinguishingWords = [
+    ...significantWords(wine.cuvee ?? ''),
+    ...significantWords(wine.vineyard ?? ''),
+  ]
   const producerHit = producerWords.length === 0 || producerWords.some(w => normText.includes(w))
   const denomHit = denomWords.length === 0 || denomWords.some(w => normText.includes(w))
-  return producerHit && denomHit
+  const distinguishingHit = distinguishingWords.length === 0 || distinguishingWords.some(w => normText.includes(w))
+  return producerHit && denomHit && distinguishingHit
 }
 
 function buildQuery(wine: WineIdentity, domain: string): string {
   const parts = [`site:${domain}`]
   if (wine.producer) parts.push(`"${wine.producer}"`)
   if (wine.denomination) parts.push(`"${wine.denomination}"`)
+  if (wine.cuvee) parts.push(`"${wine.cuvee}"`)
+  if (wine.vineyard) parts.push(`"${wine.vineyard}"`)
   if (wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')
 }
