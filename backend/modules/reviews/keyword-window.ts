@@ -1,4 +1,17 @@
-const STRIP_RE = /<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<svg\b[^>]*>[\s\S]*?<\/svg>|<!--[\s\S]*?-->/gi
+// <template> blocks are a real, confirmed false-positive source, found
+// 2026-07-30 investigating why vintage_character/deal almost never
+// populate: a real captured product page embeds two <template> elements
+// (a widget library's declarative-Shadow-DOM CSS, not wrapped in a nested
+// <style> tag) totaling ~40,000 characters of raw CSS custom-property
+// declarations like `--shadow-font-scale: calc(100 / 100);`. That literal
+// "100 / 100" matches the score-citation pattern (ORDER_A's
+// `\d{2,3}\s*\/\s*100`) exactly as well as a real "100/100" score would,
+// anchoring a ~1,200-character garbage window with zero review content —
+// eating into the fixed MAX_TOTAL_WINDOW_CHARS budget before the real
+// critic-testimonial content further down the page. <template> content is
+// never directly rendered page prose (it's inert until cloned by JS), so
+// stripping it entirely is safe and general, not a per-site patch.
+const STRIP_RE = /<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<svg\b[^>]*>[\s\S]*?<\/svg>|<template\b[^>]*>[\s\S]*?<\/template>|<!--[\s\S]*?-->/gi
 
 const FALLBACK_CAP = 280_000
 const WINDOW_RADIUS = 600
@@ -16,7 +29,15 @@ const MIN_BADGE_SCORE = 85
 // on the scoring word, so a trailing \b is safe even when the number ends
 // in "+" (a non-word character that would otherwise break a boundary
 // assertion placed right after it).
-const ORDER_A = String.raw`\b(\d{2,3})(?:\s*[-–]\s*\d{2,3})?\+?\s*(?:points?|pts?\.?|\/\s*100|score)\b`
+//
+// Excludes a trailing "Wine(s)" (e.g. "100 Point Wines", "90+ Points Wines")
+// — confirmed false positive, found 2026-07-30: this is a navigation
+// category link ("90+ Point Wines" collection), not a citation, and the
+// exact "N+ Points" phrasing was independently observed as nav text on two
+// different real retailer sites (Zachys, Wine Library) during the same
+// investigation, not a one-site quirk. Anchors a garbage window with zero
+// review content, same failure shape as the CSS-in-<template> issue above.
+const ORDER_A = String.raw`\b(\d{2,3})(?:\s*[-–]\s*\d{2,3})?\+?\s*(?:points?|pts?\.?|\/\s*100|score)\b(?!\s*wines?\b)`
 // Ordering B: "Points: 96", "Score 94+" — a scoring word followed by a
 // number. "/100" excluded here; it only reads naturally after a number.
 // No trailing \b — the number may end in "+".
@@ -94,7 +115,7 @@ function windowAndMerge(spans: Span[], textLength: number): Span[] {
 }
 
 /**
- * Strips the largest sources of page bloat (script/style/svg/comments),
+ * Strips the largest sources of page bloat (script/style/svg/template/comments),
  * then locates generic score-citation patterns and returns bounded windows
  * of text around each — publication-agnostic, so a citation from a
  * publication not in CRITIC_KEYWORDS is still captured (that list only

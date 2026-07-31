@@ -10,6 +10,8 @@ import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
+import { CriticScoreBadges } from './CriticScoreBadges'
+import { getDedupedCriticScores } from '../utils/criticScores'
 
 interface Props {
   wine: WineEntry
@@ -33,6 +35,15 @@ const RATING_LABELS: Record<string, string> = {
   good: 'Good',
   very_good: 'Very Good',
   outstanding: 'Outstanding',
+}
+
+// vintage_rating is displayed as "Year" in the UI — developer preference,
+// not a field rename (see build-phases.md Phase 8).
+const VINTAGE_RATING_LABELS: Record<string, string> = {
+  below_avg: 'Below Average',
+  avg: 'Average',
+  good: 'Good',
+  very_good: 'Very Good',
 }
 
 const RETAILER_LABELS: Record<string, string> = {
@@ -146,20 +157,8 @@ export function WineDetailModal({
 
   // Attributed critic scores sourced from real rendered retailer product
   // pages (Phase 7's review_data) — not price_data.retailers[].critic_scores,
-  // which was always guaranteed empty (see build-phases.md Phase 9). Deduped
-  // by publication, first occurrence wins.
-  const criticScores = (() => {
-    const seen = new Set<string>()
-    const scores: Array<{ publication: string; score: number }> = []
-    for (const retailer of wine.review_data ?? []) {
-      for (const s of retailer.critic_scores) {
-        if (seen.has(s.publication)) continue
-        seen.add(s.publication)
-        scores.push(s)
-      }
-    }
-    return scores
-  })()
+  // which was always guaranteed empty (see build-phases.md Phase 9).
+  const criticScores = getDedupedCriticScores(wine.review_data)
 
   const latestNote = notes[0] ?? null
 
@@ -193,6 +192,14 @@ export function WineDetailModal({
               {wine.my_rating && (
                 <span className={`rating-badge rating-${wine.my_rating}`}>
                   {RATING_LABELS[wine.my_rating]}
+                </span>
+              )}
+              {wine.vintage_rating && (
+                <span
+                  className={`vintage-rating-badge vintage-rating-${wine.vintage_rating}`}
+                  title="Vintage character, from professional review extraction — never blended across disagreeing critics"
+                >
+                  Year: {VINTAGE_RATING_LABELS[wine.vintage_rating]}
                 </span>
               )}
             </div>
@@ -283,14 +290,7 @@ export function WineDetailModal({
           <section className="detail-section">
             <h3 className="detail-section-title">Critic Scores</h3>
             {criticScores.length > 0 ? (
-              <div className="critic-scores">
-                {criticScores.map((s, i) => (
-                  <span key={i} className="critic-score-badge">
-                    <span className="critic-publication">{s.publication}</span>
-                    <span className="critic-score">{s.score}</span>
-                  </span>
-                ))}
-              </div>
+              <CriticScoreBadges scores={criticScores} />
             ) : (
               <p className="detail-empty-hint">No attributed critic scores found yet.</p>
             )}

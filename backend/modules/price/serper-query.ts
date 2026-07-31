@@ -29,6 +29,12 @@ export interface WineIdentity {
   producer: string
   denomination: string
   vintage: number | null
+  // Optional — when set, these are the wine's actual distinguishing
+  // identifier (see isRelevantMatch below). Denomination alone is often too
+  // generic: "Champagne" or "Pommard" covers every bottling a producer
+  // makes at wildly different price points.
+  cuvee?: string | null
+  vineyard?: string | null
 }
 
 const STOPWORDS = new Set([
@@ -58,14 +64,27 @@ function significantWords(s: string): string[] {
  * wine. Requires the listing title to contain a distinguishing word from
  * both the producer and the denomination (generic words like "Domaine" or
  * "Clos" are excluded since they're not distinguishing on their own).
+ *
+ * When the wine has a cuvee or vineyard set, the title must also contain a
+ * word from it (2026-07-30 fix). Denomination alone can be too generic to
+ * distinguish one bottling from another at a wildly different price — e.g.
+ * "Drappier" + "Champagne" matches both a $40 non-vintage Carte d'Or and a
+ * $200+ vintage "Grande Sendrée," and without this check the cheaper one
+ * could be shown as if it were the price of the specific cuvee/vineyard
+ * bottling on the wine entry.
  */
 export function isRelevantMatch(title: string, wine: WineIdentity): boolean {
   const normTitle = normalize(title)
   const producerWords = significantWords(wine.producer)
   const denomWords = significantWords(wine.denomination)
+  const distinguishingWords = [
+    ...significantWords(wine.cuvee ?? ''),
+    ...significantWords(wine.vineyard ?? ''),
+  ]
   const producerHit = producerWords.length === 0 || producerWords.some(w => normTitle.includes(w))
   const denomHit = denomWords.length === 0 || denomWords.some(w => normTitle.includes(w))
-  return producerHit && denomHit
+  const distinguishingHit = distinguishingWords.length === 0 || distinguishingWords.some(w => normTitle.includes(w))
+  return producerHit && denomHit && distinguishingHit
 }
 
 /** Parses a 4-digit 19xx/20xx vintage year out of a listing title, if present. */
@@ -105,6 +124,7 @@ function itemToRetailerResult(
     bottle_size_ml: pack_format.bottle_size_ml,
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
+    link_only: false,
   }
 }
 
@@ -148,6 +168,7 @@ function buildFallbackResult(item: SerperShoppingItem, query: string, wine: Wine
     bottle_size_ml: pack_format.bottle_size_ml,
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
+    link_only: false,
   }
 }
 
@@ -184,32 +205,53 @@ export async function querySerper(
   // isRelevantMatch. Applied before both passes below.
   const relevantItems = items.filter(item => isRelevantMatch(item.title, wine))
 
+  // Both sides are stripped to bare alphanumerics before comparing merchant
+  // names below. Serper's `source` string for a given merchant is not
+  // stable — it's been observed as "K&L Wine Merchants", "K & L Wine
+  // Merchants", and "KLWines.com" for the same retailer. A literal
+  // `.includes('k&l')` check misses the spaced and no-ampersand variants and
+  // silently falls through to the Pass 2 fallback (raw Google Shopping
+  // aggregator link) for a retailer that should have matched — this was
+  // previously observed as the K&L link pointing to an empty Google Shopping
+  // details page. Stripping punctuation and whitespace from both
+  // `matchKeyword` and `source` before comparing makes the match resilient
+  // to that formatting drift.
+  const alnumOnly = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // K&L is excluded from Serper-sourced matching entirely, in both passes
+  // below — see the `link_only` field comment in ./types.ts. K&L's own site
+  // blocks Puppeteer behind a bot-detection challenge (confirmed live
+  // 2026-07-30: shop.klwines.com redirects to a "Verification Required"
+  // slider stub instead of real results), so verify-listing.ts's live
+  // "still listed" check can never actually confirm or refute a
+  // Serper-sourced K&L price — it would otherwise silently rubber-stamp
+  // whatever Serper's Google Shopping snapshot says, indistinguishable from
+  // a genuinely verified price. index.ts always adds a separate, no-price
+  // K&L entry instead (buildKlLinkOnlyResult). Filtering K&L's items out
+  // here, before either pass, means a Serper "match" for K&L can never
+  // count as a Pass 1 success — which would otherwise skip Pass 2 fallback
+  // retailers entirely for a wine only K&L happens to carry — and never
+  // produces a second, duplicate 'kl'-slugged entry alongside the always-
+  // added one.
+  const kl = retailers.find(r => r.slug === 'kl')
+  const nonKlItems = kl
+    ? relevantItems.filter(item => !(item.source && alnumOnly(item.source).includes(alnumOnly(kl.matchKeyword))))
+    : relevantItems
+
   // Pass 1 — preferred retailers. Serper's shopping `link` is always a
   // google.com/search?ibp=oshop aggregator URL regardless of merchant — it
   // never contains the retailer's domain — so match against `source` (the
   // merchant display name) instead. See matchKeyword in retailers.config.ts.
-  //
-  // Both sides are stripped to bare alphanumerics before comparing. Serper's
-  // `source` string for a given merchant is not stable — it's been observed
-  // as "K&L Wine Merchants", "K & L Wine Merchants", and "KLWines.com" for
-  // the same retailer. A literal `.includes('k&l')` check misses the spaced
-  // and no-ampersand variants and silently falls through to the Pass 2
-  // fallback (raw Google Shopping aggregator link) for a retailer that
-  // should have matched — this was previously observed as the K&L link
-  // pointing to an empty Google Shopping details page. Stripping punctuation
-  // and whitespace from both `matchKeyword` and `source` before comparing
-  // makes the match resilient to that formatting drift.
-  const alnumOnly = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
   const preferred: RetailerResult[] = []
   for (const retailer of retailers) {
     const keyword = alnumOnly(retailer.matchKeyword)
-    const match = relevantItems.find(item => item.source && alnumOnly(item.source).includes(keyword))
+    const match = nonKlItems.find(item => item.source && alnumOnly(item.source).includes(keyword))
     if (match) preferred.push(itemToRetailerResult(match, retailer, true, query, wine))
   }
   if (preferred.length > 0) return preferred
 
-  // Pass 2 — fallback: any relevant retailer Serper found
-  return relevantItems
+  // Pass 2 — fallback: any relevant retailer Serper found (K&L excluded, see above)
+  return nonKlItems
     .filter(item => item.link && item.source)
     .slice(0, 5)
     .map(item => buildFallbackResult(item, query, wine))

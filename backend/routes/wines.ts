@@ -201,6 +201,10 @@ router.post(
       bottle_size_ml: null,
       non_standard_format: false,
       format_label: '',
+      // A manually-confirmed page — even K&L's — is a real, user-verified
+      // price, not the always-present unverified placeholder. Replaces that
+      // placeholder in mergedRetailers below (filtered out by slug).
+      link_only: false,
     }
     const mergedRetailers = [
       ...(wine.price_data?.retailers ?? []).filter((r) => r.slug !== slug),

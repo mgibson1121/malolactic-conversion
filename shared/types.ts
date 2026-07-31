@@ -63,6 +63,13 @@ export interface RetailerPrice {
   // Short UI label for the badge, e.g. "6-pack", "1.5L". Empty string when
   // non_standard_format is false.
   format_label: string
+  // True only for K&L's always-present, no-price entry (2026-07-30) — K&L's
+  // own site blocks Puppeteer behind a bot-detection challenge, so its price
+  // can never actually be verified. Shown so the wine can still be searched
+  // on K&L (where most of the developer's target wines are found), but
+  // excluded from price_min/avg/max and nearest_retailer, and never treated
+  // as a successful preferred-retailer match — see backend/modules/price/index.ts.
+  link_only: boolean
 }
 
 export interface RetailerLink {

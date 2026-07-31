@@ -1,13 +1,20 @@
 import type { WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from '@shared/config/retailers.config'
+import { RETAILER_CONFIG, NYC } from '@shared/config/retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
 import { pageShowsNoResults } from './verify-listing'
+import { buildRetailerSearchUrl } from './retailer-search-url'
+import { haversineDistanceMiles } from './proximity'
 import type { PriceData, RetailerResult } from './types'
 
 function buildQuery(wine: WineEntry): string {
   if (!wine.producer && !wine.denomination) return ''
-  const parts = [wine.producer, wine.denomination].filter(Boolean)
+  // cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
+  // too generic to reach the actual bottling in Serper's results at all
+  // (e.g. "Drappier Champagne" surfaces any Drappier Champagne, not
+  // specifically "Grande Sendrée"). See isRelevantMatch in serper-query.ts
+  // for the matching-side half of this fix.
+  const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
   if (wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')
 }
@@ -29,6 +36,58 @@ async function verifyStillListed(retailer: RetailerResult): Promise<RetailerResu
   if (!html) return retailer
   if (pageShowsNoResults(html)) return null
   return retailer
+}
+
+// K&L link-only entry (added 2026-07-30): K&L's own site blocks Puppeteer
+// behind a bot-detection challenge — confirmed live by navigating directly
+// to the exact search URL this module constructs, which redirects to a
+// "Verification Required" slider stub instead of real results (matches the
+// ~2,600-character bot-detection stub already documented for K&L's product
+// pages in build-phases.md Phase 7). That means verify-listing.ts's live
+// "still listed" check can never actually confirm or refute a K&L price —
+// left unhandled, it would silently rubber-stamp whatever Serper's Google
+// Shopping snapshot says, indistinguishable in the UI from a genuinely
+// verified price. But K&L is also where the developer finds most of the
+// wines they're after, so dropping it from the retailer list entirely isn't
+// the right trade either. K&L is excluded from the Serper-sourced
+// matching/verification pipeline entirely (see querySerper's `nonKlItems`
+// filtering) and instead always gets this single link-only entry built
+// straight from RETAILER_CONFIG: no price, not verified, never counted
+// toward price_min/avg/max or nearest_retailer (see aggregatePriceData),
+// and — critically — never able to satisfy Pass 1's "a preferred retailer
+// matched" condition, so a wine only K&L happens to carry still cascades to
+// Pass 2 fallback retailers with real, verifiable pricing instead of
+// stopping at K&L with nothing usable.
+//
+// Uses a vintage-free query, same reasoning as retailer-links/index.ts's
+// buildQuery (Phase 7.2) — K&L's on-site search is literal/narrow enough
+// that an added vintage risks looking like "no results" even when K&L
+// carries the wine under a different vintage's listing.
+function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
+  const kl = RETAILER_CONFIG.find(r => r.slug === 'kl')
+  if (!kl) return null
+  // cuvee/vineyard included (2026-07-30) — same reasoning as buildQuery
+  // above: without it, K&L's own search box can just as easily land the
+  // user on a different, cheaper bottling from the same producer/denomination.
+  const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
+  if (parts.length === 0) return null
+
+  return {
+    slug: kl.slug,
+    name: kl.name,
+    price: null,
+    url: buildRetailerSearchUrl(kl, parts.join(' ')),
+    is_preferred_retailer: true,
+    distance_miles: Math.round(haversineDistanceMiles(NYC.lat, NYC.lng, kl.lat, kl.lng)),
+    is_search_results_page: true,
+    matched_vintage: null,
+    vintage_mismatch: false,
+    pack_quantity: 1,
+    bottle_size_ml: null,
+    non_standard_format: false,
+    format_label: '',
+    link_only: true,
+  }
 }
 
 // Distinguishes "never attempted" (returns null — no fetched_at, no stored
@@ -65,8 +124,10 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
   // retailer": doing so would present a wrong-vintage or wrong-quantity
   // price as if it were the answer to "what does a bottle of this wine
   // cost," which is the same class of error as showing a price for an
-  // unrelated wine.
-  const eligibleForStats = retailers.filter(r => !r.vintage_mismatch && !r.non_standard_format)
+  // unrelated wine. A link_only entry (K&L — see buildKlLinkOnlyResult) has
+  // no verifiable price at all and must never win "nearest retailer" on the
+  // strength of its coordinates alone with nothing backing up the price.
+  const eligibleForStats = retailers.filter(r => !r.vintage_mismatch && !r.non_standard_format && !r.link_only)
 
   const withPrice = eligibleForStats.filter(r => r.price !== null)
   const prices = withPrice.map(r => r.price as number)
@@ -104,21 +165,30 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   const query = buildQuery(wine)
   if (!query.trim()) return null
 
-  // Step 1 — Serper query: discover retailer URLs + prices
+  // Step 1 — Serper query: discover retailer URLs + prices (K&L excluded — see querySerper)
   const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey, {
     producer: wine.producer ?? '',
     denomination: wine.denomination ?? '',
     vintage: wine.vintage ?? null,
+    cuvee: wine.cuvee,
+    vineyard: wine.vineyard,
   })
-  if (baseResults.length === 0) return emptyPriceData()
 
   // Step 2 — Puppeteer pass: render each retailer's live search page and drop
   // any retailer whose search doesn't actually surface a result today. See
   // verifyStillListed — this is what keeps a stale Serper/Google Shopping
   // price from being shown for a wine a retailer's own site no longer lists.
-  const verified = (await Promise.all(baseResults.map(r => verifyStillListed(r))))
-    .filter((r): r is RetailerResult => r !== null)
-  if (verified.length === 0) return emptyPriceData()
+  // Skipped entirely when baseResults is empty rather than launching a
+  // Puppeteer browser for nothing.
+  const verified = baseResults.length
+    ? (await Promise.all(baseResults.map(r => verifyStillListed(r)))).filter((r): r is RetailerResult => r !== null)
+    : []
 
-  return aggregatePriceData(verified)
+  // K&L's link-only entry is added unconditionally, independent of whatever
+  // Serper found or verify-listing confirmed — see buildKlLinkOnlyResult.
+  const klLink = buildKlLinkOnlyResult(wine)
+  const allRetailers = klLink ? [...verified, klLink] : verified
+
+  if (allRetailers.length === 0) return emptyPriceData()
+  return aggregatePriceData(allRetailers)
 }

@@ -209,7 +209,7 @@ describe('WineList', () => {
         onViewDetail={noop}
       />
     )
-    expect(screen.getByRole('button', { name: /Reviews/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Reviews$/ })).toBeInTheDocument()
   })
 
   it('hides Reviews button when no tasting note exists', () => {
@@ -225,7 +225,7 @@ describe('WineList', () => {
         onViewDetail={noop}
       />
     )
-    expect(screen.queryByRole('button', { name: /Reviews/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Reviews$/ })).not.toBeInTheDocument()
   })
 
   it('shows rating badge when my_rating is set', () => {
@@ -242,6 +242,174 @@ describe('WineList', () => {
       />
     )
     expect(screen.getByText('Outstanding')).toBeInTheDocument()
+  })
+
+  it('shows the vintage rating badge, labeled "Year", when vintage_rating is set (2026-07-30 fix)', () => {
+    // Was previously never rendered anywhere in the UI despite being
+    // populated on some wines — reported as "not seeing ratings appear for
+    // any of the wines in the discovered tag."
+    render(
+      <WineList
+        wines={[makeWine({ vintage_rating: 'very_good' })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.getByText('Year: Very Good')).toBeInTheDocument()
+  })
+
+  it('does not show a vintage rating badge when vintage_rating is null', () => {
+    render(
+      <WineList
+        wines={[makeWine({ vintage_rating: null })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.queryByText(/^Year:/)).not.toBeInTheDocument()
+  })
+
+  // ─── Critic scores in the list view (2026-07-30) ──────────────────────────
+  // Previously only shown inside WineDetailModal, requiring a click-through
+  // per wine — reported as "not seeing ratings appear ... I was referring to
+  // numerical ratings ... put the number, source, and any other attributes
+  // if available ... drinking window, vintage quality, or value."
+
+  it('shows the number and source for a critic score citation in the list', () => {
+    render(
+      <WineList
+        wines={[makeWine({
+          review_data: [{
+            slug: 'zachys',
+            name: 'Zachys',
+            product_url: 'https://www.zachys.com/x',
+            critic_scores: [{
+              publication: 'Wine Advocate',
+              score: 94,
+              known_publication: true,
+              drinking_window: null,
+              vintage_character: null,
+              deal: false,
+            }],
+            fetched_at: '2026-07-30T00:00:00.000Z',
+          }],
+        })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.getByText('94')).toBeInTheDocument()
+    expect(screen.getByText('Wine Advocate')).toBeInTheDocument()
+  })
+
+  it('shows drinking window, vintage character, and value coded attributes when the citation states them', () => {
+    render(
+      <WineList
+        wines={[makeWine({
+          review_data: [{
+            slug: 'zachys',
+            name: 'Zachys',
+            product_url: 'https://www.zachys.com/x',
+            critic_scores: [{
+              publication: 'Vinous',
+              score: 96,
+              known_publication: true,
+              drinking_window: { start: 2028, end: 2045 },
+              vintage_character: 'very_good',
+              deal: true,
+            }],
+            fetched_at: '2026-07-30T00:00:00.000Z',
+          }],
+        })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.getByText('Drink 2028–2045')).toBeInTheDocument()
+    expect(screen.getByText('Very good vintage')).toBeInTheDocument()
+    expect(screen.getByText('Value pick')).toBeInTheDocument()
+  })
+
+  it('omits coded-attribute badges the citation did not state', () => {
+    render(
+      <WineList
+        wines={[makeWine({
+          review_data: [{
+            slug: 'zachys',
+            name: 'Zachys',
+            product_url: 'https://www.zachys.com/x',
+            critic_scores: [{
+              publication: 'Wine Advocate',
+              score: 94,
+              known_publication: true,
+              drinking_window: null,
+              vintage_character: null,
+              deal: false,
+            }],
+            fetched_at: '2026-07-30T00:00:00.000Z',
+          }],
+        })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.queryByText('Value pick')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Drink /)).not.toBeInTheDocument()
+  })
+
+  it('shows a Fetch Reviews button when no review_data exists, Refresh Reviews once it does', () => {
+    const { rerender } = render(
+      <WineList
+        wines={[makeWine({ review_data: null })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Fetch Reviews' })).toBeInTheDocument()
+
+    rerender(
+      <WineList
+        wines={[makeWine({ review_data: [] })]}
+        activeTab="discovered"
+        onEvaluate={noop}
+        onTagUpdate={noop}
+        onQuantityChange={noop}
+        onViewHistory={noop}
+        onWineUpdated={noop}
+        onViewDetail={noop}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Refresh Reviews' })).toBeInTheDocument()
   })
 
   it('shows active tag badges', () => {

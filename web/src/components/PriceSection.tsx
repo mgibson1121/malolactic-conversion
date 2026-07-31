@@ -95,7 +95,15 @@ export function PriceSection({ priceData }: Props) {
           {priceData.retailers.map((r, i) => (
             <div key={i} className="retailer-row">
               <span className="retailer-name">{r.name}</span>
-              <span className="retailer-price">{fmt(r.price)}</span>
+              <span className="retailer-price">{r.link_only ? '' : fmt(r.price)}</span>
+              {r.link_only && (
+                <span
+                  className="link-only-badge"
+                  title="This retailer blocks automated price verification — link only, not included in price stats"
+                >
+                  Search only
+                </span>
+              )}
               {r.matched_vintage != null && (
                 <span
                   className={r.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
