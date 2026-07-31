@@ -1178,6 +1178,7 @@ describe('serialization round-trips', () => {
           bottle_size_ml: null,
           non_standard_format: false,
           format_label: '',
+          link_only: false,
         },
       ],
       nearest_retailer: null,

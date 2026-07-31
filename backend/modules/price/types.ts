@@ -35,6 +35,19 @@ export interface RetailerResult {
   // Short UI label for the badge, e.g. "6-pack", "1.5L", "6 x 375ml". Empty
   // string when non_standard_format is false.
   format_label: string
+  // True only for the always-added K&L entry (see buildKlLinkOnlyResult in
+  // index.ts). K&L's own site blocks Puppeteer behind a bot-detection
+  // challenge, so nothing about its price can actually be verified — rather
+  // than let a Serper-sourced K&L price silently pass verify-listing.ts's
+  // "still listed" check unchecked (a bot-challenge stub never contains a
+  // "no results" phrase, so it always reads as confirmed), K&L is excluded
+  // from Serper-sourced matching entirely and instead always gets a single
+  // no-price entry pointing at its own site search. Excluded from
+  // price_min/avg/max and nearest_retailer (aggregatePriceData) and — unlike
+  // vintage_mismatch/non_standard_format — never able to satisfy Pass 1's
+  // "a preferred retailer matched" condition (querySerper), so a wine only
+  // K&L happens to carry still falls through to Pass 2 fallback retailers.
+  link_only: boolean
 }
 
 export interface PriceData {
