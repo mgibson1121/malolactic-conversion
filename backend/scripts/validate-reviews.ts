@@ -36,7 +36,7 @@ config({ path: path.resolve(__dirname, '../../.env') })
 import fs from 'fs'
 import OpenAI from 'openai'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPageDetailed, type Step1Stage } from '../modules/reviews/find-product-page'
+import { findProductPageDetailed, findFallbackProductPage, type Step1Stage } from '../modules/reviews/find-product-page'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
@@ -91,6 +91,40 @@ interface RetailerOutcome {
 interface WineOutcome {
   label: string
   retailers: RetailerOutcome[]
+  // Whether the open-web fallback pass (Phase 7.3, 2026-08-02) fired for
+  // this wine — i.e. every configured retailer above returned zero critic
+  // scores. Reported separately from `retailers` (which only covers
+  // RETAILER_CONFIG entries) so a run of this script can directly answer
+  // Phase 7.3's completion criteria #2/#3 (build-phases.md): does the
+  // fallback fire only when configured retailers find nothing, and does it
+  // actually populate a result when one exists on the open web?
+  fallback: RetailerOutcome | null
+}
+
+async function probeRetailer(
+  identity: { producer: string; denomination: string; vintage: number | null; cuvee: string | null; vineyard: string | null },
+  openai: OpenAI,
+  serperKey: string,
+  step1: { url: string | null; stage: Step1Stage; variantsTried: number },
+  slug: string,
+  name: string
+): Promise<RetailerOutcome> {
+  if (!step1.url) {
+    return { slug, name, stage: step1.stage, variantsTried: step1.variantsTried, product_url: null, critic_scores: [] }
+  }
+
+  const html = await renderPageHtml(step1.url)
+  if (!html) {
+    return { slug, name, stage: 'render_failed', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
+  }
+
+  const candidateText = extractCandidateText(html)
+  const extraction = await extractFromRenderedHtml(openai, candidateText, step1.url)
+  if (!extraction) {
+    return { slug, name, stage: 'no_extraction', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
+  }
+
+  return { slug, name, stage: 'success', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: extraction.critic_scores }
 }
 
 async function probeWine(wine: WineProbe, openai: OpenAI, serperKey: string): Promise<WineOutcome> {
@@ -105,26 +139,26 @@ async function probeWine(wine: WineProbe, openai: OpenAI, serperKey: string): Pr
   const retailers = await Promise.all(
     RETAILER_CONFIG.map(async (retailer): Promise<RetailerOutcome> => {
       const step1 = await findProductPageDetailed(identity, retailer, serperKey)
-      if (!step1.url) {
-        return { slug: retailer.slug, name: retailer.name, stage: step1.stage, variantsTried: step1.variantsTried, product_url: null, critic_scores: [] }
-      }
-
-      const html = await renderPageHtml(step1.url)
-      if (!html) {
-        return { slug: retailer.slug, name: retailer.name, stage: 'render_failed', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
-      }
-
-      const candidateText = extractCandidateText(html)
-      const extraction = await extractFromRenderedHtml(openai, candidateText, step1.url)
-      if (!extraction) {
-        return { slug: retailer.slug, name: retailer.name, stage: 'no_extraction', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
-      }
-
-      return { slug: retailer.slug, name: retailer.name, stage: 'success', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: extraction.critic_scores }
+      return probeRetailer(identity, openai, serperKey, step1, retailer.slug, retailer.name)
     })
   )
 
-  return { label: wine.label, retailers }
+  // Same gate fetchReviewData uses: only probe the fallback when every
+  // configured retailer above came back with zero critic scores.
+  const hasAnyScore = retailers.some(r => r.critic_scores.length > 0)
+  let fallback: RetailerOutcome | null = null
+  if (!hasAnyScore) {
+    const step1 = await findFallbackProductPage(identity, serperKey)
+    let hostname = 'unknown-source'
+    try {
+      hostname = step1.url ? new URL(step1.url).hostname.replace(/^www\./, '') : hostname
+    } catch {
+      // leave placeholder
+    }
+    fallback = await probeRetailer(identity, openai, serperKey, step1, `fallback-${hostname}`, hostname)
+  }
+
+  return { label: wine.label, retailers, fallback }
 }
 
 function makeStageCounter(): Record<RetailerStage, number> {
@@ -170,6 +204,14 @@ async function main() {
         console.log(`      ${bits.join('  |  ')}`)
       }
     }
+    if (outcome.fallback) {
+      // Presence of this block at all confirms the gate fired correctly —
+      // every configured retailer above returned zero scores.
+      console.log(`    [fallback pass fired] ${outcome.fallback.slug}: ${outcome.fallback.stage}${outcome.fallback.product_url ? ` — ${outcome.fallback.product_url}` : ''}`)
+      for (const s of outcome.fallback.critic_scores) {
+        console.log(`      ★ ${s.publication}: ${s.score}`)
+      }
+    }
     results.push(outcome)
   }
 
@@ -196,14 +238,27 @@ async function main() {
   console.log(`  request_failed:     ${stageCounts.request_failed}  (Serper request itself errored)`)
   console.log(`  found on a relaxed-query retry (2026-08-02 fix): ${retriedAndFound}`)
 
+  // ─── Open-web fallback pass (Phase 7.3, 2026-08-02) ───────────────────
+  // Directly answers build-phases.md Phase 7.3's completion criteria #2/#3:
+  // does the fallback fire only when configured retailers found nothing
+  // (fallbackFired should equal wines-with-zero-configured-scores, never
+  // more), and does it actually find something when a relevant page exists.
+  const winesFired = results.filter(r => r.fallback !== null)
+  const winesFiredAndFound = winesFired.filter(r => r.fallback!.stage === 'success')
+  console.log(`\nOpen-web fallback pass fired for ${winesFired.length}/${results.length} wines (i.e. that many had zero scores from all configured retailers).`)
+  console.log(`  Of those, found a relevant page and extracted at least a rendered result: ${winesFiredAndFound.length}`)
+  console.log(`  Of those, extraction actually cited a score: ${winesFired.filter(r => r.fallback!.critic_scores.length > 0).length}`)
+
   // ─── Existing aggregate/Phase 8 summary ──────────────────────────────
-  const allScores = results.flatMap(r => r.retailers.flatMap(x => x.critic_scores))
+  const allScores = results.flatMap(r => [...r.retailers, ...(r.fallback ? [r.fallback] : [])].flatMap(x => x.critic_scores))
   const totalScores = allScores.length
-  const winesWithAnyScore = results.filter(r => r.retailers.some(x => x.critic_scores.length > 0)).length
+  const winesWithAnyScore = results.filter(r =>
+    r.retailers.some(x => x.critic_scores.length > 0) || (r.fallback?.critic_scores.length ?? 0) > 0
+  ).length
   const withWindow = allScores.filter(s => s.drinking_window !== null).length
   const withVintageChar = allScores.filter(s => s.vintage_character !== null).length
   const withDeal = allScores.filter(s => s.deal).length
-  console.log(`\nSummary: ${winesWithAnyScore}/${results.length} wines had at least one attributed score. ${totalScores} total scores found.`)
+  console.log(`\nSummary: ${winesWithAnyScore}/${results.length} wines had at least one attributed score (configured or fallback). ${totalScores} total scores found.`)
   console.log(`Phase 8 fields (of ${totalScores} scores): ${withWindow} with a drinking window, ${withVintageChar} with a vintage character, ${withDeal} flagged as a deal.`)
 }
 

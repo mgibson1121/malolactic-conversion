@@ -88,6 +88,13 @@ export interface RetailerReview {
   product_url: string
   critic_scores: CriticScore[]
   fetched_at: string     // ISO timestamp
+  // 'configured' — from a retailer in RETAILER_CONFIG (automated or
+  // manually confirmed via confirm-retailer-link). 'fallback' — from the
+  // open-web fallback pass (Phase 7.3, 2026-08-02), which only runs when no
+  // configured retailer returned a critic score; the domain isn't one the
+  // developer has explicitly vetted, so the UI should treat it with less
+  // confidence than a 'configured' entry.
+  source: 'configured' | 'fallback'
 }
 
 export interface PriceData {
