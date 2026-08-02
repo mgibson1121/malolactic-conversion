@@ -260,6 +260,7 @@ describe('RetailerLinksSection — guided mode (Phase 7.2)', () => {
           slug: 'kl',
           name: 'K&L Wine Merchants',
           product_url: 'https://shop.klwines.com/products/details/1557135',
+          source: 'configured',
           critic_scores: [{ publication: 'Wine Advocate', score: 95, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
           fetched_at: '2026-07-26T00:00:00.000Z',
         },

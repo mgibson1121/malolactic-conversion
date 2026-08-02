@@ -1,5 +1,6 @@
 import type { RetailerConfig } from '@shared/config/retailers.config'
 import { isRelevantMatch, type WineIdentity } from '@shared/utils/wine-match'
+import { isDenylistedDomain } from '@shared/config/denylisted-domains'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -164,4 +165,53 @@ export async function findProductPage(
 ): Promise<string | null> {
   const outcome = await findProductPageDetailed(wine, retailer, apiKey)
   return outcome.url
+}
+
+/**
+ * Open-web fallback pass (Phase 7.3, 2026-08-02, specced 2026-07-29 but not
+ * actually built until now — see build-phases.md Phase 7.3). Only called by
+ * fetchReviewData when every configured retailer (the Step 1 loop above,
+ * across all of RETAILER_CONFIG) returned zero critic scores for the wine —
+ * mirrors the price module's Pass 1 (preferred retailers) / Pass 2 (open
+ * fallback) pattern, which reviews never had.
+ *
+ * One Serper organic query, no `site:` restriction — the query is
+ * deliberately just `"<producer>" "<denomination>" <vintage> review`, not
+ * the cuvee/vineyard-aware variants Step 1 uses, matching the original
+ * spec's scope; extend this later if the plain query proves too broad in
+ * practice. Candidates on a denylisted domain (CellarTracker,
+ * WineBerserkers — ToS-prohibited, CLAUDE.md §15) are filtered out before
+ * relevance ranking, regardless of what Serper returns. No retry — a single
+ * attempt, since this is already the last resort, not the primary path.
+ */
+export async function findFallbackProductPage(
+  wine: WineIdentity,
+  apiKey: string
+): Promise<Step1Outcome> {
+  const parts: string[] = []
+  if (wine.producer) parts.push(`"${foldDiacritics(wine.producer)}"`)
+  if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
+  if (wine.vintage) parts.push(String(wine.vintage))
+  parts.push('review')
+  const query = parts.join(' ')
+
+  try {
+    const items = await runSerperQuery(query, apiKey)
+    if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1 }
+
+    const allowed = items.filter(item => {
+      try {
+        return !isDenylistedDomain(new URL(item.link).hostname)
+      } catch {
+        return false // an unparseable link can't be rendered anyway
+      }
+    })
+    if (allowed.length === 0) return { url: null, stage: items.length === 0 ? 'zero_results' : 'no_relevant_match', variantsTried: 1 }
+
+    const match = allowed.find(item => isRelevantMatch(`${item.title} ${item.snippet ?? ''}`, wine))
+    if (match) return { url: match.link, stage: 'found', variantsTried: 1 }
+    return { url: null, stage: 'no_relevant_match', variantsTried: 1 }
+  } catch {
+    return { url: null, stage: 'request_failed', variantsTried: 1 }
+  }
 }
