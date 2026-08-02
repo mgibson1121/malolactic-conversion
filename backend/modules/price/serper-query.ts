@@ -2,8 +2,15 @@ import type { RetailerConfig } from '@shared/config/retailers.config'
 import type { RetailerResult } from './types'
 import { haversineDistanceMiles } from './proximity'
 import { NYC } from '@shared/config/retailers.config'
-import { buildRetailerSearchUrl } from './retailer-search-url'
+import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
+import { isRelevantMatch, type WineIdentity } from '@shared/utils/wine-match'
 import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
+
+export type { WineIdentity }
+// Re-exported for backward compatibility — the implementation now lives in
+// @shared/utils/wine-match.ts alongside reviews/find-product-page.ts's
+// identical copy (extracted 2026-08-02 — see that file's header for why).
+export { isRelevantMatch }
 
 const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
 
@@ -23,68 +30,6 @@ function parsePriceString(price?: string): number | null {
   if (!price) return null
   const n = parseFloat(price.replace(/[^0-9.]/g, ''))
   return isNaN(n) || n <= 0 ? null : n
-}
-
-export interface WineIdentity {
-  producer: string
-  denomination: string
-  vintage: number | null
-  // Optional — when set, these are the wine's actual distinguishing
-  // identifier (see isRelevantMatch below). Denomination alone is often too
-  // generic: "Champagne" or "Pommard" covers every bottling a producer
-  // makes at wildly different price points.
-  cuvee?: string | null
-  vineyard?: string | null
-}
-
-const STOPWORDS = new Set([
-  'domaine', 'chateau', 'château', 'maison', 'clos', 'les', 'le', 'la', 'du',
-  'de', 'des', 'et', 'fils', 'wine', 'wines', 'winery', 'estate', 'cellars',
-])
-
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-}
-
-function significantWords(s: string): string[] {
-  return normalize(s)
-    .split(/\s+/)
-    .filter(w => w.length >= 3 && !STOPWORDS.has(w))
-}
-
-/**
- * Heuristic relevance check — Serper's shopping results for a wine query
- * frequently include unrelated products (other producers, accessories,
- * unrelated bottles that happen to share a keyword). Without this check a
- * completely wrong item could be shown as if it were a real price for this
- * wine. Requires the listing title to contain a distinguishing word from
- * both the producer and the denomination (generic words like "Domaine" or
- * "Clos" are excluded since they're not distinguishing on their own).
- *
- * When the wine has a cuvee or vineyard set, the title must also contain a
- * word from it (2026-07-30 fix). Denomination alone can be too generic to
- * distinguish one bottling from another at a wildly different price — e.g.
- * "Drappier" + "Champagne" matches both a $40 non-vintage Carte d'Or and a
- * $200+ vintage "Grande Sendrée," and without this check the cheaper one
- * could be shown as if it were the price of the specific cuvee/vineyard
- * bottling on the wine entry.
- */
-export function isRelevantMatch(title: string, wine: WineIdentity): boolean {
-  const normTitle = normalize(title)
-  const producerWords = significantWords(wine.producer)
-  const denomWords = significantWords(wine.denomination)
-  const distinguishingWords = [
-    ...significantWords(wine.cuvee ?? ''),
-    ...significantWords(wine.vineyard ?? ''),
-  ]
-  const producerHit = producerWords.length === 0 || producerWords.some(w => normTitle.includes(w))
-  const denomHit = denomWords.length === 0 || denomWords.some(w => normTitle.includes(w))
-  const distinguishingHit = distinguishingWords.length === 0 || distinguishingWords.some(w => normTitle.includes(w))
-  return producerHit && denomHit && distinguishingHit
 }
 
 /** Parses a 4-digit 19xx/20xx vintage year out of a listing title, if present. */
@@ -110,7 +55,7 @@ function itemToRetailerResult(
     // aggregator page rather than the retailer's own product page (this is
     // what caused "Details aren't available for this product"). For known
     // preferred retailers we construct a live search URL on their own site
-    // instead — see retailer-search-url.ts.
+    // instead — see @shared/utils/retailer-search-url.ts.
     url: buildRetailerSearchUrl(retailer, query),
     is_preferred_retailer: isPreferred,
     distance_miles: Math.round(
@@ -134,7 +79,7 @@ function slugifySource(source: string): string {
 
 // Fallback (Pass 2, non-configured) retailers have no known site-search URL
 // pattern to construct from, unlike the four preferred retailers in
-// retailer-search-url.ts. Serper's `link` field can't stand in for one —
+// @shared/utils/retailer-search-url.ts. Serper's `link` field can't stand in for one —
 // it's always a `google.com/search?ibp=oshop` Shopping *product* deep link,
 // for every merchant, with no exception (see the Pass 1 comment above). That
 // deep link frequently 404s or renders "Details aren't available for this

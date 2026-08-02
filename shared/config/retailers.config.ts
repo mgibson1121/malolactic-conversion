@@ -124,6 +124,28 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     lat: 34.0575,
     lng: -118.4741,
   },
+  // Added 2026-08-02 — user-reported gap, not a query/matching bug: JJ
+  // Buckley carries real attributed critic reviews on real product pages,
+  // but modules/reviews/ (and retailer-links/, price/) only ever search
+  // retailers present in this file, so a retailer that's simply never been
+  // added here produces an empty result indistinguishable from "searched
+  // and found nothing." Config-driven per build-phases.md — no logic change
+  // needed elsewhere to pick this up. Oakland, CA — like Thatcher's, not
+  // tri-state; included for review coverage, will essentially never win
+  // nearest-retailer ranking. Domain/on-site search pattern not yet
+  // live-verified with Puppeteer — falls through to the generic default
+  // guess in @shared/utils/retailer-search-url.ts until confirmed, same
+  // caveat as the three developer-nominated retailers above.
+  {
+    slug: 'jjbuckley',
+    name: 'JJ Buckley Fine Wines',
+    domain: 'jjbuckley.com',
+    matchKeyword: 'jj buckley',
+    // 7307 Edgewater Dr, Oakland, CA 94621 — approximate (street-level),
+    // consistent with the precision used elsewhere in this file.
+    lat: 37.7458,
+    lng: -122.1994,
+  },
 ]
 
 export const NYC = { lat: 40.7128, lng: -74.006 }

@@ -6,6 +6,13 @@ import type { RetailerConfig } from '@shared/config/retailers.config'
  * parameter (not a guessed direct product link — those churn per-SKU and
  * would break constantly).
  *
+ * Extracted 2026-08-02 from backend/modules/price/retailer-search-url.ts and
+ * backend/modules/retailer-links/build-search-url.ts, which were
+ * byte-for-byte identical logic (comments aside) hand-duplicated under
+ * CLAUDE.md §5. See shared/utils/wine-match.ts's file header for the
+ * concrete drift this caused in practice (ba61e23 had to patch this same
+ * switch statement in two files by hand).
+ *
  * Verified live 2026-07-19 by rendering each URL with Puppeteer (real JS
  * execution, not a static fetch) and confirming the DOM actually reflects
  * the query. K&L's own search UI (`search=`) was found to be a no-op —
@@ -16,9 +23,7 @@ import type { RetailerConfig } from '@shared/config/retailers.config'
  * automated/curl access, so it can't be re-verified live from here).
  * Re-verify these patterns as part of Phase 9 (data review checkpoint) if
  * link click-throughs start failing — a retailer redesigning its search page
- * is the only thing that should break this. (Corrected 2026-07-29: this
- * comment previously said "Phase 8" — stale from before Phase 8 was
- * redefined around review extraction; the data review checkpoint is Phase 9.)
+ * is the only thing that should break this.
  *
  * The seven retailers added 2026-07-29 to shared/config/retailers.config.ts
  * (Sokolin, Acker Wines, Wine Library, Morrell & Company, Crush Wine &
@@ -30,6 +35,10 @@ import type { RetailerConfig } from '@shared/config/retailers.config'
  * Sokolin, Acker, and Wine Library did not — see their explicit cases
  * below. Morrell has no navigable on-site search URL at all (see its case
  * below).
+ *
+ * JJ Buckley (added 2026-08-02) uses the generic `/search?q=` guess,
+ * unverified with Puppeteer — re-verify before relying on it the way the
+ * checked retailers above have been.
  */
 export function buildRetailerSearchUrl(retailer: RetailerConfig, query: string): string {
   const q = encodeURIComponent(query)
@@ -64,13 +73,14 @@ export function buildRetailerSearchUrl(retailer: RetailerConfig, query: string):
     // plausible query-param guess 404s). Falls back to a Google
     // site-restricted search instead — same "reliably loads, gets the user
     // one click closer" reasoning already used for non-configured Pass 2
-    // fallback retailers in serper-query.ts's buildFallbackUrl.
+    // fallback retailers in price/serper-query.ts's buildFallbackUrl.
     case 'morrell':
       return `https://www.google.com/search?q=${encodeURIComponent(`site:morrellwine.com ${query}`)}`
     default:
       // Verified 2026-07-30 for Crush, Flatiron, and Thatcher's — see the
       // file-level comment above. Still an unverified guess for any
-      // retailer added after this date until explicitly checked.
+      // retailer added after this date until explicitly checked (including
+      // JJ Buckley, added 2026-08-02).
       return `https://${retailer.domain}/search?q=${q}`
   }
 }

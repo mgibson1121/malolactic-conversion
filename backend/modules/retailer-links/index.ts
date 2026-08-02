@@ -1,6 +1,7 @@
 import type { RetailerLink, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { buildRetailerSearchUrl } from './build-search-url'
+import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
+import { buildDistinguishingQuery } from '@shared/utils/wine-match'
 
 // No vintage token (Phase 7.2, 2026-07-26) — a retailer's own search can be
 // a literal/narrow match rather than relevance-ranked, and an added vintage
@@ -15,10 +16,10 @@ import { buildRetailerSearchUrl } from './build-search-url'
 // too generic to land the search on the right bottling: "Drappier
 // Champagne" or "Louis Latour Pommard" covers every product a producer
 // sells at that denomination, not specifically "Grande Sendrée" or "Les
-// Épenots". Same reasoning as price/index.ts's buildQuery.
+// Épenots". buildDistinguishingQuery extracted 2026-08-02 — same join logic
+// was duplicated in price/index.ts.
 function buildQuery(wine: Pick<WineEntry, 'producer' | 'denomination' | 'cuvee' | 'vineyard'>): string {
-  if (!wine.producer && !wine.denomination) return ''
-  return [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean).join(' ')
+  return buildDistinguishingQuery({ ...wine, vintage: null })
 }
 
 /**
