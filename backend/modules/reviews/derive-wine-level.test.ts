@@ -8,6 +8,7 @@ function makeReview(overrides: Partial<RetailerReview> = {}): RetailerReview {
     product_url: 'https://shop.klwines.com/p/1',
     critic_scores: [],
     fetched_at: '2026-07-29T00:00:00.000Z',
+    source: 'configured',
     ...overrides,
   }
 }

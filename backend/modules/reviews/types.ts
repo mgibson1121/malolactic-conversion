@@ -34,4 +34,13 @@ export interface ReviewResult {
   product_url: string
   critic_scores: CriticScore[]
   fetched_at: string
+  // 'configured' — found via one of RETAILER_CONFIG's site:-restricted
+  // searches (or a manually-confirmed URL for a configured retailer, via
+  // confirm-retailer-link). 'fallback' — found via the open-web fallback
+  // pass (Phase 7.3, 2026-08-02), which only runs when every configured
+  // retailer returned zero critic scores. Distinguished because a fallback
+  // result comes from an un-vetted domain (not one the developer explicitly
+  // trusts as a wine retailer), so the UI should be able to show it with
+  // less confidence than a configured-retailer result.
+  source: 'configured' | 'fallback'
 }

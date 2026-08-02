@@ -293,6 +293,7 @@ describe('WineList', () => {
             slug: 'zachys',
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
+            source: 'configured',
             critic_scores: [{
               publication: 'Wine Advocate',
               score: 94,
@@ -325,6 +326,7 @@ describe('WineList', () => {
             slug: 'zachys',
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
+            source: 'configured',
             critic_scores: [{
               publication: 'Vinous',
               score: 96,
@@ -358,6 +360,7 @@ describe('WineList', () => {
             slug: 'zachys',
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
+            source: 'configured',
             critic_scores: [{
               publication: 'Wine Advocate',
               score: 94,

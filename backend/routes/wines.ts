@@ -218,6 +218,10 @@ router.post(
       product_url: url,
       critic_scores: extraction.critic_scores,
       fetched_at: new Date().toISOString(),
+      // Tied to a real RETAILER_CONFIG slug (checked above), just found
+      // manually rather than by automated search — 'configured', not
+      // 'fallback' (that's reserved for the open-web pass, Phase 7.3).
+      source: 'configured',
     }
     const review_data = [
       ...(wine.review_data ?? []).filter((r) => r.slug !== slug),

@@ -3,7 +3,13 @@ dist/
 .env
 *.log
 .DS_Store
-config/
+# Anchored to repo root (2026-08-02, was bare `config/`) — service-account
+# credential files predate shared/config/ (Phase 7), but the unanchored
+# pattern also matched shared/config/, silently blackholing any *new* file
+# added there (already-tracked files like retailers.config.ts were
+# unaffected, since .gitignore doesn't retroactively untrack committed
+# files — this only bit new files, like denylisted-domains.ts here).
+/config/
 backend/db/wine.db*
 validate-reviews-results.json
 backend/modules/reviews/__fixtures__/adhoc-*.html
