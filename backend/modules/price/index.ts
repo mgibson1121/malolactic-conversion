@@ -3,24 +3,23 @@ import { RETAILER_CONFIG, NYC } from '@shared/config/retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
 import { pageShowsNoResults } from './verify-listing'
-import { buildRetailerSearchUrl } from './retailer-search-url'
+import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
+import { buildDistinguishingQuery } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
 import type { PriceData, RetailerResult } from './types'
 
+// cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
+// too generic to reach the actual bottling in Serper's results at all (e.g.
+// "Drappier Champagne" surfaces any Drappier Champagne, not specifically
+// "Grande Sendrée"). See isRelevantMatch in @shared/utils/wine-match.ts for
+// the matching-side half of this fix. buildDistinguishingQuery extracted
+// 2026-08-02 — same join logic was duplicated in retailer-links/index.ts.
 function buildQuery(wine: WineEntry): string {
-  if (!wine.producer && !wine.denomination) return ''
-  // cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
-  // too generic to reach the actual bottling in Serper's results at all
-  // (e.g. "Drappier Champagne" surfaces any Drappier Champagne, not
-  // specifically "Grande Sendrée"). See isRelevantMatch in serper-query.ts
-  // for the matching-side half of this fix.
-  const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
-  if (wine.vintage) parts.push(String(wine.vintage))
-  return parts.join(' ')
+  return buildDistinguishingQuery(wine, { includeVintage: true })
 }
 
 // Every retailer URL at this point is a constructed search-results page
-// (see retailer-search-url.ts / buildFallbackUrl), never a single product
+// (see @shared/utils/retailer-search-url.ts / buildFallbackUrl), never a single product
 // page — but the *price* still comes from Serper's Google Shopping snapshot,
 // which can be stale relative to what the retailer's own live search
 // actually returns today (delisted, sold out, aged-out snapshot). Rendering
@@ -69,14 +68,14 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
   // cuvee/vineyard included (2026-07-30) — same reasoning as buildQuery
   // above: without it, K&L's own search box can just as easily land the
   // user on a different, cheaper bottling from the same producer/denomination.
-  const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
-  if (parts.length === 0) return null
+  const query = buildDistinguishingQuery(wine)
+  if (!query) return null
 
   return {
     slug: kl.slug,
     name: kl.name,
     price: null,
-    url: buildRetailerSearchUrl(kl, parts.join(' ')),
+    url: buildRetailerSearchUrl(kl, query),
     is_preferred_retailer: true,
     distance_miles: Math.round(haversineDistanceMiles(NYC.lat, NYC.lng, kl.lat, kl.lng)),
     is_search_results_page: true,

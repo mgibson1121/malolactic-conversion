@@ -1,5 +1,5 @@
 // Every retailer URL in this module is now a constructed search-results page
-// (see retailer-search-url.ts for preferred retailers, buildFallbackUrl in
+// (see @shared/utils/retailer-search-url.ts for preferred retailers, buildFallbackUrl in
 // serper-query.ts for fallback retailers) — never a single product page.
 // The *price* attached to that URL, though, still comes from Serper's
 // Google Shopping snapshot, which can be stale or reference stock that the

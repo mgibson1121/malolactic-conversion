@@ -2,7 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { fetchReviewData } from './index'
 import type { WineEntry } from '@shared/types'
-import { isRelevantMatch } from './find-product-page'
+import { isRelevantMatch, findProductPage } from './find-product-page'
+import type { RetailerConfig } from '@shared/config/retailers.config'
 import { extractCandidateText } from './keyword-window'
 import { canonicalizePublication } from './gpt-extract'
 
@@ -120,6 +121,134 @@ describe('isRelevantMatch', () => {
         vintage: 2019,
       })
     ).toBe(false)
+  })
+})
+
+// ─── findProductPage: relaxed-query retry (2026-08-02 fix) ─────────────────
+// Diagnosed against a real user report: Woodland Hills carries a Fèvre
+// Chablis 1er Cru "Montée de Tonnerre" with real critic reviews, but the
+// fully-qualified quoted-phrase query (producer + denomination + vineyard +
+// vintage, all ANDed) came back with zero organic results — the retailer's
+// own page text didn't literally contain every quoted phrase exactly as
+// stored on the wine entry. These tests drive findProductPage directly
+// (rather than through fetchReviewData) to control the Serper mock per call.
+describe('findProductPage — relaxed-query retry', () => {
+  const woodland: RetailerConfig = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    domain: 'whwc.com',
+    matchKeyword: 'woodland',
+    lat: 34.1684,
+    lng: -118.6059,
+  }
+
+  const fevre = {
+    producer: 'William Fèvre',
+    denomination: 'Chablis 1er Cru',
+    vintage: 2019,
+    cuvee: null,
+    vineyard: 'Montée de Tonnerre',
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('retries with cuvee/vineyard dropped when the full query returns zero results, and returns the match found on retry', async () => {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      // First call (full query, includes "Montée de Tonnerre") — zero results,
+      // because the AND-ed quoted phrase was too strict for Google's own
+      // indexing of this page. Second call (vineyard dropped from the query)
+      // — the real product page comes back; its title still naturally
+      // contains the vineyard name (it's the actual product), so the
+      // post-fetch relevance check (which still requires it) correctly
+      // confirms this is the right page.
+      const organic = queries.length === 1
+        ? []
+        : [{ title: 'William Fevre Chablis 1er Cru Montee de Tonnerre 2019 | Woodland Hills', link: 'https://whwc.com/fevre-chablis-1er-cru-montee-de-tonnerre-2019/' }]
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    const result = await findProductPage(fevre, woodland, 'test-key')
+
+    expect(result).toBe('https://whwc.com/fevre-chablis-1er-cru-montee-de-tonnerre-2019/')
+    expect(queries).toHaveLength(2)
+    expect(queries[0]).toContain('Montee de Tonnerre') // diacritic-folded, but still present
+    expect(queries[1]).not.toContain('Tonnerre') // vineyard dropped on retry
+  })
+
+  it('falls all the way back to producer+denomination only when every narrower variant is also empty', async () => {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      const organic = queries.length === 3
+        ? [{ title: 'William Fevre Chablis 1er Cru Montee de Tonnerre | Woodland Hills', link: 'https://whwc.com/fevre-chablis-1er-cru/' }]
+        : []
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    const result = await findProductPage(fevre, woodland, 'test-key')
+
+    expect(result).toBe('https://whwc.com/fevre-chablis-1er-cru/')
+    expect(queries).toHaveLength(3)
+    expect(queries[2]).not.toContain('2019') // vintage dropped on the final retry
+  })
+
+  it('does not retry when a variant returns results but none are relevant — avoids matching the wrong product', async () => {
+    let calls = 0
+    jest.spyOn(global, 'fetch').mockImplementation(() => {
+      calls += 1
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ organic: [{ title: 'Unrelated Cabernet from a different producer', link: 'https://whwc.com/x' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    })
+
+    const result = await findProductPage(fevre, woodland, 'test-key')
+
+    expect(result).toBeNull()
+    expect(calls).toBe(1)
+  })
+
+  it('folds diacritics out of the query text even on the first, fully-qualified attempt', async () => {
+    let firstQuery = ''
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const q = JSON.parse(String(init?.body)).q
+      if (!firstQuery) firstQuery = q
+      return Promise.resolve(new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    await findProductPage(fevre, woodland, 'test-key')
+
+    expect(firstQuery).toContain('Fevre')
+    expect(firstQuery).not.toContain('Fèvre')
+    expect(firstQuery).toContain('Montee de Tonnerre')
+  })
+
+  it('produces a single query variant (no retry) for a wine with no cuvee/vineyard/vintage', async () => {
+    let calls = 0
+    jest.spyOn(global, 'fetch').mockImplementation(() => {
+      calls += 1
+      return Promise.resolve(new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    await findProductPage(
+      { producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: null, cuvee: null, vineyard: null },
+      woodland,
+      'test-key'
+    )
+
+    expect(calls).toBe(1)
   })
 })
 

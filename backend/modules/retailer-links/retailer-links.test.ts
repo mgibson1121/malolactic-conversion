@@ -1,13 +1,14 @@
 import { getRetailerLinks } from './index'
 
 describe('getRetailerLinks', () => {
-  it('returns one link per configured retailer, all eleven slugs present (updated 2026-07-29 — Phase 6.7\'s four plus three developer-nominated retailers)', () => {
+  it('returns one link per configured retailer, all twelve slugs present (updated 2026-08-02 — JJ Buckley added to close a user-reported coverage gap)', () => {
     const links = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: 2019, cuvee: null, vineyard: null })
     expect(links.map((l) => l.slug).sort()).toEqual([
       'acker',
       'benchmark',
       'crush',
       'flatiron',
+      'jjbuckley',
       'kl',
       'morrell',
       'sokolin',

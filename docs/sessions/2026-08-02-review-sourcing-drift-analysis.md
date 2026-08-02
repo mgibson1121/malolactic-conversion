@@ -1,0 +1,40 @@
+# Review/retailer sourcing: why the same bug keeps reappearing under a new name
+
+Prompted by two reports: JJ Buckley has reviews for a wine but the app returns none, and Woodland Hills has reviews for the Fèvre Chablis but the app returns none despite Woodland Hills being a preferred retailer. Below is what the commit history shows about *why* these keep happening as apparently-unrelated one-offs, rather than a single fix.
+
+## Pattern 1: the same query/relevance logic is hand-copied into three modules, so every fix has to be applied two or three times by memory
+
+`CLAUDE.md` §5 states modules never import from each other — data that's genuinely shared (like `RETAILER_CONFIG`) lives in `shared/`, everything else gets reimplemented per module "since modules don't import from each other." In practice, the query-building and relevance-matching logic — `normalize()`, `significantWords()`, the `STOPWORDS` list, and `isRelevantMatch()` — is copy-pasted almost verbatim across `backend/modules/price/serper-query.ts`, `backend/modules/retailer-links/index.ts` (+`build-search-url.ts`), and `backend/modules/reviews/find-product-page.ts`. Comments even say so explicitly: `find-product-page.ts` reads "reimplemented locally rather than imported, since modules do not import from each other."
+
+The commit history shows this drifting in exactly the way you'd expect:
+
+- `1f47757` and `af37ac8` are two halves of one fix — the cuvee/vineyard relevance bug was fixed in `price/` first, then had to be manually re-applied to `retailer-links/` and `reviews/` in a separate commit, described as "the other two independently-duplicated copies of this query-building pattern."
+- `7ccdf2c` — `retailer-links/` had its own stale, locally-duplicated copy of `RETAILER_CONFIG` that silently stopped tracking the shared config after Phase 6.7 expanded it from 4 to 11 retailers. Nobody noticed until reported.
+- `ba61e23` — the retailer search-URL-pattern fix (Sokolin/Acker/Wine Library/Morrell) had to be written twice, once in `price/retailer-search-url.ts` and once in `retailer-links/build-search-url.ts`, because they're independent files with no shared source.
+- `a1caf18` — the "drop vintage from the search query" fix (Phase 7.2) was itself found *after* an earlier attempt (Phase 7.1, retracted per `CLAUDE.md`) diagnosed the wrong copy of this logic — `price/retailer-search-url.ts` — and found nothing wrong, because the actual bug was in the sibling copy in `retailer-links/`.
+
+This is the mechanism behind "Claude Code fixes it each time but they're one-offs": there is no single place to fix. A fix in one module is, by design, invisible to the other two until someone remembers to port it, and the history shows that porting step being missed or delayed at least twice already.
+
+## Pattern 2: `RETAILER_CONFIG` is a hand-curated allowlist with no gap-detection, and a missing entry looks identical to a real "no reviews found"
+
+JJ Buckley does not appear anywhere in the codebase — not in `shared/config/retailers.config.ts`, not in any test, not in any doc. It was simply never added. `reviews/index.ts` only ever queries `RETAILER_CONFIG.map(...)`, so a retailer that isn't in that file is never searched, and the result is indistinguishable from "we looked and found nothing." From the user's side both look exactly like "the app returns no reviews."
+
+`build-phases.md` confirms the list has been grown reactively, not systematically: the original four, then Phase 6.7's four ("specced 2026-07-20 but never actually added ... until now"), then three more that are explicitly "developer-nominated" (`shared/config/retailers.config.ts` comment: "shops there, consistently carries attributed critic reviews"). There's no process that reconciles this list against the retailers you actually buy from or that flags "this URL's domain isn't a configured retailer" when you report a miss — it's grown one nomination at a time, same shape as the query-logic drift in Pattern 1.
+
+## Pattern 3: the reviews module's Step 1 query is an all-or-nothing quoted-phrase AND, and the most recent fix (cuvee/vineyard) made it stricter, not more forgiving
+
+`find-product-page.ts`'s `buildQuery()` wraps producer, denomination, cuvee, and vineyard each in literal double quotes and ANDs them into one Serper query (`site:domain "producer" "denomination" "vineyard" 2019`). Every additional quoted field is a new way to get zero results if the retailer's actual page text doesn't contain that exact substring — different punctuation, "1er Cru" vs "Premier Cru," or an accented character that doesn't survive identically. Notably, `normalize()` (which strips accents) is only ever applied to the *result* text for relevance-checking after a hit comes back — it's never applied when building the query text itself, so the query sent to Serper is stricter about accents than the matching logic that's supposed to accept it.
+
+The Fèvre Chablis 1er Cru "Montée de Tonnerre" is exactly the shape of wine this breaks: a vineyard-specific, accented bottling. And `af37ac8` (2026-07-30) made this worse for cases like it — it added vineyard/cuvee as a *fourth* required quoted phrase, on top of producer/denomination/vintage, specifically to fix a different bug (wrong-bottling false positives in price matching). That fix was correct for price matching's title-substring check, but ported mechanically into the reviews module's *query construction*, where it also tightened the AND clause with no fallback if the fully-qualified query comes back empty. There's currently no retry-with-relaxed-query step — one dropped field, one accent mismatch, and Step 1 gives up before it ever gets to Puppeteer/GPT-4o.
+
+## Why it keeps feeling like whack-a-mole
+
+Put together: any fix to relevance/query logic must be manually re-applied to up to three files or it silently doesn't apply to the sibling module (Pattern 1); a retailer with real content can fail with zero code bug at all, just a missing config entry that looks like a real miss (Pattern 2); and the one module actually responsible for finding review pages uses the strictest, least fault-tolerant query shape of the three, made stricter by the last fix aimed at a different module (Pattern 3). Each individual report (JJ Buckley, Fèvre) lands on a different one of these, so it reads as a new bug every time, even though it's really three recurring failure shapes.
+
+## Recommended structural fixes, roughly in order of leverage
+
+1. **Deduplicate the relevance/query-matching primitives** (`normalize`, `significantWords`, `STOPWORDS`, `isRelevantMatch`) into `shared/`, the same way `RETAILER_CONFIG` already was in Phase 7 — the file-level comments in these modules already argue for this ("same reasoning already used..."), it just hasn't been applied to this piece. This turns "fix it in three places" into "fix it once."
+2. **Add a relaxed-query retry to `reviews/find-product-page.ts`**: if the fully-qualified query (producer + denomination + cuvee/vineyard + vintage) returns zero organic results, retry once with cuvee/vineyard and/or vintage dropped before giving up. Currently a single overly-specific query is a hard stop.
+3. **Normalize/strip accents before building the Serper query text**, not just when checking the result — right now the matcher is diacritic-insensitive but the query it sends isn't.
+4. **Make `RETAILER_CONFIG` gaps visible instead of silent.** At minimum, treat "this wine's `review_data` is empty" and "a retailer domain the user references isn't in `RETAILER_CONFIG`" as distinguishable states — e.g. surface a "retailer not configured — add it?" affordance (Phase 7.2's confirm-retailer-link flow already exists and could detect this) instead of both cases rendering as an identical empty state.
+5. **Extend `validate-reviews.ts` to report *which* stage failed per retailer** (not configured / Step 1 zero results / Step 1 no relevant match / Step 2 render failed / Step 2 no score citation), not just an aggregate hit rate. That turns a fresh live-debugging session into a five-second log read the next time this happens.

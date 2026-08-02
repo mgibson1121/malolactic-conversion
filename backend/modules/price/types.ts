@@ -7,7 +7,7 @@ export interface RetailerResult {
   distance_miles: number
   // True when `url` is a constructed search-results page rather than a
   // single product page (currently true for every match this module
-  // produces, preferred or fallback — see retailer-search-url.ts). Pricing
+  // produces, preferred or fallback — see @shared/utils/retailer-search-url.ts). Pricing
   // only ever needs a page that reliably loads and shows the right listing,
   // so this is fine for pricing; it's exactly what modules/reviews/ (Phase
   // 7) needs a *different* page for — see build-phases.md.
