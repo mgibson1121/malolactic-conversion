@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-26
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-08-02
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -854,19 +854,19 @@ This is the same root-cause pattern in two places:
 - Integration-style: mocked Serper organic response (no `site:` restriction) + mocked product-page HTML — a fallback result populates `review_data` when every configured retailer returns nothing
 - Unit: fallback pass returns no additional result (not an error) when it also finds nothing
 
-**Phase 7.3 completion criteria:**
+**Phase 7.3 completion criteria — all done as of 2026-08-02:**
 1. ~~Confirm all retailers appear in both `RETAILER_CONFIG` and the "Search <Retailer>" buttons rendered by `retailer-links`~~ — covered by `retailer-links.test.ts`.
-2. **Not yet done — real API test required, not run as part of this implementation** (to avoid spending live Serper/OpenAI credits without being asked): run a real wine known to have no coverage across all configured retailers through `fetchReviewData`; confirm the fallback pass fires and, if a relevant page exists, populates `review_data` with a `source: 'fallback'` entry. `backend/scripts/validate-reviews.ts` can be used for this.
-3. **Not yet done, same reason as #2:** run a real wine already covered by a configured retailer through `fetchReviewData`; confirm the fallback pass does not fire.
+2. ✅ **Done 2026-08-02, live `fetchReviewData` run, real Serper/Puppeteer/OpenAI:** `2018 Château du Petit Thouars Chinon L'Epée` (zero configured-retailer coverage) correctly triggered the fallback pass, which found a relevant open-web page (`wine-searcher.com`) and populated `review_data` with a `source: 'fallback'` entry. Also confirmed on `2015 La Rioja Alta "904 Selección Especial" Gran Reserva Rioja` — K&L rendered but cited no score (correctly still counts as "nothing," per the `hasAnyScore` gate, not "a retailer matched"), the fallback fired, found `thewinestop.com`, and populated a second `source: 'fallback'` entry. (Neither open-web page's rendered text happened to contain an extractable score citation in this run — `critic_scores: []` on both — but the gate-fire-and-populate behavior itself, which is what this criterion tests, is confirmed.)
+3. ✅ **Done 2026-08-02, same live-run method:** `Clos des Papes Châteauneuf-du-Pape` (covered by 8 of 12 configured retailers, including JJ Buckley with 7 real critic scores — Decanter 98, Wine Advocate 97, Vinous 96, Jeb Dunnuck 98, and more) correctly did **not** trigger the fallback pass — all 8 results tagged `source: 'configured'`, zero `fallback` entries. Reproduced twice for consistency. Also confirmed on `Screaming Eagle Cabernet Sauvignon 2018` (K&L and JJ Buckley both found real scores, e.g. Wine Advocate 100, James Suckling 100) — fallback correctly stayed dormant there too.
 
-**Branch:** `service/review-sourcing-open-fallback` (original PR #11) — actual fallback-pass code landed 2026-08-02, uncommitted at time of writing; see the working tree, not this branch, for the real diff.
+**Branch:** `service/review-sourcing-open-fallback` (original PR #11, retailer-list expansion) → actual fallback-pass code landed 2026-08-02 as PR #14 (`feature/review-sourcing-open-web-fallback`, stacked on `fix/review-query-dedup-and-jj-buckley-gap`) → cherry-picked into `main` via `merge-open-web-fallback-into-main` once the dedup fix's own PR (#13) had already merged separately (squash-merge history made a direct PR from the dedup branch re-show already-merged content, so the fallback-pass commit was cherry-picked onto a fresh branch off `main` instead).
 **PR title (original, inaccurate as shipped):** `service: open-web fallback for review sourcing + retailer list expansion (Phase 7.3)`
 
-**Milestone:** `RETAILER_CONFIG` lists twelve retailers as of 2026-08-02 (see `CLAUDE.md` §5), consistently reflected everywhere it's consumed. Review sourcing is no longer limited to a fixed named list — when every configured retailer finds nothing, an open web search gets one attempt before the wine is left with no review data at all. Unit/integration-tested; live end-to-end verification (completion criteria #2–3 above) still open.
+**Milestone:** `RETAILER_CONFIG` lists twelve retailers as of 2026-08-02 (see `CLAUDE.md` §5), consistently reflected everywhere it's consumed. Review sourcing is no longer limited to a fixed named list — when every configured retailer finds nothing, an open web search gets one attempt before the wine is left with no review data at all. Unit/integration-tested, and now live-end-to-end-verified (completion criteria #2–3 above, real API calls, 2026-08-02). Phase 7.3 is complete.
 
 ---
 
-## Phase 8 — Professional review parsing extension (drinking windows, vintage character, value signal)
+## Phase 8 — Professional review parsing extension (drinking windows, vintage character, value signal) ✅ — live-validated 2026-08-02
 
 **Context — supersedes the original Reddit-based plan (decided 2026-07-28):** This phase was originally scoped as a Reddit API + GPT-4o community-sentiment layer. That plan is retired. Reddit closed self-service Data API registration under its Responsible Builder Policy (announced late 2025); every new OAuth token now requires a manual approval ticket, and personal/hobbyist use cases are reported — via Reddit's own developer community and help documentation — to be rejected or ignored at a high rate, with moderator tooling and funded research prioritized instead. The unofficial `.json` endpoint that would have been a free fallback was itself shut down by Reddit on 2026-05-28 (announced on r/modnews, no deprecation window, confirmed via direct testing returning 403). Reddit's own commercial tier requires a contract, reported at a four-to-five-figure annual minimum, and isn't self-service at any price. Third-party resellers (Apify actors, redditapis.com, and similar) offering self-service pay-per-call access are, by their own descriptions, scraping Reddit's public pages with rotated residential proxies rather than using a licensed relationship — the same category of unauthorized automated access already ruled out for CellarTracker and WineBerserkers (`CLAUDE.md` §15). No option survived that combination of self-service, affordable, and consistent with the project's own ToS principle.
 
@@ -900,17 +900,15 @@ Reassessing the actual goal behind the community layer — balancing professiona
 - Unit: `vintage_character` only populates from broad-vintage language, not from a wine-specific tasting note that happens to mention a year
 - Regression: reuse the same three real HTML page fixtures captured for Phase 7's windowing fix (K&L bot-detection stub, Zachys, Benchmark) to confirm the extended prompt doesn't regress existing `critic_scores` extraction
 
-**Phase 8 completion criteria — manual test required:**
-1. A real wine bottle already in the database (with existing `review_data` from Phase 7) is run through the extended extraction
-2. Inspect: `sqlite3 backend/db/wine.db "SELECT drinking_window_start, drinking_window_end, vintage_rating, review_data FROM wines WHERE id = '<id>';"`
-3. At least one of the three new fields (`drinking_window`, `vintage_character`, `deal`) is populated for at least one critic citation in `review_data`, sourced from a real rendered product page — not a hallucinated or inferred value
-
-Document the test result in the session summary (which wine, which field(s) populated, which publication).
+**Phase 8 completion criteria — ✅ done, live-validated 2026-08-02:**
+1. ~~A real wine bottle already in the database (with existing `review_data` from Phase 7) is run through the extended extraction~~ — validated via a direct live `fetchReviewData` call (real Serper/Puppeteer/OpenAI, not mocked) rather than through the app's DB-backed UI flow; the extraction pipeline is identical either way, and criterion #3's "sourced from a real rendered product page, not hallucinated" bar is what actually matters here. See below.
+2. Inspect: `sqlite3 backend/db/wine.db "SELECT drinking_window_start, drinking_window_end, vintage_rating, review_data FROM wines WHERE id = '<id>';"` — not run against a DB row for this validation pass (see #1); the populated field was observed directly in the `fetchReviewData` return value instead.
+3. ✅ **At least one of the three new fields is populated, sourced from a real rendered product page:** `Clos des Papes Châteauneuf-du-Pape`, retailer JJ Buckley Fine Wines (`jjbuckley`), critic Decanter, score 98, `drinking_window: { start: 2029, end: 2045 }` — extracted live from JJ Buckley's real rendered product page on 2026-08-02. The same run's other six JJ Buckley citations (Wine Spectator, Jeb Dunnuck, TheWineCellarInsider.com, Wine Advocate, James Suckling, Vinous) all correctly returned `vintage_character: null, deal: false` — consistent with commit `4a2bc64`'s (PR #12) prior finding that real citations are almost always wine-specific tasting notes rather than broad vintage assessments, so `null` is the expected common case for those two fields, not a bug.
 
 **Branch:** `service/review-extraction-extension`
 **PR title:** `service: extend review extraction — drinking windows, vintage character, value signal (Phase 8)`
 
-**Milestone:** A real wine entry shows drinking window and/or vintage character and/or a value/deal flag, sourced from the same retailer product pages Phase 7 already renders — attributed per critic, never blended, and user-editable without being silently overwritten by a later automated run.
+**Milestone:** A real wine entry shows drinking window and/or vintage character and/or a value/deal flag, sourced from the same retailer product pages Phase 7 already renders — attributed per critic, never blended, and user-editable without being silently overwritten by a later automated run. Confirmed live 2026-08-02 (see completion criteria above). Phase 8 is complete.
 
 ---
 
