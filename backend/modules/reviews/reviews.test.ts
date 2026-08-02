@@ -391,6 +391,7 @@ describe('fetchReviewData', () => {
         product_url: 'https://shop.klwines.com/products/details/1557135',
         critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
+        source: 'configured',
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://shop.klwines.com/products/details/1557135')
@@ -441,6 +442,119 @@ describe('fetchReviewData', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].critic_scores).toEqual([])
+  })
+})
+
+// ─── Open-web fallback pass (Phase 7.3, 2026-08-02) ────────────────────────
+// Specced 2026-07-29 (docs/build-phases.md Phase 7.3) alongside the retailer
+// list expansion, but never actually wired into find-product-page.ts/index.ts
+// until now — the docs described it as shipped, the code didn't have it.
+// Mirrors the price module's Pass 1 (preferred) / Pass 2 (open fallback)
+// pattern. installSerperMock below handles both query shapes: a
+// site:-restricted query (configured-retailer Step 1) and a plain query with
+// no site: token (the fallback pass) — distinguished the same way
+// find-product-page.ts's real queries are.
+describe('fetchReviewData — open-web fallback pass', () => {
+  function installSerperMock(
+    byDomain: Record<string, Array<{ title: string; link: string; snippet?: string }>>,
+    openQueryResults: Array<{ title: string; link: string; snippet?: string }> = []
+  ): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      const domain = Object.keys(byDomain).find(d => body.q.includes(`site:${d}`))
+      const organic = domain ? byDomain[domain] : body.q.includes('site:') ? [] : openQueryResults
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    return queries
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('does not run the fallback pass when a configured retailer already returned a critic score', async () => {
+    const queries = installSerperMock(
+      { 'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }] },
+      [{ title: 'Should never be reached', link: 'https://someblog.com/review' }]
+    )
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 1200,
+      url: 'https://shop.klwines.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(result[0].source).toBe('configured')
+    // No query without a site: token was ever sent — the fallback never ran.
+    expect(queries.some(q => !q.includes('site:'))).toBe(false)
+  })
+
+  it('populates review_data via the fallback when every configured retailer returns nothing, tagged source: fallback', async () => {
+    const queries = installSerperMock(
+      {}, // every configured retailer's site:-restricted query comes back empty
+      [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019 | AmsterWine', link: 'https://www.amsterwine.com/p/1' }]
+    )
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.amsterwine.com/p/1',
+      vintage: null,
+      critic_scores: [{ publication: 'Vinous', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toEqual([
+      {
+        slug: 'fallback-amsterwine-com',
+        name: 'amsterwine.com',
+        product_url: 'https://www.amsterwine.com/p/1',
+        critic_scores: [{ publication: 'Vinous', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+        fetched_at: expect.any(String),
+        source: 'fallback',
+      },
+    ])
+    expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.amsterwine.com/p/1')
+    expect(queries.some(q => !q.includes('site:') && q.includes('review'))).toBe(true)
+  })
+
+  it('excludes CellarTracker and WineBerserkers from fallback candidates even when Serper returns them', async () => {
+    installSerperMock(
+      {},
+      [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 Community Notes', link: 'https://www.cellartracker.com/notes/12345' },
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.wineberserkers.com/viewtopic.php?t=1' },
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | AmsterWine', link: 'https://www.amsterwine.com/p/1' },
+      ]
+    )
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.amsterwine.com/p/1',
+      vintage: null,
+      critic_scores: [{ publication: 'Vinous', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(result[0].product_url).toBe('https://www.amsterwine.com/p/1')
+    expect(mockRenderPageHtml).not.toHaveBeenCalledWith(expect.stringContaining('cellartracker'))
+    expect(mockRenderPageHtml).not.toHaveBeenCalledWith(expect.stringContaining('wineberserkers'))
+  })
+
+  it('returns an empty array when the fallback pass also finds nothing', async () => {
+    installSerperMock({}, [])
+
+    expect(await fetchReviewData(makeWine())).toEqual([])
   })
 })
 
