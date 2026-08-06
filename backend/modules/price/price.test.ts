@@ -231,19 +231,85 @@ describe('fetchPriceData', () => {
     expect(result!.price_min).toBe(249)
   })
 
-  it('filters Serper results to preferred retailer domains (Pass 1)', async () => {
+  it('identifies a preferred retailer as such, and lists it ahead of fallback results (Pass 1)', async () => {
     mockSerperItems = [
       makeItem('Zachys', ZACHYS_URL, '$249.00'),
       makeItem('Some Other Store', OTHER_URL, '$200.00'),
     ]
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    // Zachys (Pass 1 match) plus the always-present K&L link-only entry —
-    // "Some Other Store" is correctly excluded since Pass 1 succeeded
-    expect(result!.retailers).toHaveLength(2)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
     expect(zachys?.is_preferred_retailer).toBe(true)
     expect(zachys?.price).toBe(249)
+    // Preferred first: they carry real coordinates, a constructed on-site
+    // URL and a price verify-listing can actually check.
+    expect(result!.retailers[0].slug).toBe('zachys')
+  })
+
+  // ─── Pass 1 no longer short-circuits Pass 2 (Phase 9.1, WI-6) ────────────
+  // `if (preferred.length > 0) return preferred` meant a single
+  // preferred-retailer match suppressed every other retailer for the wine.
+  // Grand Village matched Zachys on a 2023 listing, which then failed the
+  // vintage filter and left price_min/avg/max all null — one dead link, and
+  // the fallback that would have found the other shops never ran.
+  describe('merged preferred and fallback passes', () => {
+    it('keeps fallback retailers alongside a preferred match', async () => {
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$249.00'),
+        makeItem('Some Other Store', OTHER_URL, '$200.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const slugs = result!.retailers.map(r => r.slug)
+
+      expect(slugs).toContain('zachys')
+      expect(slugs).toContain('some-other-store')
+    })
+
+    it('still prices a wine whose only preferred match is a wrong vintage', async () => {
+      // The Grand Village shape, exactly: Zachys on a different year (so
+      // excluded from the stats), with a usable fallback price behind it
+      // that the short-circuit used to hide.
+      mockSerperItems = [
+        { title: 'Domaine Leroy Gevrey-Chambertin 2023', source: 'Zachys', link: ZACHYS_URL, price: '$400.00' },
+        makeItem('Some Other Store', OTHER_URL, '$200.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers.find(r => r.slug === 'zachys')?.vintage_mismatch).toBe(true)
+      expect(result!.price_min).toBe(200)
+      expect(result!.price_avg).toBe(200)
+    })
+
+    it('does not list the same shop twice when it matches as both a configured retailer and a raw Serper source', async () => {
+      // The configured slug comes from RETAILER_CONFIG ('benchmark'); the
+      // fallback slug is derived from Serper's merchant string
+      // ('benchmark-wine-group'), so deduplicating on slug alone would let
+      // one shop through under two names.
+      mockSerperItems = [makeItem('Benchmark Wine Group', BENCHMARK_URL, '$200.00')]
+
+      const result = await fetchPriceData(baseWine)
+      const benchmarkish = result!.retailers.filter(r => r.name.toLowerCase().includes('benchmark'))
+
+      expect(benchmarkish).toHaveLength(1)
+      expect(benchmarkish[0].slug).toBe('benchmark')
+      expect(benchmarkish[0].is_preferred_retailer).toBe(true)
+    })
+
+    it('caps the merged list', async () => {
+      mockSerperItems = Array.from({ length: 15 }, (_, i) => ({
+        title: 'Domaine Leroy Gevrey-Chambertin 2018',
+        source: `Wine Shop ${i}`,
+        link: `https://shop${i}.example.com/p`,
+        price: '$200.00',
+      }))
+
+      const result = await fetchPriceData(baseWine)
+
+      // 8 Serper-derived entries, plus K&L's separate always-present link.
+      expect(result!.retailers.filter(r => !r.link_only)).toHaveLength(8)
+    })
   })
 
   it('matches a preferred retailer despite formatting drift in Serper\'s source string (Pass 1)', async () => {

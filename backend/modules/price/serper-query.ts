@@ -21,6 +21,12 @@ export { isRelevantMatch }
 
 const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
 
+/** Total retailers returned once the preferred and fallback passes are
+ * merged (Phase 9.1). Was an implicit 5 on the fallback pass alone; raised
+ * because the merged list now has to hold the configured retailers too, and
+ * each surviving entry costs one Puppeteer render in verify-listing. */
+const MERGED_RESULT_CAP = 8
+
 interface SerperShoppingItem {
   title: string
   source: string
@@ -235,16 +241,41 @@ export async function querySerper(
   // the best listing this retailer has, not the one Serper happened to rank
   // highest.
   const preferred: RetailerResult[] = []
+  const claimed = new Set<ScoredItem>()
   for (const retailer of retailers) {
     const keyword = alnumOnly(retailer.matchKeyword)
     const match = nonKlItems.find(({ item }) => item.source && alnumOnly(item.source).includes(keyword))
-    if (match) preferred.push(itemToRetailerResult(match, retailer, true, linkQuery))
+    if (match) {
+      preferred.push(itemToRetailerResult(match, retailer, true, linkQuery))
+      claimed.add(match)
+    }
   }
-  if (preferred.length > 0) return preferred
 
-  // Pass 2 — fallback: any relevant retailer Serper found (K&L excluded, see above)
-  return nonKlItems
-    .filter(({ item }) => item.link && item.source)
-    .slice(0, 5)
+  // Pass 2 — fallback: any relevant retailer Serper found that Pass 1 didn't
+  // already claim (K&L excluded, see above). Filtering on the item rather
+  // than on the resulting slug matters: a configured retailer's slug comes
+  // from RETAILER_CONFIG ('benchmark') while the fallback slug is derived
+  // from Serper's merchant name ('benchmark-wine-group'), so slug comparison
+  // alone would let the same shop through twice under two names.
+  const fallback = nonKlItems
+    .filter(scored => !claimed.has(scored) && scored.item.link && scored.item.source)
     .map(scored => buildFallbackResult(scored, linkQuery))
+
+  // Merged, not short-circuited (Phase 9.1). `if (preferred.length > 0)
+  // return preferred` meant one preferred-retailer match suppressed every
+  // other retailer for the wine. Grand Village matched Zachys on a 2023
+  // listing, which then failed the vintage filter and left
+  // price_min/avg/max all null — one dead link, and the fallback pass that
+  // would have found the other shops never ran. Three reported symptoms,
+  // one line.
+  //
+  // Preferred first: they carry real coordinates, a constructed on-site URL,
+  // and a price that verify-listing can actually check. The slug dedupe
+  // below is the second line of defence, for two Serper listings from the
+  // same non-configured merchant.
+  const bySlug = new Map<string, RetailerResult>()
+  for (const r of [...preferred, ...fallback]) {
+    if (!bySlug.has(r.slug)) bySlug.set(r.slug, r)
+  }
+  return [...bySlug.values()].slice(0, MERGED_RESULT_CAP)
 }
