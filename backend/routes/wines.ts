@@ -250,6 +250,10 @@ router.post(
       // price, not the always-present unverified placeholder. Replaces that
       // placeholder in mergedRetailers below (filtered out by slug).
       link_only: false,
+      // The developer found and confirmed this exact product page by hand.
+      // That is a stronger check than the automated live-search render, not
+      // a weaker one — no Puppeteer pass is run or needed here.
+      verification: 'verified',
     }
     const mergedRetailers = [
       ...(wine.price_data?.retailers ?? []).filter((r) => r.slug !== slug),

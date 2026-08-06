@@ -91,6 +91,9 @@ function itemToRetailerResult(
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
     link_only: false,
+    // Stamped by verifyStillListed in index.ts, which is what actually
+    // renders the page — nothing has been checked at this point.
+    verification: 'unchecked',
   }
 }
 
@@ -136,8 +139,33 @@ function buildFallbackResult(scored: ScoredItem, linkQuery: string): RetailerRes
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
     link_only: false,
+    // Stamped by verifyStillListed in index.ts, which is what actually
+    // renders the page — nothing has been checked at this point.
+    verification: 'unchecked',
   }
 }
+
+export interface QuerySerperResult {
+  retailers: RetailerResult[]
+  /**
+   * Whether Serper's Shopping snapshot showed a *relevant* K&L listing for
+   * this wine (Phase 9.1).
+   *
+   * K&L's items are dropped from both passes below — its site blocks
+   * Puppeteer, so no K&L price can ever be verified — but "we can't trust
+   * the price" is not the same as "we have no idea whether they stock it",
+   * and collapsing the two is what put a K&L entry on every wine. This flag
+   * keeps the evidence that was already being computed and thrown away, so
+   * index.ts can offer the K&L search link when there is a reason to and
+   * stay quiet when there isn't.
+   */
+  klItemSeen: boolean
+}
+
+/** No Serper data at all — request failed, or nothing came back. Distinct
+ * from "searched and matched nothing", which returns an empty retailer list
+ * with klItemSeen still false. */
+const EMPTY_RESULT: QuerySerperResult = { retailers: [], klItemSeen: false }
 
 /**
  * @param searchQuery  Sent to Serper's Shopping endpoint. Includes the
@@ -160,7 +188,7 @@ export async function querySerper(
   apiKey: string,
   wine: WineIdentity,
   linkQuery: string
-): Promise<RetailerResult[]> {
+): Promise<QuerySerperResult> {
   let items: SerperShoppingItem[] = []
   try {
     const res = await fetch(SERPER_ENDPOINT, {
@@ -172,14 +200,14 @@ export async function querySerper(
       body: JSON.stringify({ q: `${searchQuery} wine`, gl: 'us' }),
       signal: AbortSignal.timeout(15_000),
     })
-    if (!res.ok) return []
+    if (!res.ok) return EMPTY_RESULT
     const json = await res.json() as SerperResponse
     items = json.shopping ?? []
   } catch {
-    return []
+    return EMPTY_RESULT
   }
 
-  if (items.length === 0) return []
+  if (items.length === 0) return EMPTY_RESULT
 
   // Relevance filter — Serper's shopping results frequently include items
   // that are not actually this wine (different producer, accessories, an
@@ -225,13 +253,13 @@ export async function querySerper(
   // count as a Pass 1 success — which would otherwise skip Pass 2 fallback
   // retailers entirely for a wine only K&L happens to carry — and never
   // produces a second, duplicate 'kl'-slugged entry alongside the always-
-  // added one.
+  // added one. What is *not* discarded any more (Phase 9.1) is the fact that
+  // a K&L listing was seen at all — see QuerySerperResult.klItemSeen.
   const kl = retailers.find(r => r.slug === 'kl')
-  const nonKlItems = kl
-    ? relevantItems.filter(
-        ({ item }) => !(item.source && alnumOnly(item.source).includes(alnumOnly(kl.matchKeyword)))
-      )
-    : relevantItems
+  const isKlItem = ({ item }: ScoredItem) =>
+    kl !== undefined && item.source !== undefined && alnumOnly(item.source).includes(alnumOnly(kl.matchKeyword))
+  const klItemSeen = relevantItems.some(isKlItem)
+  const nonKlItems = kl ? relevantItems.filter(scored => !isKlItem(scored)) : relevantItems
 
   // Pass 1 — preferred retailers. Serper's shopping `link` is always a
   // google.com/search?ibp=oshop aggregator URL regardless of merchant — it
@@ -277,5 +305,5 @@ export async function querySerper(
   for (const r of [...preferred, ...fallback]) {
     if (!bySlug.has(r.slug)) bySlug.set(r.slug, r)
   }
-  return [...bySlug.values()].slice(0, MERGED_RESULT_CAP)
+  return { retailers: [...bySlug.values()].slice(0, MERGED_RESULT_CAP), klItemSeen }
 }

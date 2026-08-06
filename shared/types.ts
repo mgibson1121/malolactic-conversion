@@ -37,6 +37,27 @@ export interface CriticScore {
   deal: boolean
 }
 
+/**
+ * What the live-page check in backend/modules/price/verify-listing.ts was
+ * actually able to establish (Phase 9.1, 2026-08-04).
+ *
+ * - 'verified'   — the retailer's live search page rendered and its visible
+ *                  text contains every significant word of the producer.
+ * - 'unverified' — the check could not be completed: the render failed or
+ *                  timed out, or the wine entry records no producer to look
+ *                  for. The listing is kept (an infra hiccup is not evidence
+ *                  the wine is gone) but must not be presented as confirmed.
+ * - 'unchecked'  — verification was never attempted for this entry. Covers
+ *                  K&L's link-only entry (its site blocks the renderer) and
+ *                  product pages contributed by modules/reviews/, which that
+ *                  module already rendered.
+ *
+ * Before this existed, a render failure returned the retailer unchanged, so
+ * an unverifiable listing was indistinguishable from a verified one all the
+ * way to the UI.
+ */
+export type VerificationState = 'verified' | 'unverified' | 'unchecked'
+
 export interface RetailerPrice {
   slug: string          // e.g. "kl", "zachys"
   name: string
@@ -81,6 +102,9 @@ export interface RetailerPrice {
   // excluded from price_min/avg/max and nearest_retailer, and never treated
   // as a successful preferred-retailer match — see backend/modules/price/index.ts.
   link_only: boolean
+  // Phase 9.1 — what the live-page check established about this listing.
+  // 'unverified' must not be shown as though it were confirmed.
+  verification: VerificationState
 }
 
 export interface RetailerLink {

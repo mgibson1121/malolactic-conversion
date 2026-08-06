@@ -1180,6 +1180,7 @@ describe('serialization round-trips', () => {
           non_standard_format: false,
           format_label: '',
           link_only: false,
+          verification: 'verified' as const,
         },
       ],
       nearest_retailer: null,

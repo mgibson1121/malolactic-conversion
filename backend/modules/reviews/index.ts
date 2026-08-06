@@ -84,9 +84,10 @@ function verdictFromPage(
 async function fetchFallbackReview(
   identity: WineIdentity,
   openai: OpenAI,
-  serperKey: string
+  serperKey: string,
+  attemptedDomains: string[]
 ): Promise<ReviewResult | null> {
-  const outcome = await findFallbackProductPage(identity, serperKey)
+  const outcome = await findFallbackProductPage(identity, serperKey, { attemptedDomains })
   if (!outcome.url || !outcome.match) return null
 
   const extraction = await renderAndExtract(openai, outcome.url)
@@ -119,7 +120,8 @@ async function fetchDiscoveredMerchantReviews(
   identity: WineIdentity,
   merchants: DiscoveredRetailer[],
   openai: OpenAI,
-  serperKey: string
+  serperKey: string,
+  attemptedDomains: string[]
 ): Promise<ReviewResult[]> {
   const configuredSlugs = new Set(RETAILER_CONFIG.map(r => r.slug))
   const candidates = merchants
@@ -128,7 +130,7 @@ async function fetchDiscoveredMerchantReviews(
 
   const results = await Promise.all(
     candidates.map(async (merchant): Promise<ReviewResult | null> => {
-      const outcome = await findMerchantProductPage(identity, merchant.name, serperKey)
+      const outcome = await findMerchantProductPage(identity, merchant.name, serperKey, { attemptedDomains })
       if (!outcome.url || !outcome.match) return null
 
       const extraction = await renderAndExtract(openai, outcome.url)
@@ -240,6 +242,13 @@ export async function fetchReviewData(
 
   const results = configuredResults.filter((r): r is ReviewResult => r !== null)
 
+  // Every configured retailer domain, attempted or not — the open passes
+  // below must not spend a render on one this run has already exhausted.
+  // Bessin-Tremblay and Dureuil-Janthial both produced
+  // `fallback-shop-klwines-com` pointing at the identical URL that had just
+  // returned zero as a configured retailer.
+  const attemptedDomains = RETAILER_CONFIG.map(r => r.domain)
+
   // Nothing from any configured retailer. Try the shops modules/price/ found
   // for this wine first — a merchant its Shopping search actually surfaced is
   // better aimed than a blind open-web query — then fall back to that query.
@@ -248,15 +257,28 @@ export async function fetchReviewData(
       identity,
       opts.discoveredRetailers ?? [],
       openai,
-      serperKey
+      serperKey,
+      attemptedDomains
     )
     results.push(...discovered)
   }
 
   if (!results.some(r => r.critic_scores.length > 0)) {
-    const fallback = await fetchFallbackReview(identity, openai, serperKey)
+    const attemptedPlusDiscovered = [
+      ...attemptedDomains,
+      ...results.map(r => hostnameOf(r.product_url)).filter((h): h is string => h !== null),
+    ]
+    const fallback = await fetchFallbackReview(identity, openai, serperKey, attemptedPlusDiscovered)
     if (fallback) results.push(fallback)
   }
 
   return results
+}
+
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
 }

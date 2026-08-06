@@ -2,7 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import { fetchReviewData } from './index'
 import type { WineEntry } from '@shared/types'
-import { isRelevantMatch, findProductPage, findProductPageDetailed } from './find-product-page'
+import {
+  isRelevantMatch,
+  findProductPage,
+  findProductPageDetailed,
+  findFallbackProductPage,
+} from './find-product-page'
 import type { RetailerConfig } from '@shared/config/retailers.config'
 import { extractCandidateText } from './keyword-window'
 import { canonicalizePublication } from './gpt-extract'
@@ -811,6 +816,111 @@ describe('fetchReviewData — open-web fallback pass', () => {
     installSerperMock({}, [])
 
     expect(await fetchReviewData(makeWine())).toEqual([])
+  })
+})
+
+// ─── URL-shape guard and fallback hygiene (Phase 9.1, WI-8) ────────────────
+describe('product page candidate hygiene', () => {
+  const woodland: RetailerConfig = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    domain: 'whwc.com',
+    matchKeyword: 'woodland',
+    lat: 34.1684,
+    lng: -118.6059,
+  }
+
+  const rousseau = {
+    producer: 'Domaine Rousseau',
+    denomination: 'Gevrey-Chambertin',
+    vintage: 2019,
+    cuvee: null,
+    vineyard: null,
+  }
+
+  function mockOrganic(items: Array<{ title: string; link: string; snippet?: string }>) {
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ organic: items }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  // All four of these were actually accepted and stored as "product pages"
+  // in the 2026-08-04 batch. They returned zero scores, which is luck, not
+  // safety: a retailer newsletter covering eight wines with eight scores is
+  // exactly the page that would attribute the wrong one.
+  it.each([
+    ['a PDF report', 'https://images.jjbuckley.com/reports/2011_BORDEAUX_REPORT.pdf'],
+    ['an auction bidding-history page', 'https://bid.zachys.com/auctions/bidding-history/12345'],
+    ['a retailer offers blog post', 'https://crushwineco.com/blogs/offers/burgundy-2019'],
+    ['a cart page', 'https://whwc.com/cart?add=1234'],
+  ])('rejects %s before spending a render on it', async (_label, link) => {
+    mockOrganic([{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link }])
+
+    const outcome = await findProductPageDetailed(rousseau, woodland, 'test-key')
+
+    expect(outcome.url).toBeNull()
+    expect(outcome.stage).toBe('no_relevant_match')
+  })
+
+  it('still takes a real product page listed alongside a rejected one', async () => {
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://whwc.com/blogs/offers/burgundy' },
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://whwc.com/products/rousseau-gevrey-2019' },
+    ])
+
+    const outcome = await findProductPageDetailed(rousseau, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/products/rousseau-gevrey-2019')
+  })
+
+  it('keeps wine-searcher.com out of the open-web fallback', async () => {
+    // Phase 6 migrated away from Wine-Searcher deliberately; the Phase 7.3
+    // fallback then handed a wine-searcher.com page back for Montus.
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Wine-Searcher', link: 'https://www.wine-searcher.com/find/rousseau' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key')
+
+    expect(outcome.url).toBeNull()
+  })
+
+  it('does not re-try a domain this run already exhausted as a configured retailer', async () => {
+    // Bessin-Tremblay and Dureuil-Janthial both produced
+    // `fallback-shop-klwines-com` pointing at the identical URL that had
+    // just returned zero as a configured retailer. K&L is documented as
+    // permanently bot-blocked at the product-page render.
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | K&L', link: 'https://shop.klwines.com/products/details/1557135' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key', {
+      attemptedDomains: ['klwines.com'],
+    })
+
+    expect(outcome.url).toBeNull()
+  })
+
+  it('still returns an un-attempted domain from the same result set', async () => {
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | K&L', link: 'https://shop.klwines.com/products/details/1557135' },
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | AmsterWine', link: 'https://www.amsterwine.com/p/1' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key', {
+      attemptedDomains: ['klwines.com'],
+    })
+
+    expect(outcome.url).toBe('https://www.amsterwine.com/p/1')
   })
 })
 

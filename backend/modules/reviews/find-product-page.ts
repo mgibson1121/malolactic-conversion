@@ -9,7 +9,7 @@ import {
   type MatchVerdict,
   type WineIdentity,
 } from '@shared/utils/wine-match'
-import { isDenylistedDomain } from '@shared/config/denylisted-domains'
+import { isDenylistedDomain, isNonProductUrl } from '@shared/config/denylisted-domains'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -150,12 +150,18 @@ export interface Step1Outcome {
  * (`/charles-audoin-marsannay-clos-du-roy-2020`) can confirm producer and
  * vintage when the title is a bare "Product Detail". The snippet is passed
  * too, but scoreMatch deliberately ignores it for the producer dimension.
+ *
+ * Candidates whose URL shape rules out a product page are dropped before
+ * scoring (Phase 9.1) — the batch stored a JJ Buckley PDF, a Zachys auction
+ * bidding-history page and two retailer blog posts as product pages. See
+ * isNonProductUrl.
  */
 function pickBestCandidate(
   items: SerperOrganicItem[],
   wine: WineIdentity
 ): { item: SerperOrganicItem; verdict: MatchVerdict } | null {
   const acceptable = items
+    .filter(item => !isNonProductUrl(item.link))
     .map(item => ({
       item,
       verdict: scoreMatch({ title: item.title, snippet: item.snippet, url: item.link }, wine),
@@ -243,10 +249,33 @@ export async function findProductPage(
  */
 export async function findFallbackProductPage(
   wine: WineIdentity,
-  apiKey: string
+  apiKey: string,
+  opts: OpenQueryOptions = {}
 ): Promise<Step1Outcome> {
-  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey)
+  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey, opts)
 }
+
+/**
+ * Domains the fallback passes must not spend a render on, beyond the
+ * denylist (Phase 9.1).
+ *
+ * `attemptedDomains` is what stops the fallback re-trying a domain this same
+ * run already exhausted: Bessin-Tremblay and Dureuil-Janthial both produced
+ * `fallback-shop-klwines-com` pointing at the *identical* URL that had just
+ * returned zero scores as a configured retailer — a wasted Serper +
+ * Puppeteer + GPT-4o cycle with a guaranteed-empty result.
+ */
+export interface OpenQueryOptions {
+  attemptedDomains?: string[]
+}
+
+/** Domains known not to render for this pipeline, so a fallback hit on them
+ * is a guaranteed-empty cycle. K&L's own site blocks Puppeteer behind a
+ * bot-detection challenge at the product-page render, documented since
+ * Phase 7 and explicitly not pursued via evasion (CLAUDE.md §15). This is a
+ * cost guard, not an access decision — the denylist above is where access
+ * decisions live. */
+const UNRENDERABLE_DOMAINS = ['klwines.com']
 
 /**
  * Searches the open web for a *named merchant's* page for this wine
@@ -268,12 +297,14 @@ export async function findFallbackProductPage(
 export async function findMerchantProductPage(
   wine: WineIdentity,
   merchantName: string,
-  apiKey: string
+  apiKey: string,
+  opts: OpenQueryOptions = {}
 ): Promise<Step1Outcome> {
   return runOpenQuery(
     `${openWebIdentityPhrase(wine)} "${foldDiacritics(merchantName)}"`,
     wine,
-    apiKey
+    apiKey,
+    opts
   )
 }
 
@@ -294,15 +325,25 @@ function openWebIdentityPhrase(wine: WineIdentity): string {
 async function runOpenQuery(
   query: string,
   wine: WineIdentity,
-  apiKey: string
+  apiKey: string,
+  opts: OpenQueryOptions = {}
 ): Promise<Step1Outcome> {
+  const attempted = (opts.attemptedDomains ?? []).map(d => d.toLowerCase().replace(/^www\./, ''))
+
   try {
     const items = await runSerperQuery(query, apiKey)
     if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1, match: null }
 
     const allowed = items.filter(item => {
+      if (isNonProductUrl(item.link)) return false
       try {
-        return !isDenylistedDomain(new URL(item.link).hostname)
+        const host = new URL(item.link).hostname.toLowerCase().replace(/^www\./, '')
+        if (isDenylistedDomain(host)) return false
+        // Already exhausted this run, or known not to render — either way,
+        // spending a render + GPT-4o call here buys a guaranteed empty.
+        if (attempted.some(d => host === d || host.endsWith(`.${d}`))) return false
+        if (UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))) return false
+        return true
       } catch {
         return false // an unparseable link can't be rendered anyway
       }

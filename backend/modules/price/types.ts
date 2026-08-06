@@ -1,4 +1,5 @@
 import type { MatchVerdict } from '@shared/utils/wine-match'
+import type { VerificationState } from '@shared/types'
 
 export interface RetailerResult {
   slug: string
@@ -68,6 +69,10 @@ export interface RetailerResult {
   // is proof the shop carries the wine — worth a link, not worth a price
   // the pipeline never actually saw.
   link_only: boolean
+  // Phase 9.1 — what verify-listing actually established about this entry,
+  // rather than collapsing "checked and confirmed" and "couldn't check" into
+  // the same silent pass. See VerificationState in shared/types.ts.
+  verification: VerificationState
 }
 
 /**
