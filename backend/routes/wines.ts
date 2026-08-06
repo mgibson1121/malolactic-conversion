@@ -5,7 +5,7 @@ import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { RetailerPrice, RetailerReview, UpdateWineInput, WineFilter } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
-import { scoreMatch } from '@shared/utils/wine-match'
+import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
@@ -184,11 +184,18 @@ router.post(
       return
     }
 
-    // The confirmed page is judged by the same graded matcher the automated
-    // path uses (Phase 9.1), with GPT-4o's reading of the rendered page as
-    // the stated vintage — the strongest signal available, since the user
-    // has already confirmed this is the right product page.
-    const verdict = scoreMatch(
+    // Phase 9.1 — record the same MatchVerdict shape the automated path
+    // stores, so the UI reads one field regardless of how a result was found.
+    //
+    // Producer and denomination are recorded as confirmed: the developer
+    // found this exact product page themselves and copied its URL, which is
+    // stronger evidence of identity than any text match. Running the matcher
+    // over the URL instead would report a mismatch for every retailer whose
+    // product slugs are opaque ids. Bottling and vintage are still judged —
+    // bottling from the URL (a slug naming a different cuvée is worth
+    // surfacing even on a confirmed page), vintage from GPT-4o's reading of
+    // the rendered page.
+    const urlVerdict = scoreMatch(
       { title: url, url, statedVintage: extraction.vintage },
       {
         producer: wine.producer ?? '',
@@ -199,6 +206,7 @@ router.post(
         quality_classification: wine.quality_classification,
       }
     )
+    const verdict: MatchVerdict = { ...urlVerdict, producer: 'match', denomination: 'match' }
     const matched_vintage = verdict.candidateVintage
     const vintage_mismatch = verdict.vintage === 'mismatch'
 

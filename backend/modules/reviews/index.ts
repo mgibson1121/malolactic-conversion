@@ -37,6 +37,43 @@ async function renderAndExtract(openai: OpenAI, url: string) {
 }
 
 /**
+ * Re-judges a page against the vintage the page itself states (Phase 9.1).
+ *
+ * `gpt-extract.ts` has always returned `{ price, url, vintage, critic_scores }`
+ * and `fetchReviewData` read only `critic_scores`, dropping the rest on the
+ * floor — the one field that would have caught every wrong-vintage row in the
+ * 2026-08-04 batch was being computed and discarded.
+ *
+ * The Step 1 verdict was formed from a search-result title, which is a guess;
+ * the rendered page is evidence. When the page states a vintage, that wins.
+ * When it doesn't, the Step 1 verdict stands rather than being downgraded to
+ * unknown — a silent page is not a retraction of what the title said.
+ *
+ * Only the vintage dimension is revised. Producer, denomination and bottling
+ * keep their Step 1 verdicts, which were judged against the full title,
+ * snippet and URL; re-running the whole matcher against the URL alone would
+ * downgrade a confirmed producer to a mismatch for any retailer whose product
+ * slugs are opaque ids (`/products/details/1557135`).
+ */
+function verdictFromPage(
+  step1: MatchVerdict,
+  pageVintage: number | null,
+  wineVintage: number | null
+): MatchVerdict {
+  // A vintage on the page is not our vintage when the wine has none — an NV
+  // Champagne's disgorgement or base year must not be read as a match.
+  if (pageVintage === null || wineVintage === null) return step1
+
+  const vintageGap = Math.abs(pageVintage - wineVintage)
+  return {
+    ...step1,
+    vintage: vintageGap === 0 ? 'match' : 'mismatch',
+    candidateVintage: pageVintage,
+    vintageGap,
+  }
+}
+
+/**
  * Open-web fallback pass (Phase 7.3, 2026-08-02 — specced 2026-07-29 as part
  * of the same phase that expanded RETAILER_CONFIG, but never actually wired
  * up until now; see build-phases.md Phase 7.3). Mirrors the price module's
@@ -63,7 +100,7 @@ async function fetchFallbackReview(
     critic_scores: extraction.critic_scores,
     fetched_at: new Date().toISOString(),
     source: 'fallback',
-    ...vintageFields(outcome.match),
+    ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
   }
 }
 
@@ -126,7 +163,7 @@ export async function fetchReviewData(wine: WineEntry): Promise<ReviewResult[]> 
         critic_scores: extraction.critic_scores,
         fetched_at: new Date().toISOString(),
         source: 'configured',
-        ...vintageFields(outcome.match),
+        ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
       }
     })
   )

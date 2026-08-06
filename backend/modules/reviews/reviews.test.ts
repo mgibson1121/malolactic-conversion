@@ -564,6 +564,86 @@ describe('fetchReviewData', () => {
   })
 })
 
+// ─── Page-stated vintage (Phase 9.1, WI-2) ─────────────────────────────────
+// gpt-extract.ts has always returned { price, url, vintage, critic_scores }
+// and fetchReviewData read only critic_scores, dropping the rest. The
+// rendered page is evidence; the search-result title is a guess. The page's
+// own vintage is now fed back through scoreMatch for a second, more
+// authoritative verdict.
+describe('fetchReviewData — page-stated vintage', () => {
+  it('re-scores against the rendered page vintage and records the gap', async () => {
+    // Benchmark's only Charles Audoin page is the 2020: the scores are real,
+    // they just belong to a different year. Kept and labelled, not binned.
+    mockOrganicByDomain = {
+      'benchmarkwine.com': [
+        {
+          title: 'Charles Audoin Marsannay Clos du Roy',
+          link: 'https://www.benchmarkwine.com/products/154340-charles-audoin-marsannay-clos-du-roy',
+        },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 65,
+      url: 'https://www.benchmarkwine.com/products/154340-charles-audoin-marsannay-clos-du-roy',
+      vintage: 2020,
+      critic_scores: [
+        { publication: 'Vinous', score: 91, known_publication: true, drinking_window: null, vintage_character: null, deal: false },
+      ],
+    })
+
+    const result = await fetchReviewData(
+      makeWine({ producer: 'Domaine Charles Audoin', denomination: 'Marsannay', vintage: 2022 })
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].page_vintage).toBe(2020)
+    expect(result[0].vintage_gap).toBe(2)
+    expect(result[0].match.vintage).toBe('mismatch')
+    // The scores themselves are never dropped — only excluded from
+    // wine-level derivation (see derive-wine-level.ts).
+    expect(result[0].critic_scores).toHaveLength(1)
+  })
+
+  it('lets the page vintage overturn a wrong year parsed from the search title', async () => {
+    // The title carries "2020" from an unrelated vintage-report link; the
+    // page itself states 2022. The rendered page wins.
+    mockOrganicByDomain = {
+      'klwines.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin — 2020 vintage report', link: 'https://shop.klwines.com/p/1' },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://shop.klwines.com/p/1',
+      vintage: 2019,
+      critic_scores: [],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result[0].page_vintage).toBe(2019)
+    expect(result[0].vintage_gap).toBe(0)
+    expect(result[0].match.vintage).toBe('match')
+  })
+
+  it('falls back to the search-result verdict when the page states no vintage', async () => {
+    mockOrganicByDomain = {
+      'klwines.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({ price: null, url: 'https://shop.klwines.com/p/1', vintage: null, critic_scores: [] })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result[0].page_vintage).toBe(2019)
+    expect(result[0].match.vintage).toBe('match')
+  })
+})
+
 // ─── Open-web fallback pass (Phase 7.3, 2026-08-02) ────────────────────────
 // Specced 2026-07-29 (docs/build-phases.md Phase 7.3) alongside the retailer
 // list expansion, but never actually wired into find-product-page.ts/index.ts
