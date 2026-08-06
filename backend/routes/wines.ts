@@ -92,7 +92,19 @@ router.post(
       return
     }
 
-    const result = await fetchPriceData(wine)
+    // Cross-feed (Phase 9.1): a product page modules/reviews/ already
+    // rendered and matched is the strongest possible evidence a shop carries
+    // this wine, and price/ was throwing it away — reviews found a live
+    // Woodland Hills product page for Mangot 2022 with 7 critic scores in the
+    // same run price/ returned zero retailers for it. The two modules must
+    // not import each other (CLAUDE.md §5), so the router is where they meet.
+    const result = await fetchPriceData(wine, {
+      confirmedProductPages: (wine.review_data ?? []).map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        product_url: r.product_url,
+      })),
+    })
     if (!result) {
       res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found' })
       return
@@ -127,7 +139,16 @@ router.post(
       return
     }
 
-    const review_data = await fetchReviewData(wine)
+    // The other half of the cross-feed: retailers price/ discovered that
+    // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants for
+    // Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
+    // looked. Consumed only when no configured retailer yields a score.
+    const review_data = await fetchReviewData(wine, {
+      discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
+        slug: r.slug,
+        name: r.name,
+      })),
+    })
     const derived = deriveWineLevelFields(review_data, {
       drinking_window_source: wine.drinking_window_source,
       vintage_rating_source: wine.vintage_rating_source,

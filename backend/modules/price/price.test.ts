@@ -681,6 +681,84 @@ describe('fetchPriceData', () => {
   })
 })
 
+// ─── Cross-feed from modules/reviews/ (Phase 9.1, WI-7) ────────────────────
+// A product page reviews/ already rendered and matched is the strongest
+// evidence a shop carries the wine. reviews/ found a live Woodland Hills
+// product page for Mangot 2022 with 7 critic scores in the same run price/
+// returned zero retailers for it. Supplied by the router, never imported —
+// modules don't import each other (CLAUDE.md §5).
+describe('fetchPriceData — confirmed product pages from reviews', () => {
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = 'test-openai-key'
+    process.env.SERPER_API_KEY = 'test-serper-key'
+    mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+  })
+
+  afterEach(() => {
+    delete process.env.OPENAI_API_KEY
+    delete process.env.SERPER_API_KEY
+  })
+
+  const woodlandPage = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    product_url: 'https://whwc.com/mangot-st-emilion-2022/',
+  }
+
+  it('adds a retailer Serper found nothing for, pointing at the confirmed product page', async () => {
+    mockSerperItems = []
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodland = result!.retailers.find(r => r.slug === 'woodland')
+
+    expect(woodland).toBeDefined()
+    expect(woodland!.url).toBe(woodlandPage.product_url)
+    // A real product page, not a constructed search — the only entry in this
+    // module for which that is true.
+    expect(woodland!.is_search_results_page).toBe(false)
+    expect(woodland!.is_preferred_retailer).toBe(true)
+  })
+
+  it('carries no price and stays out of the headline stats', async () => {
+    // The pipeline never saw a price for this shop. Lifting one off a review
+    // page would be blending across sources (CLAUDE.md §15).
+    mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodland = result!.retailers.find(r => r.slug === 'woodland')
+
+    expect(woodland!.price).toBeNull()
+    expect(woodland!.link_only).toBe(true)
+    expect(result!.price_min).toBe(249)
+    expect(result!.price_avg).toBe(249)
+    expect(result!.nearest_retailer?.slug).not.toBe('woodland')
+  })
+
+  it('does not displace a retailer that already has a real Serper price', async () => {
+    mockSerperItems = [makeItem('Woodland Hills Wine Co.', WOODLAND_URL, '$180.00')]
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodlandEntries = result!.retailers.filter(r => r.slug === 'woodland')
+
+    expect(woodlandEntries).toHaveLength(1)
+    expect(woodlandEntries[0].price).toBe(180)
+  })
+
+  it('accepts a page from a shop that is not in RETAILER_CONFIG', async () => {
+    mockSerperItems = []
+
+    const result = await fetchPriceData(baseWine, {
+      confirmedProductPages: [
+        { slug: 'fallback-sommpicks-com', name: 'sommpicks.com', product_url: 'https://sommpicks.com/p/1' },
+      ],
+    })
+    const somm = result!.retailers.find(r => r.slug === 'fallback-sommpicks-com')
+
+    expect(somm).toBeDefined()
+    expect(somm!.is_preferred_retailer).toBe(false)
+  })
+})
+
 // ─── aggregatePriceData (Phase 7.2) ────────────────────────────────────────────
 // Extracted from fetchPriceData so the confirm-retailer-link route (which
 // updates one retailer's entry outside the normal Serper flow) can recompute

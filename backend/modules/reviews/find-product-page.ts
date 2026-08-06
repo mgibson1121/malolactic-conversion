@@ -245,16 +245,57 @@ export async function findFallbackProductPage(
   wine: WineIdentity,
   apiKey: string
 ): Promise<Step1Outcome> {
+  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey)
+}
+
+/**
+ * Searches the open web for a *named merchant's* page for this wine
+ * (Phase 9.1).
+ *
+ * modules/price/ discovers retailers this module has never heard of — the
+ * Shopping endpoint found central-wine-merchants, Wally's and Varmax for
+ * Montus while this module, which only ever iterates RETAILER_CONFIG, never
+ * looked at any of them. The router feeds those merchant names back here.
+ *
+ * It has to be an open query with the merchant name as a term rather than a
+ * `site:` restriction: Serper's Shopping response gives a merchant display
+ * name and a google.com/search?ibp=oshop aggregator link, never the
+ * merchant's own domain, so there is no domain to restrict to. That makes
+ * this weaker than Step 1's site:-scoped search, which is why results from
+ * it are tagged `source: 'fallback'` — the domain reached is not one the
+ * developer has vetted.
+ */
+export async function findMerchantProductPage(
+  wine: WineIdentity,
+  merchantName: string,
+  apiKey: string
+): Promise<Step1Outcome> {
+  return runOpenQuery(
+    `${openWebIdentityPhrase(wine)} "${foldDiacritics(merchantName)}"`,
+    wine,
+    apiKey
+  )
+}
+
+/** The quoted producer/denomination/vintage core shared by both open-web
+ * queries. Honorific-stripped from the outset — these are last-resort
+ * passes, so there is no narrower attempt for a relaxation to undercut, and
+ * the open web is even less likely than a retailer to write "Domaine". */
+function openWebIdentityPhrase(wine: WineIdentity): string {
   const parts: string[] = []
-  // Honorific-stripped from the outset (Phase 9.1) — this is the last resort,
-  // so there is no narrower attempt for a relaxation to undercut, and the
-  // open web is even less likely than a retailer to write "Domaine".
   if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(wine.producer))}"`)
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
   if (wine.vintage) parts.push(String(wine.vintage))
-  parts.push('review')
-  const query = parts.join(' ')
+  return parts.join(' ')
+}
 
+/** One un-restricted Serper organic query, denylist-filtered and graded.
+ * No retry — both callers are already last resorts, not the primary path. */
+async function runOpenQuery(
+  query: string,
+  wine: WineIdentity,
+  apiKey: string
+): Promise<Step1Outcome> {
   try {
     const items = await runSerperQuery(query, apiKey)
     if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1, match: null }

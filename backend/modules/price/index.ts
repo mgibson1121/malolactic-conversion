@@ -6,7 +6,7 @@ import { pageShowsNoResults } from './verify-listing'
 import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
 import { buildDistinguishingQuery } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
-import type { PriceData, RetailerResult } from './types'
+import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
 
 // Two queries, deliberately different (Phase 9.1). They were one string, and
 // that is the entire dead-link defect: the vintage belongs in the Serper
@@ -105,6 +105,58 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
   }
 }
 
+/**
+ * Turns product pages another module already confirmed into retailer entries
+ * (Phase 9.1) — see ConfirmedProductPage in ./types.
+ *
+ * Only pages for shops this run didn't already produce are added, so a
+ * retailer with a real Serper price keeps it. The entries carry no price
+ * (`link_only`): the pipeline never saw one for these, and inventing one
+ * from a review page's list price is exactly the blending CLAUDE.md §15
+ * forbids. Unlike everything else here, `url` is a genuine single product
+ * page rather than a constructed search — which is why is_search_results_page
+ * is false and verify-listing is not run against them: the page was already
+ * rendered successfully by the module that found it.
+ */
+function confirmedPageResults(
+  pages: ConfirmedProductPage[],
+  existing: RetailerResult[]
+): RetailerResult[] {
+  const seen = new Set(existing.map(r => r.slug))
+  const results: RetailerResult[] = []
+
+  for (const page of pages) {
+    if (seen.has(page.slug)) continue
+    seen.add(page.slug)
+    const configured = RETAILER_CONFIG.find(r => r.slug === page.slug)
+    results.push({
+      slug: page.slug,
+      name: page.name,
+      price: null,
+      url: page.product_url,
+      is_preferred_retailer: configured !== undefined,
+      distance_miles: configured
+        ? Math.round(haversineDistanceMiles(NYC.lat, NYC.lng, configured.lat, configured.lng))
+        : 0,
+      is_search_results_page: false,
+      matched_vintage: null,
+      vintage_mismatch: false,
+      // The review side owns this wine's vintage verdict for this page; it
+      // is recorded there, on the RetailerReview. Re-deriving a second,
+      // possibly different answer here is how the four dimensions drifted
+      // apart in the first place.
+      vintage_verdict: 'unknown',
+      pack_quantity: 1,
+      bottle_size_ml: null,
+      non_standard_format: false,
+      format_label: '',
+      link_only: true,
+    })
+  }
+
+  return results
+}
+
 // Distinguishes "never attempted" (returns null — no fetched_at, no stored
 // price_data at all) from "attempted and found nothing" (returns a PriceData
 // with empty retailers and a fetched_at timestamp). The UI needs this
@@ -171,7 +223,17 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
   }
 }
 
-export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null> {
+export interface PriceFetchOptions {
+  /** Product pages modules/reviews/ already confirmed carry this wine —
+   * supplied by the router from review_data (CLAUDE.md §5: modules
+   * communicate through the router, never by importing each other). */
+  confirmedProductPages?: ConfirmedProductPage[]
+}
+
+export async function fetchPriceData(
+  wine: WineEntry,
+  opts: PriceFetchOptions = {}
+): Promise<PriceData | null> {
   const apiKey = process.env.OPENAI_API_KEY
   const serperKey = process.env.SERPER_API_KEY
 
@@ -206,10 +268,14 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
     ? (await Promise.all(baseResults.map(r => verifyStillListed(r)))).filter((r): r is RetailerResult => r !== null)
     : []
 
+  // Retailers whose product page modules/reviews/ already confirmed, for
+  // shops this run's Serper pass didn't surface — see confirmedPageResults.
+  const confirmed = confirmedPageResults(opts.confirmedProductPages ?? [], verified)
+
   // K&L's link-only entry is added unconditionally, independent of whatever
   // Serper found or verify-listing confirmed — see buildKlLinkOnlyResult.
   const klLink = buildKlLinkOnlyResult(wine)
-  const allRetailers = klLink ? [...verified, klLink] : verified
+  const allRetailers = [...verified, ...confirmed, ...(klLink ? [klLink] : [])]
 
   if (allRetailers.length === 0) return emptyPriceData()
   return aggregatePriceData(allRetailers)

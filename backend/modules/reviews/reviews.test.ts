@@ -814,6 +814,118 @@ describe('fetchReviewData — open-web fallback pass', () => {
   })
 })
 
+// ─── Cross-feed from modules/price/ (Phase 9.1, WI-7) ──────────────────────
+// price/ discovered central-wine-merchants, Wally's and Varmax for Montus;
+// this module only ever iterated RETAILER_CONFIG, so it never looked at any
+// of them. The router feeds those merchant names back in. It has to be an
+// open query with the merchant as a term rather than a site: restriction —
+// Serper's Shopping response never carries the merchant's own domain.
+describe('fetchReviewData — retailers discovered by the price module', () => {
+  function installSerperMock(
+    byDomain: Record<string, Array<{ title: string; link: string; snippet?: string }>>,
+    openQueryResults: Array<{ title: string; link: string; snippet?: string }> = []
+  ): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      const domain = Object.keys(byDomain).find(d => body.q.includes(`site:${d}`))
+      const organic = domain ? byDomain[domain] : body.q.includes('site:') ? [] : openQueryResults
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    return queries
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('probes a discovered merchant by name when no configured retailer found a score', async () => {
+    const queries = installSerperMock({}, [
+      {
+        title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Central Wine Merchants',
+        link: 'https://www.centralwinemerchants.com/p/1',
+      },
+    ])
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.centralwinemerchants.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Wine Enthusiast', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0].product_url).toBe('https://www.centralwinemerchants.com/p/1')
+    expect(result[0].source).toBe('fallback')
+    expect(queries.some(q => q.includes('"Central Wine Merchants"'))).toBe(true)
+  })
+
+  it('does not probe discovered merchants when a configured retailer already found a score', async () => {
+    const queries = installSerperMock({
+      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://shop.klwines.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    expect(queries.some(q => q.includes('Central Wine Merchants'))).toBe(false)
+  })
+
+  it('skips merchants already covered by RETAILER_CONFIG', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'zachys', name: 'Zachys' }],
+    })
+
+    // Zachys was already searched with a proper site: query in Step 1;
+    // probing it again by name would just spend another call.
+    expect(queries.some(q => !q.includes('site:') && q.includes('"Zachys"'))).toBe(false)
+  })
+
+  it('runs the blind open-web pass only after the discovered merchants also come up empty', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    const merchantProbe = queries.findIndex(q => q.includes('"Central Wine Merchants"'))
+    const openPass = queries.findIndex(q => !q.includes('site:') && q.includes('review'))
+    expect(merchantProbe).toBeGreaterThanOrEqual(0)
+    expect(openPass).toBeGreaterThan(merchantProbe)
+  })
+
+  it('caps how many discovered merchants are probed', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: Array.from({ length: 8 }, (_, i) => ({
+        slug: `shop-${i}`,
+        name: `Wine Shop ${i}`,
+      })),
+    })
+
+    const probes = queries.filter(q => /"Wine Shop \d"/.test(q))
+    expect(probes).toHaveLength(3)
+  })
+})
+
 // ─── Regression fixtures ───────────────────────────────────────────────────────
 // Three real rendered pages captured during the 2026-07-24 live test that
 // diagnosed the original 80K blind-truncation bug. Used directly as

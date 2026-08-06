@@ -46,19 +46,45 @@ export interface RetailerResult {
   // Short UI label for the badge, e.g. "6-pack", "1.5L", "6 x 375ml". Empty
   // string when non_standard_format is false.
   format_label: string
-  // True only for the always-added K&L entry (see buildKlLinkOnlyResult in
-  // index.ts). K&L's own site blocks Puppeteer behind a bot-detection
-  // challenge, so nothing about its price can actually be verified — rather
-  // than let a Serper-sourced K&L price silently pass verify-listing.ts's
-  // "still listed" check unchecked (a bot-challenge stub never contains a
-  // "no results" phrase, so it always reads as confirmed), K&L is excluded
-  // from Serper-sourced matching entirely and instead always gets a single
-  // no-price entry pointing at its own site search. Excluded from
-  // price_min/avg/max and nearest_retailer (aggregatePriceData) and — unlike
-  // vintage_mismatch/non_standard_format — never able to satisfy Pass 1's
-  // "a preferred retailer matched" condition (querySerper), so a wine only
-  // K&L happens to carry still falls through to Pass 2 fallback retailers.
+  // True when this entry carries no verifiable price: show the link, keep it
+  // out of price_min/avg/max and nearest_retailer (aggregatePriceData), and
+  // never let it satisfy Pass 1's "a preferred retailer matched" condition
+  // (querySerper), so a wine only such an entry covers still cascades to
+  // retailers with real, checkable pricing.
+  //
+  // Two cases produce it. The original (2026-07-30) is the always-added K&L
+  // entry (see buildKlLinkOnlyResult in index.ts): K&L's own site blocks
+  // Puppeteer behind a bot-detection challenge, so nothing about its price
+  // can actually be verified — rather than let a Serper-sourced K&L price
+  // silently pass verify-listing.ts's "still listed" check unchecked (a
+  // bot-challenge stub never contains a "no results" phrase, so it always
+  // reads as confirmed), K&L is excluded from Serper-sourced matching
+  // entirely and instead gets a single no-price entry pointing at its own
+  // site search.
+  //
+  // The second (Phase 9.1) is a retailer contributed by a confirmed product
+  // page from modules/reviews/ (see ConfirmedProductPage below). Serper's
+  // Shopping endpoint returned no price for it, but a rendered product page
+  // is proof the shop carries the wine — worth a link, not worth a price
+  // the pipeline never actually saw.
   link_only: boolean
+}
+
+/**
+ * A product page another module has already confirmed carries this wine
+ * (Phase 9.1). Passed in by the router — modules never import each other
+ * (CLAUDE.md §5) — from review_data, whose entries are real rendered product
+ * pages that passed the graded matcher.
+ *
+ * This is the strongest possible evidence a shop stocks a wine, and it was
+ * being thrown away by the module that needs it: reviews/ found a live
+ * Woodland Hills product page for Mangot 2022 with 7 critic scores while
+ * price/ returned zero retailers for the same wine in the same run.
+ */
+export interface ConfirmedProductPage {
+  slug: string
+  name: string
+  product_url: string
 }
 
 export interface PriceData {

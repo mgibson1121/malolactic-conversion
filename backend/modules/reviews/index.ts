@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPageDetailed, findFallbackProductPage } from './find-product-page'
+import { findProductPageDetailed, findFallbackProductPage, findMerchantProductPage } from './find-product-page'
 import type { WineIdentity } from './find-product-page'
 import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
@@ -104,6 +104,54 @@ async function fetchFallbackReview(
   }
 }
 
+/**
+ * Searches merchants modules/price/ discovered but RETAILER_CONFIG doesn't
+ * cover (Phase 9.1). Runs only in the "found nothing" branch, and before the
+ * blind open-web pass — a shop the price module's own relevance-filtered
+ * Shopping search surfaced for this wine is a better-aimed guess than an
+ * unrestricted query.
+ *
+ * Capped at MERCHANT_PROBE_LIMIT: each probe is a Serper call plus a
+ * Puppeteer render plus a GPT-4o call, and price/ can return up to eight
+ * retailers.
+ */
+async function fetchDiscoveredMerchantReviews(
+  identity: WineIdentity,
+  merchants: DiscoveredRetailer[],
+  openai: OpenAI,
+  serperKey: string
+): Promise<ReviewResult[]> {
+  const configuredSlugs = new Set(RETAILER_CONFIG.map(r => r.slug))
+  const candidates = merchants
+    .filter(m => !configuredSlugs.has(m.slug))
+    .slice(0, MERCHANT_PROBE_LIMIT)
+
+  const results = await Promise.all(
+    candidates.map(async (merchant): Promise<ReviewResult | null> => {
+      const outcome = await findMerchantProductPage(identity, merchant.name, serperKey)
+      if (!outcome.url || !outcome.match) return null
+
+      const extraction = await renderAndExtract(openai, outcome.url)
+      if (!extraction) return null
+
+      const { slug, name } = labelFromUrl(outcome.url)
+      return {
+        slug,
+        name,
+        product_url: outcome.url,
+        critic_scores: extraction.critic_scores,
+        fetched_at: new Date().toISOString(),
+        // Reached by an open query rather than a site:-restricted search of
+        // a vetted domain — 'fallback', same as the open-web pass.
+        source: 'fallback',
+        ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+      }
+    })
+  )
+
+  return results.filter((r): r is ReviewResult => r !== null)
+}
+
 /** The three Phase 9.1 identity fields every stored ReviewResult carries.
  * Kept in one place so the configured and fallback paths can never drift on
  * what "which wine is this page actually about" means. */
@@ -133,7 +181,29 @@ function vintageFields(match: MatchVerdict): Pick<ReviewResult, 'page_vintage' |
  * the fallback" alike, since none of those are error conditions here
  * (CLAUDE.md §5 — modules degrade gracefully, never throw uncaught errors).
  */
-export async function fetchReviewData(wine: WineEntry): Promise<ReviewResult[]> {
+/** A retailer modules/price/ found for this wine — supplied by the router
+ * from price_data.retailers (CLAUDE.md §5: modules communicate through the
+ * router, never by importing each other). Only the display name is usable
+ * as a search term: Serper's Shopping response never carries the merchant's
+ * own domain. */
+export interface DiscoveredRetailer {
+  slug: string
+  name: string
+}
+
+export interface ReviewFetchOptions {
+  discoveredRetailers?: DiscoveredRetailer[]
+}
+
+/** Merchants probed per wine in the discovered-retailer pass. Each costs a
+ * Serper call, a Puppeteer render and a GPT-4o call, and price/ can return
+ * up to eight retailers. */
+const MERCHANT_PROBE_LIMIT = 3
+
+export async function fetchReviewData(
+  wine: WineEntry,
+  opts: ReviewFetchOptions = {}
+): Promise<ReviewResult[]> {
   const serperKey = process.env.SERPER_API_KEY
   const openaiKey = process.env.OPENAI_API_KEY
   if (!serperKey || !openaiKey) return []
@@ -170,8 +240,20 @@ export async function fetchReviewData(wine: WineEntry): Promise<ReviewResult[]> 
 
   const results = configuredResults.filter((r): r is ReviewResult => r !== null)
 
-  const hasAnyScore = results.some(r => r.critic_scores.length > 0)
-  if (!hasAnyScore) {
+  // Nothing from any configured retailer. Try the shops modules/price/ found
+  // for this wine first — a merchant its Shopping search actually surfaced is
+  // better aimed than a blind open-web query — then fall back to that query.
+  if (!results.some(r => r.critic_scores.length > 0)) {
+    const discovered = await fetchDiscoveredMerchantReviews(
+      identity,
+      opts.discoveredRetailers ?? [],
+      openai,
+      serperKey
+    )
+    results.push(...discovered)
+  }
+
+  if (!results.some(r => r.critic_scores.length > 0)) {
     const fallback = await fetchFallbackReview(identity, openai, serperKey)
     if (fallback) results.push(fallback)
   }
