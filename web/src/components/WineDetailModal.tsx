@@ -11,7 +11,9 @@ import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
 import { CriticScoreBadges } from './CriticScoreBadges'
+import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
 import { getDedupedCriticScores } from '../utils/criticScores'
+import { getAttributedDrinkingWindows } from '../utils/drinkingWindows'
 
 interface Props {
   wine: WineEntry
@@ -159,6 +161,7 @@ export function WineDetailModal({
   // pages (Phase 7's review_data) — not price_data.retailers[].critic_scores,
   // which was always guaranteed empty (see build-phases.md Phase 9).
   const criticScores = getDedupedCriticScores(wine.review_data)
+  const attributedWindows = getAttributedDrinkingWindows(wine.review_data)
 
   const latestNote = notes[0] ?? null
 
@@ -275,14 +278,24 @@ export function WineDetailModal({
             </section>
           )}
 
-          {/* Drinking window */}
-          {wine.drinking_window && (
+          {/* Drinking window — the agreed wine-level value when critics agree,
+              otherwise the per-critic windows attributed to their sources. The
+              field is null in the disagreement case (derive-wine-level.ts) and
+              stays null; showing the spread doesn't reconcile it (§15). */}
+          {wine.drinking_window ? (
             <section className="detail-section">
               <h3 className="detail-section-title">Drinking Window</h3>
               <p className="detail-drinking-window">
                 {wine.drinking_window.start} – {wine.drinking_window.end}
               </p>
             </section>
+          ) : (
+            attributedWindows.length > 0 && (
+              <section className="detail-section">
+                <h3 className="detail-section-title">Drinking Window</h3>
+                <AttributedDrinkingWindows windows={attributedWindows} />
+              </section>
+            )
           )}
 
           {/* Critic scores — sourced from review_data (Phase 7), a rendered

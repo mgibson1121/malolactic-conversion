@@ -4,7 +4,9 @@ import { fetchWinePrice, fetchWineReviews } from '../api'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
 import { CriticScoreBadges } from './CriticScoreBadges'
+import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
 import { getDedupedCriticScores } from '../utils/criticScores'
+import { getAttributedDrinkingWindows } from '../utils/drinkingWindows'
 
 interface Props {
   wine: WineEntry
@@ -74,6 +76,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
   }
 
   const criticScores = getDedupedCriticScores(wine.review_data)
+  const attributedWindows = getAttributedDrinkingWindows(wine.review_data)
   const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
   const secondaryParts = [
     wine.vintage ? String(wine.vintage) : null,
@@ -177,11 +180,21 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         ))}
       </div>
 
-      {/* Drinking window */}
-      {wine.drinking_window && (
+      {/* Drinking window — the agreed wine-level value when critics agree,
+          otherwise the per-critic windows attributed to their sources. The
+          field is null in the disagreement case (derive-wine-level.ts) and
+          stays null; showing the spread doesn't reconcile it (CLAUDE.md §15). */}
+      {wine.drinking_window ? (
         <div className="drinking-window">
           Drink {wine.drinking_window.start}–{wine.drinking_window.end}
         </div>
+      ) : (
+        attributedWindows.length > 0 && (
+          <div className="drinking-window drinking-window--disputed">
+            <span className="drinking-window-label">Drink</span>
+            <AttributedDrinkingWindows windows={attributedWindows} />
+          </div>
+        )
       )}
 
       {/* Critic scores — sourced from review_data (Phase 7), a rendered
