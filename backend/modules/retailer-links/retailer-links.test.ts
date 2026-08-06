@@ -29,13 +29,19 @@ describe('getRetailerLinks', () => {
     // Denomination alone is too generic for cuvee/vineyard-driven wines —
     // "Drappier Champagne" or "Louis Latour Pommard" covers every product a
     // producer sells at that denomination, not the specific bottling.
+    //
+    // Diacritics folded as of Phase 9.1 (was Sendr%C3%A9e / %C3%89penots):
+    // buildDistinguishingQuery sat below a normalize() that has always
+    // stripped accents and didn't strip them itself, so these URLs asked a
+    // retailer's search for an exact accented string while the relevance
+    // check on the way back folded both sides.
     const withCuvee = getRetailerLinks({ producer: 'Drappier', denomination: 'Champagne', vintage: 2012, cuvee: 'Grande Sendrée', vineyard: null })
     const kl = withCuvee.find((l) => l.slug === 'kl')!
-    expect(kl.url).toBe('https://shop.klwines.com/products?searchText=Drappier%20Champagne%20Grande%20Sendr%C3%A9e')
+    expect(kl.url).toBe('https://shop.klwines.com/products?searchText=Drappier%20Champagne%20Grande%20Sendree')
 
     const withVineyard = getRetailerLinks({ producer: 'Louis Latour', denomination: 'Pommard', vintage: 2017, cuvee: null, vineyard: 'Les Épenots' })
     const klVineyard = withVineyard.find((l) => l.slug === 'kl')!
-    expect(klVineyard.url).toBe('https://shop.klwines.com/products?searchText=Louis%20Latour%20Pommard%20Les%20%C3%89penots')
+    expect(klVineyard.url).toBe('https://shop.klwines.com/products?searchText=Louis%20Latour%20Pommard%20Les%20Epenots')
   })
 
   it('drops the vintage even when known — a retailer search is broader than a single-SKU lookup (Phase 7.2)', () => {

@@ -2,20 +2,32 @@ import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG, NYC } from '@shared/config/retailers.config'
 import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
-import { pageShowsNoResults } from './verify-listing'
+import { pageShowsNoResults, pageMentionsProducer } from './verify-listing'
 import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
 import { buildDistinguishingQuery } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
-import type { PriceData, RetailerResult } from './types'
+import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
 
-// cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
-// too generic to reach the actual bottling in Serper's results at all (e.g.
-// "Drappier Champagne" surfaces any Drappier Champagne, not specifically
-// "Grande Sendrée"). See isRelevantMatch in @shared/utils/wine-match.ts for
-// the matching-side half of this fix. buildDistinguishingQuery extracted
-// 2026-08-02 — same join logic was duplicated in retailer-links/index.ts.
-function buildQuery(wine: WineEntry): string {
+// Two queries, deliberately different (Phase 9.1). They were one string, and
+// that is the entire dead-link defect: the vintage belongs in the Serper
+// Shopping query (relevance-ranked — a year narrows toward the right listing)
+// and must not be in the URL handed to a retailer's own on-site search
+// (literal — a year they don't stock turns real listings into "no results").
+// Six for six of the reported dead links were a retailer matched on one
+// vintage and then linked with another. See querySerper's param docs, and
+// retailer-links/index.ts's buildQuery, which made this call in Phase 7.2.
+//
+// cuvee/vineyard included in both (2026-07-30 fix) — denomination alone is
+// often too generic to reach the actual bottling at all (e.g. "Drappier
+// Champagne" surfaces any Drappier Champagne, not specifically "Grande
+// Sendrée"). buildDistinguishingQuery extracted 2026-08-02 — the same join
+// logic was duplicated in retailer-links/index.ts.
+function buildSearchQuery(wine: WineEntry): string {
   return buildDistinguishingQuery(wine, { includeVintage: true })
+}
+
+function buildLinkQuery(wine: WineEntry): string {
+  return buildDistinguishingQuery(wine)
 }
 
 // Every retailer URL at this point is a constructed search-results page
@@ -28,13 +40,34 @@ function buildQuery(wine: WineEntry): string {
 // backs it up. Returns null to signal "drop this retailer entirely" — a
 // wine that isn't actually in this retailer's live search isn't a match,
 // so this is a drop, not a downgrade.
-async function verifyStillListed(retailer: RetailerResult): Promise<RetailerResult | null> {
+async function verifyStillListed(
+  retailer: RetailerResult,
+  producer: string | null
+): Promise<RetailerResult | null> {
   const html = await renderPageHtml(retailer.url)
-  // Render failed/timed out — an infra hiccup isn't evidence the listing is
-  // gone, so don't punish the retailer for it; keep Serper's data as-is.
-  if (!html) return retailer
+
+  // Render failed/timed out. An infra hiccup still isn't evidence the
+  // listing is gone, so the retailer is kept — but it is no longer reported
+  // as if the check had passed. Before Phase 9.1 this returned the retailer
+  // unchanged, making an unverifiable listing indistinguishable from a
+  // verified one all the way to the UI.
+  if (!html) return { ...retailer, verification: 'unverified' }
+
   if (pageShowsNoResults(html)) return null
-  return retailer
+
+  // Positive signal (Phase 9.1). pageShowsNoResults is an allowlist of eight
+  // English phrasings, so a retailer whose empty-state copy isn't on it
+  // passes by default — Benchmark, Zachys, Woodland Hills and Flatiron all
+  // did, while serving dead links. Asking whether the producer's name is on
+  // the page answers the question directly instead of guessing at how they
+  // phrase failure. Absence is a drop: the page rendered, and this
+  // producer's name is not on it.
+  const mentionsProducer = pageMentionsProducer(html, producer)
+  if (mentionsProducer === false) return null
+
+  // null means the question couldn't be asked (no producer recorded), which
+  // is not the same as a pass.
+  return { ...retailer, verification: mentionsProducer === true ? 'verified' : 'unverified' }
 }
 
 // K&L link-only entry (added 2026-07-30): K&L's own site blocks Puppeteer
@@ -62,6 +95,25 @@ async function verifyStillListed(retailer: RetailerResult): Promise<RetailerResu
 // buildQuery (Phase 7.2) — K&L's on-site search is literal/narrow enough
 // that an added vintage risks looking like "no results" even when K&L
 // carries the wine under a different vintage's listing.
+//
+// Gated as of Phase 9.1, on querySerper's klItemSeen: this entry is offered
+// only when Serper's Shopping snapshot actually showed a relevant K&L
+// listing for the wine. "K&L's price can't be verified" was being conflated
+// with "we have no idea whether K&L stocks it" — the second was never true,
+// the evidence was computed and discarded, and the entry went onto every
+// wine regardless. Deleuze-Rochetin's entire retailer list was one K&L
+// entry for a wine K&L doesn't stock; so was Mangot's. That is not a
+// matching bug — K&L was never matched at all.
+//
+// Second-order, and the reason this matters beyond one wrong row: because
+// something was always appended, `allRetailers.length === 0` became
+// unreachable, so emptyPriceData() never fired and the "attempted and found
+// nothing" state its own comment exists to preserve was destroyed by a
+// change made elsewhere. Gating restores it.
+//
+// Note the flag comes from a Serper *snapshot*, which is why this stays a
+// link and never a price: the snapshot is evidence enough to be worth a
+// look, never evidence enough to quote.
 function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
   const kl = RETAILER_CONFIG.find(r => r.slug === 'kl')
   if (!kl) return null
@@ -81,12 +133,76 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
     is_search_results_page: true,
     matched_vintage: null,
     vintage_mismatch: false,
+    // Nothing was matched at all — this entry is a constructed link, not a
+    // listing — so the honest vintage verdict is 'unknown', not the `false`
+    // that vintage_mismatch alone would imply.
+    vintage_verdict: 'unknown',
     pack_quantity: 1,
     bottle_size_ml: null,
     non_standard_format: false,
     format_label: '',
     link_only: true,
+    // K&L's site blocks the renderer, so this can never be checked — that
+    // is the whole reason the entry carries no price. See CLAUDE.md §15 on
+    // not pursuing bot-detection evasion.
+    verification: 'unchecked',
   }
+}
+
+/**
+ * Turns product pages another module already confirmed into retailer entries
+ * (Phase 9.1) — see ConfirmedProductPage in ./types.
+ *
+ * Only pages for shops this run didn't already produce are added, so a
+ * retailer with a real Serper price keeps it. The entries carry no price
+ * (`link_only`): the pipeline never saw one for these, and inventing one
+ * from a review page's list price is exactly the blending CLAUDE.md §15
+ * forbids. Unlike everything else here, `url` is a genuine single product
+ * page rather than a constructed search — which is why is_search_results_page
+ * is false and verify-listing is not run against them: the page was already
+ * rendered successfully by the module that found it.
+ */
+function confirmedPageResults(
+  pages: ConfirmedProductPage[],
+  existing: RetailerResult[]
+): RetailerResult[] {
+  const seen = new Set(existing.map(r => r.slug))
+  const results: RetailerResult[] = []
+
+  for (const page of pages) {
+    if (seen.has(page.slug)) continue
+    seen.add(page.slug)
+    const configured = RETAILER_CONFIG.find(r => r.slug === page.slug)
+    results.push({
+      slug: page.slug,
+      name: page.name,
+      price: null,
+      url: page.product_url,
+      is_preferred_retailer: configured !== undefined,
+      distance_miles: configured
+        ? Math.round(haversineDistanceMiles(NYC.lat, NYC.lng, configured.lat, configured.lng))
+        : 0,
+      is_search_results_page: false,
+      matched_vintage: null,
+      vintage_mismatch: false,
+      // The review side owns this wine's vintage verdict for this page; it
+      // is recorded there, on the RetailerReview. Re-deriving a second,
+      // possibly different answer here is how the four dimensions drifted
+      // apart in the first place.
+      vintage_verdict: 'unknown',
+      pack_quantity: 1,
+      bottle_size_ml: null,
+      non_standard_format: false,
+      format_label: '',
+      link_only: true,
+      // modules/reviews/ already rendered this exact page successfully;
+      // re-rendering it here to confirm what it just confirmed would spend a
+      // second Puppeteer launch for nothing.
+      verification: 'unchecked',
+    })
+  }
+
+  return results
 }
 
 // Distinguishes "never attempted" (returns null — no fetched_at, no stored
@@ -155,23 +271,40 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
   }
 }
 
-export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null> {
+export interface PriceFetchOptions {
+  /** Product pages modules/reviews/ already confirmed carry this wine —
+   * supplied by the router from review_data (CLAUDE.md §5: modules
+   * communicate through the router, never by importing each other). */
+  confirmedProductPages?: ConfirmedProductPage[]
+}
+
+export async function fetchPriceData(
+  wine: WineEntry,
+  opts: PriceFetchOptions = {}
+): Promise<PriceData | null> {
   const apiKey = process.env.OPENAI_API_KEY
   const serperKey = process.env.SERPER_API_KEY
 
   if (!apiKey || !serperKey) return null
 
-  const query = buildQuery(wine)
-  if (!query.trim()) return null
+  const searchQuery = buildSearchQuery(wine)
+  if (!searchQuery.trim()) return null
+  const linkQuery = buildLinkQuery(wine)
 
   // Step 1 — Serper query: discover retailer URLs + prices (K&L excluded — see querySerper)
-  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey, {
-    producer: wine.producer ?? '',
-    denomination: wine.denomination ?? '',
-    vintage: wine.vintage ?? null,
-    cuvee: wine.cuvee,
-    vineyard: wine.vineyard,
-  })
+  const { retailers: baseResults, klItemSeen } = await querySerper(
+    searchQuery,
+    RETAILER_CONFIG,
+    serperKey,
+    {
+      producer: wine.producer ?? '',
+      denomination: wine.denomination ?? '',
+      vintage: wine.vintage ?? null,
+      cuvee: wine.cuvee,
+      vineyard: wine.vineyard,
+    },
+    linkQuery
+  )
 
   // Step 2 — Puppeteer pass: render each retailer's live search page and drop
   // any retailer whose search doesn't actually surface a result today. See
@@ -180,14 +313,23 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
   // Skipped entirely when baseResults is empty rather than launching a
   // Puppeteer browser for nothing.
   const verified = baseResults.length
-    ? (await Promise.all(baseResults.map(r => verifyStillListed(r)))).filter((r): r is RetailerResult => r !== null)
+    ? (await Promise.all(baseResults.map(r => verifyStillListed(r, wine.producer)))).filter(
+        (r): r is RetailerResult => r !== null
+      )
     : []
 
-  // K&L's link-only entry is added unconditionally, independent of whatever
-  // Serper found or verify-listing confirmed — see buildKlLinkOnlyResult.
-  const klLink = buildKlLinkOnlyResult(wine)
-  const allRetailers = klLink ? [...verified, klLink] : verified
+  // Retailers whose product page modules/reviews/ already confirmed, for
+  // shops this run's Serper pass didn't surface — see confirmedPageResults.
+  const confirmed = confirmedPageResults(opts.confirmedProductPages ?? [], verified)
 
+  // K&L's link-only entry, offered only when there is a reason to (Phase
+  // 9.1) — see buildKlLinkOnlyResult and shouldOfferKlLink.
+  const klLink = klItemSeen ? buildKlLinkOnlyResult(wine) : null
+  const allRetailers = [...verified, ...confirmed, ...(klLink ? [klLink] : [])]
+
+  // Reachable again now that nothing is appended unconditionally: an empty
+  // PriceData with a fetched_at timestamp is "attempted and found nothing",
+  // which the UI must be able to tell apart from "never attempted" (null).
   if (allRetailers.length === 0) return emptyPriceData()
   return aggregatePriceData(allRetailers)
 }

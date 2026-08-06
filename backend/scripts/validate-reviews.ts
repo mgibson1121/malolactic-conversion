@@ -19,13 +19,22 @@
  * fetchReviewData itself calls, so this isn't a second implementation of
  * the matching/query logic, just added observability in the glue code.
  *
- * Kept as a dev tool per build-phases.md Phase 7's open question on
- * keyword-window hit rate: re-run whenever RETAILER_CONFIG changes (e.g.
- * a newly-added retailer like JJ Buckley, 2026-08-02) or the
- * windowing/extraction/query logic changes, to confirm hit rate hasn't
- * regressed. Edit the WINES list below to whatever set you want to
- * validate against; writes a JSON summary to the repo root (gitignored —
- * not meant to be committed).
+ * Extended again 2026-08-04 (Phase 9.1, WI-10) to report *per stage, per
+ * retailer* rather than an aggregate hit rate — and, for anything rejected,
+ * the MatchVerdict that rejected it. The 2026-08-04 batch's real failure was
+ * not missing data but wrong data presented as right, which an aggregate hit
+ * rate cannot show: nine Château Lafleur scores stored against Château Grand
+ * Village counted as nine successes. So this now also reports vintage
+ * accuracy across score-bearing results, and names the retailers not in
+ * RETAILER_CONFIG that were therefore never searched at all — a config gap
+ * otherwise renders identically to a real miss.
+ *
+ * Runs the 14-wine 2026-08-04 batch by default, from the same fixture the
+ * offline regression suite pins (backend/tests/fixtures/ground-truth-wines.ts
+ * and backend/tests/unit/ground-truth.test.ts), so the live run and the CI
+ * run are talking about one set rather than two drifting lists. Set
+ * VALIDATE_SET=cellar for the Phase 8 cellar list instead. Writes a JSON
+ * summary to the repo root (gitignored — not meant to be committed).
  *
  * Run: npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/scripts/validate-reviews.ts
  */
@@ -36,11 +45,19 @@ config({ path: path.resolve(__dirname, '../../.env') })
 import fs from 'fs'
 import OpenAI from 'openai'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPageDetailed, findFallbackProductPage, type Step1Stage } from '../modules/reviews/find-product-page'
+import {
+  findProductPageDetailed,
+  findFallbackProductPage,
+  type Step1Stage,
+  type Step1Outcome,
+  type RejectedCandidate,
+} from '../modules/reviews/find-product-page'
+import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import type { CriticScore } from '../modules/reviews/types'
+import { BATCH_WINES } from '../tests/fixtures/ground-truth-wines'
 
 interface WineProbe {
   label: string
@@ -51,11 +68,26 @@ interface WineProbe {
   vineyard?: string | null
 }
 
+// The 2026-08-04 batch, from the shared ground-truth fixture (Phase 9.1).
+// Same 14 wines the offline regression suite pins
+// (backend/tests/unit/ground-truth.test.ts), so a live run here and a CI run
+// there are talking about the same set rather than two drifting lists.
+//
+// Set VALIDATE_SET=cellar to run the Phase 8 list below instead.
+const BATCH_PROBES: WineProbe[] = BATCH_WINES.map(w => ({
+  label: w.label,
+  producer: w.producer,
+  denomination: w.denomination,
+  vintage: w.vintage,
+  cuvee: w.cuvee ?? null,
+  vineyard: w.vineyard ?? null,
+}))
+
 // Phase 8 real-world validation set (2026-07-29) — developer's cellar list.
 // The last two entries (2026-08-02) are the wines from the JJ
 // Buckley/Woodland Hills reports that motivated this script's stage-level
 // diagnostics and the relaxed-query retry fix.
-const WINES: WineProbe[] = [
+const CELLAR_WINES: WineProbe[] = [
   { label: "2018 Château du Petit Thouars Chinon L'Epée", producer: 'Château du Petit Thouars', denomination: "Chinon L'Epée", vintage: 2018 },
   { label: '2020 Domaine de Montille Bourgogne Blanc Le Clos du Chateau', producer: 'Domaine de Montille', denomination: 'Bourgogne Blanc Le Clos du Chateau', vintage: 2020 },
   { label: "2019 Etienne Bécheras (Le Prieuré d'Arras) St. Joseph", producer: "Etienne Bécheras (Le Prieuré d'Arras)", denomination: 'St. Joseph', vintage: 2019 },
@@ -77,7 +109,23 @@ const WINES: WineProbe[] = [
   { label: '2019 Domaine de Saint Préfert Châteauneuf-du-Pape Réserve Auguste Favier', producer: 'Domaine de Saint Préfert', denomination: 'Châteauneuf-du-Pape Réserve Auguste Favier', vintage: 2019 },
 ]
 
-type RetailerStage = Step1Stage | 'render_failed' | 'no_extraction' | 'success'
+const WINES: WineProbe[] = process.env.VALIDATE_SET === 'cellar' ? CELLAR_WINES : BATCH_PROBES
+
+/**
+ * Where a wine×retailer attempt actually stopped (Phase 9.1, WI-10).
+ *
+ * `success` was previously the only positive outcome and covered both "found
+ * scores" and "rendered fine, cited nothing" — which are very different
+ * problems. `no_score_citation` separates them, and `found` now means what it
+ * says. The distinction matters because the two have opposite fixes: one is a
+ * windowing/extraction question, the other is a coverage question.
+ */
+type RetailerStage =
+  | Step1Stage           // request_failed | zero_results | no_relevant_match | found
+  | 'render_failed'      // Puppeteer couldn't render the page
+  | 'no_extraction'      // rendered, but GPT-4o extraction failed outright
+  | 'no_score_citation'  // rendered and extracted, but the page cites no score
+  | 'success'            // at least one attributed score captured
 
 interface RetailerOutcome {
   slug: string
@@ -86,6 +134,24 @@ interface RetailerOutcome {
   variantsTried: number
   product_url: string | null
   critic_scores: CriticScore[]
+  /** The verdict the accepted page was judged on — which dimensions were
+   * confirmed, and how far off the vintage is. Null when nothing matched. */
+  match: MatchVerdict | null
+  /** Vintage the rendered page itself stated, when it stated one. */
+  page_vintage: number | null
+  vintage_gap: number | null
+  /** What was on offer and why each was turned down. Populated only for
+   * no_relevant_match, which is otherwise the least legible outcome in the
+   * pipeline: a bare "nothing matched" tells you neither what Serper
+   * returned nor which dimension disqualified it. */
+  rejected: RejectedCandidate[]
+}
+
+/** One line per rejected dimension, e.g. "producer=mismatch denom=match". */
+function describeVerdict(v: MatchVerdict | null): string {
+  if (!v) return 'url-shape rejected (not a product page)'
+  const gap = v.vintageGap === null ? '?' : String(v.vintageGap)
+  return `producer=${v.producer} denom=${v.denomination} bottling=${v.bottling} vintage=${v.vintage}(gap ${gap})`
 }
 
 interface WineOutcome {
@@ -105,26 +171,51 @@ async function probeRetailer(
   identity: { producer: string; denomination: string; vintage: number | null; cuvee: string | null; vineyard: string | null },
   openai: OpenAI,
   serperKey: string,
-  step1: { url: string | null; stage: Step1Stage; variantsTried: number },
+  step1: Step1Outcome,
   slug: string,
   name: string
 ): Promise<RetailerOutcome> {
+  const base = {
+    slug,
+    name,
+    variantsTried: step1.variantsTried,
+    match: step1.match,
+    page_vintage: step1.match?.candidateVintage ?? null,
+    vintage_gap: step1.match?.vintageGap ?? null,
+    rejected: step1.rejected,
+  }
+
   if (!step1.url) {
-    return { slug, name, stage: step1.stage, variantsTried: step1.variantsTried, product_url: null, critic_scores: [] }
+    return { ...base, stage: step1.stage, product_url: null, critic_scores: [] }
   }
 
   const html = await renderPageHtml(step1.url)
   if (!html) {
-    return { slug, name, stage: 'render_failed', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
+    return { ...base, stage: 'render_failed', product_url: step1.url, critic_scores: [] }
   }
 
   const candidateText = extractCandidateText(html)
   const extraction = await extractFromRenderedHtml(openai, candidateText, step1.url)
   if (!extraction) {
-    return { slug, name, stage: 'no_extraction', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: [] }
+    return { ...base, stage: 'no_extraction', product_url: step1.url, critic_scores: [] }
   }
 
-  return { slug, name, stage: 'success', variantsTried: step1.variantsTried, product_url: step1.url, critic_scores: extraction.critic_scores }
+  // The rendered page's own vintage supersedes anything read off the search
+  // result — same rule fetchReviewData applies (see verdictFromPage there).
+  const pageVintage = extraction.vintage
+  const gap =
+    pageVintage !== null && identity.vintage !== null ? Math.abs(pageVintage - identity.vintage) : base.vintage_gap
+
+  return {
+    ...base,
+    page_vintage: pageVintage ?? base.page_vintage,
+    vintage_gap: gap,
+    // Rendered and extracted, but nothing attributed — a different problem
+    // from "found scores", and one with a different fix.
+    stage: extraction.critic_scores.length > 0 ? 'success' : 'no_score_citation',
+    product_url: step1.url,
+    critic_scores: extraction.critic_scores,
+  }
 }
 
 async function probeWine(wine: WineProbe, openai: OpenAI, serperKey: string): Promise<WineOutcome> {
@@ -168,9 +259,23 @@ function makeStageCounter(): Record<RetailerStage, number> {
     no_relevant_match: 0,
     render_failed: 0,
     no_extraction: 0,
+    no_score_citation: 0,
     success: 0,
     found: 0, // not reachable as a final stage (found → render/extract runs next), kept for type completeness
   }
+}
+
+/** Retailers this wine was never searched at, because they aren't in
+ * RETAILER_CONFIG. Reported explicitly (Phase 9.1) because a config gap
+ * otherwise renders identically to a real miss — which is exactly what
+ * happened with JJ Buckley on 2026-08-02, and again with sommpicks.com and
+ * farrvintners.com in the 2026-08-04 batch. */
+function reportNotConfigured(): void {
+  console.log(
+    `\nnot_configured: any retailer outside RETAILER_CONFIG's ${RETAILER_CONFIG.length} domains was never searched.`
+  )
+  console.log('  If a wine is known to be stocked somewhere absent from the per-retailer lines above,')
+  console.log('  check shared/config/retailers.config.ts before treating it as a query or matching bug.')
 }
 
 async function main() {
@@ -196,6 +301,26 @@ async function main() {
       if (r.stage === 'zero_results' || r.stage === 'request_failed') continue // noisy — most retailers won't carry most wines
       const retryNote = r.variantsTried > 1 ? ` [found on retry, ${r.variantsTried} variants tried]` : ''
       console.log(`    ${r.slug}: ${r.stage}${retryNote}${r.product_url ? ` — ${r.product_url}` : ''}`)
+
+      // What the page was judged to be, and how far off. A wrong-vintage
+      // result is kept deliberately (vintage ranks and labels, it never
+      // rejects), so it has to be legible here rather than look like a pass.
+      if (r.match) {
+        const gapNote =
+          r.vintage_gap !== null && r.vintage_gap > 0
+            ? `  ⚠ page is ${r.page_vintage} — ${r.vintage_gap} year(s) off`
+            : ''
+        console.log(`      verdict: ${describeVerdict(r.match)}${gapNote}`)
+      }
+
+      // Why nothing was accepted — the line that turns the next report from
+      // a debugging session into a log read.
+      for (const rej of r.rejected) {
+        console.log(`      ✗ rejected: ${rej.title}`)
+        console.log(`          ${rej.url}`)
+        console.log(`          ${describeVerdict(rej.verdict)}`)
+      }
+
       for (const s of r.critic_scores) {
         const bits: string[] = [`★ ${s.publication}: ${s.score}`]
         if (s.drinking_window) bits.push(`drink ${s.drinking_window.start ?? '?'}–${s.drinking_window.end ?? '?'}`)
@@ -230,13 +355,32 @@ async function main() {
   }
   const totalAttempts = results.length * RETAILER_CONFIG.length
   console.log(`\nStage breakdown across ${totalAttempts} wine×retailer attempts:`)
-  console.log(`  success:            ${stageCounts.success}`)
-  console.log(`  no_extraction:      ${stageCounts.no_extraction}  (rendered, but no score citation found)`)
+  console.log(`  success:            ${stageCounts.success}  (at least one attributed score captured)`)
+  console.log(`  no_score_citation:  ${stageCounts.no_score_citation}  (right page, rendered and extracted, but it cites no score)`)
+  console.log(`  no_extraction:      ${stageCounts.no_extraction}  (GPT-4o extraction failed outright)`)
   console.log(`  render_failed:      ${stageCounts.render_failed}  (Puppeteer render failed/timed out)`)
-  console.log(`  no_relevant_match:  ${stageCounts.no_relevant_match}  (Serper returned results, none matched)`)
+  console.log(`  no_relevant_match:  ${stageCounts.no_relevant_match}  (Serper returned results, none matched — see the ✗ lines above for which dimension)`)
   console.log(`  zero_results:       ${stageCounts.zero_results}  (Serper returned nothing at all — most are just retailers that don't carry the wine)`)
   console.log(`  request_failed:     ${stageCounts.request_failed}  (Serper request itself errored)`)
   console.log(`  found on a relaxed-query retry (2026-08-02 fix): ${retriedAndFound}`)
+  reportNotConfigured()
+
+  // ─── Vintage accuracy (Phase 9.1) ─────────────────────────────────────
+  // The headline failure of the 2026-08-04 batch was not missing data, it
+  // was wrong-vintage data presented as if it were right. Wrong-vintage
+  // results are kept on purpose now, so this has to be measured rather than
+  // assumed away.
+  const matched = results.flatMap(r => r.retailers).filter(r => r.stage === 'success')
+  const exactVintage = matched.filter(r => r.vintage_gap === 0).length
+  const offVintage = matched.filter(r => r.vintage_gap !== null && r.vintage_gap > 0)
+  const unknownVintage = matched.filter(r => r.vintage_gap === null).length
+  console.log(`\nVintage accuracy across ${matched.length} score-bearing results:`)
+  console.log(`  exact vintage:      ${exactVintage}`)
+  console.log(`  different vintage:  ${offVintage.length}  (kept and labelled — excluded from drinking_window/vintage_rating derivation)`)
+  console.log(`  vintage unknown:    ${unknownVintage}  (page stated no year; also excluded from derivation)`)
+  for (const r of offVintage) {
+    console.log(`    ${r.slug}: page is ${r.page_vintage}, ${r.vintage_gap} year(s) off — ${r.critic_scores.length} score(s)`)
+  }
 
   // ─── Open-web fallback pass (Phase 7.3, 2026-08-02) ───────────────────
   // Directly answers build-phases.md Phase 7.3's completion criteria #2/#3:

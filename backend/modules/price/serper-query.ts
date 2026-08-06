@@ -3,7 +3,14 @@ import type { RetailerResult } from './types'
 import { haversineDistanceMiles } from './proximity'
 import { NYC } from '@shared/config/retailers.config'
 import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
-import { isRelevantMatch, type WineIdentity } from '@shared/utils/wine-match'
+import {
+  isRelevantMatch,
+  scoreMatch,
+  isAcceptableMatch,
+  compareByMatchQuality,
+  type MatchVerdict,
+  type WineIdentity,
+} from '@shared/utils/wine-match'
 import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
 
 export type { WineIdentity }
@@ -13,6 +20,12 @@ export type { WineIdentity }
 export { isRelevantMatch }
 
 const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
+
+/** Total retailers returned once the preferred and fallback passes are
+ * merged (Phase 9.1). Was an implicit 5 on the fallback pass alone; raised
+ * because the merged list now has to hold the configured retailers too, and
+ * each surviving entry costs one Puppeteer render in verify-listing. */
+const MERGED_RESULT_CAP = 8
 
 interface SerperShoppingItem {
   title: string
@@ -32,20 +45,26 @@ function parsePriceString(price?: string): number | null {
   return isNaN(n) || n <= 0 ? null : n
 }
 
-/** Parses a 4-digit 19xx/20xx vintage year out of a listing title, if present. */
-export function extractYearFromTitle(title: string): number | null {
-  const match = title.match(/\b(19\d{2}|20\d{2})\b/)
-  return match ? parseInt(match[0], 10) : null
+/**
+ * A Shopping item paired with the verdict it was judged on (Phase 9.1).
+ *
+ * Shopping items are scored on their `title` alone: `link` is always a
+ * `google.com/search?ibp=oshop` aggregator URL built out of the query we
+ * just sent, so feeding it to the matcher would have the candidate confirm
+ * itself against our own search terms. There is no snippet on this endpoint.
+ */
+interface ScoredItem {
+  item: SerperShoppingItem
+  verdict: MatchVerdict
 }
 
 function itemToRetailerResult(
-  item: SerperShoppingItem,
+  scored: ScoredItem,
   retailer: RetailerConfig,
   isPreferred: boolean,
-  query: string,
-  wine: WineIdentity
+  linkQuery: string
 ): RetailerResult {
-  const matched_vintage = extractYearFromTitle(item.title)
+  const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title)
   return {
     slug: retailer.slug,
@@ -55,21 +74,26 @@ function itemToRetailerResult(
     // aggregator page rather than the retailer's own product page (this is
     // what caused "Details aren't available for this product"). For known
     // preferred retailers we construct a live search URL on their own site
-    // instead — see @shared/utils/retailer-search-url.ts.
-    url: buildRetailerSearchUrl(retailer, query),
+    // instead — see @shared/utils/retailer-search-url.ts. Built from
+    // linkQuery, which carries no vintage token — see querySerper.
+    url: buildRetailerSearchUrl(retailer, linkQuery),
     is_preferred_retailer: isPreferred,
     distance_miles: Math.round(
       haversineDistanceMiles(NYC.lat, NYC.lng, retailer.lat, retailer.lng)
     ),
     // Always a constructed search-results URL — see buildRetailerSearchUrl.
     is_search_results_page: true,
-    matched_vintage,
-    vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,
+    matched_vintage: verdict.candidateVintage,
+    vintage_mismatch: verdict.vintage === 'mismatch',
+    vintage_verdict: verdict.vintage,
     pack_quantity: pack_format.pack_quantity,
     bottle_size_ml: pack_format.bottle_size_ml,
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
     link_only: false,
+    // Stamped by verifyStillListed in index.ts, which is what actually
+    // renders the page — nothing has been checked at this point.
+    verification: 'unchecked',
   }
 }
 
@@ -93,36 +117,78 @@ function buildFallbackUrl(source: string, query: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(`${source} ${query}`)}`
 }
 
-function buildFallbackResult(item: SerperShoppingItem, query: string, wine: WineIdentity): RetailerResult {
-  const matched_vintage = extractYearFromTitle(item.title)
+function buildFallbackResult(scored: ScoredItem, linkQuery: string): RetailerResult {
+  const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title)
   return {
     slug: slugifySource(item.source),
     name: item.source,
     price: item.priceRaw ?? parsePriceString(item.price),
-    url: buildFallbackUrl(item.source, query),
+    url: buildFallbackUrl(item.source, linkQuery),
     is_preferred_retailer: false,
     distance_miles: 0,
     // Always a search page, never a single product page — see
     // is_preferred_retailer's case above. Critic-score sourcing (which
     // needs a real product page) lives in modules/reviews/, not here.
     is_search_results_page: true,
-    matched_vintage,
-    vintage_mismatch: matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage,
+    matched_vintage: verdict.candidateVintage,
+    vintage_mismatch: verdict.vintage === 'mismatch',
+    vintage_verdict: verdict.vintage,
     pack_quantity: pack_format.pack_quantity,
     bottle_size_ml: pack_format.bottle_size_ml,
     non_standard_format: isNonStandardFormat(pack_format),
     format_label: describeFormat(pack_format),
     link_only: false,
+    // Stamped by verifyStillListed in index.ts, which is what actually
+    // renders the page — nothing has been checked at this point.
+    verification: 'unchecked',
   }
 }
 
+export interface QuerySerperResult {
+  retailers: RetailerResult[]
+  /**
+   * Whether Serper's Shopping snapshot showed a *relevant* K&L listing for
+   * this wine (Phase 9.1).
+   *
+   * K&L's items are dropped from both passes below — its site blocks
+   * Puppeteer, so no K&L price can ever be verified — but "we can't trust
+   * the price" is not the same as "we have no idea whether they stock it",
+   * and collapsing the two is what put a K&L entry on every wine. This flag
+   * keeps the evidence that was already being computed and thrown away, so
+   * index.ts can offer the K&L search link when there is a reason to and
+   * stay quiet when there isn't.
+   */
+  klItemSeen: boolean
+}
+
+/** No Serper data at all — request failed, or nothing came back. Distinct
+ * from "searched and matched nothing", which returns an empty retailer list
+ * with klItemSeen still false. */
+const EMPTY_RESULT: QuerySerperResult = { retailers: [], klItemSeen: false }
+
+/**
+ * @param searchQuery  Sent to Serper's Shopping endpoint. Includes the
+ *   vintage: Shopping is relevance-ranked, so a year narrows results toward
+ *   the right one without excluding the rest.
+ * @param linkQuery  Used to construct the outbound retailer URL. Excludes
+ *   the vintage. These were one string until Phase 9.1, which is the whole
+ *   of the dead-link defect: when Serper matched a retailer on a *different*
+ *   vintage, the app stored that retailer and then built a link asking their
+ *   site for a year they don't stock. All six reported dead links are this,
+ *   exactly. A retailer's own on-site search is literal, not relevance
+ *   ranked, so the added year turns a page of real listings into "no
+ *   results" — retailer-links/index.ts made this same call in Phase 7.2 with
+ *   a live-confirmed Zachys example; it was never mirrored here, in the
+ *   module that actually generates price_data.retailers[].url.
+ */
 export async function querySerper(
-  query: string,
+  searchQuery: string,
   retailers: RetailerConfig[],
   apiKey: string,
-  wine: WineIdentity
-): Promise<RetailerResult[]> {
+  wine: WineIdentity,
+  linkQuery: string
+): Promise<QuerySerperResult> {
   let items: SerperShoppingItem[] = []
   try {
     const res = await fetch(SERPER_ENDPOINT, {
@@ -131,24 +197,34 @@ export async function querySerper(
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ q: `${query} wine`, gl: 'us' }),
+      body: JSON.stringify({ q: `${searchQuery} wine`, gl: 'us' }),
       signal: AbortSignal.timeout(15_000),
     })
-    if (!res.ok) return []
+    if (!res.ok) return EMPTY_RESULT
     const json = await res.json() as SerperResponse
     items = json.shopping ?? []
   } catch {
-    return []
+    return EMPTY_RESULT
   }
 
-  if (items.length === 0) return []
+  if (items.length === 0) return EMPTY_RESULT
 
   // Relevance filter — Serper's shopping results frequently include items
   // that are not actually this wine (different producer, accessories, an
   // unrelated bottle sharing a keyword). Filtering here means an irrelevant
-  // match can never masquerade as a real price for this wine — see
-  // isRelevantMatch. Applied before both passes below.
-  const relevantItems = items.filter(item => isRelevantMatch(item.title, wine))
+  // match can never masquerade as a real price for this wine.
+  //
+  // Graded as of Phase 9.1: every item is scored per identity dimension and
+  // the verdict is kept alongside it, rather than collapsed to a boolean and
+  // discarded. Sorting by compareByMatchQuality is what makes a retailer
+  // carrying several vintages yield the one actually asked for — the old
+  // `.find()` took whichever Serper ranked first, which is how Grand Village
+  // matched Zachys on a 2023 listing. Vintage still never rejects: a shop
+  // holding only the 2020 keeps its listing, badged.
+  const relevantItems: ScoredItem[] = items
+    .map(item => ({ item, verdict: scoreMatch({ title: item.title }, wine) }))
+    .filter(scored => isAcceptableMatch(scored.verdict))
+    .sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))
 
   // Both sides are stripped to bare alphanumerics before comparing merchant
   // names below. Serper's `source` string for a given merchant is not
@@ -177,27 +253,57 @@ export async function querySerper(
   // count as a Pass 1 success — which would otherwise skip Pass 2 fallback
   // retailers entirely for a wine only K&L happens to carry — and never
   // produces a second, duplicate 'kl'-slugged entry alongside the always-
-  // added one.
+  // added one. What is *not* discarded any more (Phase 9.1) is the fact that
+  // a K&L listing was seen at all — see QuerySerperResult.klItemSeen.
   const kl = retailers.find(r => r.slug === 'kl')
-  const nonKlItems = kl
-    ? relevantItems.filter(item => !(item.source && alnumOnly(item.source).includes(alnumOnly(kl.matchKeyword))))
-    : relevantItems
+  const isKlItem = ({ item }: ScoredItem) =>
+    kl !== undefined && item.source !== undefined && alnumOnly(item.source).includes(alnumOnly(kl.matchKeyword))
+  const klItemSeen = relevantItems.some(isKlItem)
+  const nonKlItems = kl ? relevantItems.filter(scored => !isKlItem(scored)) : relevantItems
 
   // Pass 1 — preferred retailers. Serper's shopping `link` is always a
   // google.com/search?ibp=oshop aggregator URL regardless of merchant — it
   // never contains the retailer's domain — so match against `source` (the
   // merchant display name) instead. See matchKeyword in retailers.config.ts.
+  // nonKlItems is already sorted best-match-first, so `.find()` here takes
+  // the best listing this retailer has, not the one Serper happened to rank
+  // highest.
   const preferred: RetailerResult[] = []
+  const claimed = new Set<ScoredItem>()
   for (const retailer of retailers) {
     const keyword = alnumOnly(retailer.matchKeyword)
-    const match = nonKlItems.find(item => item.source && alnumOnly(item.source).includes(keyword))
-    if (match) preferred.push(itemToRetailerResult(match, retailer, true, query, wine))
+    const match = nonKlItems.find(({ item }) => item.source && alnumOnly(item.source).includes(keyword))
+    if (match) {
+      preferred.push(itemToRetailerResult(match, retailer, true, linkQuery))
+      claimed.add(match)
+    }
   }
-  if (preferred.length > 0) return preferred
 
-  // Pass 2 — fallback: any relevant retailer Serper found (K&L excluded, see above)
-  return nonKlItems
-    .filter(item => item.link && item.source)
-    .slice(0, 5)
-    .map(item => buildFallbackResult(item, query, wine))
+  // Pass 2 — fallback: any relevant retailer Serper found that Pass 1 didn't
+  // already claim (K&L excluded, see above). Filtering on the item rather
+  // than on the resulting slug matters: a configured retailer's slug comes
+  // from RETAILER_CONFIG ('benchmark') while the fallback slug is derived
+  // from Serper's merchant name ('benchmark-wine-group'), so slug comparison
+  // alone would let the same shop through twice under two names.
+  const fallback = nonKlItems
+    .filter(scored => !claimed.has(scored) && scored.item.link && scored.item.source)
+    .map(scored => buildFallbackResult(scored, linkQuery))
+
+  // Merged, not short-circuited (Phase 9.1). `if (preferred.length > 0)
+  // return preferred` meant one preferred-retailer match suppressed every
+  // other retailer for the wine. Grand Village matched Zachys on a 2023
+  // listing, which then failed the vintage filter and left
+  // price_min/avg/max all null — one dead link, and the fallback pass that
+  // would have found the other shops never ran. Three reported symptoms,
+  // one line.
+  //
+  // Preferred first: they carry real coordinates, a constructed on-site URL,
+  // and a price that verify-listing can actually check. The slug dedupe
+  // below is the second line of defence, for two Serper listings from the
+  // same non-configured merchant.
+  const bySlug = new Map<string, RetailerResult>()
+  for (const r of [...preferred, ...fallback]) {
+    if (!bySlug.has(r.slug)) bySlug.set(r.slug, r)
+  }
+  return { retailers: [...bySlug.values()].slice(0, MERGED_RESULT_CAP), klItemSeen }
 }

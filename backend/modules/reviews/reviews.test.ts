@@ -2,7 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import { fetchReviewData } from './index'
 import type { WineEntry } from '@shared/types'
-import { isRelevantMatch, findProductPage } from './find-product-page'
+import {
+  isRelevantMatch,
+  findProductPage,
+  findProductPageDetailed,
+  findFallbackProductPage,
+} from './find-product-page'
 import type { RetailerConfig } from '@shared/config/retailers.config'
 import { extractCandidateText } from './keyword-window'
 import { canonicalizePublication } from './gpt-extract'
@@ -124,6 +129,115 @@ describe('isRelevantMatch', () => {
   })
 })
 
+// ─── Graded candidate selection (Phase 9.1, WI-1) ──────────────────────────
+// Step 1 used to take `items.find(isRelevantMatch)` — whichever result Serper
+// happened to rank first among those passing a boolean check. It now scores
+// every organic result, keeps the acceptable ones, and sorts them by match
+// quality, so the exact vintage wins when a shop indexes several. See
+// docs/specs/2026-08-04-phase-9.1-identity-matching-remediation.md WI-1.
+describe('findProductPageDetailed — graded candidate selection', () => {
+  const woodland: RetailerConfig = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    domain: 'whwc.com',
+    matchKeyword: 'woodland',
+    lat: 34.1684,
+    lng: -118.6059,
+  }
+
+  const audoin = {
+    producer: 'Domaine Charles Audoin',
+    denomination: 'Marsannay',
+    vintage: 2022,
+    cuvee: null,
+    vineyard: null,
+  }
+
+  function mockOrganic(items: Array<{ title: string; link: string; snippet?: string }>) {
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ organic: items }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('picks the exact vintage over a near one, regardless of Serper ranking', async () => {
+    // Serper ranks the 2020 first; the 2022 is the wine actually asked for.
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay Clos du Roy 2020', link: 'https://whwc.com/audoin-2020/' },
+      { title: 'Charles Audoin Marsannay Clos du Roy 2022', link: 'https://whwc.com/audoin-2022/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/audoin-2022/')
+    expect(outcome.stage).toBe('found')
+    expect(outcome.match?.vintage).toBe('match')
+    expect(outcome.match?.vintageGap).toBe(0)
+  })
+
+  it('still returns a wrong-vintage page when it is the only one, with the gap recorded', async () => {
+    // Benchmark's only Charles Audoin page is the 2020. Vintage ranks and
+    // labels — it never rejects.
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay Clos du Roy 2020', link: 'https://whwc.com/audoin-2020/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/audoin-2020/')
+    expect(outcome.match?.vintage).toBe('mismatch')
+    expect(outcome.match?.vintageGap).toBe(2)
+  })
+
+  it('rejects a sister-estate page that only name-drops the producer in its snippet', async () => {
+    // THE regression case: nine Chateau Lafleur scores were stored against
+    // Chateau Grand Village because the Lafleur page's body copy mentions the
+    // sister estate. Producer is judged on title + URL only.
+    mockOrganic([
+      {
+        title: 'Chateau Lafleur Pomerol 2016',
+        link: 'https://whwc.com/lafleur-pomerol-2016/',
+        snippet: 'The Guinaudeau family, also behind Chateau Grand Village, produce this Pomerol...',
+      },
+    ])
+
+    const outcome = await findProductPageDetailed(
+      { producer: 'Grand Village', denomination: 'Vin de France', vintage: 2022, cuvee: null, vineyard: null },
+      woodland,
+      'test-key'
+    )
+
+    expect(outcome.url).toBeNull()
+    expect(outcome.stage).toBe('no_relevant_match')
+    expect(outcome.match).toBeNull()
+  })
+
+  it('returns the verdict the winning candidate was accepted on', async () => {
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay 2022', link: 'https://whwc.com/audoin-2022/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.match).toEqual({
+      producer: 'match',
+      denomination: 'match',
+      bottling: 'unknown',
+      vintage: 'match',
+      candidateVintage: 2022,
+      vintageGap: 0,
+    })
+  })
+})
+
 // ─── findProductPage: relaxed-query retry (2026-08-02 fix) ─────────────────
 // Diagnosed against a real user report: Woodland Hills carries a Fèvre
 // Chablis 1er Cru "Montée de Tonnerre" with real critic reviews, but the
@@ -233,6 +347,53 @@ describe('findProductPage — relaxed-query retry', () => {
     expect(firstQuery).toContain('Fevre')
     expect(firstQuery).not.toContain('Fèvre')
     expect(firstQuery).toContain('Montee de Tonnerre')
+  })
+
+  // ─── Producer relaxation (Phase 9.1, WI-5) ──────────────────────────────
+  // The price module found Morrell's Jean-Marc Vincent listing (correct 2022
+  // vintage, $135) in the same run this module found nothing there. The
+  // difference: price's query is unquoted and relevance-ranked, while this
+  // one demanded the literal phrase "Domaine Jean-Marc Vincent" — a word
+  // Morrell's own title never contains. 7 of the 14 batch wines begin with
+  // "Domaine".
+  it('retries without the Domaine honorific when the fully-qualified query is empty', async () => {
+    const morrell: RetailerConfig = {
+      slug: 'morrell',
+      name: 'Morrell & Company',
+      domain: 'morrellwine.com',
+      matchKeyword: 'morrell',
+      lat: 40.7587,
+      lng: -73.9787,
+    }
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      // Only the honorific-stripped query finds Morrell's actual listing.
+      const organic = body.q.includes('"Domaine Jean-Marc Vincent"')
+        ? []
+        : [{
+            title: 'Jean-Marc Vincent Santenay Rouge 1er Cru Gravieres 2022',
+            link: 'https://www.morrellwine.com/products/jean-marc-vincent-santenay-gravieres-2022',
+          }]
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    const result = await findProductPage(
+      { producer: 'Domaine Jean-Marc Vincent', denomination: 'Santenay', vintage: 2022, cuvee: null, vineyard: null },
+      morrell,
+      'test-key'
+    )
+
+    expect(result).toBe('https://www.morrellwine.com/products/jean-marc-vincent-santenay-gravieres-2022')
+    expect(queries[0]).toContain('"Domaine Jean-Marc Vincent"')
+    // The relaxation comes second — before dropping the vintage, which is a
+    // real identity constraint rather than a word the shop never wrote.
+    expect(queries[1]).toContain('"Jean-Marc Vincent"')
+    expect(queries[1]).not.toContain('Domaine')
+    expect(queries[1]).toContain('2022')
   })
 
   it('produces a single query variant (no retry) for a wine with no cuvee/vineyard/vintage', async () => {
@@ -392,6 +553,16 @@ describe('fetchReviewData', () => {
         critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
         source: 'configured',
+        page_vintage: 2019,
+        vintage_gap: 0,
+        match: {
+          producer: 'match',
+          denomination: 'match',
+          bottling: 'unknown',
+          vintage: 'match',
+          candidateVintage: 2019,
+          vintageGap: 0,
+        },
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://shop.klwines.com/products/details/1557135')
@@ -442,6 +613,86 @@ describe('fetchReviewData', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].critic_scores).toEqual([])
+  })
+})
+
+// ─── Page-stated vintage (Phase 9.1, WI-2) ─────────────────────────────────
+// gpt-extract.ts has always returned { price, url, vintage, critic_scores }
+// and fetchReviewData read only critic_scores, dropping the rest. The
+// rendered page is evidence; the search-result title is a guess. The page's
+// own vintage is now fed back through scoreMatch for a second, more
+// authoritative verdict.
+describe('fetchReviewData — page-stated vintage', () => {
+  it('re-scores against the rendered page vintage and records the gap', async () => {
+    // Benchmark's only Charles Audoin page is the 2020: the scores are real,
+    // they just belong to a different year. Kept and labelled, not binned.
+    mockOrganicByDomain = {
+      'benchmarkwine.com': [
+        {
+          title: 'Charles Audoin Marsannay Clos du Roy',
+          link: 'https://www.benchmarkwine.com/products/154340-charles-audoin-marsannay-clos-du-roy',
+        },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 65,
+      url: 'https://www.benchmarkwine.com/products/154340-charles-audoin-marsannay-clos-du-roy',
+      vintage: 2020,
+      critic_scores: [
+        { publication: 'Vinous', score: 91, known_publication: true, drinking_window: null, vintage_character: null, deal: false },
+      ],
+    })
+
+    const result = await fetchReviewData(
+      makeWine({ producer: 'Domaine Charles Audoin', denomination: 'Marsannay', vintage: 2022 })
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].page_vintage).toBe(2020)
+    expect(result[0].vintage_gap).toBe(2)
+    expect(result[0].match.vintage).toBe('mismatch')
+    // The scores themselves are never dropped — only excluded from
+    // wine-level derivation (see derive-wine-level.ts).
+    expect(result[0].critic_scores).toHaveLength(1)
+  })
+
+  it('lets the page vintage overturn a wrong year parsed from the search title', async () => {
+    // The title carries "2020" from an unrelated vintage-report link; the
+    // page itself states 2022. The rendered page wins.
+    mockOrganicByDomain = {
+      'klwines.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin — 2020 vintage report', link: 'https://shop.klwines.com/p/1' },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://shop.klwines.com/p/1',
+      vintage: 2019,
+      critic_scores: [],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result[0].page_vintage).toBe(2019)
+    expect(result[0].vintage_gap).toBe(0)
+    expect(result[0].match.vintage).toBe('match')
+  })
+
+  it('falls back to the search-result verdict when the page states no vintage', async () => {
+    mockOrganicByDomain = {
+      'klwines.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' },
+      ],
+    }
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({ price: null, url: 'https://shop.klwines.com/p/1', vintage: null, critic_scores: [] })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result[0].page_vintage).toBe(2019)
+    expect(result[0].match.vintage).toBe('match')
   })
 })
 
@@ -520,6 +771,16 @@ describe('fetchReviewData — open-web fallback pass', () => {
         critic_scores: [{ publication: 'Vinous', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
         source: 'fallback',
+        page_vintage: 2019,
+        vintage_gap: 0,
+        match: {
+          producer: 'match',
+          denomination: 'match',
+          bottling: 'unknown',
+          vintage: 'match',
+          candidateVintage: 2019,
+          vintageGap: 0,
+        },
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.amsterwine.com/p/1')
@@ -555,6 +816,223 @@ describe('fetchReviewData — open-web fallback pass', () => {
     installSerperMock({}, [])
 
     expect(await fetchReviewData(makeWine())).toEqual([])
+  })
+})
+
+// ─── URL-shape guard and fallback hygiene (Phase 9.1, WI-8) ────────────────
+describe('product page candidate hygiene', () => {
+  const woodland: RetailerConfig = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    domain: 'whwc.com',
+    matchKeyword: 'woodland',
+    lat: 34.1684,
+    lng: -118.6059,
+  }
+
+  const rousseau = {
+    producer: 'Domaine Rousseau',
+    denomination: 'Gevrey-Chambertin',
+    vintage: 2019,
+    cuvee: null,
+    vineyard: null,
+  }
+
+  function mockOrganic(items: Array<{ title: string; link: string; snippet?: string }>) {
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ organic: items }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  // All four of these were actually accepted and stored as "product pages"
+  // in the 2026-08-04 batch. They returned zero scores, which is luck, not
+  // safety: a retailer newsletter covering eight wines with eight scores is
+  // exactly the page that would attribute the wrong one.
+  it.each([
+    ['a PDF report', 'https://images.jjbuckley.com/reports/2011_BORDEAUX_REPORT.pdf'],
+    ['an auction bidding-history page', 'https://bid.zachys.com/auctions/bidding-history/12345'],
+    ['a retailer offers blog post', 'https://crushwineco.com/blogs/offers/burgundy-2019'],
+    ['a cart page', 'https://whwc.com/cart?add=1234'],
+  ])('rejects %s before spending a render on it', async (_label, link) => {
+    mockOrganic([{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link }])
+
+    const outcome = await findProductPageDetailed(rousseau, woodland, 'test-key')
+
+    expect(outcome.url).toBeNull()
+    expect(outcome.stage).toBe('no_relevant_match')
+  })
+
+  it('still takes a real product page listed alongside a rejected one', async () => {
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://whwc.com/blogs/offers/burgundy' },
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://whwc.com/products/rousseau-gevrey-2019' },
+    ])
+
+    const outcome = await findProductPageDetailed(rousseau, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/products/rousseau-gevrey-2019')
+  })
+
+  it('keeps wine-searcher.com out of the open-web fallback', async () => {
+    // Phase 6 migrated away from Wine-Searcher deliberately; the Phase 7.3
+    // fallback then handed a wine-searcher.com page back for Montus.
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Wine-Searcher', link: 'https://www.wine-searcher.com/find/rousseau' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key')
+
+    expect(outcome.url).toBeNull()
+  })
+
+  it('does not re-try a domain this run already exhausted as a configured retailer', async () => {
+    // Bessin-Tremblay and Dureuil-Janthial both produced
+    // `fallback-shop-klwines-com` pointing at the identical URL that had
+    // just returned zero as a configured retailer. K&L is documented as
+    // permanently bot-blocked at the product-page render.
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | K&L', link: 'https://shop.klwines.com/products/details/1557135' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key', {
+      attemptedDomains: ['klwines.com'],
+    })
+
+    expect(outcome.url).toBeNull()
+  })
+
+  it('still returns an un-attempted domain from the same result set', async () => {
+    mockOrganic([
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | K&L', link: 'https://shop.klwines.com/products/details/1557135' },
+      { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | AmsterWine', link: 'https://www.amsterwine.com/p/1' },
+    ])
+
+    const outcome = await findFallbackProductPage(rousseau, 'test-key', {
+      attemptedDomains: ['klwines.com'],
+    })
+
+    expect(outcome.url).toBe('https://www.amsterwine.com/p/1')
+  })
+})
+
+// ─── Cross-feed from modules/price/ (Phase 9.1, WI-7) ──────────────────────
+// price/ discovered central-wine-merchants, Wally's and Varmax for Montus;
+// this module only ever iterated RETAILER_CONFIG, so it never looked at any
+// of them. The router feeds those merchant names back in. It has to be an
+// open query with the merchant as a term rather than a site: restriction —
+// Serper's Shopping response never carries the merchant's own domain.
+describe('fetchReviewData — retailers discovered by the price module', () => {
+  function installSerperMock(
+    byDomain: Record<string, Array<{ title: string; link: string; snippet?: string }>>,
+    openQueryResults: Array<{ title: string; link: string; snippet?: string }> = []
+  ): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      const domain = Object.keys(byDomain).find(d => body.q.includes(`site:${d}`))
+      const organic = domain ? byDomain[domain] : body.q.includes('site:') ? [] : openQueryResults
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    return queries
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('probes a discovered merchant by name when no configured retailer found a score', async () => {
+    const queries = installSerperMock({}, [
+      {
+        title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Central Wine Merchants',
+        link: 'https://www.centralwinemerchants.com/p/1',
+      },
+    ])
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.centralwinemerchants.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Wine Enthusiast', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0].product_url).toBe('https://www.centralwinemerchants.com/p/1')
+    expect(result[0].source).toBe('fallback')
+    expect(queries.some(q => q.includes('"Central Wine Merchants"'))).toBe(true)
+  })
+
+  it('does not probe discovered merchants when a configured retailer already found a score', async () => {
+    const queries = installSerperMock({
+      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://shop.klwines.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    expect(queries.some(q => q.includes('Central Wine Merchants'))).toBe(false)
+  })
+
+  it('skips merchants already covered by RETAILER_CONFIG', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'zachys', name: 'Zachys' }],
+    })
+
+    // Zachys was already searched with a proper site: query in Step 1;
+    // probing it again by name would just spend another call.
+    expect(queries.some(q => !q.includes('site:') && q.includes('"Zachys"'))).toBe(false)
+  })
+
+  it('runs the blind open-web pass only after the discovered merchants also come up empty', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
+    })
+
+    const merchantProbe = queries.findIndex(q => q.includes('"Central Wine Merchants"'))
+    const openPass = queries.findIndex(q => !q.includes('site:') && q.includes('review'))
+    expect(merchantProbe).toBeGreaterThanOrEqual(0)
+    expect(openPass).toBeGreaterThan(merchantProbe)
+  })
+
+  it('caps how many discovered merchants are probed', async () => {
+    const queries = installSerperMock({}, [])
+
+    await fetchReviewData(makeWine(), {
+      discoveredRetailers: Array.from({ length: 8 }, (_, i) => ({
+        slug: `shop-${i}`,
+        name: `Wine Shop ${i}`,
+      })),
+    })
+
+    const probes = queries.filter(q => /"Wine Shop \d"/.test(q))
+    expect(probes).toHaveLength(3)
   })
 })
 

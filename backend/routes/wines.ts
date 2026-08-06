@@ -5,6 +5,7 @@ import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { RetailerPrice, RetailerReview, UpdateWineInput, WineFilter } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
+import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
@@ -91,7 +92,19 @@ router.post(
       return
     }
 
-    const result = await fetchPriceData(wine)
+    // Cross-feed (Phase 9.1): a product page modules/reviews/ already
+    // rendered and matched is the strongest possible evidence a shop carries
+    // this wine, and price/ was throwing it away — reviews found a live
+    // Woodland Hills product page for Mangot 2022 with 7 critic scores in the
+    // same run price/ returned zero retailers for it. The two modules must
+    // not import each other (CLAUDE.md §5), so the router is where they meet.
+    const result = await fetchPriceData(wine, {
+      confirmedProductPages: (wine.review_data ?? []).map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        product_url: r.product_url,
+      })),
+    })
     if (!result) {
       res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found' })
       return
@@ -126,7 +139,16 @@ router.post(
       return
     }
 
-    const review_data = await fetchReviewData(wine)
+    // The other half of the cross-feed: retailers price/ discovered that
+    // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants for
+    // Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
+    // looked. Consumed only when no configured retailer yields a score.
+    const review_data = await fetchReviewData(wine, {
+      discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
+        slug: r.slug,
+        name: r.name,
+      })),
+    })
     const derived = deriveWineLevelFields(review_data, {
       drinking_window_source: wine.drinking_window_source,
       vintage_rating_source: wine.vintage_rating_source,
@@ -183,9 +205,31 @@ router.post(
       return
     }
 
-    const matched_vintage = extraction.vintage
-    const vintage_mismatch =
-      matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage
+    // Phase 9.1 — record the same MatchVerdict shape the automated path
+    // stores, so the UI reads one field regardless of how a result was found.
+    //
+    // Producer and denomination are recorded as confirmed: the developer
+    // found this exact product page themselves and copied its URL, which is
+    // stronger evidence of identity than any text match. Running the matcher
+    // over the URL instead would report a mismatch for every retailer whose
+    // product slugs are opaque ids. Bottling and vintage are still judged —
+    // bottling from the URL (a slug naming a different cuvée is worth
+    // surfacing even on a confirmed page), vintage from GPT-4o's reading of
+    // the rendered page.
+    const urlVerdict = scoreMatch(
+      { title: url, url, statedVintage: extraction.vintage },
+      {
+        producer: wine.producer ?? '',
+        denomination: wine.denomination ?? '',
+        vintage: wine.vintage ?? null,
+        cuvee: wine.cuvee,
+        vineyard: wine.vineyard,
+        quality_classification: wine.quality_classification,
+      }
+    )
+    const verdict: MatchVerdict = { ...urlVerdict, producer: 'match', denomination: 'match' }
+    const matched_vintage = verdict.candidateVintage
+    const vintage_mismatch = verdict.vintage === 'mismatch'
 
     const retailerPrice: RetailerPrice = {
       slug: retailer.slug,
@@ -197,6 +241,7 @@ router.post(
       is_search_results_page: false,
       matched_vintage,
       vintage_mismatch,
+      vintage_verdict: verdict.vintage,
       pack_quantity: 1,
       bottle_size_ml: null,
       non_standard_format: false,
@@ -205,6 +250,10 @@ router.post(
       // price, not the always-present unverified placeholder. Replaces that
       // placeholder in mergedRetailers below (filtered out by slug).
       link_only: false,
+      // The developer found and confirmed this exact product page by hand.
+      // That is a stronger check than the automated live-search render, not
+      // a weaker one — no Puppeteer pass is run or needed here.
+      verification: 'verified',
     }
     const mergedRetailers = [
       ...(wine.price_data?.retailers ?? []).filter((r) => r.slug !== slug),
@@ -222,6 +271,9 @@ router.post(
       // manually rather than by automated search — 'configured', not
       // 'fallback' (that's reserved for the open-web pass, Phase 7.3).
       source: 'configured',
+      page_vintage: verdict.candidateVintage,
+      vintage_gap: verdict.vintageGap,
+      match: verdict,
     }
     const review_data = [
       ...(wine.review_data ?? []).filter((r) => r.slug !== slug),

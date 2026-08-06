@@ -1,4 +1,5 @@
 import { fetchPriceData, aggregatePriceData } from './index'
+import { pageMentionsProducer } from './verify-listing'
 import type { WineEntry } from '@shared/types'
 import type { RetailerResult } from './types'
 
@@ -47,8 +48,18 @@ const BENCHMARK_URL = 'https://www.benchmarkwine.com/products/leroy'
 const OTHER_URL = 'https://www.someotherwinestore.com/products/leroy'
 const OTHER_URL_2 = 'https://www.anotherwineshop.com/products/leroy'
 
-const RENDERED_HTML = '<html><body><span class="price">$249.00</span><p>12 results</p></body></html>'
+// A retailer search page that actually shows this wine. It has to name the
+// producer: as of Phase 9.1, verify-listing asks the page directly whether
+// every significant producer word is present, rather than only scanning for
+// one of eight English "no results" phrasings (see pageMentionsProducer).
+const RENDERED_HTML =
+  '<html><body><p>12 results</p><a href="/p/1">Domaine Leroy Gevrey-Chambertin 2018</a><span class="price">$249.00</span></body></html>'
 const NO_RESULTS_HTML = '<html><body><p>0 Results</p><p>No results.</p></body></html>'
+// Renders fine, says nothing about "no results", and is about a different
+// producer entirely — the shape that let Benchmark, Zachys, Woodland Hills
+// and Flatiron all pass the old negative-only check while serving dead links.
+const WRONG_PRODUCER_HTML =
+  '<html><body><p>6 results</p><a href="/p/2">Louis Jadot Gevrey-Chambertin 2018</a></body></html>'
 
 function makeItem(source: string, link: string, price?: string) {
   return { title: 'Domaine Leroy Gevrey-Chambertin 2018', source, link, price }
@@ -119,17 +130,15 @@ describe('fetchPriceData', () => {
     expect(await fetchPriceData({ ...baseWine, producer: null, denomination: null })).toBeNull()
   })
 
-  it('contains only the always-present K&L link-only entry when Serper returns no results', async () => {
-    // K&L's link-only entry (see buildKlLinkOnlyResult) is added
-    // unconditionally whenever the wine has a producer/denomination, so this
-    // is no longer a fully empty retailer list — but it carries no price and
-    // is excluded from every stat, so the price fields stay null.
+  it('reports an honest empty state when Serper returns no results', async () => {
+    // Phase 9.1: K&L's link-only entry is no longer appended unconditionally,
+    // so this path is reachable again. An empty retailers list with a
+    // fetched_at timestamp is "attempted and found nothing" — which the UI
+    // must be able to tell apart from "never attempted" (a null price_data).
     mockSerperItems = []
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    expect(result!.retailers).toHaveLength(1)
-    expect(result!.retailers[0].slug).toBe('kl')
-    expect(result!.retailers[0].link_only).toBe(true)
+    expect(result!.retailers).toHaveLength(0)
     expect(result!.price_min).toBeNull()
     expect(result!.price_avg).toBeNull()
     expect(result!.price_max).toBeNull()
@@ -137,14 +146,13 @@ describe('fetchPriceData', () => {
     expect(result!.fetched_at).toBeTruthy()
   })
 
-  it('contains only the K&L link-only entry (not a wrong price) when no Serper result is actually relevant', async () => {
+  it('returns no retailer at all (not a wrong price) when no Serper result is actually relevant', async () => {
     // A completely unrelated product must never be surfaced as this wine's price.
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$45.00')]
     mockSerperItems[0].title = 'Riedel Wine Glass Set of 6'
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    expect(result!.retailers).toHaveLength(1)
-    expect(result!.retailers[0].slug).toBe('kl')
+    expect(result!.retailers).toHaveLength(0)
     expect(result!.price_min).toBeNull()
   })
 
@@ -180,8 +188,9 @@ describe('fetchPriceData', () => {
       { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$300.00' },
     ]
     const result = await fetchPriceData(baseWine) // baseWine.vintage === 2018
-    // Zachys, Benchmark, plus the always-present K&L link-only entry
-    expect(result!.retailers).toHaveLength(3)
+    // Zachys and Benchmark. K&L is no longer appended unconditionally
+    // (Phase 9.1) — Serper showed no K&L listing for this wine.
+    expect(result!.retailers).toHaveLength(2)
     expect(result!.price_min).toBe(300)
     expect(result!.price_max).toBe(300)
     expect(result!.price_avg).toBe(300)
@@ -197,7 +206,7 @@ describe('fetchPriceData', () => {
       { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
     ]
     const result = await fetchPriceData(baseWine)
-    expect(result!.retailers).toHaveLength(3) // Zachys, Benchmark, and the K&L link-only entry
+    expect(result!.retailers).toHaveLength(2) // Zachys and Benchmark; K&L is gated (Phase 9.1)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
     expect(zachys?.pack_quantity).toBe(6)
     expect(zachys?.non_standard_format).toBe(true)
@@ -231,19 +240,85 @@ describe('fetchPriceData', () => {
     expect(result!.price_min).toBe(249)
   })
 
-  it('filters Serper results to preferred retailer domains (Pass 1)', async () => {
+  it('identifies a preferred retailer as such, and lists it ahead of fallback results (Pass 1)', async () => {
     mockSerperItems = [
       makeItem('Zachys', ZACHYS_URL, '$249.00'),
       makeItem('Some Other Store', OTHER_URL, '$200.00'),
     ]
     const result = await fetchPriceData(baseWine)
     expect(result).not.toBeNull()
-    // Zachys (Pass 1 match) plus the always-present K&L link-only entry —
-    // "Some Other Store" is correctly excluded since Pass 1 succeeded
-    expect(result!.retailers).toHaveLength(2)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
     expect(zachys?.is_preferred_retailer).toBe(true)
     expect(zachys?.price).toBe(249)
+    // Preferred first: they carry real coordinates, a constructed on-site
+    // URL and a price verify-listing can actually check.
+    expect(result!.retailers[0].slug).toBe('zachys')
+  })
+
+  // ─── Pass 1 no longer short-circuits Pass 2 (Phase 9.1, WI-6) ────────────
+  // `if (preferred.length > 0) return preferred` meant a single
+  // preferred-retailer match suppressed every other retailer for the wine.
+  // Grand Village matched Zachys on a 2023 listing, which then failed the
+  // vintage filter and left price_min/avg/max all null — one dead link, and
+  // the fallback that would have found the other shops never ran.
+  describe('merged preferred and fallback passes', () => {
+    it('keeps fallback retailers alongside a preferred match', async () => {
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$249.00'),
+        makeItem('Some Other Store', OTHER_URL, '$200.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const slugs = result!.retailers.map(r => r.slug)
+
+      expect(slugs).toContain('zachys')
+      expect(slugs).toContain('some-other-store')
+    })
+
+    it('still prices a wine whose only preferred match is a wrong vintage', async () => {
+      // The Grand Village shape, exactly: Zachys on a different year (so
+      // excluded from the stats), with a usable fallback price behind it
+      // that the short-circuit used to hide.
+      mockSerperItems = [
+        { title: 'Domaine Leroy Gevrey-Chambertin 2023', source: 'Zachys', link: ZACHYS_URL, price: '$400.00' },
+        makeItem('Some Other Store', OTHER_URL, '$200.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers.find(r => r.slug === 'zachys')?.vintage_mismatch).toBe(true)
+      expect(result!.price_min).toBe(200)
+      expect(result!.price_avg).toBe(200)
+    })
+
+    it('does not list the same shop twice when it matches as both a configured retailer and a raw Serper source', async () => {
+      // The configured slug comes from RETAILER_CONFIG ('benchmark'); the
+      // fallback slug is derived from Serper's merchant string
+      // ('benchmark-wine-group'), so deduplicating on slug alone would let
+      // one shop through under two names.
+      mockSerperItems = [makeItem('Benchmark Wine Group', BENCHMARK_URL, '$200.00')]
+
+      const result = await fetchPriceData(baseWine)
+      const benchmarkish = result!.retailers.filter(r => r.name.toLowerCase().includes('benchmark'))
+
+      expect(benchmarkish).toHaveLength(1)
+      expect(benchmarkish[0].slug).toBe('benchmark')
+      expect(benchmarkish[0].is_preferred_retailer).toBe(true)
+    })
+
+    it('caps the merged list', async () => {
+      mockSerperItems = Array.from({ length: 15 }, (_, i) => ({
+        title: 'Domaine Leroy Gevrey-Chambertin 2018',
+        source: `Wine Shop ${i}`,
+        link: `https://shop${i}.example.com/p`,
+        price: '$200.00',
+      }))
+
+      const result = await fetchPriceData(baseWine)
+
+      // 8 Serper-derived entries, plus K&L's separate always-present link.
+      expect(result!.retailers.filter(r => !r.link_only)).toHaveLength(8)
+    })
   })
 
   it('matches a preferred retailer despite formatting drift in Serper\'s source string (Pass 1)', async () => {
@@ -292,9 +367,8 @@ describe('fetchPriceData', () => {
     mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$199.00')]
     mockRenderPageHtml.mockResolvedValue(NO_RESULTS_HTML)
     const result = await fetchPriceData(baseWine)
-    // Zachys dropped; only the always-present K&L link-only entry remains
-    expect(result!.retailers).toHaveLength(1)
-    expect(result!.retailers[0].slug).toBe('kl')
+    // Zachys dropped, and nothing is appended in its place.
+    expect(result!.retailers).toHaveLength(0)
     expect(result!.price_min).toBeNull()
   })
 
@@ -302,8 +376,74 @@ describe('fetchPriceData', () => {
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$199.00')]
     mockRenderPageHtml.mockResolvedValue(NO_RESULTS_HTML)
     const result = await fetchPriceData(baseWine)
-    expect(result!.retailers).toHaveLength(1) // just the K&L link-only entry
-    expect(result!.retailers[0].slug).toBe('kl')
+    expect(result!.retailers).toHaveLength(0)
+  })
+
+  // ─── Fail-closed verification (Phase 9.1, WI-8) ──────────────────────────
+  describe('verification state', () => {
+    it('drops a retailer whose page rendered but is about a different producer', async () => {
+      // pageShowsNoResults is an allowlist of eight English phrasings, so a
+      // retailer whose empty state isn't on it passed by default — Benchmark,
+      // Zachys, Woodland Hills and Flatiron all did, while serving dead
+      // links. Asking whether the producer is named answers it directly.
+      mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$199.00')]
+      mockRenderPageHtml.mockResolvedValue(WRONG_PRODUCER_HTML)
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers).toHaveLength(0)
+    })
+
+    it('marks a retailer verified when its live page names the producer', async () => {
+      mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$199.00')]
+      mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers.find(r => r.slug === 'zachys')?.verification).toBe('verified')
+    })
+
+    it('marks a retailer unverified — not verified — when the render fails', async () => {
+      // An infra hiccup still isn't evidence the wine is gone, so the price
+      // is kept. It just may no longer be presented as though it were checked.
+      mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$199.00')]
+      mockRenderPageHtml.mockResolvedValue(null)
+
+      const result = await fetchPriceData(baseWine)
+      const zachys = result!.retailers.find(r => r.slug === 'zachys')
+
+      expect(zachys?.price).toBe(199)
+      expect(zachys?.verification).toBe('unverified')
+    })
+
+  })
+
+  describe('pageMentionsProducer', () => {
+    it('confirms a page naming every significant producer word', () => {
+      expect(pageMentionsProducer(RENDERED_HTML, 'Domaine Leroy')).toBe(true)
+    })
+
+    it('rejects a page about a different producer', () => {
+      expect(pageMentionsProducer(WRONG_PRODUCER_HTML, 'Domaine Leroy')).toBe(false)
+    })
+
+    it('requires every significant word, not just one', () => {
+      // "Domaine" is a stopword, so this asks for both "jean" and "vincent".
+      const partial = '<html><body><a>Vincent Girardin Santenay</a></body></html>'
+      expect(pageMentionsProducer(partial, 'Domaine Jean-Marc Vincent')).toBe(false)
+    })
+
+    it('folds diacritics and punctuation on both sides', () => {
+      const html = '<html><body><a>Chateau Gour de Chaule Gigondas</a></body></html>'
+      expect(pageMentionsProducer(html, 'Château Gour de Chaulé')).toBe(true)
+    })
+
+    it('returns null — not false — when there is no producer to look for', () => {
+      // "Couldn't ask" is not "asked and the answer was no". The caller maps
+      // this to 'unverified' rather than dropping the retailer.
+      expect(pageMentionsProducer(RENDERED_HTML, null)).toBeNull()
+      expect(pageMentionsProducer(RENDERED_HTML, 'Domaine')).toBeNull()
+    })
   })
 
   it('keeps a retailer\'s Serper price when the live-page render fails', async () => {
@@ -341,8 +481,8 @@ describe('fetchPriceData', () => {
       makeItem('Another Wine Shop', OTHER_URL_2, '$210.00'),
     ]
     const result = await fetchPriceData(baseWine)
-    // Both fallback retailers, plus the always-present K&L link-only entry
-    expect(result!.retailers).toHaveLength(3)
+    // Both fallback retailers; K&L is gated (Phase 9.1)
+    expect(result!.retailers).toHaveLength(2)
     const first = result!.retailers.find(r => r.slug === 'some-other-store')
     const second = result!.retailers.find(r => r.slug === 'another-wine-shop')
     expect(first?.price).toBe(200)
@@ -364,8 +504,58 @@ describe('fetchPriceData', () => {
     mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
     const result = await fetchPriceData(baseWine)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
-    expect(zachys?.url).toBe('https://www.zachys.com/search?q=Domaine%20Leroy%20Gevrey-Chambertin%202018')
+    expect(zachys?.url).toBe('https://www.zachys.com/search?q=Domaine%20Leroy%20Gevrey-Chambertin')
     expect(zachys?.url).not.toBe(ZACHYS_URL)
+  })
+
+  // ─── Dead retailer links (Phase 9.1, WI-4) ───────────────────────────────
+  // Six for six of the dead links reported against the 2026-08-04 batch were
+  // the same mechanism: buildQuery included the vintage, and that same string
+  // was handed to buildRetailerSearchUrl. When Serper matched a retailer on a
+  // different vintage, the app stored that retailer and then built a link
+  // asking their site for a year they don't stock. A retailer's own search is
+  // literal, not relevance-ranked, so the added year turns a page of real
+  // listings into "no results" — the call retailer-links/index.ts already
+  // made in Phase 7.2 with a live-confirmed Zachys example.
+  describe('constructed retailer URLs carry no vintage token', () => {
+    it('omits the vintage from every constructed URL, preferred and fallback alike', async () => {
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$249.00'),
+        makeItem('Benchmark Wine Group', BENCHMARK_URL, '$200.00'),
+        makeItem('Some Other Store', OTHER_URL, '$180.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers.length).toBeGreaterThan(0)
+      for (const r of result!.retailers) {
+        expect(r.url).not.toContain('2018')
+      }
+    })
+
+    it('still sends the vintage to Serper — it narrows Shopping, it just must not narrow the shop', async () => {
+      mockSerperItems = []
+      await fetchPriceData(baseWine)
+      const body = JSON.parse(String((global.fetch as jest.Mock).mock.calls[0][1].body))
+      expect(body.q).toContain('2018')
+    })
+
+    it('links a retailer matched on a different vintage to a query that can actually find the wine', async () => {
+      // Grand Village matched Zachys on a 2023 listing and was then linked
+      // with 2022. The listing is still flagged as a different year; the link
+      // is no longer a dead end.
+      mockSerperItems = [
+        { title: 'Domaine Leroy Gevrey-Chambertin 2016', source: 'Zachys', link: ZACHYS_URL, price: '$300.00' },
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const zachys = result!.retailers.find(r => r.slug === 'zachys')
+
+      expect(zachys?.vintage_mismatch).toBe(true)
+      expect(zachys?.matched_vintage).toBe(2016)
+      expect(zachys?.url).not.toContain('2016')
+      expect(zachys?.url).not.toContain('2018')
+    })
   })
 
   it('builds the correct search URL for each preferred retailer', async () => {
@@ -376,7 +566,6 @@ describe('fetchPriceData', () => {
     ]
     const result = await fetchPriceData(baseWine)
     const bySlug = Object.fromEntries(result!.retailers.map(r => [r.slug, r.url]))
-    expect(bySlug.kl).toContain('shop.klwines.com/products?searchText=') // always-present link-only entry
     expect(bySlug.zachys).toContain('zachys.com/search?q=')
     expect(bySlug.woodland).toContain('whwc.com/search-results/?search_query=')
     expect(bySlug.benchmark).toContain('benchmarkwine.com/search?q=')
@@ -414,12 +603,20 @@ describe('fetchPriceData', () => {
     vintage: 2012,
   }
 
+  // verify-listing now asks whether the rendered page names *this* wine's
+  // producer (Phase 9.1), so this block needs a page about Drappier rather
+  // than the Domaine Leroy default.
+  const DRAPPIER_HTML =
+    '<html><body><p>4 results</p><a href="/p/3">Drappier Grande Sendree Brut Champagne 2012</a></body></html>'
+
   it('includes cuvee in the Serper query sent, not just producer/denomination/vintage', async () => {
     mockSerperItems = []
     await fetchPriceData(drappierWine)
     const serperCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => String(url).includes('google.serper.dev'))
     const body = JSON.parse(serperCall![1].body)
-    expect(body.q).toContain('Grande Sendrée')
+    // Diacritics folded as of Phase 9.1 — the Shopping query no longer
+    // demands an exact accented string the matcher itself would have folded.
+    expect(body.q).toContain('Grande Sendree')
   })
 
   it('excludes a same-producer-and-denomination listing that does not match the cuvee', async () => {
@@ -444,6 +641,7 @@ describe('fetchPriceData', () => {
       link: OTHER_URL,
       price: '$189.99',
     }]
+    mockRenderPageHtml.mockResolvedValue(DRAPPIER_HTML)
     const result = await fetchPriceData(drappierWine)
     const astor = result!.retailers.find(r => r.slug === 'astor-wines-spirits')
     expect(astor?.price).toBe(189.99)
@@ -466,8 +664,13 @@ describe('fetchPriceData', () => {
   // would stop the cascade with nothing usable instead of falling through to
   // real, verifiable retailers.
 
-  it('always includes a K&L link-only entry, even when Serper finds nothing at all', async () => {
-    mockSerperItems = []
+  // Gated as of Phase 9.1: offered only when Serper's Shopping snapshot
+  // actually showed a relevant K&L listing. "K&L's price can't be verified"
+  // was being conflated with "we have no idea whether K&L stocks it" —
+  // Deleuze-Rochetin's entire retailer list was one K&L entry for a wine K&L
+  // doesn't stock, and Mangot's was too.
+  it('offers the K&L link when Serper showed a relevant K&L listing', async () => {
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
     const result = await fetchPriceData(baseWine)
     const kl = result!.retailers.find(r => r.slug === 'kl')
     expect(kl).toBeDefined()
@@ -476,12 +679,26 @@ describe('fetchPriceData', () => {
     expect(kl?.url).toContain('shop.klwines.com/products?searchText=')
   })
 
+  it('does not invent a K&L entry when Serper showed no K&L listing at all', async () => {
+    mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers.find(r => r.slug === 'kl')).toBeUndefined()
+  })
+
+  it('does not offer the K&L link on the strength of an irrelevant K&L listing', async () => {
+    // The snapshot has to be evidence about *this* wine. A K&L listing for
+    // glassware is not.
+    mockSerperItems = [{ title: 'Riedel Wine Glass Set of 6', source: 'K&L Wine Merchants', link: KL_URL, price: '$60.00' }]
+    const result = await fetchPriceData(baseWine)
+    expect(result!.retailers.find(r => r.slug === 'kl')).toBeUndefined()
+  })
+
   it('builds K&L\'s link-only URL without a vintage token, straight from RETAILER_CONFIG', async () => {
     // Same reasoning as retailer-links/index.ts's buildQuery (Phase 7.2):
     // K&L's on-site search is literal enough that an added vintage risks a
     // false "no results" even when K&L carries the wine under a different
     // vintage's listing.
-    mockSerperItems = []
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
     const result = await fetchPriceData(baseWine) // baseWine.vintage === 2018
     const kl = result!.retailers.find(r => r.slug === 'kl')
     expect(kl?.url).toBe('https://shop.klwines.com/products?searchText=Domaine%20Leroy%20Gevrey-Chambertin')
@@ -563,6 +780,84 @@ describe('fetchPriceData', () => {
   })
 })
 
+// ─── Cross-feed from modules/reviews/ (Phase 9.1, WI-7) ────────────────────
+// A product page reviews/ already rendered and matched is the strongest
+// evidence a shop carries the wine. reviews/ found a live Woodland Hills
+// product page for Mangot 2022 with 7 critic scores in the same run price/
+// returned zero retailers for it. Supplied by the router, never imported —
+// modules don't import each other (CLAUDE.md §5).
+describe('fetchPriceData — confirmed product pages from reviews', () => {
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = 'test-openai-key'
+    process.env.SERPER_API_KEY = 'test-serper-key'
+    mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+  })
+
+  afterEach(() => {
+    delete process.env.OPENAI_API_KEY
+    delete process.env.SERPER_API_KEY
+  })
+
+  const woodlandPage = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    product_url: 'https://whwc.com/mangot-st-emilion-2022/',
+  }
+
+  it('adds a retailer Serper found nothing for, pointing at the confirmed product page', async () => {
+    mockSerperItems = []
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodland = result!.retailers.find(r => r.slug === 'woodland')
+
+    expect(woodland).toBeDefined()
+    expect(woodland!.url).toBe(woodlandPage.product_url)
+    // A real product page, not a constructed search — the only entry in this
+    // module for which that is true.
+    expect(woodland!.is_search_results_page).toBe(false)
+    expect(woodland!.is_preferred_retailer).toBe(true)
+  })
+
+  it('carries no price and stays out of the headline stats', async () => {
+    // The pipeline never saw a price for this shop. Lifting one off a review
+    // page would be blending across sources (CLAUDE.md §15).
+    mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodland = result!.retailers.find(r => r.slug === 'woodland')
+
+    expect(woodland!.price).toBeNull()
+    expect(woodland!.link_only).toBe(true)
+    expect(result!.price_min).toBe(249)
+    expect(result!.price_avg).toBe(249)
+    expect(result!.nearest_retailer?.slug).not.toBe('woodland')
+  })
+
+  it('does not displace a retailer that already has a real Serper price', async () => {
+    mockSerperItems = [makeItem('Woodland Hills Wine Co.', WOODLAND_URL, '$180.00')]
+
+    const result = await fetchPriceData(baseWine, { confirmedProductPages: [woodlandPage] })
+    const woodlandEntries = result!.retailers.filter(r => r.slug === 'woodland')
+
+    expect(woodlandEntries).toHaveLength(1)
+    expect(woodlandEntries[0].price).toBe(180)
+  })
+
+  it('accepts a page from a shop that is not in RETAILER_CONFIG', async () => {
+    mockSerperItems = []
+
+    const result = await fetchPriceData(baseWine, {
+      confirmedProductPages: [
+        { slug: 'fallback-sommpicks-com', name: 'sommpicks.com', product_url: 'https://sommpicks.com/p/1' },
+      ],
+    })
+    const somm = result!.retailers.find(r => r.slug === 'fallback-sommpicks-com')
+
+    expect(somm).toBeDefined()
+    expect(somm!.is_preferred_retailer).toBe(false)
+  })
+})
+
 // ─── aggregatePriceData (Phase 7.2) ────────────────────────────────────────────
 // Extracted from fetchPriceData so the confirm-retailer-link route (which
 // updates one retailer's entry outside the normal Serper flow) can recompute
@@ -579,11 +874,13 @@ function makeRetailer(overrides: Partial<RetailerResult> = {}): RetailerResult {
     is_search_results_page: true,
     matched_vintage: null,
     vintage_mismatch: false,
+    vintage_verdict: 'unknown',
     pack_quantity: 1,
     bottle_size_ml: null,
     non_standard_format: false,
     format_label: '',
     link_only: false,
+    verification: 'verified',
     ...overrides,
   }
 }

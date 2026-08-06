@@ -1,3 +1,5 @@
+import type { MatchVerdict } from './utils/wine-match'
+
 // ─── Enrichment types ─────────────────────────────────────────────────────────
 
 export interface ExpertReview {
@@ -35,6 +37,27 @@ export interface CriticScore {
   deal: boolean
 }
 
+/**
+ * What the live-page check in backend/modules/price/verify-listing.ts was
+ * actually able to establish (Phase 9.1, 2026-08-04).
+ *
+ * - 'verified'   — the retailer's live search page rendered and its visible
+ *                  text contains every significant word of the producer.
+ * - 'unverified' — the check could not be completed: the render failed or
+ *                  timed out, or the wine entry records no producer to look
+ *                  for. The listing is kept (an infra hiccup is not evidence
+ *                  the wine is gone) but must not be presented as confirmed.
+ * - 'unchecked'  — verification was never attempted for this entry. Covers
+ *                  K&L's link-only entry (its site blocks the renderer) and
+ *                  product pages contributed by modules/reviews/, which that
+ *                  module already rendered.
+ *
+ * Before this existed, a render failure returned the retailer unchanged, so
+ * an unverifiable listing was indistinguishable from a verified one all the
+ * way to the UI.
+ */
+export type VerificationState = 'verified' | 'unverified' | 'unchecked'
+
 export interface RetailerPrice {
   slug: string          // e.g. "kl", "zachys"
   name: string
@@ -50,6 +73,15 @@ export interface RetailerPrice {
   // True when matched_vintage differs from this wine entry's own vintage —
   // the price/listing shown is for a different year of the same wine.
   vintage_mismatch: boolean
+  // Phase 9.1 (2026-08-04) — the vintage dimension of the match verdict this
+  // listing was accepted on. `vintage_mismatch` above is a boolean and so
+  // cannot distinguish "confirmed same year" from "the listing title never
+  // said" — it read false for both, which is why six dead links went out for
+  // listings whose year was simply unstated. Both are kept: vintage_mismatch
+  // still means *confirmed* different year (and still gates the price stats),
+  // while this field makes the unknown case visible instead of silently
+  // counting as agreement.
+  vintage_verdict: MatchVerdict['vintage']
   // Number of standard bottles bundled into this listing's price (1 for an
   // ordinary single-bottle listing).
   pack_quantity: number
@@ -70,6 +102,9 @@ export interface RetailerPrice {
   // excluded from price_min/avg/max and nearest_retailer, and never treated
   // as a successful preferred-retailer match — see backend/modules/price/index.ts.
   link_only: boolean
+  // Phase 9.1 — what the live-page check established about this listing.
+  // 'unverified' must not be shown as though it were confirmed.
+  verification: VerificationState
 }
 
 export interface RetailerLink {
@@ -95,6 +130,24 @@ export interface RetailerReview {
   // developer has explicitly vetted, so the UI should treat it with less
   // confidence than a 'configured' entry.
   source: 'configured' | 'fallback'
+  // Phase 9.1 (2026-08-04) — the vintage the extracted page itself states,
+  // preferring GPT-4o's reading of the rendered page over a year parsed out
+  // of the search-result title. Null when the page states none. Before this,
+  // GptPageExtraction.vintage was computed on every call and then dropped on
+  // the floor, which is how nine Chateau Lafleur scores and a 2010 Gour de
+  // Chaule ended up stored against 2022 wines.
+  page_vintage: number | null
+  // Years between page_vintage and the wine's own vintage. Null when either
+  // side is unknown. Deliberately not a boolean and deliberately not a
+  // filter: a wrong-vintage page is kept and badged (e.g. "2020 · 2 years
+  // earlier"), never hidden — rejecting it yields nothing instead of
+  // something. The display layer owns the threshold at which a gap reads as
+  // notable; the pipeline only records it.
+  vintage_gap: number | null
+  // The per-dimension verdict this result was accepted on. Stored so the UI
+  // can say which dimension is uncertain and validate-reviews.ts can report
+  // *why* a candidate was rejected, rather than re-deriving either.
+  match: MatchVerdict
 }
 
 export interface PriceData {

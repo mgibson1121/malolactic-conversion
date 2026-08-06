@@ -5,6 +5,7 @@
  */
 import Database from 'better-sqlite3'
 import { SQLiteAdapter } from './sqlite-adapter'
+import type { RetailerReview } from '@shared/types'
 
 function makeAdapter(): SQLiteAdapter {
   const db = new Database(':memory:')
@@ -713,6 +714,55 @@ describe('serialization round-trips', () => {
     const fetched = await adapter.getWine(wine.id)
     expect(fetched!.grape_varieties).toEqual(['Grenache', 'Mourvèdre', 'Syrah'])
     expect(fetched!.my_tags).toEqual(['powerful', 'age-worthy', 'southern-rhône'])
+  })
+
+  // review_data is a JSON TEXT column, so Phase 9.1's page_vintage /
+  // vintage_gap / match keys needed no migration — but "no migration needed"
+  // is exactly the claim worth a test, since nothing else would catch the
+  // adapter silently dropping a nested object on the way back out.
+  it('round-trips review_data including the Phase 9.1 match verdict', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine({
+      producer: 'Domaine Charles Audoin', vintage: 2022, region: 'Burgundy',
+      denomination: 'Marsannay', grape_varieties: ['Pinot Noir'], label_image_url: null,
+      tag_discovered: true, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
+      cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
+      my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
+      purchased_from: null, date_first_consumed: null, quality_classification: null,
+      vineyard: null, cuvee: null,
+    })
+
+    // Benchmark's only Charles Audoin page is the 2020 — stored and labelled,
+    // not discarded. That is the whole point of vintage_gap.
+    const review_data: RetailerReview[] = [
+      {
+        slug: 'benchmark',
+        name: 'Benchmark Wine Group',
+        product_url: 'https://www.benchmarkwine.com/products/charles-audoin-marsannay-clos-du-roy-2020',
+        critic_scores: [
+          { publication: 'Vinous', score: 91, known_publication: true, drinking_window: null, vintage_character: null, deal: false },
+        ],
+        fetched_at: '2026-08-04T00:00:00.000Z',
+        source: 'configured',
+        page_vintage: 2020,
+        vintage_gap: 2,
+        match: {
+          producer: 'match',
+          denomination: 'match',
+          bottling: 'unknown',
+          vintage: 'mismatch',
+          candidateVintage: 2020,
+          vintageGap: 2,
+        },
+      },
+    ]
+
+    await adapter.updateWine(wine.id, { review_data })
+    const fetched = await adapter.getWine(wine.id)
+
+    expect(fetched!.review_data).toEqual(review_data)
+    expect(fetched!.review_data![0].match.vintage).toBe('mismatch')
+    expect(fetched!.review_data![0].vintage_gap).toBe(2)
   })
 
   it('preserves null optional fields', async () => {
