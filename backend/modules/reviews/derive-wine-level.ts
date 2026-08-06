@@ -28,6 +28,17 @@ function windowsEqual(a: CriticDrinkingWindow, b: CriticDrinkingWindow): boolean
  * exactly one distinct value is the value to use; more than one distinct
  * value is an explicit disagreement (`null` — caller should clear a stale
  * single-critic derivation from an earlier, less-complete run).
+ *
+ * OPEN QUESTION (raised 2026-08-04, deliberately not changed here — it needs
+ * a product decision, not a code one). Unanimity was a reasonable no-blending
+ * guard when coverage was thin, but it inverts as coverage improves: with 12
+ * retailers and an open-web fallback, *more* data makes the field *less*
+ * likely to populate. Mangot carries 12 critic scores and derived
+ * vintage_rating 'very_good' from a single critic, while any wine where two
+ * critics differ at all gets null. The vintage gate above removes the worst
+ * of the noise feeding this, but not the rule itself. Revisit before the UI
+ * depends on drinking_window / vintage_rating — see
+ * docs/specs/2026-08-04-phase-9.1-identity-matching-remediation.md WI-3.
  */
 function pickSingleAgreeing<T>(values: T[], equals: (a: T, b: T) => boolean): T | null | undefined {
   if (values.length === 0) return undefined
@@ -52,7 +63,21 @@ export function deriveWineLevelFields(
   current: DeriveWineLevelInput
 ): DeriveWineLevelUpdates {
   const updates: DeriveWineLevelUpdates = {}
-  const allScores = reviewData.flatMap((r) => r.critic_scores)
+  // Phase 9.1 — only scores from a page confirmed to be *this* vintage may
+  // derive wine-level fields. drinking_window and vintage_rating are
+  // statements about a specific year: a 2020's drink-from window and a 2020's
+  // vintage character are simply not facts about the 2022, however good the
+  // source. The wrong-vintage scores are still stored and still shown,
+  // badged with their gap — this gate gets them out of derivation, not out
+  // of the record. 'unknown' is excluded alongside 'mismatch': a page that
+  // never stated a year cannot establish which year these fields describe.
+  //
+  // Mangot derived vintage_rating 'very_good' from a single critic, on a set
+  // that included a wrong-vintage source. This removes the second half of
+  // that problem; the first half is pickSingleAgreeing below.
+  const allScores = reviewData
+    .filter((r) => r.match.vintage === 'match')
+    .flatMap((r) => r.critic_scores)
 
   if (current.drinking_window_source !== 'manual') {
     const windows = allScores
