@@ -1212,6 +1212,50 @@ input.scan-field-missing {
   font-style: italic;
 }
 
+/* ── Attributed drinking windows (critics disagree) ─────────────────────────
+   Baseline legibility only — the visual treatment is deliberately plain,
+   pending the UI build's decision on how best to present disagreement. */
+
+.drinking-window--disputed {
+  font-style: normal;
+}
+
+.drinking-window-label {
+  font-style: italic;
+  color: #555;
+}
+
+.attributed-drinking-windows-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #8a6d3b;
+}
+
+.attributed-drinking-window-list {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attributed-drinking-window {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.attributed-drinking-window-range {
+  color: #333;
+  font-variant-numeric: tabular-nums;
+}
+
+.attributed-drinking-window-critics {
+  color: #777;
+  font-size: 11px;
+}
+
 /* ── Wine name clickable ────────────────────────────────────────────────── */
 
 .wine-name--clickable {

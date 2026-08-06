@@ -893,6 +893,12 @@ Reassessing the actual goal behind the community layer — balancing professiona
 
 **Graceful degradation:** Same pattern as Phase 7 — a citation window with no drinking-window language present returns `drinking_window: null` for that entry, not an error. No broad vintage characterization on the page → `vintage_character: null`. No value language → `deal: false`. A wine with disagreeing critic windows leaves the wine-level field `null`, an expected state, not a bug — the per-critic data is still present in `review_data`.
 
+**Implemented 2026-08-05 — the step-3 UI expectation, drinking windows only.** `WineCard` and `WineDetailModal` now fall back to the per-critic windows from `review_data` when the wine-level `drinking_window` is `null`, each attributed to the critic who stated it (`web/src/utils/drinkingWindows.ts`, `web/src/components/AttributedDrinkingWindows.tsx`). This is the display behaviour step 3 above already anticipated, not a change to the derivation rule — `derive-wine-level.ts` is untouched, the field still goes `null` on disagreement, and nothing is averaged or collapsed, so §15 stands unamended.
+
+Two notes for whoever picks this up next:
+- **`vintage_character` was deliberately left out of this pass.** It is gated by the identical unanimity rule in the same function and has the identical failure mode, but per `build-phases.md` line 906's finding, real citations characterize the specific wine far more often than the vintage as a whole — so `null` there is usually absence of data, not disagreement, and the disagreement display would rarely fire. Worth doing when the UI build revisits the "Year" badge.
+- **Fill rate is unchanged.** This makes disagreement visible; it does not make the wine-level field populate more often. How often two or more critics actually state conflicting windows is still unmeasured — nothing counts it. If empty fields on well-covered wines remain the real complaint, measure that before reopening the rule itself.
+
 **Tests:**
 - Unit: extraction prompt output shape — `drinking_window`/`vintage_character`/`deal` all correctly parsed from fixture text, and all three correctly return `null`/`false` when the source text doesn't mention them
 - Unit: the non-blending rule — a fixture with two critics citing different drinking windows for the same wine correctly leaves the wine-level `drinking_window_start`/`drinking_window_end` `null`, while both critics' windows are still present in their respective `review_data` entries

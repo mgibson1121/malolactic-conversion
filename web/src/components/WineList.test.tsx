@@ -454,4 +454,76 @@ describe('WineList', () => {
     screen.getByRole('button', { name: /Evaluate/ }).click()
     expect(onEvaluate).toHaveBeenCalledWith(wine)
   })
+
+  // Drinking window: the wine-level field is the agreed value and always wins.
+  // It is null when critics disagree (derive-wine-level.ts), and only then does
+  // the card fall back to the attributed per-critic windows in review_data.
+  describe('drinking window', () => {
+    const DISAGREEING_REVIEW_DATA = [
+      {
+        slug: 'jjbuckley',
+        fetched_at: '2026-08-05T00:00:00.000Z',
+        source: 'configured',
+        critic_scores: [
+          {
+            publication: 'Decanter',
+            score: 96,
+            known_publication: true,
+            drinking_window: { start: 2029, end: 2045 },
+            vintage_character: null,
+            deal: false,
+          },
+          {
+            publication: 'Vinous',
+            score: 94,
+            known_publication: true,
+            drinking_window: { start: 2026, end: 2038 },
+            vintage_character: null,
+            deal: false,
+          },
+        ],
+      },
+    ] as unknown as WineEntry['review_data']
+
+    function renderCard(overrides: Partial<WineEntry>) {
+      render(
+        <WineList
+          wines={[makeWine(overrides)]}
+          activeTab="discovered"
+          onEvaluate={noop}
+          onTagUpdate={noop}
+          onQuantityChange={noop}
+          onViewHistory={noop}
+          onWineUpdated={noop}
+          onViewDetail={noop}
+        />
+      )
+    }
+
+    it('shows the attributed per-critic windows when the wine-level field is null', () => {
+      renderCard({ drinking_window: null, review_data: DISAGREEING_REVIEW_DATA })
+
+      expect(screen.getByText('2 critics, 2 different windows')).toBeInTheDocument()
+      expect(screen.getAllByText('2029–2045').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('2026–2038').length).toBeGreaterThan(0)
+    })
+
+    it('shows the agreed wine-level window instead of the spread when one exists', () => {
+      renderCard({
+        drinking_window: { start: '2030-01-01', end: '2040-01-01' },
+        drinking_window_source: 'derived',
+        review_data: DISAGREEING_REVIEW_DATA,
+      })
+
+      expect(screen.getByText(/Drink 2030-01-01–2040-01-01/)).toBeInTheDocument()
+      expect(screen.queryByText(/different windows/)).not.toBeInTheDocument()
+    })
+
+    it('shows nothing when the field is null and no critic stated a window', () => {
+      renderCard({ drinking_window: null, review_data: null })
+
+      expect(screen.queryByText(/different windows/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Drink/)).not.toBeInTheDocument()
+    })
+  })
 })
