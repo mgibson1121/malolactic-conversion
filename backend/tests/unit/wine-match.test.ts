@@ -6,6 +6,8 @@ import {
   normalize,
   significantWords,
   isRelevantMatch,
+  stripHonorifics,
+  buildDistinguishingQuery,
   type WineIdentity,
   type MatchCandidate,
 } from '@shared/utils/wine-match'
@@ -284,6 +286,57 @@ describe('isRelevantMatch — backward-compatible wrapper', () => {
         grandVillage
       )
     ).toBe(false)
+  })
+})
+
+// ─── Query-side honorifics and diacritics (Phase 9.1, WI-5) ────────────────
+// STOPWORDS has always known "domaine"/"chateau" are noise — on the matching
+// side only. Both query builders emitted them verbatim, and one of them
+// emitted raw accents too, so the queries were stricter than the check they
+// fed. Same asymmetry, forty lines apart in the same file.
+describe('stripHonorifics', () => {
+  it('drops a leading Domaine', () => {
+    expect(stripHonorifics('Domaine Jean-Marc Vincent')).toBe('Jean-Marc Vincent')
+  })
+
+  it('drops a leading Château, accents and all', () => {
+    expect(stripHonorifics('Château Grand Village')).toBe('Grand Village')
+  })
+
+  it('leaves a producer with no honorific untouched', () => {
+    expect(stripHonorifics('Drappier')).toBe('Drappier')
+  })
+
+  it('preserves the casing and accents of what remains — the result goes inside a quoted query', () => {
+    expect(stripHonorifics('Domaine des Ardoisières')).toBe('des Ardoisières')
+  })
+
+  it('never strips a name down to nothing', () => {
+    // A producer called simply "Clos Manou" keeps "Manou"; one called only
+    // "Domaine" is returned as-is rather than emptied.
+    expect(stripHonorifics('Clos Manou')).toBe('Manou')
+    expect(stripHonorifics('Domaine')).toBe('Domaine')
+  })
+
+  it('only strips from the front — an honorific inside a name is part of it', () => {
+    expect(stripHonorifics('Chateau du Clos de Vougeot')).toBe('du Clos de Vougeot')
+  })
+})
+
+describe('buildDistinguishingQuery', () => {
+  it('folds diacritics, so the query is no stricter about accents than the matcher', () => {
+    // These went out live as Gour%20de%20Chaul%C3%A9 and
+    // Mangot%20Saint-%C3%89milion.
+    expect(buildDistinguishingQuery({ producer: 'Gour de Chaulé', denomination: 'Gigondas' }))
+      .toBe('Gour de Chaule Gigondas')
+    expect(buildDistinguishingQuery({ producer: 'Mangot', denomination: 'Saint-Émilion' }))
+      .toBe('Mangot Saint-Emilion')
+  })
+
+  it('appends the vintage only when asked', () => {
+    const wine = { producer: 'Drappier', denomination: 'Champagne', vintage: 2012 }
+    expect(buildDistinguishingQuery(wine)).toBe('Drappier Champagne')
+    expect(buildDistinguishingQuery(wine, { includeVintage: true })).toBe('Drappier Champagne 2012')
   })
 })
 

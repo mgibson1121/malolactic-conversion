@@ -344,6 +344,53 @@ describe('findProductPage — relaxed-query retry', () => {
     expect(firstQuery).toContain('Montee de Tonnerre')
   })
 
+  // ─── Producer relaxation (Phase 9.1, WI-5) ──────────────────────────────
+  // The price module found Morrell's Jean-Marc Vincent listing (correct 2022
+  // vintage, $135) in the same run this module found nothing there. The
+  // difference: price's query is unquoted and relevance-ranked, while this
+  // one demanded the literal phrase "Domaine Jean-Marc Vincent" — a word
+  // Morrell's own title never contains. 7 of the 14 batch wines begin with
+  // "Domaine".
+  it('retries without the Domaine honorific when the fully-qualified query is empty', async () => {
+    const morrell: RetailerConfig = {
+      slug: 'morrell',
+      name: 'Morrell & Company',
+      domain: 'morrellwine.com',
+      matchKeyword: 'morrell',
+      lat: 40.7587,
+      lng: -73.9787,
+    }
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { q: string }
+      queries.push(body.q)
+      // Only the honorific-stripped query finds Morrell's actual listing.
+      const organic = body.q.includes('"Domaine Jean-Marc Vincent"')
+        ? []
+        : [{
+            title: 'Jean-Marc Vincent Santenay Rouge 1er Cru Gravieres 2022',
+            link: 'https://www.morrellwine.com/products/jean-marc-vincent-santenay-gravieres-2022',
+          }]
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    const result = await findProductPage(
+      { producer: 'Domaine Jean-Marc Vincent', denomination: 'Santenay', vintage: 2022, cuvee: null, vineyard: null },
+      morrell,
+      'test-key'
+    )
+
+    expect(result).toBe('https://www.morrellwine.com/products/jean-marc-vincent-santenay-gravieres-2022')
+    expect(queries[0]).toContain('"Domaine Jean-Marc Vincent"')
+    // The relaxation comes second — before dropping the vintage, which is a
+    // real identity constraint rather than a word the shop never wrote.
+    expect(queries[1]).toContain('"Jean-Marc Vincent"')
+    expect(queries[1]).not.toContain('Domaine')
+    expect(queries[1]).toContain('2022')
+  })
+
   it('produces a single query variant (no retry) for a wine with no cuvee/vineyard/vintage', async () => {
     let calls = 0
     jest.spyOn(global, 'fetch').mockImplementation(() => {

@@ -469,7 +469,9 @@ describe('fetchPriceData', () => {
     await fetchPriceData(drappierWine)
     const serperCall = (global.fetch as jest.Mock).mock.calls.find(([url]) => String(url).includes('google.serper.dev'))
     const body = JSON.parse(serperCall![1].body)
-    expect(body.q).toContain('Grande Sendrée')
+    // Diacritics folded as of Phase 9.1 — the Shopping query no longer
+    // demands an exact accented string the matcher itself would have folded.
+    expect(body.q).toContain('Grande Sendree')
   })
 
   it('excludes a same-producer-and-denomination listing that does not match the cuvee', async () => {

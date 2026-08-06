@@ -4,6 +4,8 @@ import {
   scoreMatch,
   isAcceptableMatch,
   compareByMatchQuality,
+  foldDiacritics,
+  stripHonorifics,
   type MatchVerdict,
   type WineIdentity,
 } from '@shared/utils/wine-match'
@@ -28,15 +30,12 @@ interface SerperOrganicResponse {
   organic?: SerperOrganicItem[]
 }
 
-/** Strips diacritics only (no lowercasing, no punctuation removal) — safe to
- * use inside a quoted Serper phrase, unlike wine-match.ts's normalize(). */
-function foldDiacritics(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '')
-}
-
 interface QueryOptions {
   includeDistinguishing: boolean
   includeVintage: boolean
+  /** Drop leading honorifics ("Domaine", "Château") from the quoted producer
+   * phrase. See stripHonorifics and buildQueryVariants. */
+  relaxProducer?: boolean
 }
 
 /**
@@ -52,7 +51,10 @@ interface QueryOptions {
  */
 function buildQuery(wine: WineIdentity, domain: string, opts: QueryOptions): string {
   const parts = [`site:${domain}`]
-  if (wine.producer) parts.push(`"${foldDiacritics(wine.producer)}"`)
+  if (wine.producer) {
+    const producer = opts.relaxProducer ? stripHonorifics(wine.producer) : wine.producer
+    parts.push(`"${foldDiacritics(producer)}"`)
+  }
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
   if (opts.includeDistinguishing) {
     if (wine.cuvee) parts.push(`"${foldDiacritics(wine.cuvee)}"`)
@@ -76,16 +78,28 @@ function buildQuery(wine: WineIdentity, domain: string, opts: QueryOptions): str
  * fourth required quoted phrase without a fallback. Deduplicated — a wine
  * with no cuvee/vineyard/vintage set produces a single variant, same as
  * before this change.
+ *
+ * The honorific-stripped producer variant (Phase 9.1) goes *second*, not
+ * last. Producer and denomination were never relaxed at all before, which
+ * cost real coverage: `"Domaine Jean-Marc Vincent"` fails against Morrell's
+ * "Jean-Marc Vincent Santenay Rouge 1er Cru Gravieres 2022", and the price
+ * module found that exact listing at Morrell in the same run this module
+ * found nothing there. Relaxing an honorific is much closer to the original
+ * query than dropping the vintage is — it removes a word the retailer
+ * probably never wrote, rather than a real identity constraint — so it
+ * belongs before the broader relaxations, and only fires when it actually
+ * changes the query (the Set dedupe handles producers with no honorific).
  */
 function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
   const variants = [
     buildQuery(wine, domain, { includeDistinguishing: true, includeVintage: true }),
+    buildQuery(wine, domain, { includeDistinguishing: true, includeVintage: true, relaxProducer: true }),
   ]
   if (wine.cuvee || wine.vineyard) {
-    variants.push(buildQuery(wine, domain, { includeDistinguishing: false, includeVintage: true }))
+    variants.push(buildQuery(wine, domain, { includeDistinguishing: false, includeVintage: true, relaxProducer: true }))
   }
   if (wine.vintage) {
-    variants.push(buildQuery(wine, domain, { includeDistinguishing: false, includeVintage: false }))
+    variants.push(buildQuery(wine, domain, { includeDistinguishing: false, includeVintage: false, relaxProducer: true }))
   }
   return [...new Set(variants)]
 }
@@ -232,7 +246,10 @@ export async function findFallbackProductPage(
   apiKey: string
 ): Promise<Step1Outcome> {
   const parts: string[] = []
-  if (wine.producer) parts.push(`"${foldDiacritics(wine.producer)}"`)
+  // Honorific-stripped from the outset (Phase 9.1) — this is the last resort,
+  // so there is no narrower attempt for a relaxation to undercut, and the
+  // open web is even less likely than a retailer to write "Domaine".
+  if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(wine.producer))}"`)
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
   if (wine.vintage) parts.push(String(wine.vintage))
   parts.push('review')

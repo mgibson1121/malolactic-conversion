@@ -62,6 +62,39 @@ export function significantWords(s: string): string[] {
     .filter(w => w.length >= 3 && !STOPWORDS.has(w))
 }
 
+/** Honorifics/estate-type prefixes that a producer name carries on a label
+ * but that retailers routinely drop from a product title. Distinct from
+ * STOPWORDS: these are only stripped from the *front* of a name, because
+ * they are noise as a prefix and meaningful anywhere else — "Clos" leading
+ * "Clos Manou" is an estate type, while "Clos" inside "Chateau du Clos de
+ * Vougeot" is part of the name. */
+const HONORIFIC_PREFIXES = new Set(['domaine', 'chateau', 'château', 'maison', 'clos', 'ch'])
+
+/**
+ * Drops leading honorifics from a producer name, preserving the original
+ * casing and accents of what remains (unlike normalize(), so the result is
+ * still safe inside a quoted search phrase).
+ *
+ * STOPWORDS has always known `domaine`/`chateau`/`clos`/`maison` are noise —
+ * but only on the matching side. The reviews query quoted the producer
+ * verbatim, so `"Domaine Jean-Marc Vincent"` failed against Morrell's own
+ * title, "Jean-Marc Vincent Santenay Rouge 1er Cru Gravieres 2022". The
+ * price module found that exact listing at Morrell, correct vintage, in the
+ * same run the reviews module found nothing there — one module's query was
+ * unquoted, the other's demanded a word the retailer never wrote. 7 of the
+ * 14 wines in the 2026-08-04 batch begin with "Domaine".
+ *
+ * Never strips the whole name: a producer called simply "Clos Manou" keeps
+ * "Manou", and a name that is *only* honorifics is returned unchanged rather
+ * than emptied.
+ */
+export function stripHonorifics(producer: string): string {
+  const words = producer.trim().split(/\s+/)
+  let i = 0
+  while (i < words.length - 1 && HONORIFIC_PREFIXES.has(normalize(words[i]).trim())) i += 1
+  return words.slice(i).join(' ')
+}
+
 /** Normalized whole-word tokens of a text, for exact token comparison.
  * Substring comparison (what this replaced) is what let "vin" — a
  * significant word of "Vin de France" — match inside "vintage". */
@@ -253,6 +286,14 @@ export interface QueryFields {
  * exact-phrase one. Not used by reviews/find-product-page.ts, which needs
  * quoted phrases for its site:-restricted organic search — see that file's
  * own buildQuery.
+ *
+ * Diacritics are folded (2026-08-04). This function sat forty lines below a
+ * normalize() that has always stripped accents and did not strip them
+ * itself, so the queries it emits were stricter about accents than the
+ * matcher they feed: retailer URLs went out as `Gour%20de%20Chaul%C3%A9`
+ * and `Mangot%20Saint-%C3%89milion` while the check on the way back folded
+ * both sides. Same asymmetry that reviews/find-product-page.ts fixed for its
+ * own quoted query on 2026-08-02, one file apart.
  */
 export function buildDistinguishingQuery(
   wine: QueryFields,
@@ -261,5 +302,5 @@ export function buildDistinguishingQuery(
   if (!wine.producer && !wine.denomination) return ''
   const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
   if (opts.includeVintage && wine.vintage) parts.push(String(wine.vintage))
-  return parts.join(' ')
+  return foldDiacritics(parts.join(' '))
 }
