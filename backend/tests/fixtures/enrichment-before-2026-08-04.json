@@ -1,0 +1,4493 @@
+{
+  "taken_at": "2026-08-06T01:47:13.819Z",
+  "note": "Enrichment state before the Phase 9.1 identity-matching remediation. The \"before\" half of the before/after comparison, and the evidence behind docs/sessions/2026-08-04-core-functionality-defect-taxonomy.md. Not re-derivable once purged.",
+  "wines": [
+    {
+      "id": "4cd65c42-c6fd-4e5b-9d6b-edbfb8d3a217",
+      "label": "Domaine Rousseau · Gevrey-Chambertin 2019",
+      "producer": "Domaine Rousseau",
+      "vintage": 2019,
+      "denomination": "Gevrey-Chambertin",
+      "date_added": "2026-05-25T23:04:17.769Z",
+      "price_data": {
+        "price_min": 599,
+        "price_avg": 693,
+        "price_max": 787,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 787,
+            "url": "https://www.benchmarkwine.com/search?q=Domaine%20Rousseau%20Gevrey-Chambertin%202019",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "acker",
+            "name": "Acker Wines",
+            "price": 599,
+            "url": "https://ackerwines.com/search?q=Domaine%20Rousseau%20Gevrey-Chambertin%202019",
+            "is_preferred_retailer": true,
+            "distance_miles": 5,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Rousseau%20Gevrey-Chambertin",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "acker",
+          "name": "Acker Wines",
+          "price": 599,
+          "url": "https://ackerwines.com/search?q=Domaine%20Rousseau%20Gevrey-Chambertin%202019",
+          "is_preferred_retailer": true,
+          "distance_miles": 5,
+          "is_search_results_page": true,
+          "matched_vintage": 2019,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T02:27:04.910Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1500750",
+          "critic_scores": [],
+          "fetched_at": "2026-07-25T02:39:02.950Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://bid.zachys.com/downloads/auction/74/fineandrarewinesandspiritshongkongseptember28v4.pdf?ts=1727410546",
+          "critic_scores": [],
+          "fetched_at": "2026-07-25T02:39:03.009Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/rousseau-gevrey-chambertin-1er-cru-clos-st-jacques-2021/?srsltid=AfmBOopUH3MfiWAcL9PojEU2-Cn-4gx69C0S_V6aUIL0UdBi21m8MrEa",
+          "critic_scores": [
+            {
+              "score": 97,
+              "publication": "Decanter",
+              "known_publication": true
+            },
+            {
+              "score": 97,
+              "publication": "La Revue du Vin de France",
+              "known_publication": false
+            },
+            {
+              "score": 96,
+              "publication": "Inside Burgundy",
+              "known_publication": false
+            },
+            {
+              "score": 95,
+              "publication": "View From the Cellar",
+              "known_publication": false
+            },
+            {
+              "score": 95,
+              "publication": "TimAtkin.com",
+              "known_publication": false
+            },
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true
+            },
+            {
+              "score": 94,
+              "publication": "Burghound",
+              "known_publication": true
+            }
+          ],
+          "fetched_at": "2026-07-25T02:39:03.540Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/124785-rousseau-gevrey-chambertin-2019-6-pack?srsltid=AfmBOoo9ZpbfmHrnOpnFBFwpDti8HvrfntNvk7Vj05ZoAQOvYDiwy7JL",
+          "critic_scores": [
+            {
+              "score": 95,
+              "publication": "Burghound",
+              "known_publication": true
+            },
+            {
+              "score": 95,
+              "publication": "Wine Advocate",
+              "known_publication": true
+            },
+            {
+              "score": 98,
+              "publication": "Decanter",
+              "known_publication": true
+            },
+            {
+              "score": 96,
+              "publication": "Vinous",
+              "known_publication": true
+            },
+            {
+              "score": 92,
+              "publication": "Burghound",
+              "known_publication": true
+            },
+            {
+              "score": 92,
+              "publication": "Vinous",
+              "known_publication": true
+            }
+          ],
+          "fetched_at": "2026-07-25T02:39:03.091Z"
+        }
+      ],
+      "retailer_links": {
+        "kl": "https://shop.klwines.com/products/details/1557135"
+      }
+    },
+    {
+      "id": "7e3ba99d-d03e-4787-9531-420033cb2c7e",
+      "label": "E. Guigal · Côte-Rôtie 2018",
+      "producer": "E. Guigal",
+      "vintage": 2018,
+      "denomination": "Côte-Rôtie",
+      "date_added": "2026-05-25T23:04:17.770Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "025e06f4-75b9-4574-bb4d-64995fe75fe4",
+      "label": "Georges Roumier · Chambolle-Musigny 2017",
+      "producer": "Georges Roumier",
+      "vintage": 2017,
+      "denomination": "Chambolle-Musigny",
+      "date_added": "2026-05-25T23:04:17.770Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 2394,
+            "url": "https://www.benchmarkwine.com/search?q=Georges%20Roumier%20Chambolle-Musigny%202017",
+            "critic_scores": [],
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2017,
+            "vintage_mismatch": false,
+            "pack_quantity": 2,
+            "bottle_size_ml": null,
+            "non_standard_format": true,
+            "format_label": "2-pack"
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-07-23T02:19:51.500Z"
+      },
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "2fd27258-12e5-4751-94e6-1c4475ab1d82",
+      "label": "Giacomo Conterno · Barolo 2016",
+      "producer": "Giacomo Conterno",
+      "vintage": 2016,
+      "denomination": "Barolo",
+      "date_added": "2026-05-25T23:04:17.770Z",
+      "price_data": {
+        "price_min": 699.99,
+        "price_avg": 746,
+        "price_max": 792,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": 699.99,
+            "url": "https://shop.klwines.com/products?searchText=Giacomo%20Conterno%20Barolo%202016",
+            "critic_scores": [],
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": 2016,
+            "vintage_mismatch": false
+          },
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 792,
+            "url": "https://www.benchmarkwine.com/search?q=Giacomo%20Conterno%20Barolo%202016",
+            "critic_scores": [],
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2016,
+            "vintage_mismatch": false
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "price": 699.99,
+          "url": "https://shop.klwines.com/products?searchText=Giacomo%20Conterno%20Barolo%202016",
+          "critic_scores": [],
+          "is_preferred_retailer": true,
+          "distance_miles": 3,
+          "is_search_results_page": true,
+          "matched_vintage": 2016,
+          "vintage_mismatch": false
+        },
+        "fetched_at": "2026-07-19T17:38:32.767Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1416892&srsltid=AfmBOopT9YYWbIcXzh-1NyMDRAT8EUJtKFOSO8p2ZcCV-cC9Wf_8zGHS",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:26:42.717Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/conterno-giacomo-barolo-cascina-francia-2006/?srsltid=AfmBOoqKHnNPZXe1pd5iO-MmyOwLwIpztmR3R1DlTOXfLPsU4tNwoHNG",
+          "critic_scores": [
+            {
+              "score": 97,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2018,
+                "end": 2046
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2016,
+                "end": 2046
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2014,
+                "end": 2035
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:43.489Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/144361-giacomo-conterno-barolo-cascina-francia-2016-3l?srsltid=AfmBOootmCeS8m9zJCEwj_erDCbj2ZKO4HTy75s-NsUXT__vDxDwZkgt",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Burghound",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:43.065Z"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2015-giacomo-conterno-barolo-cascina-francia?srsltid=AfmBOorNcb1BufTWx4Uy2xUAlFZ2riyjep1uLPqDr5qdC1mowN6AoG8p",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:26:42.541Z"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/nebbiolo/2016-giacomo-conterno-barolo-francia-120645?srsltid",
+          "critic_scores": [
+            {
+              "score": 97,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:41.319Z"
+        },
+        {
+          "slug": "crush",
+          "name": "Crush Wine & Spirits",
+          "product_url": "https://crushwineco.com/blogs/offers/2016-giacomo-conterno-barolo-francia",
+          "critic_scores": [
+            {
+              "score": 96,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:45.240Z"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/giacomo-conterno-barolo-francia-2021-750ml?srsltid=AfmBOoq44I2I9blKrCHHduS-avyBg05Ibai8FgJ_lCDRmN8c1WIwqsEM",
+          "critic_scores": [
+            {
+              "score": 99,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:43.309Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "87ba8213-137d-4b29-a107-495a5e25ecd2",
+      "label": "Raveneau · Chablis 2021",
+      "producer": "Raveneau",
+      "vintage": 2021,
+      "denomination": "Chablis",
+      "date_added": "2026-05-25T23:04:17.770Z",
+      "price_data": {
+        "price_min": 329,
+        "price_avg": 989.5,
+        "price_max": 1650,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 329,
+            "url": "https://www.benchmarkwine.com/search?q=Raveneau%20Chablis%202021",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2021,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "thatchers",
+            "name": "Thatcher's Wine",
+            "price": 1650,
+            "url": "https://thatcherswine.com/search?q=Raveneau%20Chablis%202021",
+            "is_preferred_retailer": true,
+            "distance_miles": 2457,
+            "is_search_results_page": true,
+            "matched_vintage": 2021,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Raveneau%20Chablis",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "thatchers",
+          "name": "Thatcher's Wine",
+          "price": 1650,
+          "url": "https://thatcherswine.com/search?q=Raveneau%20Chablis%202021",
+          "is_preferred_retailer": true,
+          "distance_miles": 2457,
+          "is_search_results_page": true,
+          "matched_vintage": 2021,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T03:11:23.854Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1705593",
+          "critic_scores": [],
+          "fetched_at": "2026-07-23T02:45:28.552Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/wine/chablis-montmains-raveneau-2012-750ml-418428.html?srsltid=AfmBOooGz8O2_eng2_PqXaA4QoIkydjK_bOnBTIQp-Y98tSe2V9hDqoS",
+          "critic_scores": [],
+          "fetched_at": "2026-07-23T02:45:31.123Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/winery/1498-raveneau?srsltid=AfmBOoqucR7x2gAUWQb5YdbNl4JExnUMWPHEV8S419UBKe60VyWcP4Jv",
+          "critic_scores": [],
+          "fetched_at": "2026-07-23T02:45:35.363Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "67980ab8-c9b6-418e-b920-5a09dadaa547",
+      "label": "Mettler Family Vineyards · None 2013",
+      "producer": "Mettler Family Vineyards",
+      "vintage": 2013,
+      "denomination": "None",
+      "date_added": "2026-05-30T23:39:10.891Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [],
+        "nearest_retailer": null,
+        "fetched_at": "2026-07-26T23:49:02.695Z"
+      },
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "d8d68a75-fe47-4c83-b1cf-f5a4cce21148",
+      "label": "Domaine de Villaine · Bouzeron 2021",
+      "producer": "Domaine de Villaine",
+      "vintage": 2021,
+      "denomination": "Bouzeron",
+      "date_added": "2026-07-16T02:27:49.337Z",
+      "price_data": {
+        "price_min": 49.99,
+        "price_avg": 49.99,
+        "price_max": 49.99,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": 49.99,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20de%20Villaine%20Bouzeron%202021",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "price": 49.99,
+          "url": "https://shop.klwines.com/products?searchText=Domaine%20de%20Villaine%20Bouzeron%202021",
+          "is_preferred_retailer": true,
+          "distance_miles": 3,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": ""
+        },
+        "fetched_at": "2026-07-27T01:28:51.302Z"
+      },
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "a67169cc-1913-43b4-94a2-4acf2a69be8b",
+      "label": "Domaine Tempier · Bandol 2019",
+      "producer": "Domaine Tempier",
+      "vintage": 2019,
+      "denomination": "Bandol",
+      "date_added": "2026-07-26T20:54:03.880Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "86782fcd-8d99-4518-b39e-07ca0da80a98",
+      "label": "(no producer) · Châteauneuf-du-Pape \"La Crau\" 2019",
+      "producer": null,
+      "vintage": 2019,
+      "denomination": "Châteauneuf-du-Pape \"La Crau\"",
+      "date_added": "2026-07-26T20:54:04.216Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "456c6801-6051-48d8-b419-d3bd12ffb9d4",
+      "label": "Domaine Follin-Arbelet · Aloxe-Corton 2018",
+      "producer": "Domaine Follin-Arbelet",
+      "vintage": 2018,
+      "denomination": "Aloxe-Corton",
+      "date_added": "2026-07-26T20:54:04.237Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "b620d745-2ed3-4c25-a4b7-ea7f087bda12",
+      "label": "Hippolyte Reverdy · Sancerre 2020",
+      "producer": "Hippolyte Reverdy",
+      "vintage": 2020,
+      "denomination": "Sancerre",
+      "date_added": "2026-07-26T20:54:04.257Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "26807087-f761-40c9-854c-79f5cf235f22",
+      "label": "Domaine Daniel Chotard · Sancerre 2020",
+      "producer": "Domaine Daniel Chotard",
+      "vintage": 2020,
+      "denomination": "Sancerre",
+      "date_added": "2026-07-26T20:54:04.277Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "197c5f75-b883-4667-be7f-af2dc08def7b",
+      "label": "Domaine Bernard Baudry · Chinon 2017",
+      "producer": "Domaine Bernard Baudry",
+      "vintage": 2017,
+      "denomination": "Chinon",
+      "date_added": "2026-07-26T20:54:04.297Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "ceae4d89-c2fc-4d86-bb0a-8fcd0848036f",
+      "label": "Catherine et Pierre Breton · Bourgueil 2017",
+      "producer": "Catherine et Pierre Breton",
+      "vintage": 2017,
+      "denomination": "Bourgueil",
+      "date_added": "2026-07-26T20:54:04.316Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "3af51c9c-5fdb-4a16-8017-a4e0af2d0a41",
+      "label": "Guido Porro · Barolo 2017",
+      "producer": "Guido Porro",
+      "vintage": 2017,
+      "denomination": "Barolo",
+      "date_added": "2026-07-26T20:54:04.336Z",
+      "price_data": {
+        "price_min": 175,
+        "price_avg": 175,
+        "price_max": 175,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": 59.94,
+            "url": "https://shop.klwines.com/products?searchText=Guido%20Porro%20Barolo%202017",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": ""
+          },
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 175,
+            "url": "https://www.benchmarkwine.com/search?q=Guido%20Porro%20Barolo%202017",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2017,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "price": 175,
+          "url": "https://www.benchmarkwine.com/search?q=Guido%20Porro%20Barolo%202017",
+          "is_preferred_retailer": true,
+          "distance_miles": 2547,
+          "is_search_results_page": true,
+          "matched_vintage": 2017,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": ""
+        },
+        "fetched_at": "2026-07-26T23:53:38.752Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1866112",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:26:50.175Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "75f19f5f-edf6-46aa-a0cd-95c6812cad66",
+      "label": "Domaine William Fevre · Chablis 2019",
+      "producer": "Domaine William Fevre",
+      "vintage": 2019,
+      "denomination": "Chablis",
+      "date_added": "2026-07-26T20:54:04.355Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 1208,
+            "url": "https://www.benchmarkwine.com/search?q=Domaine%20William%20Fevre%20Chablis%202019",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": false,
+            "pack_quantity": 6,
+            "bottle_size_ml": null,
+            "non_standard_format": true,
+            "format_label": "6-pack"
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-07-26T23:53:56.552Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "41a37076-d5a3-4595-b11b-82f46e645b8a",
+      "label": "Clos du Caillou · Côtes du Rhône 2018",
+      "producer": "Clos du Caillou",
+      "vintage": 2018,
+      "denomination": "Côtes du Rhône",
+      "date_added": "2026-07-26T20:54:04.374Z",
+      "price_data": {
+        "price_min": 84.94,
+        "price_avg": 84.94,
+        "price_max": 84.94,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": 84.94,
+            "url": "https://shop.klwines.com/products?searchText=Clos%20du%20Caillou%20C%C3%B4tes%20du%20Rh%C3%B4ne%202018",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "price": 84.94,
+          "url": "https://shop.klwines.com/products?searchText=Clos%20du%20Caillou%20C%C3%B4tes%20du%20Rh%C3%B4ne%202018",
+          "is_preferred_retailer": true,
+          "distance_miles": 3,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": ""
+        },
+        "fetched_at": "2026-07-26T20:55:03.478Z"
+      },
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "1acb0203-3836-4025-b761-a5710e6ffd3a",
+      "label": "Domaine André Brunel · Châteauneuf-du-Pape 2019",
+      "producer": "Domaine André Brunel",
+      "vintage": 2019,
+      "denomination": "Châteauneuf-du-Pape",
+      "date_added": "2026-07-26T20:54:04.393Z",
+      "price_data": {
+        "price_min": 44.99,
+        "price_avg": 70.79,
+        "price_max": 113.98,
+        "retailers": [
+          {
+            "slug": "garfield-s-beverage-warehouse",
+            "name": "Garfield's Beverage Warehouse",
+            "price": 44.99,
+            "url": "https://www.google.com/search?q=Garfield's%20Beverage%20Warehouse%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": ""
+          },
+          {
+            "slug": "napacabs",
+            "name": "NapaCabs",
+            "price": 54.97,
+            "url": "https://www.google.com/search?q=NapaCabs%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": ""
+          },
+          {
+            "slug": "kelly-s-liquors",
+            "name": "Kelly’s Liquors",
+            "price": 44.99,
+            "url": "https://www.google.com/search?q=Kelly%E2%80%99s%20Liquors%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          },
+          {
+            "slug": "medium-plus",
+            "name": "Medium Plus",
+            "price": 95,
+            "url": "https://www.google.com/search?q=Medium%20Plus%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          },
+          {
+            "slug": "idealwine",
+            "name": "iDealwine",
+            "price": 113.98,
+            "url": "https://www.google.com/search?q=iDealwine%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "garfield-s-beverage-warehouse",
+          "name": "Garfield's Beverage Warehouse",
+          "price": 44.99,
+          "url": "https://www.google.com/search?q=Garfield's%20Beverage%20Warehouse%20Domaine%20Andr%C3%A9%20Brunel%20Ch%C3%A2teauneuf-du-Pape%202019",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": ""
+        },
+        "fetched_at": "2026-07-26T20:57:21.505Z"
+      },
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "9fa371bd-cd9a-4f9f-aa95-a2e7693b812c",
+      "label": "Bernard Burgaud · Côte-Rôtie 2018",
+      "producer": "Bernard Burgaud",
+      "vintage": 2018,
+      "denomination": "Côte-Rôtie",
+      "date_added": "2026-07-26T20:54:04.411Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "58a7e35b-f146-45e6-b8d2-7349243428dd",
+      "label": "Domaine Saint-Damien · Gigondas 2019",
+      "producer": "Domaine Saint-Damien",
+      "vintage": 2019,
+      "denomination": "Gigondas",
+      "date_added": "2026-07-26T20:54:04.429Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "zachys",
+            "name": "Zachys",
+            "price": 79.99,
+            "url": "https://www.zachys.com/search?q=Domaine%20Saint-Damien%20Gigondas%20Vieilles%20Vignes%202019",
+            "is_preferred_retailer": true,
+            "distance_miles": 27,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 1500,
+            "non_standard_format": true,
+            "format_label": "1.5L",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Saint-Damien%20Gigondas%20Vieilles%20Vignes",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-07-31T03:41:02.678Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "a43a30de-062b-4b2e-9732-83849523b54f",
+      "label": "Produttori del Barbaresco · Barbaresco 2017",
+      "producer": "Produttori del Barbaresco",
+      "vintage": 2017,
+      "denomination": "Barbaresco",
+      "date_added": "2026-07-26T20:54:04.447Z",
+      "price_data": null,
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/2017-produttori-del-barbaresco-barbaresco/1566702?searchId=5da8d283-a04e-4747-855c-49838eab71c2&searchServiceName=klwines-prod-productsearch&searchRank=5&srsltid=AfmBOorbC8WB9EufcHiIr-ddLqgrFhs2wyLhtREJSlSeH4yGDbErGlvJ",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:27:01.295Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/127108-produttori-del-barbaresco-barbaresco-riserva-paje-2017-6-pack?srsltid=AfmBOoqZo1brE2Bm61iDyBu6bQsgDOOZZoAnkS_sJkb-0UNDN3DXVz2b",
+          "critic_scores": [
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:27:02.091Z"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2022-produttori-del-barbaresco-barbaresco?srsltid=AfmBOopjj2I8mOZ7vcSAtmL2DcYRFedfWvGYd-42iZZGGIPUqK4brBTH",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:27:01.723Z"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/nebbiolo/2017-produttori-del-barbaresco-montestefano-riserva-magnum-132132?srsltid=AfmBOopp0-9Xi_Vg_LRluXQ3V8M6bV1C2n2dJVacPW1cHYLeiDEUdNmZ",
+          "critic_scores": [
+            {
+              "score": 96,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:59.376Z"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/produttori-del-barbaresco-barbaresco-montestefano-2017-egv0822_part_2?srsltid=AfmBOopfikD3omjzs5mUvO6zl0-KTO11j-Dh9lFb7nghlgi2YXfOXjbo",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:27:01.738Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "a1faf9c6-d1f3-4447-9ff4-7cafb5f756e7",
+      "label": "Terres Dorées (Jean-Paul Brun) · Fleurie 2019",
+      "producer": "Terres Dorées (Jean-Paul Brun)",
+      "vintage": 2019,
+      "denomination": "Fleurie",
+      "date_added": "2026-07-26T20:54:04.465Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "d7a63ef8-87b8-4fea-9169-d6d029244191",
+      "label": "Château Sansonnet · Saint-Émilion 2017",
+      "producer": "Château Sansonnet",
+      "vintage": 2017,
+      "denomination": "Saint-Émilion",
+      "date_added": "2026-07-26T20:54:04.484Z",
+      "price_data": null,
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "49aeb55c-ac5c-42d0-b9cf-9d8c4d2d9c84",
+      "label": "Domaine Saint Préfert · Châteauneuf-du-Pape 2019",
+      "producer": "Domaine Saint Préfert",
+      "vintage": 2019,
+      "denomination": "Châteauneuf-du-Pape",
+      "date_added": "2026-07-26T20:54:04.503Z",
+      "price_data": null,
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "84d70e50-a557-429f-bcb6-1c794fe9dc30",
+      "label": "Clos des Papes · Châteauneuf-du-Pape 2020",
+      "producer": "Clos des Papes",
+      "vintage": 2020,
+      "denomination": "Châteauneuf-du-Pape",
+      "date_added": "2026-07-26T20:54:04.521Z",
+      "price_data": {
+        "price_min": 89.95,
+        "price_avg": 89.95,
+        "price_max": 89.95,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": 775,
+            "url": "https://shop.klwines.com/products?searchText=Clos%20des%20Papes%20Ch%C3%A2teauneuf-du-Pape%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": false,
+            "pack_quantity": 6,
+            "bottle_size_ml": null,
+            "non_standard_format": true,
+            "format_label": "6-pack"
+          },
+          {
+            "slug": "woodland",
+            "name": "Woodland Hills Wine Co.",
+            "price": 89.95,
+            "url": "https://whwc.com/search-results/?search_query=Clos%20des%20Papes%20Ch%C3%A2teauneuf-du-Pape%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 2461,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": ""
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "price": 89.95,
+          "url": "https://whwc.com/search-results/?search_query=Clos%20des%20Papes%20Ch%C3%A2teauneuf-du-Pape%202020",
+          "is_preferred_retailer": true,
+          "distance_miles": 2461,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": ""
+        },
+        "fetched_at": "2026-07-26T23:55:03.806Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1592587&srsltid=AfmBOoqZ8GZncB0R7yWp2-8oEcYpexQqoo8s4pQ1_Ad7YxuV7v3Y44CB",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:26:00.559Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/products/chateauneuf-du-pape-clos-des-papes-2020-750ml?srsltid=AfmBOopHcSrenrle6zMIxku35_IJSP7_Z0FjzwbCCoW8fWVZmLmUPdEJ",
+          "critic_scores": [
+            {
+              "score": 96,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2045
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 97,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2040
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:01.312Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/clos-des-papes-chateauneuf-du-pape-2020/?srsltid=AfmBOorCmanBH5AJliGw9AqAuV9i0n8qFxZwlV2QtbjNOfOgF5L-5wm0",
+          "critic_scores": [
+            {
+              "score": 100,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2050
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2042
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "La Revue du Vin de France",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "The Wine Cellar Insider",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Falstaff",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Bettane & Desseauve Guide",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 97,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2040
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:03.844Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/139881-clos-des-papes-chateauneuf-du-pape-2020?srsltid=AfmBOoqbGPctBM2-jRny5QFfx_bhP3gObdcW2mWs5Mdc8EKPJ8JYRhJz",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 97,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:02.209Z"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2020-clos-des-papes-chateauneuf-du-pape?srsltid=AfmBOopn2q5oFqjHT5PIT88yDo9DzyDANpvBww9Ze10UUCTGU_nD-TDt",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:25:59.834Z"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/grenache-garnacha/2021-clos-des-papes-chateauneuf-du-pape-136961?srsltid=AfmBOooYs0SPLqBHdsqvAHummkY5sEFhDNJwh8R8xuSKhFfnWhhC-TiE",
+          "critic_scores": [
+            {
+              "score": 96,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:25:59.452Z"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/paul-avril-chateauneuf-du-pape-clos-des-papes-2015-ac-bravo0726-a?srsltid",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": null,
+                "end": 2040
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 17.5,
+              "publication": "Jancis Robinson",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:26:01.375Z"
+        }
+      ],
+      "retailer_links": {
+        "zachys": "https://www.zachys.com/products/chateauneuf-du-pape-clos-des-papes-2020-750ml"
+      }
+    },
+    {
+      "id": "762d27b2-6c4c-448e-aba8-830ef82eed9f",
+      "label": "Pierre-Yves Colin-Morey · Puligny-Montrachet 2019",
+      "producer": "Pierre-Yves Colin-Morey",
+      "vintage": 2019,
+      "denomination": "Puligny-Montrachet",
+      "date_added": "2026-07-31T02:03:42.564Z",
+      "price_data": null,
+      "review_data": null,
+      "retailer_links": null
+    },
+    {
+      "id": "675fbdd8-d764-4281-8ebf-aa55fccbbcc9",
+      "label": "Domaine de Montille · St. Aubin 2022",
+      "producer": "Domaine de Montille",
+      "vintage": 2022,
+      "denomination": "St. Aubin",
+      "date_added": "2026-07-31T02:03:42.579Z",
+      "price_data": null,
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1840450&srsltid=AfmBOora_UsUS9ILgB8ixmHfgaonfXhfESgUxmpmckV06-NaUwzKb67z",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:15:00.274Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/wine/st-aubin-en-remilly-domaine-de-montille-2023-750ml-581524.html?srsltid=AfmBOopX3gWKra978noVT26EMOhztuI_jdK4eVYKIcWQVPKdQq2ohHUD",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:14:59.649Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/de-montille-st-aubin-1er-cru-en-remilly-2021/?srsltid=AfmBOoqs_Vu8At6jXrj0Wc6oNSAhsZDYIsIPHoR-nu4I5_QGUD9rvx9G",
+          "critic_scores": [
+            {
+              "score": 93,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2027,
+                "end": 2045
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Inside Burgundy",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2030
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:15:00.567Z"
+        },
+        {
+          "slug": "acker",
+          "name": "Acker Wines",
+          "product_url": "https://www.ackerwines.com/shop-wine/wonderful-white-burgundy/?add-to-cart=882523&locale=pt_br&products-per-page=24&srsltid=AfmBOoo5SpB4zchdYfl3EGZI2_bsgxkV6rp7qOl3Uh9mayZbA_ofan2z",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:15:07.203Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "b0b8da32-c23d-4ba1-a7d0-d3ee19a34de9",
+      "label": "Sesto di Sopra · Brunello di Montalcino 2018",
+      "producer": "Sesto di Sopra",
+      "vintage": 2018,
+      "denomination": "Brunello di Montalcino",
+      "date_added": "2026-07-31T02:03:42.645Z",
+      "price_data": {
+        "price_min": 100.2,
+        "price_avg": 221.29,
+        "price_max": 429.99,
+        "retailers": [
+          {
+            "slug": "astor-wines-spirits",
+            "name": "Astor Wines & Spirits",
+            "price": 84.96,
+            "url": "https://www.google.com/search?q=Astor%20Wines%20%26%20Spirits%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 375,
+            "non_standard_format": true,
+            "format_label": "375ml",
+            "link_only": false
+          },
+          {
+            "slug": "the-wine-bottega",
+            "name": "The Wine Bottega",
+            "price": 100.2,
+            "url": "https://www.google.com/search?q=The%20Wine%20Bottega%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "union-square-wine-spirits",
+            "name": "Union Square Wine & Spirits",
+            "price": 239.99,
+            "url": "https://www.google.com/search?q=Union%20Square%20Wine%20%26%20Spirits%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2018,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "mr-d-wine-merchant",
+            "name": "Mr.D Wine Merchant",
+            "price": 114.99,
+            "url": "https://www.google.com/search?q=Mr.D%20Wine%20Merchant%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "instacart",
+            "name": "Instacart",
+            "price": 429.99,
+            "url": "https://www.google.com/search?q=Instacart%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Sesto%20di%20Sopra%20Brunello%20di%20Montalcino",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "the-wine-bottega",
+          "name": "The Wine Bottega",
+          "price": 100.2,
+          "url": "https://www.google.com/search?q=The%20Wine%20Bottega%20Sesto%20di%20Sopra%20Brunello%20di%20Montalcino%202018",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T02:31:57.742Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "93726281-b6ec-4a39-8d25-b6eeb811671c",
+      "label": "Ciacci Piccolomini d'Aragona · Brunello di Montalcino 2020",
+      "producer": "Ciacci Piccolomini d'Aragona",
+      "vintage": 2020,
+      "denomination": "Brunello di Montalcino",
+      "date_added": "2026-07-31T02:03:42.654Z",
+      "price_data": {
+        "price_min": 22.98,
+        "price_avg": 58.99,
+        "price_max": 94.99,
+        "retailers": [
+          {
+            "slug": "zachys",
+            "name": "Zachys",
+            "price": 94.99,
+            "url": "https://www.zachys.com/search?q=Ciacci%20Piccolomini%20d'Aragona%20Brunello%20di%20Montalcino%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 27,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 53,
+            "url": "https://www.benchmarkwine.com/search?q=Ciacci%20Piccolomini%20d'Aragona%20Brunello%20di%20Montalcino%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2021,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "winelibrary",
+            "name": "Wine Library",
+            "price": 22.98,
+            "url": "https://winelibrary.com/search?q=Ciacci%20Piccolomini%20d'Aragona%20Brunello%20di%20Montalcino%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 18,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Ciacci%20Piccolomini%20d'Aragona%20Brunello%20di%20Montalcino",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "price": 22.98,
+          "url": "https://winelibrary.com/search?q=Ciacci%20Piccolomini%20d'Aragona%20Brunello%20di%20Montalcino%202020",
+          "is_preferred_retailer": true,
+          "distance_miles": 18,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T02:30:42.103Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1855139&srsltid=AfmBOooHvc-7Lusm_mbt7xmXvpRNANtLvH1QE7ZxIcYLPdUHE3uw7eQ_",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:54.751Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/products/569653?srsltid=AfmBOoqzYMkHmSpZeiPipeRG9KRVsTFhijdeaD71pBQXmhIEuR--x6Rh",
+          "critic_scores": [
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Kerin O`Keefe",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2029,
+                "end": 2036
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:13:54.616Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/ciacci-piccolomini-brunello-di-montalcino-pianrosso-2020/?srsltid=AfmBOort2NFaK73bMPlTQ-o4i06jMZEHjp7uRtj26WV1IyRywY2E9v8S",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "Luca Gardini",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 98,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2025,
+                "end": null
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "WinesCritic",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "JebDunnuck.com",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2046
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Wine Enthusiast",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2029,
+                "end": 2036
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Falstaff Guide",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2028,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Ian D'Agata Wine Review",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2028,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:13:57.062Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/197355-ciacci-piccolomini-d-aragona-brunello-di-montalcino-pianrosso-2020?srsltid=AfmBOoppFnnQXQCwaDGCJ-1_i2E2c1VW0imHqsWtEVA0ddVd7zuqkxzX",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 91,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 91,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:13:54.092Z"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2010-ciacci-piccolomini-brunello-di-mont-pianrosso?srsltid=AfmBOoo663H8P7kDJBD_Fz-gmcl9IFEEHfDqimvQR653HOebKhioakAl",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:54.092Z"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/ciacci-piccolomini-brunello-di-montalcino-pianrosso-2021-1-5l-1-5l?srsltid=AfmBOopRD23SlFKYi0Iq1xlqTBKgYiOMQbeJROFx7YCzcBs_UyBWuVSb",
+          "critic_scores": [
+            {
+              "score": 95,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 97,
+              "publication": "Wine Enthusiast",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2029,
+                "end": 2041
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:13:54.602Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "31b970cc-0534-4d30-b4e6-437174bae890",
+      "label": "Louis Latour · Pommard 2017",
+      "producer": "Louis Latour",
+      "vintage": 2017,
+      "denomination": "Pommard",
+      "date_added": "2026-07-31T02:03:42.663Z",
+      "price_data": {
+        "price_min": 109.88,
+        "price_avg": 126.95,
+        "price_max": 135.97,
+        "retailers": [
+          {
+            "slug": "wine-chateau",
+            "name": "Wine Chateau",
+            "price": 135.97,
+            "url": "https://www.google.com/search?q=Wine%20Chateau%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2017,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "station-plaza-wine-spirits",
+            "name": "Station Plaza Wine & Spirits",
+            "price": 109.88,
+            "url": "https://www.google.com/search?q=Station%20Plaza%20Wine%20%26%20Spirits%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "millesima-usa",
+            "name": "Millesima USA",
+            "price": 134.99,
+            "url": "https://www.google.com/search?q=Millesima%20USA%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "dec-ntalo",
+            "name": "Decántalo",
+            "price": 136.28,
+            "url": "https://www.google.com/search?q=Dec%C3%A1ntalo%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2021,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "wine-folder",
+            "name": "Wine Folder",
+            "price": 195.23,
+            "url": "https://www.google.com/search?q=Wine%20Folder%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2018,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Louis%20Latour%20Pommard%20Les%20%C3%89penots",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "wine-chateau",
+          "name": "Wine Chateau",
+          "price": 135.97,
+          "url": "https://www.google.com/search?q=Wine%20Chateau%20Louis%20Latour%20Pommard%20Les%20%C3%89penots%202017",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": 2017,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T03:13:21.613Z"
+      },
+      "review_data": [
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://bid.zachys.com/downloads/auction/141/zcollectionsnewyorknovember4-november17.xls?ts=1761937582",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:29.259Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/winery/1122-louis-latour?srsltid=AfmBOoqlj2okzgKmvguriTQfCwBiZwdoaLOsIfDs0SUk-IairCPwRgBH",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:30.309Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "62848569-16a3-4a42-95ce-9c89fedd1866",
+      "label": "Bouchard Père et Fils · Volnay 2020",
+      "producer": "Bouchard Père et Fils",
+      "vintage": 2020,
+      "denomination": "Volnay",
+      "date_added": "2026-07-31T02:03:42.672Z",
+      "price_data": {
+        "price_min": 133,
+        "price_avg": 133,
+        "price_max": 133,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 133,
+            "url": "https://www.benchmarkwine.com/search?q=Bouchard%20P%C3%A8re%20et%20Fils%20Volnay%20Caillerets%20-%20Ancienne%20Cuv%C3%A9e%20Carnot%202020",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Bouchard%20P%C3%A8re%20et%20Fils%20Volnay%20Caillerets%20-%20Ancienne%20Cuv%C3%A9e%20Carnot",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "price": 133,
+          "url": "https://www.benchmarkwine.com/search?q=Bouchard%20P%C3%A8re%20et%20Fils%20Volnay%20Caillerets%20-%20Ancienne%20Cuv%C3%A9e%20Carnot%202020",
+          "is_preferred_retailer": true,
+          "distance_miles": 2547,
+          "is_search_results_page": true,
+          "matched_vintage": 2020,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T02:53:18.490Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1495778&srsltid=AfmBOoqqdFJYGcttR7Z1Kvg66N1QniEjK_suyBbMF4N19vVNQmUbbMxh",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:13.539Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/wine/volnay-caillerets-ancienne-cuvee-carnot-bouchard-2017-750ml-447307.html?srsltid=AfmBOoqVg4CrDGDk6zFD5zxtr4zfM_0igh6IuJCLoR8xaMcxhA0IYEvz",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:12.774Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/135772-bouchard-pere-fils-volnay-les-caillerets-ancienne-cuvee-carnot-2020-6-pack?srsltid=AfmBOorGTAjXgLIM7iEH-ThsftGBH_pmu_Yitxxogsd-wSqchOojtBcb",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:12.545Z"
+        },
+        {
+          "slug": "acker",
+          "name": "Acker Wines",
+          "product_url": "https://www.ackerwines.com/news/press-releases/liger-belair-leads-largest-asia-sale-of-the-year/?srsltid=AfmBOoqrODz5R4gm_J9ykE27yQPiy3P6bFo4aT6dkGweTQ8-u_cLaDL8",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:13:12.632Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "4382fa18-c6f9-4ae7-8009-e87afb5e74ea",
+      "label": "Drappier · Champagne 2012",
+      "producer": "Drappier",
+      "vintage": 2012,
+      "denomination": "Champagne",
+      "date_added": "2026-07-31T02:03:42.681Z",
+      "price_data": {
+        "price_min": 114.95,
+        "price_avg": 296.59,
+        "price_max": 973,
+        "retailers": [
+          {
+            "slug": "the-wine-buyer",
+            "name": "The Wine Buyer",
+            "price": 114.99,
+            "url": "https://www.google.com/search?q=The%20Wine%20Buyer%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "saratoga-wine",
+            "name": "Saratoga Wine",
+            "price": 114.95,
+            "url": "https://www.google.com/search?q=Saratoga%20Wine%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2012,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "atlas-wines",
+            "name": "Atlas Wines",
+            "price": 140,
+            "url": "https://www.google.com/search?q=Atlas%20Wines%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2012,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "bevmo",
+            "name": "BevMo!",
+            "price": 139.99,
+            "url": "https://www.google.com/search?q=BevMo!%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "grandwinecellar-com",
+            "name": "grandwinecellar.com",
+            "price": 973,
+            "url": "https://www.google.com/search?q=grandwinecellar.com%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Drappier%20Champagne%20Grande%20Sendr%C3%A9e",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "the-wine-buyer",
+          "name": "The Wine Buyer",
+          "price": 114.99,
+          "url": "https://www.google.com/search?q=The%20Wine%20Buyer%20Drappier%20Champagne%20Grande%20Sendr%C3%A9e%202012",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T02:52:54.576Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1731816",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:12:34.739Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/drappier-brut-champagne-grande-sendree-2012/?srsltid=AfmBOopd28ybKAsTkOHfT6phZcNfCWhtpJXRuBZqVj_PyhYMnxukIpxz",
+          "critic_scores": [
+            {
+              "score": 98,
+              "publication": "Gibert & Gaillard",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2040
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2050
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Wine Enthusiast",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2035
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": null,
+                "end": 2032
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:12:36.431Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "334f623d-62bc-42f8-848c-681a15f76de1",
+      "label": "Charles Heidsieck · Champagne 2013",
+      "producer": "Charles Heidsieck",
+      "vintage": 2013,
+      "denomination": "Champagne",
+      "date_added": "2026-07-31T02:03:42.691Z",
+      "price_data": {
+        "price_min": 135.97,
+        "price_avg": 139.48,
+        "price_max": 141.99,
+        "retailers": [
+          {
+            "slug": "305-wines",
+            "name": "305 Wines",
+            "price": 135.97,
+            "url": "https://www.google.com/search?q=305%20Wines%20Charles%20Heidsieck%20Champagne%202013",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2013,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "instacart",
+            "name": "Instacart",
+            "price": 141.99,
+            "url": "https://www.google.com/search?q=Instacart%20Charles%20Heidsieck%20Champagne%202013",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2013,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "atlas-wines",
+            "name": "Atlas Wines",
+            "price": 140,
+            "url": "https://www.google.com/search?q=Atlas%20Wines%20Charles%20Heidsieck%20Champagne%202013",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2013,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "berry-bros-rudd-usa",
+            "name": "Berry Bros. & Rudd USA",
+            "price": 139.95,
+            "url": "https://www.google.com/search?q=Berry%20Bros.%20%26%20Rudd%20USA%20Charles%20Heidsieck%20Champagne%202013",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2013,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "berry-bros-rudd-usa",
+            "name": "Berry Bros. & Rudd USA",
+            "price": 839.7,
+            "url": "https://www.google.com/search?q=Berry%20Bros.%20%26%20Rudd%20USA%20Charles%20Heidsieck%20Champagne%202013",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2013,
+            "vintage_mismatch": false,
+            "pack_quantity": 6,
+            "bottle_size_ml": 750,
+            "non_standard_format": true,
+            "format_label": "6-pack",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Charles%20Heidsieck%20Champagne",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "305-wines",
+          "name": "305 Wines",
+          "price": 135.97,
+          "url": "https://www.google.com/search?q=305%20Wines%20Charles%20Heidsieck%20Champagne%202013",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": 2013,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-07-31T03:11:30.101Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1847356",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:11:49.480Z"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://www.zachys.com/collections/champagne?srsltid=AfmBOooRTHlx2sK3YKqRf21i_3vPwq9o6x3Redk1PSPnlacoZaZgjnhl",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:11:47.243Z"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/heidsieck-charles-brut-champagne-2013/?srsltid=AfmBOor_VcQ7OBYFIoMFnsBN6LOSfAFvjCReb-m7G8SHQtX2aj5zNucY",
+          "critic_scores": [
+            {
+              "score": 97,
+              "publication": "Essi Avellan, MW",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "The Champagne Guide",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Wine Enthusiast",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2040
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "JebDunnuck.com",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2044
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Bettane & Desseauve Guide",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "The Wine Independent",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2035
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "La Revue du Vin de France",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "JamesSuckling.com",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2038
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2023,
+                "end": 2028
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Falstaff Guide",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-07-31T03:11:53.943Z"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/145239-charles-heidsieck-brut-millesime-2013-6-pack?srsltid=AfmBOooy4PGeBi1NtBY77-eAwsYDyCpsWFwjeYbl8ov-XfzcCt14bjfk",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:11:49.479Z"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/nv-piper-heidsieck-brut?srsltid=AfmBOop0GTr2YNbqics7Pp0Y_L8vVZHx6ZZ2g5G5P4Rjp4Kg3GaedfzU",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:11:49.466Z"
+        },
+        {
+          "slug": "acker",
+          "name": "Acker Wines",
+          "product_url": "https://www.ackerwines.com/shop-wine/holiday-sparkles/?srsltid=AfmBOorfYLLroriJieXX5qod_lSNq0H-PAzjACuXdaNryFZAlpaQ-elh",
+          "critic_scores": [],
+          "fetched_at": "2026-07-31T03:11:49.775Z"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "d358a440-1a1b-4a85-8c7e-436f9856f554",
+      "label": "Domaine Bessin-Tremblay · Chablis 2022",
+      "producer": "Domaine Bessin-Tremblay",
+      "vintage": 2022,
+      "denomination": "Chablis",
+      "date_added": "2026-08-04T02:18:16.083Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 973,
+            "url": "https://www.benchmarkwine.com/search?q=Domaine%20Bessin-Tremblay%20Chablis%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": true,
+            "pack_quantity": 6,
+            "bottle_size_ml": null,
+            "non_standard_format": true,
+            "format_label": "6-pack",
+            "link_only": false
+          },
+          {
+            "slug": "flatiron",
+            "name": "Flatiron Wines & Spirits",
+            "price": 84.99,
+            "url": "https://nyc.flatiron-wines.com/search?q=Domaine%20Bessin-Tremblay%20Chablis%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Bessin-Tremblay%20Chablis",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:52:17.817Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/2021697",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:52:59.332Z",
+          "source": "configured"
+        },
+        {
+          "slug": "fallback-shop-klwines-com",
+          "name": "shop.klwines.com",
+          "product_url": "https://shop.klwines.com/products/details/2021697",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:53:04.419Z",
+          "source": "fallback"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "ab60cf63-d7ba-47ac-a7ac-c8581cb19a60",
+      "label": "Bretadeau · Muscadet 2022",
+      "producer": "Bretadeau",
+      "vintage": 2022,
+      "denomination": "Muscadet",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Bretadeau%20Muscadet",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:42:56.477Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "97995814-be17-468f-8f25-c7c57390fff5",
+      "label": "Domaine Charles Audoin · Marsannay 2022",
+      "producer": "Domaine Charles Audoin",
+      "vintage": 2022,
+      "denomination": "Marsannay",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 547,
+            "url": "https://www.benchmarkwine.com/search?q=Domaine%20Charles%20Audoin%20Marsannay%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": true,
+            "pack_quantity": 6,
+            "bottle_size_ml": null,
+            "non_standard_format": true,
+            "format_label": "6-pack",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Charles%20Audoin%20Marsannay",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:45:27.900Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://www.klwines.com/p/i?i=1778163&srsltid=AfmBOopWUV7VV3JgBF1bU3j5sHEU3CB-g6bXmSS0q7NPXLjRF7JQEfH7",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:45:30.933Z",
+          "source": "configured"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/154340-charles-audoin-marsannay-clos-du-roy-2020?srsltid=AfmBOop_A8dFeCR41qhzVfZrDAJecUFzgPI5wZqum3mqrftz1srSlR0c",
+          "critic_scores": [
+            {
+              "score": 95,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Falstaff Magazine",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 90,
+              "publication": "Wine & Spirits Magazine",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:45:31.146Z",
+          "source": "configured"
+        },
+        {
+          "slug": "jjbuckley",
+          "name": "JJ Buckley Fine Wines",
+          "product_url": "https://www.jjbuckley.com/wine/2022-domaine-charles-audoin-marsannay-longeroies/2022-306914-750/?srsltid=AfmBOoqeSBm8w6EqzmPSR-W9og9tSpUifJlv04lzifkWXLnP87kWGzUR",
+          "critic_scores": [
+            {
+              "score": 96,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Burghound",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:45:32.418Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "07112aa9-4ccb-40b2-af9d-604d8468efdd",
+      "label": "Domaine Jean-Marc Vincent · Santenay 2022",
+      "producer": "Domaine Jean-Marc Vincent",
+      "vintage": 2022,
+      "denomination": "Santenay",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": 89,
+        "price_avg": 112,
+        "price_max": 135,
+        "retailers": [
+          {
+            "slug": "morrell",
+            "name": "Morrell & Company",
+            "price": 135,
+            "url": "https://www.google.com/search?q=site%3Amorrellwine.com%20Domaine%20Jean-Marc%20Vincent%20Santenay%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 31,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "thatchers",
+            "name": "Thatcher's Wine",
+            "price": 89,
+            "url": "https://thatcherswine.com/search?q=Domaine%20Jean-Marc%20Vincent%20Santenay%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2457,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Jean-Marc%20Vincent%20Santenay",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "morrell",
+          "name": "Morrell & Company",
+          "price": 135,
+          "url": "https://www.google.com/search?q=site%3Amorrellwine.com%20Domaine%20Jean-Marc%20Vincent%20Santenay%202022",
+          "is_preferred_retailer": true,
+          "distance_miles": 31,
+          "is_search_results_page": true,
+          "matched_vintage": 2022,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:46:44.721Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1925988",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:46:45.388Z",
+          "source": "configured"
+        },
+        {
+          "slug": "fallback-kakaakowine-com",
+          "name": "kakaakowine.com",
+          "product_url": "https://kakaakowine.com/products/2022-domaine-jean-marc-vincent-santenay-1er-cru-les-gravieres?srsltid=AfmBOopNe57sdBQoLEarIIyU5EPwvILDSdriqON3o9SiXOgg307YO0wX",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:46:51.568Z",
+          "source": "fallback"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "2531f691-f88d-4a78-be00-e312392441ae",
+      "label": "Domaine Maxime Cottenceau · Montagny 2022",
+      "producer": "Domaine Maxime Cottenceau",
+      "vintage": 2022,
+      "denomination": "Montagny",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": 58.99,
+        "price_avg": 58.99,
+        "price_max": 58.99,
+        "retailers": [
+          {
+            "slug": "flatiron",
+            "name": "Flatiron Wines & Spirits",
+            "price": 58.99,
+            "url": "https://nyc.flatiron-wines.com/search?q=Domaine%20Maxime%20Cottenceau%20Montagny%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Maxime%20Cottenceau%20Montagny",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "price": 58.99,
+          "url": "https://nyc.flatiron-wines.com/search?q=Domaine%20Maxime%20Cottenceau%20Montagny%202022",
+          "is_preferred_retailer": true,
+          "distance_miles": 2,
+          "is_search_results_page": true,
+          "matched_vintage": 2022,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:51:51.955Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "6c512f9b-72ad-47c8-8439-dfc5626b2aa6",
+      "label": "Domaine Vincent Dureuil-Janthial · Rully 2022",
+      "producer": "Domaine Vincent Dureuil-Janthial",
+      "vintage": 2022,
+      "denomination": "Rully",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": 72,
+        "price_avg": 73.5,
+        "price_max": 74.99,
+        "retailers": [
+          {
+            "slug": "zachys",
+            "name": "Zachys",
+            "price": 74.99,
+            "url": "https://www.zachys.com/search?q=Domaine%20Vincent%20Dureuil-Janthial%20Rully%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 27,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "woodland",
+            "name": "Woodland Hills Wine Co.",
+            "price": 72,
+            "url": "https://whwc.com/search-results/?search_query=Domaine%20Vincent%20Dureuil-Janthial%20Rully%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2461,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "thatchers",
+            "name": "Thatcher's Wine",
+            "price": 129,
+            "url": "https://thatcherswine.com/search?q=Domaine%20Vincent%20Dureuil-Janthial%20Rully%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2457,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Vincent%20Dureuil-Janthial%20Rully",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "zachys",
+          "name": "Zachys",
+          "price": 74.99,
+          "url": "https://www.zachys.com/search?q=Domaine%20Vincent%20Dureuil-Janthial%20Rully%202022",
+          "is_preferred_retailer": true,
+          "distance_miles": 27,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:48:56.413Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1917691",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:50:28.977Z",
+          "source": "configured"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/62770-domaine-vincent-dureuil-janthial-rully-en-rosey-2003?srsltid=AfmBOop6dncOQBSwUByuBZtNtx-pzmzQlrEC5u5sqI8M4lZ5w-O7pY3J",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:50:29.381Z",
+          "source": "configured"
+        },
+        {
+          "slug": "fallback-shop-klwines-com",
+          "name": "shop.klwines.com",
+          "product_url": "https://shop.klwines.com/products/details/1917691",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:50:33.786Z",
+          "source": "fallback"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "12c57058-d3f3-4dd5-9e30-d0f359c14931",
+      "label": "Gour de Chaulé · Gigondas 2022",
+      "producer": "Gour de Chaulé",
+      "vintage": 2022,
+      "denomination": "Gigondas",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "benchmark",
+            "name": "Benchmark Wine Group",
+            "price": 50,
+            "url": "https://www.benchmarkwine.com/search?q=Gour%20de%20Chaul%C3%A9%20Gigondas%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 2547,
+            "is_search_results_page": true,
+            "matched_vintage": 2021,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Gour%20de%20Chaul%C3%A9%20Gigondas",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:40:54.492Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1916058",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:41:04.222Z",
+          "source": "configured"
+        },
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "product_url": "https://bid.zachys.com/auctions/bidding-history/id/101/lot/54810?url=%2Fauctions%2Fcatalog%2Fid%2F101%2FWines-from-the-Bastion-Collection-and-the-Boundless-Cellar-New-York-January-21-February-3%3Fpage%3D59%26cat%3D13%252C78%252C136%252C369%252C381%252C383%26items%3D10%26order%3Dlot_name%26view%3Dlist",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:41:03.297Z",
+          "source": "configured"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/gour-de-chaule-gigondas-tradition-2019/?srsltid=AfmBOorcu_5IvH8HsRQ7VmRzNpMcxeB9p3nytvzwwksqgdx3FCiDhbkD",
+          "critic_scores": [
+            {
+              "score": 95,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2036
+              },
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:41:06.285Z",
+          "source": "configured"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/54374-gour-de-chaule-gigondas-cuvee-tradition-2010?srsltid=AfmBOophVycoOx8tkVKF7ZILdBkdJSg303dfiHktfrnLZelpnAdwTVmA",
+          "critic_scores": [
+            {
+              "score": 94,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 91,
+              "publication": "Wine Spectator",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 90,
+              "publication": "Wine & Spirits Magazine",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 96,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:41:06.072Z",
+          "source": "configured"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2016-famille-perrin-gigondas-domaine-du-clos-des-tourelles?srsltid=AfmBOopqggsuZHg6BNgOCobtkOCVgyBv180jdNbPudCtyPMnSi2Wv1P-",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:41:04.680Z",
+          "source": "configured"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/grenache-garnacha/2022-domaine-gour-de-chaule-gigondas-le-gour-142880?srsltid=AfmBOopJNVeyBl12fNEUv3WlUFcoYyEmWZdJFU6Zu-KOieVaARcctz-u",
+          "critic_scores": [
+            {
+              "score": 97,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:41:01.689Z",
+          "source": "configured"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/domaine-du-gour-de-chaule-gigondas-cuvee-tradition-2022-750ml-1?srsltid=AfmBOop2cC6WaFe-VFRIoNYgxATH-drkTxmWIdMMRp8PfECZL_54j823",
+          "critic_scores": [
+            {
+              "score": 93,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:41:04.281Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "be2ba0a0-9127-425f-a1b8-df0f455cca59",
+      "label": "Mangot · Saint-Émilion 2022",
+      "producer": "Mangot",
+      "vintage": 2022,
+      "denomination": "Saint-Émilion",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Mangot%20Saint-%C3%89milion",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:32:11.896Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1675715",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:32:15.770Z",
+          "source": "configured"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/mangot-st-emilion-2022/?srsltid=AfmBOor9J5M-XPI2Kv0X2IkXEobJJoUI5bikPx-jwF9DM9wVlgdU-cf0",
+          "critic_scores": [
+            {
+              "score": 95,
+              "publication": "Falstaff",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": true
+            },
+            {
+              "score": 94,
+              "publication": "The Wine Cellar Insider",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2042
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2027,
+                "end": 2042
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Inside Bordeaux",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2034
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Winedoctor",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:32:18.393Z",
+          "source": "configured"
+        },
+        {
+          "slug": "sokolin",
+          "name": "Sokolin",
+          "product_url": "https://www.sokolin.com/2018-chateau-mangot-todeschini-distique-11?srsltid=AfmBOop1hOx6F7OqUFafEHemj93HCkQ_seFc699eC6mlfFRO-bSOuYN4",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:32:17.410Z",
+          "source": "configured"
+        },
+        {
+          "slug": "jjbuckley",
+          "name": "JJ Buckley Fine Wines",
+          "product_url": "https://www.jjbuckley.com/wine/2022-chateau-mangot-bordeaux-blend/2022-208766-750/?srsltid=AfmBOoriZ47bcwTjvUSOKx8YhIiC2aGtd7vdk1L9KPGDkBVkOgQBqcRz",
+          "critic_scores": [
+            {
+              "score": 94,
+              "publication": "TheWineCellarInsider.com",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2042
+              },
+              "vintage_character": "very_good",
+              "deal": false
+            },
+            {
+              "score": 95,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": "very_good",
+              "deal": true
+            },
+            {
+              "score": 95,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Jane Anson",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 93,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:32:18.226Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "17190677-096c-4b19-bc4a-a21f860a39f5",
+      "label": "Montus · Madiran 2022",
+      "producer": "Montus",
+      "vintage": 2022,
+      "denomination": "Madiran",
+      "date_added": "2026-08-04T02:18:16.084Z",
+      "price_data": {
+        "price_min": 31.99,
+        "price_avg": 33.24,
+        "price_max": 35,
+        "retailers": [
+          {
+            "slug": "central-wine-merchants",
+            "name": "central wine merchants",
+            "price": 32.98,
+            "url": "https://www.google.com/search?q=central%20wine%20merchants%20Montus%20Madiran%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "wally-s-wine-spirits",
+            "name": "Wally's Wine & Spirits",
+            "price": 35,
+            "url": "https://www.google.com/search?q=Wally's%20Wine%20%26%20Spirits%20Montus%20Madiran%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "varmax-liquor-pantry",
+            "name": "Varmax Liquor Pantry",
+            "price": 31.99,
+            "url": "https://www.google.com/search?q=Varmax%20Liquor%20Pantry%20Montus%20Madiran%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "bourbon-central",
+            "name": "Bourbon Central",
+            "price": 32.99,
+            "url": "https://www.google.com/search?q=Bourbon%20Central%20Montus%20Madiran%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "the-falls-wine-room",
+            "name": "The Falls Wine Room",
+            "price": 40.5,
+            "url": "https://www.google.com/search?q=The%20Falls%20Wine%20Room%20Montus%20Madiran%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2020,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Montus%20Madiran",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "central-wine-merchants",
+          "name": "central wine merchants",
+          "price": 32.98,
+          "url": "https://www.google.com/search?q=central%20wine%20merchants%20Montus%20Madiran%202022",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:34:28.595Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1353837",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:34:31.033Z",
+          "source": "configured"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/178844-chateau-montus-alain-brumont-madiran-2018-6-pack?srsltid=AfmBOoo6h3s7d4tDMqzvNmnnS33v7JBP9gRj-bWJ7vn_OYIJl8oIZKLH",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:34:30.934Z",
+          "source": "configured"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/merlot/2024-brumont-cotes-du-gascogne-rouge-149911?srsltid=AfmBOooAweffK99X0AwoT4shhh00xd7jMRfQ0kbh5YINSfZsBtv4wgzc",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:34:30.133Z",
+          "source": "configured"
+        },
+        {
+          "slug": "fallback-wine-searcher-com",
+          "name": "wine-searcher.com",
+          "product_url": "https://www.wine-searcher.com/find/brumont+montus+madiran+south+west+france?srsltid=AfmBOooBINp1UBTZNlK1xnnmjNCSRbKceY2G4uvrmBFvz8aOYqpuiRJs",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:34:38.307Z",
+          "source": "fallback"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "3ab33d0d-8f29-4546-b636-bb6b2f53eb12",
+      "label": "Clos Manou · Médoc 2022",
+      "producer": "Clos Manou",
+      "vintage": 2022,
+      "denomination": "Médoc",
+      "date_added": "2026-08-04T02:18:16.085Z",
+      "price_data": {
+        "price_min": 17.99,
+        "price_avg": 26.49,
+        "price_max": 34.99,
+        "retailers": [
+          {
+            "slug": "winetransit-com",
+            "name": "WineTransit.com",
+            "price": 34.99,
+            "url": "https://www.google.com/search?q=WineTransit.com%20Clos%20Manou%20M%C3%A9doc%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "winekey",
+            "name": "WineKey",
+            "price": 34.99,
+            "url": "https://www.google.com/search?q=WineKey%20Clos%20Manou%20M%C3%A9doc%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "arlington-liquors",
+            "name": "Arlington Liquors",
+            "price": 17.99,
+            "url": "https://www.google.com/search?q=Arlington%20Liquors%20Clos%20Manou%20M%C3%A9doc%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "the-cellar-d-or",
+            "name": "The Cellar d'Or",
+            "price": 53.99,
+            "url": "https://www.google.com/search?q=The%20Cellar%20d'Or%20Clos%20Manou%20M%C3%A9doc%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "flask-fine-wine-whisky",
+            "name": "Flask Fine Wine & Whisky",
+            "price": 59.97,
+            "url": "https://www.google.com/search?q=Flask%20Fine%20Wine%20%26%20Whisky%20Clos%20Manou%20M%C3%A9doc%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2019,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Clos%20Manou%20M%C3%A9doc",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "winetransit-com",
+          "name": "WineTransit.com",
+          "price": 34.99,
+          "url": "https://www.google.com/search?q=WineTransit.com%20Clos%20Manou%20M%C3%A9doc%202022",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": 2022,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:28:40.693Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1303460",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:30:18.119Z",
+          "source": "configured"
+        },
+        {
+          "slug": "jjbuckley",
+          "name": "JJ Buckley Fine Wines",
+          "product_url": "https://images.jjbuckley.com/Report/6/2011_BORDEAUX_REPORT.pdf",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:30:16.945Z",
+          "source": "configured"
+        },
+        {
+          "slug": "fallback-thewinecellarinsider-com",
+          "name": "thewinecellarinsider.com",
+          "product_url": "https://www.thewinecellarinsider.com/bordeaux-wine-producer-profiles/bordeaux/haut-medoc-lesser-appellations/clos-manou-medoc-bordeaux-wine/",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:30:22.933Z",
+          "source": "fallback"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "af01b055-898e-48f7-a1d7-d1f2aba9a38f",
+      "label": "Clos Venturi · Corsica 2022",
+      "producer": "Clos Venturi",
+      "vintage": 2022,
+      "denomination": "Corsica",
+      "date_added": "2026-08-04T02:18:16.085Z",
+      "price_data": {
+        "price_min": 33.99,
+        "price_avg": 50.17,
+        "price_max": 66.34,
+        "retailers": [
+          {
+            "slug": "urban-wines-and-spirits",
+            "name": "Urban Wines and Spirits",
+            "price": 33.99,
+            "url": "https://www.google.com/search?q=Urban%20Wines%20and%20Spirits%20Clos%20Venturi%20Corsica%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "central-coast-wines",
+            "name": "Central Coast Wines",
+            "price": 66.34,
+            "url": "https://www.google.com/search?q=Central%20Coast%20Wines%20Clos%20Venturi%20Corsica%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2022,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "wine-solutions",
+            "name": "Wine Solutions",
+            "price": 30.99,
+            "url": "https://www.google.com/search?q=Wine%20Solutions%20Clos%20Venturi%20Corsica%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "gnarly-vines",
+            "name": "Gnarly Vines",
+            "price": 44,
+            "url": "https://www.google.com/search?q=Gnarly%20Vines%20Clos%20Venturi%20Corsica%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Clos%20Venturi%20Corsica",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": {
+          "slug": "urban-wines-and-spirits",
+          "name": "Urban Wines and Spirits",
+          "price": 33.99,
+          "url": "https://www.google.com/search?q=Urban%20Wines%20and%20Spirits%20Clos%20Venturi%20Corsica%202022",
+          "is_preferred_retailer": false,
+          "distance_miles": 0,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "pack_quantity": 1,
+          "bottle_size_ml": 750,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false
+        },
+        "fetched_at": "2026-08-04T02:25:00.989Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/1367456",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:25:02.182Z",
+          "source": "configured"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/clos-venturi-domaine-vico-corse-blanc-le-clos-2021/?srsltid=AfmBOoqdqc57MSJCHLWaaDKT0S3LPA7MIEdOsZvQMTQWw_2q3RezfQAd",
+          "critic_scores": [
+            {
+              "score": 93,
+              "publication": "La Revue du Vin de France",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:25:02.948Z",
+          "source": "configured"
+        },
+        {
+          "slug": "crush",
+          "name": "Crush Wine & Spirits",
+          "product_url": "https://crushwineco.com/blogs/offers/corsican-discovery-br-2022-clos-venturi-brama-blanc",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:25:03.402Z",
+          "source": "configured"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/blogs/nyc-wine-and-liquor-stories-events-and-more/clos-venturis-corsican-duo-island-wine-of-a-different-flavor?srsltid=AfmBOopbWEGMuKjTUc17N7HANmlFwSgis0R2fvMmPZDS0BaQJpFCEDrc",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:25:03.848Z",
+          "source": "configured"
+        },
+        {
+          "slug": "jjbuckley",
+          "name": "JJ Buckley Fine Wines",
+          "product_url": "https://www.jjbuckley.com/wine/2022-clos-venturi-brama-biancu-gentile/2022-1749703-750/?srsltid=AfmBOoqsKWKaNOoOA_tkZ5byoGpfU3NVU5E2l3GJwRe4IDSC9sgrX19b",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:25:21.973Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "8277eceb-8161-41d6-a9bd-837ae49489c7",
+      "label": "Domaine Deleuze-Rochetin · Côtes du Rhône 2022",
+      "producer": "Domaine Deleuze-Rochetin",
+      "vintage": 2022,
+      "denomination": "Côtes du Rhône",
+      "date_added": "2026-08-04T02:18:16.085Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20Deleuze-Rochetin%20C%C3%B4tes%20du%20Rh%C3%B4ne",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:20:39.016Z"
+      },
+      "review_data": [],
+      "retailer_links": null
+    },
+    {
+      "id": "9fa19483-5052-43a8-a998-fca3e7f99642",
+      "label": "Domaine des Ardoisières · Savoie 2022",
+      "producer": "Domaine des Ardoisières",
+      "vintage": 2022,
+      "denomination": "Savoie",
+      "date_added": "2026-08-04T02:18:16.085Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "caves-wine-shop",
+            "name": "Caves Wine Shop",
+            "price": 28,
+            "url": "https://www.google.com/search?q=Caves%20Wine%20Shop%20Domaine%20des%20Ardoisi%C3%A8res%20Savoie%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2024,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "satellite-sb",
+            "name": "Satellite SB",
+            "price": 68,
+            "url": "https://www.google.com/search?q=Satellite%20SB%20Domaine%20des%20Ardoisi%C3%A8res%20Savoie%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2024,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "somm-cellars-wine-spirits",
+            "name": "Somm Cellars Wine & Spirits",
+            "price": 149.95,
+            "url": "https://www.google.com/search?q=Somm%20Cellars%20Wine%20%26%20Spirits%20Domaine%20des%20Ardoisi%C3%A8res%20Savoie%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "compline-restaurant-and-wine-shop",
+            "name": "Compline Restaurant and Wine Shop",
+            "price": 53,
+            "url": "https://www.google.com/search?q=Compline%20Restaurant%20and%20Wine%20Shop%20Domaine%20des%20Ardoisi%C3%A8res%20Savoie%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2024,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "somm-cellars-wine-spirits",
+            "name": "Somm Cellars Wine & Spirits",
+            "price": 84.95,
+            "url": "https://www.google.com/search?q=Somm%20Cellars%20Wine%20%26%20Spirits%20Domaine%20des%20Ardoisi%C3%A8res%20Savoie%202022",
+            "is_preferred_retailer": false,
+            "distance_miles": 0,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Domaine%20des%20Ardoisi%C3%A8res%20Savoie",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:20:43.662Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/2030845",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:21:32.139Z",
+          "source": "configured"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "product_url": "https://www.benchmarkwine.com/products/138413-domaine-des-ardoisieres-altesse-quartz-2021?srsltid=AfmBOoq9lI3VHzLjlhrjo8u3760eK1YSEELi_EOZsyeKI-6PamVLGtfT",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:21:32.479Z",
+          "source": "configured"
+        },
+        {
+          "slug": "winelibrary",
+          "name": "Wine Library",
+          "product_url": "https://winelibrary.com/wines/jacquere/2012-domaine-des-ardoisieres-argile-blanc-81855?srsltid=AfmBOorYmgZHozHZEDYgvTGAiMTARSfCHzdVU779dxwfQjP8m1tOEICv",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:21:31.709Z",
+          "source": "configured"
+        },
+        {
+          "slug": "flatiron",
+          "name": "Flatiron Wines & Spirits",
+          "product_url": "https://nyc.flatiron-wines.com/products/domaine-des-ardoisieres-vin-des-allobroges-rouge-cuvee-argile-2024-750ml?srsltid=AfmBOoo-h5zY2YRFFjLrUDp5fKeMkYp1bWDmlu9vZsOxhqOh84hop0Fq",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:21:32.685Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    },
+    {
+      "id": "f1336b10-4dac-48f5-9dfe-2f1aa43b6ae0",
+      "label": "Grand Village · Vin de France 2022",
+      "producer": "Grand Village",
+      "vintage": 2022,
+      "denomination": "Vin de France",
+      "date_added": "2026-08-04T02:18:16.085Z",
+      "price_data": {
+        "price_min": null,
+        "price_avg": null,
+        "price_max": null,
+        "retailers": [
+          {
+            "slug": "zachys",
+            "name": "Zachys",
+            "price": 29.99,
+            "url": "https://www.zachys.com/search?q=Grand%20Village%20Vin%20de%20France%202022",
+            "is_preferred_retailer": true,
+            "distance_miles": 27,
+            "is_search_results_page": true,
+            "matched_vintage": 2023,
+            "vintage_mismatch": true,
+            "pack_quantity": 1,
+            "bottle_size_ml": 750,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": false
+          },
+          {
+            "slug": "kl",
+            "name": "K&L Wine Merchants",
+            "price": null,
+            "url": "https://shop.klwines.com/products?searchText=Grand%20Village%20Vin%20de%20France",
+            "is_preferred_retailer": true,
+            "distance_miles": 3,
+            "is_search_results_page": true,
+            "matched_vintage": null,
+            "vintage_mismatch": false,
+            "pack_quantity": 1,
+            "bottle_size_ml": null,
+            "non_standard_format": false,
+            "format_label": "",
+            "link_only": true
+          }
+        ],
+        "nearest_retailer": null,
+        "fetched_at": "2026-08-04T02:26:29.815Z"
+      },
+      "review_data": [
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "product_url": "https://shop.klwines.com/products/details/2014798",
+          "critic_scores": [],
+          "fetched_at": "2026-08-04T02:26:32.523Z",
+          "source": "configured"
+        },
+        {
+          "slug": "woodland",
+          "name": "Woodland Hills Wine Co.",
+          "product_url": "https://whwc.com/lafleur-pomerol-2016/?srsltid=AfmBOoownHWuOX-Gc0FgWiuo-H5EQJcPMaATOdg5pQ2v1FltfHM9_1-f",
+          "critic_scores": [
+            {
+              "score": 100,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2045
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 100,
+              "publication": "The Wine Independent",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2024,
+                "end": 2054
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 100,
+              "publication": "Falstaff",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2025,
+                "end": 2068
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2066
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "Jeb Dunnuck",
+              "known_publication": true,
+              "drinking_window": {
+                "start": 2019,
+                "end": 2059
+              },
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "Winedoctor",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 99,
+              "publication": "La Revue du Vin de France",
+              "known_publication": false,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:26:34.902Z",
+          "source": "configured"
+        },
+        {
+          "slug": "jjbuckley",
+          "name": "JJ Buckley Fine Wines",
+          "product_url": "https://www.jjbuckley.com/wine/2023-chateau-grand-village-bordeaux-blend/2023-8121-750/?srsltid=AfmBOor7aWsQ9fR25Dt7rMpXmZdvzM8QlDxqx0yZzdKROkDJ-QMFZ0Yb",
+          "critic_scores": [
+            {
+              "score": 94,
+              "publication": "Wine Advocate",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": true
+            },
+            {
+              "score": 93,
+              "publication": "TheWineCellarInsider.com",
+              "known_publication": false,
+              "drinking_window": {
+                "start": 2026,
+                "end": 2035
+              },
+              "vintage_character": null,
+              "deal": true
+            },
+            {
+              "score": 93,
+              "publication": "James Suckling",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 92,
+              "publication": "Vinous",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            },
+            {
+              "score": 94,
+              "publication": "Decanter",
+              "known_publication": true,
+              "drinking_window": null,
+              "vintage_character": null,
+              "deal": false
+            }
+          ],
+          "fetched_at": "2026-08-04T02:26:33.538Z",
+          "source": "configured"
+        }
+      ],
+      "retailer_links": null
+    }
+  ]
+}
