@@ -90,7 +90,7 @@ Defined in `docs/build-phases.md`.
 | Headless browser | Puppeteer | Phase 6: renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Phase 7: renders a single confirmed *product* page (found via Serper organic search, not by rendering the retailer's own on-site search) for GPT-4o critic-score extraction. Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 | Shared config | `shared/config/retailers.config.ts` (Phase 7) | Retailer slug/name/domain/coordinates. Moved from `backend/modules/price/` in Phase 7 because both `price` and `reviews` need it and modules cannot import from each other. |
-| Shared query/matching utils | `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` (2026-08-02) | Same reasoning as `retailers.config.ts` above, applied to the logic that used to be hand-duplicated across `price`, `reviews`, and `retailer-links`: `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery` and `buildRetailerSearchUrl`. See §5's note below on why this moved. |
+| Shared query/matching utils | `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` (2026-08-02) | Same reasoning as `retailers.config.ts` above, applied to the logic that used to be hand-duplicated across `price`, `reviews`, and `retailer-links`: `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery` and `buildRetailerSearchUrl`. See §5's note below on why this moved. **Phase 9.1 (2026-08-04)** replaced the boolean `isRelevantMatch` with a graded `scoreMatch` — see §5's note on wine identity. |
 
 ---
 
@@ -112,11 +112,28 @@ Shared utilities:
 - `shared/config/retailers.config.ts` (Phase 7) — retailer slug/name/domain/coordinates, used by both `modules/price/` and `modules/reviews/`.
 - `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` (2026-08-02) — `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery` and `buildRetailerSearchUrl`, used by `modules/price/`, `modules/reviews/`, and `modules/retailer-links/`. These used to be hand-copied into each module under the "modules don't import from each other" rule below, and the duplication measurably drifted in practice — see the file-level comment in `wine-match.ts` for the specific commits (af37ac8, a1caf18, 7ccdf2c, ba61e23) where a fix landed in one copy and had to be separately ported to the others, sometimes in a follow-up commit, once missed until reported. Treat this the same as `retailers.config.ts`: a query/relevance/retailer-URL fix belongs here, once — do not reintroduce a per-module copy.
 
+### Wine identity — one definition, one place (Phase 9.1, 2026-08-04)
+
+`shared/utils/wine-match.ts` exports `scoreMatch(candidate, wine) → MatchVerdict`, which answers the four dimensions of wine identity — **producer, denomination, bottling, vintage** — separately, each as `match` / `mismatch` / `unknown`. It replaces the boolean `isRelevantMatch`, which is retained only as a thin wrapper for flat-text callers.
+
+The reason this exists is worth keeping: the 2026-08-02 dedup into `shared/` was correct and it held, but the defects recurred anyway, because duplication was the mechanism and not the cause. The cause was that no module had a stated definition of "this result is about this wine," and the three implicit definitions still disagreed — they had just moved into one file. A boolean cannot express *"right producer, right appellation, wrong vintage"*, which was the single most common real outcome in the batch, and which the old check silently reported as a clean match.
+
+Rules that follow from it, all load-bearing:
+
+- **Producer is judged on title + URL only, and every significant word must be present.** The snippet is excluded deliberately: body copy routinely name-drops other estates, and a Château Lafleur page mentioning its sister property is how nine 99–100pt scores were stored against a ~$30 Château Grand Village.
+- **Vintage ranks and labels; it never rejects.** A shop whose only page for a wine is two vintages off still yields that page, with `vintage_gap` recorded. Rejecting it yields nothing instead of something.
+- **No hard-coded vintage tolerance in the pipeline.** The gap is recorded; a single display-layer constant decides what renders as flagged. Vintage variation is region-dependent, so any fixed threshold is advisory, not a matching rule.
+- **Absence is `unknown`, never `mismatch`.** A retailer who didn't write the appellation has not told us the wine isn't from there.
+- **The verdict is stored on the result** (`RetailerReview.match`, `RetailerPrice.vintage_verdict`), so the UI and the diagnostics read it rather than re-deriving it. Callers wanting a different bar read the verdict; they do not reimplement `isAcceptableMatch`.
+- **Two queries, not one.** The vintage belongs in a relevance-ranked Serper query and must never reach a retailer's own literal on-site search — that mismatch was every reported dead link.
+- **`VerificationState` is three-valued.** "Couldn't check" is not spelled the same way as "checked and confirmed."
+
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file
 - Modules do not import from each other — they communicate via the backend router only. Where two modules genuinely need the same data or logic (e.g. retailer metadata, or the query-building/relevance-matching primitives above), it belongs in `shared/`, not duplicated or cross-imported. The bar is "would a fix here need to be manually re-applied elsewhere?" — if yes, it belongs in `shared/`.
 - Each module must degrade gracefully if its API key or credential is not configured (return null or empty state, never throw uncaught errors)
-- `RETAILER_CONFIG` (in `shared/config/retailers.config.ts`) is a hand-curated allowlist, not a discovered list — a retailer missing from it produces an empty result indistinguishable from "searched and found nothing" (this is what happened with JJ Buckley, 2026-08-02). When a user reports "no reviews found" for a retailer they know carries the wine, check this file for the domain before assuming it's a query/matching bug.
+- `RETAILER_CONFIG` (in `shared/config/retailers.config.ts`) is a hand-curated allowlist, not a discovered list — a retailer missing from it produces an empty result indistinguishable from "searched and found nothing" (this is what happened with JJ Buckley, 2026-08-02). When a user reports "no reviews found" for a retailer they know carries the wine, check this file for the domain before assuming it's a query/matching bug. `validate-reviews.ts` now says this explicitly in its output (Phase 9.1).
+- Modules communicate through `backend/routes/wines.ts`, and as of Phase 9.1 that includes **cross-feeding their discoveries**: a product page `reviews/` confirmed is evidence for `price/`, and a retailer `price/` discovered is a search target for `reviews/`. Both directions were in the reported defects. Keep this coupling in the router — do not add a cross-module import.
 
 ---
 

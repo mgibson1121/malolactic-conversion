@@ -982,14 +982,19 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 **Full execution spec:** `docs/specs/2026-08-04-phase-9.1-identity-matching-remediation.md` — work items, agreed decisions, acceptance criteria, and commit sequence.
 
-**Deliverables:**
-- Graded per-dimension matcher in `shared/utils/wine-match.ts` (`scoreMatch` → `match`/`mismatch`/`unknown` per dimension) replacing the boolean `isRelevantMatch` — **done 2026-08-04**, 32 tests in `backend/tests/unit/wine-match.test.ts`, all built from real batch results
-- Page vintage and match verdict carried onto `RetailerReview` and used to rank candidates; wrong-vintage scores kept and labelled rather than dropped or silently accepted
-- Vintage removed from constructed retailer search URLs (mirrors the Phase 7.2 decision already made in `retailer-links/`) — cause of every dead link reported
-- Diacritic folding and honorific stripping applied to query building, not just matching
-- Pass 1 preferred-retailer short-circuit removed; retailer discovery cross-fed between `price/` and `reviews/` via the router
-- Honest empty states: conditional K&L entry, fail-closed verification, URL-shape guard before spending a render + GPT-4o call
-- Ground-truth regression suite from the 14 wines; `validate-reviews.ts` reporting per-stage outcomes per retailer
+**Deliverables — all code work complete 2026-08-05:**
+- Graded per-dimension matcher in `shared/utils/wine-match.ts` (`scoreMatch` → `match`/`mismatch`/`unknown` per dimension) replacing the boolean `isRelevantMatch`, which is retained only as a thin wrapper. Both discovery paths migrated to score, filter and *rank* candidates — the old `.find()` took whichever result Serper ranked first, which is why a shop indexing both the 2022 and the 2020 yielded the 2020.
+- Page vintage and match verdict carried onto `RetailerReview` (`page_vintage`, `vintage_gap`, `match`) and `RetailerPrice` (`vintage_verdict`). `GptPageExtraction.vintage` was already being computed and dropped on the floor; it now revises the vintage dimension of the verdict, since the rendered page is evidence where the search title is a guess. Wrong-vintage scores are kept and labelled, and excluded from `drinking_window`/`vintage_rating` derivation.
+- Vintage removed from constructed retailer search URLs — `buildSearchQuery` (with vintage, to Serper) split from `buildLinkQuery` (without, to the shop's own literal search). Mirrors the Phase 7.2 decision `retailer-links/` already made. Cause of all six reported dead links.
+- Diacritic folding and honorific stripping applied to query building, not just matching, plus an honorific-relaxed producer variant inserted early in the retry sequence (7 of the 14 batch wines begin with "Domaine").
+- Pass 1 preferred-retailer short-circuit removed — both passes merge, deduplicated by consumed Serper item, capped at 8. Retailer discovery cross-fed between `price/` and `reviews/` via the router, in both directions.
+- Honest empty states: K&L's entry gated on Serper actually having shown a K&L listing (which restored reachability of `emptyPriceData()`), three-valued `VerificationState` with a positive producer-presence signal, URL-shape guard before spending a render + GPT-4o call, fallback hygiene for already-attempted and known-unrenderable domains, `wine-searcher.com` denylisted.
+- Ground-truth regression suite from the 14 wines (`backend/tests/fixtures/ground-truth-wines.ts`, run offline in CI), and `validate-reviews.ts` reporting per-stage per-retailer outcomes with the `MatchVerdict` behind every acceptance and rejection, plus vintage accuracy.
+- `snapshot-enrichment.ts` + a committed "before" snapshot. Running its `diff` against the unchanged database independently reproduces the analysis from the stored JSON: 30 retailer URLs containing a vintage token, 9 critic scores on a wrong producer, 0 scores carrying a vintage verdict.
+
+**Remaining:** purge and re-run the 14 wines against the fixed pipeline, and produce the before/after diff. Deferred pending the developer's go-ahead — it clears live data and spends real Serper/OpenAI budget.
+
+**Test position at hand-off:** 318 backend tests (13 suites) and 40 web tests green; `tsc --noEmit` clean in both. Baseline before the phase was 249.
 
 **Key decisions (agreed 2026-08-04, fixed):**
 - Vintage **ranks and labels, never rejects** — a shop whose only page is two vintages off still yields that page
@@ -997,7 +1002,9 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 - The deterministic matcher decides which page is worth paying to render; a model-side identity check on the rendered page is a second gate, returning *what wine the page is about* rather than a verdict
 
 **Notes:**
-- Branch `fix/wine-identity-matching`, work in progress
+- Branch `fix/wine-identity-matching`; PR open for review
+- `pickSingleAgreeing`'s unanimity rule is flagged in code but deliberately unchanged — it needs a product decision. It gets *worse* as coverage improves: Mangot derived `vintage_rating` from a single critic out of 12, while any genuine two-critic difference yields null. Decide before the UI depends on `drinking_window`/`vintage_rating`.
+- `RetailerPrice.vintage_mismatch` keeps its "confirmed different year" meaning and its existing role in the price stats; the new `vintage_verdict` is what makes the previously-invisible `unknown` case visible. Flipping `unknown` to count as a mismatch would have quietly excluded a lot of real listings from `price_min/avg/max`, which is a product call, not a bug fix.
 - Label scan accuracy is a real upstream problem surfaced by this batch (`producer: "Montus"` for Château Montus, `denomination: "Vin de France"` for a Bordeaux Supérieur, cuvee/vineyard null on all 14) but is explicitly out of scope: the fix here is for the modules to tolerate imprecise identity, not for the scan to stop producing it
 
 **Milestone:** No stored critic score belongs to a different producer; every score carries a vintage or an explicit unknown; the 14-wine batch re-runs clean. Phase 9's milestone can then be re-attempted.
