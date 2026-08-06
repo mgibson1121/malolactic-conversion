@@ -1,5 +1,12 @@
 import type { RetailerConfig } from '@shared/config/retailers.config'
-import { isRelevantMatch, type WineIdentity } from '@shared/utils/wine-match'
+import {
+  isRelevantMatch,
+  scoreMatch,
+  isAcceptableMatch,
+  compareByMatchQuality,
+  type MatchVerdict,
+  type WineIdentity,
+} from '@shared/utils/wine-match'
 import { isDenylistedDomain } from '@shared/config/denylisted-domains'
 
 export type { WineIdentity }
@@ -107,6 +114,42 @@ export interface Step1Outcome {
   // validate-reviews.ts diagnostic script, to show how often the relaxed-
   // query retry (2026-08-02) is what makes the difference.
   variantsTried: number
+  // The verdict the winning candidate was accepted on (Phase 9.1) — null
+  // when nothing was accepted. Carried through to the stored ReviewResult so
+  // the UI can badge a wrong-vintage page and validate-reviews.ts can report
+  // *why* a candidate was rejected, rather than just that it was.
+  match: MatchVerdict | null
+}
+
+/**
+ * Picks the single best candidate out of a Serper result set (Phase 9.1).
+ *
+ * Replaces `items.find(item => isRelevantMatch(...))`, which took whichever
+ * result Serper happened to rank first among those passing a boolean check.
+ * That is what made a shop indexing both the 2022 and the 2020 yield the
+ * 2020: relevance ranking is Google's notion of "best", not ours. Scoring
+ * every candidate and sorting by compareByMatchQuality makes the exact
+ * vintage win when one exists, while still yielding the 2020 when it is the
+ * only page — vintage ranks, it never rejects (see wine-match.ts).
+ *
+ * The candidate's own `link` is passed as the url, so a product slug
+ * (`/charles-audoin-marsannay-clos-du-roy-2020`) can confirm producer and
+ * vintage when the title is a bare "Product Detail". The snippet is passed
+ * too, but scoreMatch deliberately ignores it for the producer dimension.
+ */
+function pickBestCandidate(
+  items: SerperOrganicItem[],
+  wine: WineIdentity
+): { item: SerperOrganicItem; verdict: MatchVerdict } | null {
+  const acceptable = items
+    .map(item => ({
+      item,
+      verdict: scoreMatch({ title: item.title, snippet: item.snippet, url: item.link }, wine),
+    }))
+    .filter(c => isAcceptableMatch(c.verdict))
+
+  if (acceptable.length === 0) return null
+  return acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))[0]
 }
 
 /**
@@ -142,16 +185,16 @@ export async function findProductPageDetailed(
     for (const query of variants) {
       variantsTried += 1
       const items = await runSerperQuery(query, apiKey)
-      if (items === null) return { url: null, stage: 'request_failed', variantsTried }
+      if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null }
       if (items.length === 0) continue
       sawAnyResults = true
-      const match = items.find(item => isRelevantMatch(`${item.title} ${item.snippet ?? ''}`, wine))
-      if (match) return { url: match.link, stage: 'found', variantsTried }
-      return { url: null, stage: 'no_relevant_match', variantsTried }
+      const best = pickBestCandidate(items, wine)
+      if (best) return { url: best.item.link, stage: 'found', variantsTried, match: best.verdict }
+      return { url: null, stage: 'no_relevant_match', variantsTried, match: null }
     }
-    return { url: null, stage: sawAnyResults ? 'no_relevant_match' : 'zero_results', variantsTried }
+    return { url: null, stage: sawAnyResults ? 'no_relevant_match' : 'zero_results', variantsTried, match: null }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 0 }
+    return { url: null, stage: 'request_failed', variantsTried: 0, match: null }
   }
 }
 
@@ -197,7 +240,7 @@ export async function findFallbackProductPage(
 
   try {
     const items = await runSerperQuery(query, apiKey)
-    if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1 }
+    if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1, match: null }
 
     const allowed = items.filter(item => {
       try {
@@ -206,12 +249,19 @@ export async function findFallbackProductPage(
         return false // an unparseable link can't be rendered anyway
       }
     })
-    if (allowed.length === 0) return { url: null, stage: items.length === 0 ? 'zero_results' : 'no_relevant_match', variantsTried: 1 }
+    if (allowed.length === 0) {
+      return {
+        url: null,
+        stage: items.length === 0 ? 'zero_results' : 'no_relevant_match',
+        variantsTried: 1,
+        match: null,
+      }
+    }
 
-    const match = allowed.find(item => isRelevantMatch(`${item.title} ${item.snippet ?? ''}`, wine))
-    if (match) return { url: match.link, stage: 'found', variantsTried: 1 }
-    return { url: null, stage: 'no_relevant_match', variantsTried: 1 }
+    const best = pickBestCandidate(allowed, wine)
+    if (best) return { url: best.item.link, stage: 'found', variantsTried: 1, match: best.verdict }
+    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 1 }
+    return { url: null, stage: 'request_failed', variantsTried: 1, match: null }
   }
 }

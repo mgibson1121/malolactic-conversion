@@ -1,3 +1,5 @@
+import type { MatchVerdict } from '@shared/utils/wine-match'
+
 export interface RetailerResult {
   slug: string
   name: string
@@ -20,6 +22,15 @@ export interface RetailerResult {
   // wine, not the exact vintage requested. UI must surface this rather than
   // implying the price applies to the requested vintage.
   vintage_mismatch: boolean
+  // Phase 9.1 — 'match' | 'mismatch' | 'unknown' from the graded matcher.
+  // vintage_mismatch above cannot distinguish "confirmed same year" from
+  // "the listing title never stated one": it was computed as
+  // `matched_vintage !== null && …`, so an unstated year read as agreement
+  // and the constructed link went out asking for a year the shop may not
+  // stock. This field records the third state; vintage_mismatch keeps its
+  // existing "confirmed different year" meaning and its existing role in
+  // aggregatePriceData, so the price stats don't silently change shape.
+  vintage_verdict: MatchVerdict['vintage']
   // Number of standard bottles bundled into this listing's price (1 for an
   // ordinary single-bottle listing). See pack-format.ts.
   pack_quantity: number

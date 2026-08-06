@@ -1,6 +1,10 @@
 import { deriveWineLevelFields } from './derive-wine-level'
 import type { RetailerReview } from '@shared/types'
 
+// Defaults to a right-producer/right-vintage page — the case where derivation
+// is supposed to run. Tests that exercise the Phase 9.1 vintage gate override
+// `match` (and page_vintage/vintage_gap alongside it, to keep the fixture
+// self-consistent) rather than relying on a second builder.
 function makeReview(overrides: Partial<RetailerReview> = {}): RetailerReview {
   return {
     slug: 'kl',
@@ -9,6 +13,16 @@ function makeReview(overrides: Partial<RetailerReview> = {}): RetailerReview {
     critic_scores: [],
     fetched_at: '2026-07-29T00:00:00.000Z',
     source: 'configured',
+    page_vintage: 2019,
+    vintage_gap: 0,
+    match: {
+      producer: 'match',
+      denomination: 'match',
+      bottling: 'unknown',
+      vintage: 'match',
+      candidateVintage: 2019,
+      vintageGap: 0,
+    },
     ...overrides,
   }
 }

@@ -1,8 +1,9 @@
 import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPage, findFallbackProductPage } from './find-product-page'
+import { findProductPageDetailed, findFallbackProductPage } from './find-product-page'
 import type { WineIdentity } from './find-product-page'
+import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
@@ -49,7 +50,7 @@ async function fetchFallbackReview(
   serperKey: string
 ): Promise<ReviewResult | null> {
   const outcome = await findFallbackProductPage(identity, serperKey)
-  if (!outcome.url) return null
+  if (!outcome.url || !outcome.match) return null
 
   const extraction = await renderAndExtract(openai, outcome.url)
   if (!extraction) return null
@@ -62,7 +63,15 @@ async function fetchFallbackReview(
     critic_scores: extraction.critic_scores,
     fetched_at: new Date().toISOString(),
     source: 'fallback',
+    ...vintageFields(outcome.match),
   }
+}
+
+/** The three Phase 9.1 identity fields every stored ReviewResult carries.
+ * Kept in one place so the configured and fallback paths can never drift on
+ * what "which wine is this page actually about" means. */
+function vintageFields(match: MatchVerdict): Pick<ReviewResult, 'page_vintage' | 'vintage_gap' | 'match'> {
+  return { page_vintage: match.candidateVintage, vintage_gap: match.vintageGap, match }
 }
 
 /**
@@ -104,19 +113,20 @@ export async function fetchReviewData(wine: WineEntry): Promise<ReviewResult[]> 
 
   const configuredResults = await Promise.all(
     RETAILER_CONFIG.map(async (retailer): Promise<ReviewResult | null> => {
-      const productUrl = await findProductPage(identity, retailer, serperKey)
-      if (!productUrl) return null
+      const outcome = await findProductPageDetailed(identity, retailer, serperKey)
+      if (!outcome.url || !outcome.match) return null
 
-      const extraction = await renderAndExtract(openai, productUrl)
+      const extraction = await renderAndExtract(openai, outcome.url)
       if (!extraction) return null
 
       return {
         slug: retailer.slug,
         name: retailer.name,
-        product_url: productUrl,
+        product_url: outcome.url,
         critic_scores: extraction.critic_scores,
         fetched_at: new Date().toISOString(),
         source: 'configured',
+        ...vintageFields(outcome.match),
       }
     })
   )

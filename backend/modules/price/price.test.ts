@@ -579,6 +579,7 @@ function makeRetailer(overrides: Partial<RetailerResult> = {}): RetailerResult {
     is_search_results_page: true,
     matched_vintage: null,
     vintage_mismatch: false,
+    vintage_verdict: 'unknown',
     pack_quantity: 1,
     bottle_size_ml: null,
     non_standard_format: false,

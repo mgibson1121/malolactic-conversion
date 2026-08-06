@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { RetailerLinksSection } from './RetailerLinksSection'
 import type { RetailerLink, WineEntry } from '@shared/types'
 import * as api from '../api'
+import { MATCHED_IDENTITY } from '../test-fixtures'
 
 vi.mock('../api', () => ({
   fetchRetailerLinks: vi.fn(),
@@ -261,6 +262,7 @@ describe('RetailerLinksSection — guided mode (Phase 7.2)', () => {
           name: 'K&L Wine Merchants',
           product_url: 'https://shop.klwines.com/products/details/1557135',
           source: 'configured',
+          ...MATCHED_IDENTITY,
           critic_scores: [{ publication: 'Wine Advocate', score: 95, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
           fetched_at: '2026-07-26T00:00:00.000Z',
         },

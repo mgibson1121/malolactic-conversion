@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fetchReviewData } from './index'
 import type { WineEntry } from '@shared/types'
-import { isRelevantMatch, findProductPage } from './find-product-page'
+import { isRelevantMatch, findProductPage, findProductPageDetailed } from './find-product-page'
 import type { RetailerConfig } from '@shared/config/retailers.config'
 import { extractCandidateText } from './keyword-window'
 import { canonicalizePublication } from './gpt-extract'
@@ -121,6 +121,115 @@ describe('isRelevantMatch', () => {
         vintage: 2019,
       })
     ).toBe(false)
+  })
+})
+
+// ─── Graded candidate selection (Phase 9.1, WI-1) ──────────────────────────
+// Step 1 used to take `items.find(isRelevantMatch)` — whichever result Serper
+// happened to rank first among those passing a boolean check. It now scores
+// every organic result, keeps the acceptable ones, and sorts them by match
+// quality, so the exact vintage wins when a shop indexes several. See
+// docs/specs/2026-08-04-phase-9.1-identity-matching-remediation.md WI-1.
+describe('findProductPageDetailed — graded candidate selection', () => {
+  const woodland: RetailerConfig = {
+    slug: 'woodland',
+    name: 'Woodland Hills Wine Co.',
+    domain: 'whwc.com',
+    matchKeyword: 'woodland',
+    lat: 34.1684,
+    lng: -118.6059,
+  }
+
+  const audoin = {
+    producer: 'Domaine Charles Audoin',
+    denomination: 'Marsannay',
+    vintage: 2022,
+    cuvee: null,
+    vineyard: null,
+  }
+
+  function mockOrganic(items: Array<{ title: string; link: string; snippet?: string }>) {
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ organic: items }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('picks the exact vintage over a near one, regardless of Serper ranking', async () => {
+    // Serper ranks the 2020 first; the 2022 is the wine actually asked for.
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay Clos du Roy 2020', link: 'https://whwc.com/audoin-2020/' },
+      { title: 'Charles Audoin Marsannay Clos du Roy 2022', link: 'https://whwc.com/audoin-2022/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/audoin-2022/')
+    expect(outcome.stage).toBe('found')
+    expect(outcome.match?.vintage).toBe('match')
+    expect(outcome.match?.vintageGap).toBe(0)
+  })
+
+  it('still returns a wrong-vintage page when it is the only one, with the gap recorded', async () => {
+    // Benchmark's only Charles Audoin page is the 2020. Vintage ranks and
+    // labels — it never rejects.
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay Clos du Roy 2020', link: 'https://whwc.com/audoin-2020/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.url).toBe('https://whwc.com/audoin-2020/')
+    expect(outcome.match?.vintage).toBe('mismatch')
+    expect(outcome.match?.vintageGap).toBe(2)
+  })
+
+  it('rejects a sister-estate page that only name-drops the producer in its snippet', async () => {
+    // THE regression case: nine Chateau Lafleur scores were stored against
+    // Chateau Grand Village because the Lafleur page's body copy mentions the
+    // sister estate. Producer is judged on title + URL only.
+    mockOrganic([
+      {
+        title: 'Chateau Lafleur Pomerol 2016',
+        link: 'https://whwc.com/lafleur-pomerol-2016/',
+        snippet: 'The Guinaudeau family, also behind Chateau Grand Village, produce this Pomerol...',
+      },
+    ])
+
+    const outcome = await findProductPageDetailed(
+      { producer: 'Grand Village', denomination: 'Vin de France', vintage: 2022, cuvee: null, vineyard: null },
+      woodland,
+      'test-key'
+    )
+
+    expect(outcome.url).toBeNull()
+    expect(outcome.stage).toBe('no_relevant_match')
+    expect(outcome.match).toBeNull()
+  })
+
+  it('returns the verdict the winning candidate was accepted on', async () => {
+    mockOrganic([
+      { title: 'Charles Audoin Marsannay 2022', link: 'https://whwc.com/audoin-2022/' },
+    ])
+
+    const outcome = await findProductPageDetailed(audoin, woodland, 'test-key')
+
+    expect(outcome.match).toEqual({
+      producer: 'match',
+      denomination: 'match',
+      bottling: 'unknown',
+      vintage: 'match',
+      candidateVintage: 2022,
+      vintageGap: 0,
+    })
   })
 })
 
@@ -392,6 +501,16 @@ describe('fetchReviewData', () => {
         critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
         source: 'configured',
+        page_vintage: 2019,
+        vintage_gap: 0,
+        match: {
+          producer: 'match',
+          denomination: 'match',
+          bottling: 'unknown',
+          vintage: 'match',
+          candidateVintage: 2019,
+          vintageGap: 0,
+        },
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://shop.klwines.com/products/details/1557135')
@@ -520,6 +639,16 @@ describe('fetchReviewData — open-web fallback pass', () => {
         critic_scores: [{ publication: 'Vinous', score: 93, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
         source: 'fallback',
+        page_vintage: 2019,
+        vintage_gap: 0,
+        match: {
+          producer: 'match',
+          denomination: 'match',
+          bottling: 'unknown',
+          vintage: 'match',
+          candidateVintage: 2019,
+          vintageGap: 0,
+        },
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.amsterwine.com/p/1')

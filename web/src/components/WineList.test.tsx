@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { WineList } from './WineList'
 import type { WineEntry } from '@shared/types'
+import { MATCHED_IDENTITY } from '../test-fixtures'
 
 function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
   return {
@@ -294,6 +295,7 @@ describe('WineList', () => {
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
             source: 'configured',
+            ...MATCHED_IDENTITY,
             critic_scores: [{
               publication: 'Wine Advocate',
               score: 94,
@@ -327,6 +329,7 @@ describe('WineList', () => {
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
             source: 'configured',
+            ...MATCHED_IDENTITY,
             critic_scores: [{
               publication: 'Vinous',
               score: 96,
@@ -361,6 +364,7 @@ describe('WineList', () => {
             name: 'Zachys',
             product_url: 'https://www.zachys.com/x',
             source: 'configured',
+            ...MATCHED_IDENTITY,
             critic_scores: [{
               publication: 'Wine Advocate',
               score: 94,

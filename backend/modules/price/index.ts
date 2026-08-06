@@ -81,6 +81,10 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
     is_search_results_page: true,
     matched_vintage: null,
     vintage_mismatch: false,
+    // Nothing was matched at all — this entry is a constructed link, not a
+    // listing — so the honest vintage verdict is 'unknown', not the `false`
+    // that vintage_mismatch alone would imply.
+    vintage_verdict: 'unknown',
     pack_quantity: 1,
     bottle_size_ml: null,
     non_standard_format: false,

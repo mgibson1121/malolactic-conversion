@@ -1174,6 +1174,7 @@ describe('serialization round-trips', () => {
           is_search_results_page: true,
           matched_vintage: 2016,
           vintage_mismatch: false,
+          vintage_verdict: 'match' as const,
           pack_quantity: 1,
           bottle_size_ml: null,
           non_standard_format: false,

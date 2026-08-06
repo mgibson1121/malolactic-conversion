@@ -5,6 +5,7 @@ import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
 import type { RetailerPrice, RetailerReview, UpdateWineInput, WineFilter } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
+import { scoreMatch } from '@shared/utils/wine-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
@@ -183,9 +184,23 @@ router.post(
       return
     }
 
-    const matched_vintage = extraction.vintage
-    const vintage_mismatch =
-      matched_vintage !== null && wine.vintage !== null && matched_vintage !== wine.vintage
+    // The confirmed page is judged by the same graded matcher the automated
+    // path uses (Phase 9.1), with GPT-4o's reading of the rendered page as
+    // the stated vintage — the strongest signal available, since the user
+    // has already confirmed this is the right product page.
+    const verdict = scoreMatch(
+      { title: url, url, statedVintage: extraction.vintage },
+      {
+        producer: wine.producer ?? '',
+        denomination: wine.denomination ?? '',
+        vintage: wine.vintage ?? null,
+        cuvee: wine.cuvee,
+        vineyard: wine.vineyard,
+        quality_classification: wine.quality_classification,
+      }
+    )
+    const matched_vintage = verdict.candidateVintage
+    const vintage_mismatch = verdict.vintage === 'mismatch'
 
     const retailerPrice: RetailerPrice = {
       slug: retailer.slug,
@@ -197,6 +212,7 @@ router.post(
       is_search_results_page: false,
       matched_vintage,
       vintage_mismatch,
+      vintage_verdict: verdict.vintage,
       pack_quantity: 1,
       bottle_size_ml: null,
       non_standard_format: false,
@@ -222,6 +238,9 @@ router.post(
       // manually rather than by automated search — 'configured', not
       // 'fallback' (that's reserved for the open-web pass, Phase 7.3).
       source: 'configured',
+      page_vintage: verdict.candidateVintage,
+      vintage_gap: verdict.vintageGap,
+      match: verdict,
     }
     const review_data = [
       ...(wine.review_data ?? []).filter((r) => r.slug !== slug),

@@ -1,3 +1,5 @@
+import type { MatchVerdict } from '@shared/utils/wine-match'
+
 export interface CriticDrinkingWindow {
   start: number | null
   end: number | null
@@ -43,4 +45,10 @@ export interface ReviewResult {
   // trusts as a wine retailer), so the UI should be able to show it with
   // less confidence than a configured-retailer result.
   source: 'configured' | 'fallback'
+  // Phase 9.1 — see shared/types.ts RetailerReview for the field-level docs
+  // this local type mirrors (kept structurally identical, never imported
+  // across modules — see CLAUDE.md §5).
+  page_vintage: number | null
+  vintage_gap: number | null
+  match: MatchVerdict
 }

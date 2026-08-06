@@ -1,3 +1,5 @@
+import type { MatchVerdict } from './utils/wine-match'
+
 // ─── Enrichment types ─────────────────────────────────────────────────────────
 
 export interface ExpertReview {
@@ -50,6 +52,15 @@ export interface RetailerPrice {
   // True when matched_vintage differs from this wine entry's own vintage —
   // the price/listing shown is for a different year of the same wine.
   vintage_mismatch: boolean
+  // Phase 9.1 (2026-08-04) — the vintage dimension of the match verdict this
+  // listing was accepted on. `vintage_mismatch` above is a boolean and so
+  // cannot distinguish "confirmed same year" from "the listing title never
+  // said" — it read false for both, which is why six dead links went out for
+  // listings whose year was simply unstated. Both are kept: vintage_mismatch
+  // still means *confirmed* different year (and still gates the price stats),
+  // while this field makes the unknown case visible instead of silently
+  // counting as agreement.
+  vintage_verdict: MatchVerdict['vintage']
   // Number of standard bottles bundled into this listing's price (1 for an
   // ordinary single-bottle listing).
   pack_quantity: number
@@ -95,6 +106,24 @@ export interface RetailerReview {
   // developer has explicitly vetted, so the UI should treat it with less
   // confidence than a 'configured' entry.
   source: 'configured' | 'fallback'
+  // Phase 9.1 (2026-08-04) — the vintage the extracted page itself states,
+  // preferring GPT-4o's reading of the rendered page over a year parsed out
+  // of the search-result title. Null when the page states none. Before this,
+  // GptPageExtraction.vintage was computed on every call and then dropped on
+  // the floor, which is how nine Chateau Lafleur scores and a 2010 Gour de
+  // Chaule ended up stored against 2022 wines.
+  page_vintage: number | null
+  // Years between page_vintage and the wine's own vintage. Null when either
+  // side is unknown. Deliberately not a boolean and deliberately not a
+  // filter: a wrong-vintage page is kept and badged (e.g. "2020 · 2 years
+  // earlier"), never hidden — rejecting it yields nothing instead of
+  // something. The display layer owns the threshold at which a gap reads as
+  // notable; the pipeline only records it.
+  vintage_gap: number | null
+  // The per-dimension verdict this result was accepted on. Stored so the UI
+  // can say which dimension is uncertain and validate-reviews.ts can report
+  // *why* a candidate was rejected, rather than re-deriving either.
+  match: MatchVerdict
 }
 
 export interface PriceData {
