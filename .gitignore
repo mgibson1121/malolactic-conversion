@@ -11,6 +11,9 @@ dist/
 # files — this only bit new files, like denylisted-domains.ts here).
 /config/
 backend/db/wine.db*
+# Stale SQLite handles left behind by the FUSE mount when a write is
+# interrupted — filesystem artifacts, not project files.
+.fuse_hidden*
 validate-reviews-results.json
 backend/modules/reviews/__fixtures__/adhoc-*.html
 .claude/settings.local.json

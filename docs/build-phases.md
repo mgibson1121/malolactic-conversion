@@ -968,6 +968,40 @@ Reassessing the actual goal behind the community layer — balancing professiona
 
 **Milestone:** Enriched wine object is validated in practice. No known schema gaps. Ready to design UI.
 
+**Executed 2026-08-04 against a 14-wine batch. Outcome: failed — see Phase 9.1.** The review found the enriched object is not yet trustworthy enough to build a UI against. Headline finding: nine Château Lafleur critic scores (Decanter 100, Wine Advocate 99) were stored against Château Grand Village, a ~$30 wine, and only three of the batch's extractions were unambiguously the right wine *and* the right vintage. Full evidence in `docs/sessions/2026-08-04-core-functionality-defect-taxonomy.md`. Phase 10 should not start until 9.1 closes.
+
+---
+
+## Phase 9.1 — Wine identity matching remediation
+
+**Goal:** Fix the root cause behind Phase 9's failed data review, so the enriched wine object can be trusted before any UI is built against it.
+
+**Root cause:** the four dimensions of wine identity — producer, appellation, bottling, vintage — were each handled by a different mechanism in a different module, and no code path evaluated all four. The relevance check accepted any single producer word found anywhere in a page's title *or body*, never checked the vintage, and returned a boolean that could not express "right producer, right appellation, wrong vintage" — which is what most of the batch's results actually were.
+
+Note this is the second remediation of the same symptom class. The 2026-08-02 pass correctly diagnosed logic duplication across the three modules and deduplicated it into `shared/`; that fix held and should not be redone. The defects recurred anyway, because duplication was the mechanism rather than the cause.
+
+**Full execution spec:** `docs/specs/2026-08-04-phase-9.1-identity-matching-remediation.md` — work items, agreed decisions, acceptance criteria, and commit sequence.
+
+**Deliverables:**
+- Graded per-dimension matcher in `shared/utils/wine-match.ts` (`scoreMatch` → `match`/`mismatch`/`unknown` per dimension) replacing the boolean `isRelevantMatch` — **done 2026-08-04**, 32 tests in `backend/tests/unit/wine-match.test.ts`, all built from real batch results
+- Page vintage and match verdict carried onto `RetailerReview` and used to rank candidates; wrong-vintage scores kept and labelled rather than dropped or silently accepted
+- Vintage removed from constructed retailer search URLs (mirrors the Phase 7.2 decision already made in `retailer-links/`) — cause of every dead link reported
+- Diacritic folding and honorific stripping applied to query building, not just matching
+- Pass 1 preferred-retailer short-circuit removed; retailer discovery cross-fed between `price/` and `reviews/` via the router
+- Honest empty states: conditional K&L entry, fail-closed verification, URL-shape guard before spending a render + GPT-4o call
+- Ground-truth regression suite from the 14 wines; `validate-reviews.ts` reporting per-stage outcomes per retailer
+
+**Key decisions (agreed 2026-08-04, fixed):**
+- Vintage **ranks and labels, never rejects** — a shop whose only page is two vintages off still yields that page
+- No hard-coded vintage tolerance in the pipeline; the gap is recorded and a single display-layer constant (start at ±3) decides what renders as flagged. Vintage variation is region-dependent, so a fixed threshold is advisory, not a rule
+- The deterministic matcher decides which page is worth paying to render; a model-side identity check on the rendered page is a second gate, returning *what wine the page is about* rather than a verdict
+
+**Notes:**
+- Branch `fix/wine-identity-matching`, work in progress
+- Label scan accuracy is a real upstream problem surfaced by this batch (`producer: "Montus"` for Château Montus, `denomination: "Vin de France"` for a Bordeaux Supérieur, cuvee/vineyard null on all 14) but is explicitly out of scope: the fix here is for the modules to tolerate imprecise identity, not for the scan to stop producing it
+
+**Milestone:** No stored critic score belongs to a different producer; every score carries a vintage or an explicit unknown; the 14-wine batch re-runs clean. Phase 9's milestone can then be re-attempted.
+
 ---
 
 ## Phase 10 — UX design and prototyping
