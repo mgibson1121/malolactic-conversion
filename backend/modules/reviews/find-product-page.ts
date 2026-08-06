@@ -130,9 +130,23 @@ export interface Step1Outcome {
   variantsTried: number
   // The verdict the winning candidate was accepted on (Phase 9.1) — null
   // when nothing was accepted. Carried through to the stored ReviewResult so
-  // the UI can badge a wrong-vintage page and validate-reviews.ts can report
-  // *why* a candidate was rejected, rather than just that it was.
+  // the UI can badge a wrong-vintage page.
   match: MatchVerdict | null
+  // Candidates that were considered and turned down, with the verdict that
+  // turned them down (Phase 9.1). Populated only on 'no_relevant_match',
+  // which is otherwise the least legible outcome in the pipeline: a bare
+  // "nothing matched" tells you neither what was on offer nor which
+  // dimension disqualified it. This is what turns the next report into a log
+  // read — see backend/scripts/validate-reviews.ts.
+  rejected: RejectedCandidate[]
+}
+
+export interface RejectedCandidate {
+  title: string
+  url: string
+  /** Null when the URL's shape ruled it out before it was ever scored — a
+   * PDF, a blog post, an auction page. See isNonProductUrl. */
+  verdict: MatchVerdict | null
 }
 
 /**
@@ -159,17 +173,25 @@ export interface Step1Outcome {
 function pickBestCandidate(
   items: SerperOrganicItem[],
   wine: WineIdentity
-): { item: SerperOrganicItem; verdict: MatchVerdict } | null {
-  const acceptable = items
-    .filter(item => !isNonProductUrl(item.link))
-    .map(item => ({
-      item,
-      verdict: scoreMatch({ title: item.title, snippet: item.snippet, url: item.link }, wine),
-    }))
-    .filter(c => isAcceptableMatch(c.verdict))
+): { best: { item: SerperOrganicItem; verdict: MatchVerdict } | null; rejected: RejectedCandidate[] } {
+  const acceptable: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }> = []
+  const rejected: RejectedCandidate[] = []
 
-  if (acceptable.length === 0) return null
-  return acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))[0]
+  for (const item of items) {
+    if (isNonProductUrl(item.link)) {
+      rejected.push({ title: item.title, url: item.link, verdict: null })
+      continue
+    }
+    const verdict = scoreMatch({ title: item.title, snippet: item.snippet, url: item.link }, wine)
+    if (isAcceptableMatch(verdict)) acceptable.push({ item, verdict })
+    else rejected.push({ title: item.title, url: item.link, verdict })
+  }
+
+  if (acceptable.length === 0) return { best: null, rejected }
+  return {
+    best: acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))[0],
+    rejected,
+  }
 }
 
 /**
@@ -205,16 +227,22 @@ export async function findProductPageDetailed(
     for (const query of variants) {
       variantsTried += 1
       const items = await runSerperQuery(query, apiKey)
-      if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null }
+      if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [] }
       if (items.length === 0) continue
       sawAnyResults = true
-      const best = pickBestCandidate(items, wine)
-      if (best) return { url: best.item.link, stage: 'found', variantsTried, match: best.verdict }
-      return { url: null, stage: 'no_relevant_match', variantsTried, match: null }
+      const { best, rejected } = pickBestCandidate(items, wine)
+      if (best) return { url: best.item.link, stage: 'found', variantsTried, match: best.verdict, rejected: [] }
+      return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected }
     }
-    return { url: null, stage: sawAnyResults ? 'no_relevant_match' : 'zero_results', variantsTried, match: null }
+    return {
+      url: null,
+      stage: sawAnyResults ? 'no_relevant_match' : 'zero_results',
+      variantsTried,
+      match: null,
+      rejected: [],
+    }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 0, match: null }
+    return { url: null, stage: 'request_failed', variantsTried: 0, match: null, rejected: [] }
   }
 }
 
@@ -332,7 +360,9 @@ async function runOpenQuery(
 
   try {
     const items = await runSerperQuery(query, apiKey)
-    if (items === null) return { url: null, stage: 'request_failed', variantsTried: 1, match: null }
+    if (items === null) {
+      return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
+    }
 
     const allowed = items.filter(item => {
       if (isNonProductUrl(item.link)) return false
@@ -354,13 +384,16 @@ async function runOpenQuery(
         stage: items.length === 0 ? 'zero_results' : 'no_relevant_match',
         variantsTried: 1,
         match: null,
+        rejected: [],
       }
     }
 
-    const best = pickBestCandidate(allowed, wine)
-    if (best) return { url: best.item.link, stage: 'found', variantsTried: 1, match: best.verdict }
-    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null }
+    const { best, rejected } = pickBestCandidate(allowed, wine)
+    if (best) {
+      return { url: best.item.link, stage: 'found', variantsTried: 1, match: best.verdict, rejected: [] }
+    }
+    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 1, match: null }
+    return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
   }
 }
