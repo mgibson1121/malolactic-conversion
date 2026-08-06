@@ -56,7 +56,7 @@ function itemToRetailerResult(
   scored: ScoredItem,
   retailer: RetailerConfig,
   isPreferred: boolean,
-  query: string
+  linkQuery: string
 ): RetailerResult {
   const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title)
@@ -68,8 +68,9 @@ function itemToRetailerResult(
     // aggregator page rather than the retailer's own product page (this is
     // what caused "Details aren't available for this product"). For known
     // preferred retailers we construct a live search URL on their own site
-    // instead — see @shared/utils/retailer-search-url.ts.
-    url: buildRetailerSearchUrl(retailer, query),
+    // instead — see @shared/utils/retailer-search-url.ts. Built from
+    // linkQuery, which carries no vintage token — see querySerper.
+    url: buildRetailerSearchUrl(retailer, linkQuery),
     is_preferred_retailer: isPreferred,
     distance_miles: Math.round(
       haversineDistanceMiles(NYC.lat, NYC.lng, retailer.lat, retailer.lng)
@@ -107,14 +108,14 @@ function buildFallbackUrl(source: string, query: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(`${source} ${query}`)}`
 }
 
-function buildFallbackResult(scored: ScoredItem, query: string): RetailerResult {
+function buildFallbackResult(scored: ScoredItem, linkQuery: string): RetailerResult {
   const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title)
   return {
     slug: slugifySource(item.source),
     name: item.source,
     price: item.priceRaw ?? parsePriceString(item.price),
-    url: buildFallbackUrl(item.source, query),
+    url: buildFallbackUrl(item.source, linkQuery),
     is_preferred_retailer: false,
     distance_miles: 0,
     // Always a search page, never a single product page — see
@@ -132,11 +133,27 @@ function buildFallbackResult(scored: ScoredItem, query: string): RetailerResult 
   }
 }
 
+/**
+ * @param searchQuery  Sent to Serper's Shopping endpoint. Includes the
+ *   vintage: Shopping is relevance-ranked, so a year narrows results toward
+ *   the right one without excluding the rest.
+ * @param linkQuery  Used to construct the outbound retailer URL. Excludes
+ *   the vintage. These were one string until Phase 9.1, which is the whole
+ *   of the dead-link defect: when Serper matched a retailer on a *different*
+ *   vintage, the app stored that retailer and then built a link asking their
+ *   site for a year they don't stock. All six reported dead links are this,
+ *   exactly. A retailer's own on-site search is literal, not relevance
+ *   ranked, so the added year turns a page of real listings into "no
+ *   results" — retailer-links/index.ts made this same call in Phase 7.2 with
+ *   a live-confirmed Zachys example; it was never mirrored here, in the
+ *   module that actually generates price_data.retailers[].url.
+ */
 export async function querySerper(
-  query: string,
+  searchQuery: string,
   retailers: RetailerConfig[],
   apiKey: string,
-  wine: WineIdentity
+  wine: WineIdentity,
+  linkQuery: string
 ): Promise<RetailerResult[]> {
   let items: SerperShoppingItem[] = []
   try {
@@ -146,7 +163,7 @@ export async function querySerper(
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ q: `${query} wine`, gl: 'us' }),
+      body: JSON.stringify({ q: `${searchQuery} wine`, gl: 'us' }),
       signal: AbortSignal.timeout(15_000),
     })
     if (!res.ok) return []
@@ -221,7 +238,7 @@ export async function querySerper(
   for (const retailer of retailers) {
     const keyword = alnumOnly(retailer.matchKeyword)
     const match = nonKlItems.find(({ item }) => item.source && alnumOnly(item.source).includes(keyword))
-    if (match) preferred.push(itemToRetailerResult(match, retailer, true, query))
+    if (match) preferred.push(itemToRetailerResult(match, retailer, true, linkQuery))
   }
   if (preferred.length > 0) return preferred
 
@@ -229,5 +246,5 @@ export async function querySerper(
   return nonKlItems
     .filter(({ item }) => item.link && item.source)
     .slice(0, 5)
-    .map(scored => buildFallbackResult(scored, query))
+    .map(scored => buildFallbackResult(scored, linkQuery))
 }

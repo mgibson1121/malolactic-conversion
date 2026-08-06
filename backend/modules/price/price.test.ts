@@ -364,8 +364,58 @@ describe('fetchPriceData', () => {
     mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
     const result = await fetchPriceData(baseWine)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
-    expect(zachys?.url).toBe('https://www.zachys.com/search?q=Domaine%20Leroy%20Gevrey-Chambertin%202018')
+    expect(zachys?.url).toBe('https://www.zachys.com/search?q=Domaine%20Leroy%20Gevrey-Chambertin')
     expect(zachys?.url).not.toBe(ZACHYS_URL)
+  })
+
+  // ─── Dead retailer links (Phase 9.1, WI-4) ───────────────────────────────
+  // Six for six of the dead links reported against the 2026-08-04 batch were
+  // the same mechanism: buildQuery included the vintage, and that same string
+  // was handed to buildRetailerSearchUrl. When Serper matched a retailer on a
+  // different vintage, the app stored that retailer and then built a link
+  // asking their site for a year they don't stock. A retailer's own search is
+  // literal, not relevance-ranked, so the added year turns a page of real
+  // listings into "no results" — the call retailer-links/index.ts already
+  // made in Phase 7.2 with a live-confirmed Zachys example.
+  describe('constructed retailer URLs carry no vintage token', () => {
+    it('omits the vintage from every constructed URL, preferred and fallback alike', async () => {
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$249.00'),
+        makeItem('Benchmark Wine Group', BENCHMARK_URL, '$200.00'),
+        makeItem('Some Other Store', OTHER_URL, '$180.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(result!.retailers.length).toBeGreaterThan(0)
+      for (const r of result!.retailers) {
+        expect(r.url).not.toContain('2018')
+      }
+    })
+
+    it('still sends the vintage to Serper — it narrows Shopping, it just must not narrow the shop', async () => {
+      mockSerperItems = []
+      await fetchPriceData(baseWine)
+      const body = JSON.parse(String((global.fetch as jest.Mock).mock.calls[0][1].body))
+      expect(body.q).toContain('2018')
+    })
+
+    it('links a retailer matched on a different vintage to a query that can actually find the wine', async () => {
+      // Grand Village matched Zachys on a 2023 listing and was then linked
+      // with 2022. The listing is still flagged as a different year; the link
+      // is no longer a dead end.
+      mockSerperItems = [
+        { title: 'Domaine Leroy Gevrey-Chambertin 2016', source: 'Zachys', link: ZACHYS_URL, price: '$300.00' },
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const zachys = result!.retailers.find(r => r.slug === 'zachys')
+
+      expect(zachys?.vintage_mismatch).toBe(true)
+      expect(zachys?.matched_vintage).toBe(2016)
+      expect(zachys?.url).not.toContain('2016')
+      expect(zachys?.url).not.toContain('2018')
+    })
   })
 
   it('builds the correct search URL for each preferred retailer', async () => {

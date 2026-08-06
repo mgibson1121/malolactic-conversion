@@ -8,14 +8,26 @@ import { buildDistinguishingQuery } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
 import type { PriceData, RetailerResult } from './types'
 
-// cuvee/vineyard included (2026-07-30 fix) — denomination alone is often
-// too generic to reach the actual bottling in Serper's results at all (e.g.
-// "Drappier Champagne" surfaces any Drappier Champagne, not specifically
-// "Grande Sendrée"). See isRelevantMatch in @shared/utils/wine-match.ts for
-// the matching-side half of this fix. buildDistinguishingQuery extracted
-// 2026-08-02 — same join logic was duplicated in retailer-links/index.ts.
-function buildQuery(wine: WineEntry): string {
+// Two queries, deliberately different (Phase 9.1). They were one string, and
+// that is the entire dead-link defect: the vintage belongs in the Serper
+// Shopping query (relevance-ranked — a year narrows toward the right listing)
+// and must not be in the URL handed to a retailer's own on-site search
+// (literal — a year they don't stock turns real listings into "no results").
+// Six for six of the reported dead links were a retailer matched on one
+// vintage and then linked with another. See querySerper's param docs, and
+// retailer-links/index.ts's buildQuery, which made this call in Phase 7.2.
+//
+// cuvee/vineyard included in both (2026-07-30 fix) — denomination alone is
+// often too generic to reach the actual bottling at all (e.g. "Drappier
+// Champagne" surfaces any Drappier Champagne, not specifically "Grande
+// Sendrée"). buildDistinguishingQuery extracted 2026-08-02 — the same join
+// logic was duplicated in retailer-links/index.ts.
+function buildSearchQuery(wine: WineEntry): string {
   return buildDistinguishingQuery(wine, { includeVintage: true })
+}
+
+function buildLinkQuery(wine: WineEntry): string {
+  return buildDistinguishingQuery(wine)
 }
 
 // Every retailer URL at this point is a constructed search-results page
@@ -165,17 +177,24 @@ export async function fetchPriceData(wine: WineEntry): Promise<PriceData | null>
 
   if (!apiKey || !serperKey) return null
 
-  const query = buildQuery(wine)
-  if (!query.trim()) return null
+  const searchQuery = buildSearchQuery(wine)
+  if (!searchQuery.trim()) return null
+  const linkQuery = buildLinkQuery(wine)
 
   // Step 1 — Serper query: discover retailer URLs + prices (K&L excluded — see querySerper)
-  const baseResults = await querySerper(query, RETAILER_CONFIG, serperKey, {
-    producer: wine.producer ?? '',
-    denomination: wine.denomination ?? '',
-    vintage: wine.vintage ?? null,
-    cuvee: wine.cuvee,
-    vineyard: wine.vineyard,
-  })
+  const baseResults = await querySerper(
+    searchQuery,
+    RETAILER_CONFIG,
+    serperKey,
+    {
+      producer: wine.producer ?? '',
+      denomination: wine.denomination ?? '',
+      vintage: wine.vintage ?? null,
+      cuvee: wine.cuvee,
+      vineyard: wine.vineyard,
+    },
+    linkQuery
+  )
 
   // Step 2 — Puppeteer pass: render each retailer's live search page and drop
   // any retailer whose search doesn't actually surface a result today. See
