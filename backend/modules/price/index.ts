@@ -323,9 +323,25 @@ export async function fetchPriceData(
   const confirmed = confirmedPageResults(opts.confirmedProductPages ?? [], verified)
 
   // K&L's link-only entry, offered only when there is a reason to (Phase
-  // 9.1) — see buildKlLinkOnlyResult and shouldOfferKlLink.
+  // 9.1) — see buildKlLinkOnlyResult.
   const klLink = klItemSeen ? buildKlLinkOnlyResult(wine) : null
-  const allRetailers = [...verified, ...confirmed, ...(klLink ? [klLink] : [])]
+
+  // One entry per retailer. The K&L link has to be deduplicated against the
+  // confirmed pages too, not just against the Serper results: modules/reviews/
+  // searches K&L like any other configured retailer and often *finds* a
+  // product page there (Serper's organic index is not blocked — only the
+  // render is), so the cross-feed contributes a 'kl' entry which the
+  // always-appended link then duplicated. Live-confirmed on the 2026-08-05
+  // re-run: Grand Village and Gour de Chaulé each came back with K&L twice.
+  // The confirmed product page wins — it points at the actual product rather
+  // than a search for it.
+  const allRetailers: RetailerResult[] = []
+  const seenSlugs = new Set<string>()
+  for (const r of [...verified, ...confirmed, ...(klLink ? [klLink] : [])]) {
+    if (seenSlugs.has(r.slug)) continue
+    seenSlugs.add(r.slug)
+    allRetailers.push(r)
+  }
 
   // Reachable again now that nothing is appended unconditionally: an empty
   // PriceData with a fetched_at timestamp is "attempted and found nothing",
