@@ -843,6 +843,29 @@ describe('fetchPriceData — confirmed product pages from reviews', () => {
     expect(woodlandEntries[0].price).toBe(180)
   })
 
+  it('does not duplicate K&L when reviews also confirmed a K&L product page', async () => {
+    // Live-confirmed regression from the 2026-08-05 re-run: Grand Village and
+    // Gour de Chaulé each came back with two K&L rows. modules/reviews/
+    // searches K&L like any other configured retailer and often finds a
+    // product page there — Serper's organic index isn't blocked, only the
+    // render is — so the cross-feed contributes a 'kl' entry, and the
+    // always-appended K&L link duplicated it.
+    mockSerperItems = [makeItem('K&L Wine Merchants', KL_URL, '$199.00')]
+
+    const result = await fetchPriceData(baseWine, {
+      confirmedProductPages: [
+        { slug: 'kl', name: 'K&L Wine Merchants', product_url: 'https://shop.klwines.com/products/details/1557135' },
+      ],
+    })
+    const klEntries = result!.retailers.filter(r => r.slug === 'kl')
+
+    expect(klEntries).toHaveLength(1)
+    // The confirmed product page wins — it points at the actual product
+    // rather than a search for it.
+    expect(klEntries[0].url).toBe('https://shop.klwines.com/products/details/1557135')
+    expect(klEntries[0].is_search_results_page).toBe(false)
+  })
+
   it('accepts a page from a shop that is not in RETAILER_CONFIG', async () => {
     mockSerperItems = []
 

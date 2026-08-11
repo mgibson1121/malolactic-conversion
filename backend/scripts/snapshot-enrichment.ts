@@ -186,13 +186,24 @@ function commandPurge(datePrefix: string, snapshotPath: string, confirmed: boole
 
 // ─── diff ────────────────────────────────────────────────────────────────────
 
-/** A constructed retailer URL containing the wine's own vintage is the
+/**
+ * A *constructed search* URL containing the wine's own vintage is the
  * dead-link defect: the app asked a shop's literal on-site search for a year
- * it may not stock. Six for six of the reported dead links were this. */
+ * it may not stock. Six for six of the reported dead links were this.
+ *
+ * `is_search_results_page` is load-bearing here, not incidental. A real
+ * product page whose slug names its own year — `whwc.com/mangot-st-emilion-2022/`
+ * — is *correct*, and Phase 9.1's cross-feed produces exactly those by
+ * design. Counting them alongside the constructed searches (which the first
+ * version of this function did) reports the fix as incomplete when it isn't:
+ * 10 of the 10 remaining hits on the post-fix run were product pages.
+ */
 function deadLinkCount(entry: SnapshotEntry): number {
   if (entry.vintage === null) return 0
   const year = String(entry.vintage)
-  return (entry.price_data?.retailers ?? []).filter(r => r.url.includes(year)).length
+  return (entry.price_data?.retailers ?? []).filter(
+    r => r.is_search_results_page && r.url.includes(year)
+  ).length
 }
 
 /** Scores stored against a page whose producer isn't this wine's — the
