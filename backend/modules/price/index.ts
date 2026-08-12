@@ -40,10 +40,39 @@ function buildLinkQuery(wine: WineEntry): string {
 // backs it up. Returns null to signal "drop this retailer entirely" — a
 // wine that isn't actually in this retailer's live search isn't a match,
 // so this is a drop, not a downgrade.
+/**
+ * Is this URL actually the retailer's own site? (2026-08-05)
+ *
+ * Pass 2 fallback retailers have no known site-search pattern, so their URL
+ * is a constructed `google.com/search?q=<merchant> <wine>` — see
+ * buildFallbackUrl in serper-query.ts. Rendering *that* and asking what it
+ * says about the wine is asking Google, not the shop, and Google serves
+ * Puppeteer a ~3.4KB "please enable javascript" interstitial anyway.
+ *
+ * This distinction was harmless until Phase 9.1 added a positive
+ * verification signal: an interstitial never contains a "no results" phrase,
+ * so fallback retailers used to pass vacuously, and now they fail vacuously
+ * — which silently dropped every Pass 2 retailer that had a real price.
+ * Neither answer was ever informative. 'unverified' is the honest one.
+ */
+function isRetailerOwnPage(retailer: RetailerResult): boolean {
+  const config = RETAILER_CONFIG.find(r => r.slug === retailer.slug)
+  if (!config) return false
+  try {
+    return new URL(retailer.url).hostname.toLowerCase().endsWith(config.domain.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 async function verifyStillListed(
   retailer: RetailerResult,
   producer: string | null
 ): Promise<RetailerResult | null> {
+  // Not the shop's own page — nothing renderable here can confirm or refute
+  // the listing, so don't spend a Puppeteer launch to find that out.
+  if (!isRetailerOwnPage(retailer)) return { ...retailer, verification: 'unverified' }
+
   const html = await renderPageHtml(retailer.url)
 
   // Render failed/timed out. An infra hiccup still isn't evidence the

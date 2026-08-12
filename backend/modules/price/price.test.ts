@@ -306,6 +306,23 @@ describe('fetchPriceData', () => {
       expect(benchmarkish[0].is_preferred_retailer).toBe(true)
     })
 
+    it('does not re-list a configured retailer as a fallback when it has two listings', async () => {
+      // Live-confirmed 2026-08-05: Grand Village showed both `zachys` and
+      // `zachys-wine-spirits`. Pass 1 claims one listing per retailer, so the
+      // second fell through to Pass 2 and reappeared under a slugified source.
+      mockSerperItems = [
+        { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Zachys', link: ZACHYS_URL, price: '$249.00' },
+        { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Zachys Wine & Spirits', link: ZACHYS_URL, price: '$199.00' },
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const zachysish = result!.retailers.filter(r => r.name.toLowerCase().includes('zachys'))
+
+      expect(zachysish).toHaveLength(1)
+      expect(zachysish[0].slug).toBe('zachys')
+      expect(zachysish[0].is_preferred_retailer).toBe(true)
+    })
+
     it('caps the merged list', async () => {
       mockSerperItems = Array.from({ length: 15 }, (_, i) => ({
         title: 'Domaine Leroy Gevrey-Chambertin 2018',
@@ -372,11 +389,21 @@ describe('fetchPriceData', () => {
     expect(result!.price_min).toBeNull()
   })
 
-  it('drops a fallback retailer whose live search page reports no results', async () => {
+  // Was: "drops a fallback retailer whose live search page reports no
+  // results." That assertion was never reachable in production (2026-08-05).
+  // A fallback retailer's URL is a constructed google.com/search, and Google
+  // serves Puppeteer a javascript interstitial — never a retailer's
+  // "no results" copy. The verification was vacuous either way, so it is no
+  // longer attempted; see isRetailerOwnPage.
+  it('does not drop a fallback retailer on the strength of a page that is not the retailer\'s', async () => {
     mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$199.00')]
     mockRenderPageHtml.mockResolvedValue(NO_RESULTS_HTML)
+
     const result = await fetchPriceData(baseWine)
-    expect(result!.retailers).toHaveLength(0)
+    const other = result!.retailers.find(r => r.slug === 'some-other-store')
+
+    expect(other?.price).toBe(199)
+    expect(other?.verification).toBe('unverified')
   })
 
   // ─── Fail-closed verification (Phase 9.1, WI-8) ──────────────────────────
@@ -400,6 +427,50 @@ describe('fetchPriceData', () => {
 
       const result = await fetchPriceData(baseWine)
 
+      expect(result!.retailers.find(r => r.slug === 'zachys')?.verification).toBe('verified')
+    })
+
+    // Live-confirmed regression, 2026-08-05. A Pass 2 fallback retailer's URL
+    // is a constructed google.com/search — rendering it asks Google, not the
+    // shop, and Google serves Puppeteer a ~3.4KB "please enable javascript"
+    // interstitial. That interstitial never contains a "no results" phrase, so
+    // fallback retailers used to pass vacuously; once Phase 9.1 added the
+    // producer check they failed vacuously instead, silently dropping every
+    // Pass 2 retailer that had a real price. Across the 14-wine batch that
+    // took priced retailers from 30 to 8 and left 0 of 14 wines with any
+    // price at all.
+    it('keeps a fallback retailer whose google.com search URL cannot name the producer', async () => {
+      mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$200.00')]
+      mockRenderPageHtml.mockResolvedValue(
+        '<html><body>In order to continue, please enable javascript</body></html>'
+      )
+
+      const result = await fetchPriceData(baseWine)
+      const other = result!.retailers.find(r => r.slug === 'some-other-store')
+
+      expect(other).toBeDefined()
+      expect(other!.price).toBe(200)
+      // Honest: we never actually checked the shop.
+      expect(other!.verification).toBe('unverified')
+      expect(result!.price_min).toBe(200)
+    })
+
+    it('does not spend a render on a URL that is not the retailer\'s own site', async () => {
+      mockSerperItems = [makeItem('Some Other Store', OTHER_URL, '$200.00')]
+      mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+
+      await fetchPriceData(baseWine)
+
+      expect(mockRenderPageHtml).not.toHaveBeenCalledWith(expect.stringContaining('google.com/search'))
+    })
+
+    it('still verifies a preferred retailer against its own site', async () => {
+      mockSerperItems = [makeItem('Zachys', ZACHYS_URL, '$249.00')]
+      mockRenderPageHtml.mockResolvedValue(RENDERED_HTML)
+
+      const result = await fetchPriceData(baseWine)
+
+      expect(mockRenderPageHtml).toHaveBeenCalledWith(expect.stringContaining('zachys.com'))
       expect(result!.retailers.find(r => r.slug === 'zachys')?.verification).toBe('verified')
     })
 

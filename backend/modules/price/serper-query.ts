@@ -285,8 +285,21 @@ export async function querySerper(
   // from RETAILER_CONFIG ('benchmark') while the fallback slug is derived
   // from Serper's merchant name ('benchmark-wine-group'), so slug comparison
   // alone would let the same shop through twice under two names.
+  // A fallback entry must never stand for a merchant that is already a
+  // configured retailer. Pass 1 claims only *one* listing per retailer, so a
+  // shop with two listings had its second fall through to here and reappear
+  // under a slugified source name — live-confirmed 2026-08-05, where Grand
+  // Village showed both `zachys` and `zachys-wine-spirits`. The configured
+  // entry is strictly better (real coordinates, an on-site URL that
+  // verify-listing can actually check), so the extra listing is dropped
+  // rather than shown as a second shop.
+  const isConfiguredMerchant = (item: SerperShoppingItem) =>
+    item.source !== undefined &&
+    retailers.some(r => alnumOnly(item.source).includes(alnumOnly(r.matchKeyword)))
+
   const fallback = nonKlItems
     .filter(scored => !claimed.has(scored) && scored.item.link && scored.item.source)
+    .filter(scored => !isConfiguredMerchant(scored.item))
     .map(scored => buildFallbackResult(scored, linkQuery))
 
   // Merged, not short-circuited (Phase 9.1). `if (preferred.length > 0)
