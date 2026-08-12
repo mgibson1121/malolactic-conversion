@@ -51,4 +51,5 @@ export interface ReviewResult {
   page_vintage: number | null
   vintage_gap: number | null
   match: MatchVerdict
+  page_price: number | null
 }

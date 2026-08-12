@@ -23,6 +23,7 @@ function makeReview(overrides: Partial<RetailerReview> = {}): RetailerReview {
       candidateVintage: 2019,
       vintageGap: 0,
     },
+    page_price: null,
     ...overrides,
   }
 }

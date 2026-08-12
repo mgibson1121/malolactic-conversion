@@ -754,6 +754,7 @@ describe('serialization round-trips', () => {
           candidateVintage: 2020,
           vintageGap: 2,
         },
+        page_price: 65,
       },
     ]
 

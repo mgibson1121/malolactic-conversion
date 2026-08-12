@@ -1,4 +1,4 @@
-import { fetchPriceData, aggregatePriceData } from './index'
+import { fetchPriceData, aggregatePriceData, excludeOutliers } from './index'
 import { pageMentionsProducer } from './verify-listing'
 import type { WineEntry } from '@shared/types'
 import type { RetailerResult } from './types'
@@ -128,6 +128,38 @@ describe('fetchPriceData', () => {
 
   it('returns null when wine has no producer or denomination', async () => {
     expect(await fetchPriceData({ ...baseWine, producer: null, denomination: null })).toBeNull()
+  })
+
+  // ─── A failed search must never look like an empty one (2026-08-05) ─────
+  // Found by running the 14-wine batch: a burst of concurrent Serper calls
+  // rate limited, querySerper caught the failure and returned an empty
+  // result, and the route stored that over eight wines' real retailer lists.
+  // The same wines queried one at a time returned five retailers in two
+  // seconds. Returning null routes it to the same "never attempted" path as
+  // a missing API key, so nothing is written.
+  it('returns null — writing nothing — when the Serper request fails', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(new Response('rate limited', { status: 429 }))
+    )
+
+    expect(await fetchPriceData(baseWine)).toBeNull()
+  })
+
+  it('returns null when the Serper request throws outright', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation(() => Promise.reject(new Error('socket hang up')))
+
+    expect(await fetchPriceData(baseWine)).toBeNull()
+  })
+
+  it('still distinguishes a successful empty search from a failed one', async () => {
+    // HTTP 200 with no shopping results is a real finding, and storing it is
+    // correct — that is the honest empty state.
+    mockSerperItems = []
+    const result = await fetchPriceData(baseWine)
+
+    expect(result).not.toBeNull()
+    expect(result!.retailers).toHaveLength(0)
+    expect(result!.fetched_at).toBeTruthy()
   })
 
   it('reports an honest empty state when Serper returns no results', async () => {
@@ -323,7 +355,7 @@ describe('fetchPriceData', () => {
       expect(zachysish[0].is_preferred_retailer).toBe(true)
     })
 
-    it('caps the merged list', async () => {
+    it('tops non-preferred retailers up to the target and no further', async () => {
       mockSerperItems = Array.from({ length: 15 }, (_, i) => ({
         title: 'Domaine Leroy Gevrey-Chambertin 2018',
         source: `Wine Shop ${i}`,
@@ -333,8 +365,47 @@ describe('fetchPriceData', () => {
 
       const result = await fetchPriceData(baseWine)
 
-      // 8 Serper-derived entries, plus K&L's separate always-present link.
-      expect(result!.retailers.filter(r => !r.link_only)).toHaveLength(8)
+      // No preferred retailer matched, so non-preferred fill to the target.
+      expect(result!.retailers.filter(r => !r.link_only)).toHaveLength(5)
+    })
+
+    it('returns every preferred retailer, even beyond the target, and adds no fallback', async () => {
+      // The target governs how far non-preferred results top the list up. It
+      // is not a cap on the shops the developer actually buys from.
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$100.00'),
+        makeItem('Woodland Hills Wine Co.', WOODLAND_URL, '$110.00'),
+        makeItem('Benchmark Wine Group', BENCHMARK_URL, '$120.00'),
+        makeItem('Sokolin', 'https://www.sokolin.com/p', '$130.00'),
+        makeItem('Acker Wines', 'https://www.ackerwines.com/p', '$140.00'),
+        makeItem('Wine Library', 'https://www.winelibrary.com/p', '$150.00'),
+        makeItem('Some Other Store', OTHER_URL, '$160.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const preferred = result!.retailers.filter(r => r.is_preferred_retailer && !r.link_only)
+
+      expect(preferred.length).toBeGreaterThan(5)
+      // Target already met by preferred alone — no fallback was needed.
+      expect(result!.retailers.find(r => r.slug === 'some-other-store')).toBeUndefined()
+    })
+
+    it('tops up with non-preferred when preferred alone fall short', async () => {
+      mockSerperItems = [
+        makeItem('Zachys', ZACHYS_URL, '$100.00'),
+        makeItem('Some Other Store', OTHER_URL, '$160.00'),
+        makeItem('Another Wine Shop', OTHER_URL_2, '$170.00'),
+        makeItem('Third Wine Shop', 'https://third.example.com/p', '$180.00'),
+        makeItem('Fourth Wine Shop', 'https://fourth.example.com/p', '$190.00'),
+        makeItem('Fifth Wine Shop', 'https://fifth.example.com/p', '$195.00'),
+      ]
+
+      const result = await fetchPriceData(baseWine)
+      const serperSourced = result!.retailers.filter(r => !r.link_only)
+
+      expect(serperSourced).toHaveLength(5)
+      // Preferred first.
+      expect(serperSourced[0].slug).toBe('zachys')
     })
   })
 
@@ -873,6 +944,7 @@ describe('fetchPriceData — confirmed product pages from reviews', () => {
     slug: 'woodland',
     name: 'Woodland Hills Wine Co.',
     product_url: 'https://whwc.com/mangot-st-emilion-2022/',
+    price: null,
   }
 
   it('adds a retailer Serper found nothing for, pointing at the confirmed product page', async () => {
@@ -925,7 +997,7 @@ describe('fetchPriceData — confirmed product pages from reviews', () => {
 
     const result = await fetchPriceData(baseWine, {
       confirmedProductPages: [
-        { slug: 'kl', name: 'K&L Wine Merchants', product_url: 'https://shop.klwines.com/products/details/1557135' },
+        { slug: 'kl', name: 'K&L Wine Merchants', product_url: 'https://shop.klwines.com/products/details/1557135', price: null },
       ],
     })
     const klEntries = result!.retailers.filter(r => r.slug === 'kl')
@@ -942,7 +1014,7 @@ describe('fetchPriceData — confirmed product pages from reviews', () => {
 
     const result = await fetchPriceData(baseWine, {
       confirmedProductPages: [
-        { slug: 'fallback-sommpicks-com', name: 'sommpicks.com', product_url: 'https://sommpicks.com/p/1' },
+        { slug: 'fallback-sommpicks-com', name: 'sommpicks.com', product_url: 'https://sommpicks.com/p/1', price: null },
       ],
     })
     const somm = result!.retailers.find(r => r.slug === 'fallback-sommpicks-com')
@@ -978,6 +1050,91 @@ function makeRetailer(overrides: Partial<RetailerResult> = {}): RetailerResult {
     ...overrides,
   }
 }
+
+// ─── Price aggregation hardening (2026-08-05) ──────────────────────────────
+// Reported after manual testing: "the min, avg, max price seems broken."
+// Two causes — implausible listings setting price_max, and a blank card
+// whenever the only prices found were for another vintage.
+describe('excludeOutliers', () => {
+  it('drops a price wildly out of line with the rest', () => {
+    // Real: Dureuil-Janthial came back $145 / $196 / $724 / $2,044.76, all
+    // titled as ordinary 750ml bottles. $2,044 is a case or a data error.
+    const kept = excludeOutliers([145, 196, 180, 210, 2044.76])
+    expect(kept).not.toContain(2044.76)
+    expect(kept).toContain(145)
+    expect(kept).toContain(210)
+  })
+
+  it('leaves a genuinely wide but plausible spread alone', () => {
+    // Burgundy really does span this much; the test must not "tidy" it.
+    // This is the case that forces the fence into log space: an additive
+    // fence loose enough to keep $430 here also keeps a $1,486 Chablis.
+    expect(excludeOutliers([86, 99.89, 135, 144.99, 240, 430])).toHaveLength(6)
+  })
+
+  it('rejects a price an order of magnitude above a tight cluster', () => {
+    // Bessin-Tremblay, live 2026-08-05: $37.99 / $84.99 / $119.95 / $1,486.
+    // The $1,486 survived an additive 3×IQR fence.
+    expect(excludeOutliers([37.99, 84.99, 119.95, 1486])).not.toContain(1486)
+  })
+
+  it('ignores a non-positive price rather than taking its logarithm', () => {
+    expect(excludeOutliers([0, 30, 40, 50])).toEqual([0, 30, 40, 50])
+  })
+
+  it('does nothing with fewer than four prices', () => {
+    // No distribution to reason about — discarding one of three real prices
+    // is a bigger error than keeping one bad one.
+    expect(excludeOutliers([30, 40, 900])).toEqual([30, 40, 900])
+  })
+
+  it('handles an all-identical set without dividing by a zero spread', () => {
+    expect(excludeOutliers([50, 50, 50, 50])).toEqual([50, 50, 50, 50])
+  })
+
+  it('never returns an empty set', () => {
+    expect(excludeOutliers([1, 2, 3, 1000]).length).toBeGreaterThan(0)
+  })
+})
+
+describe('other-vintage price range', () => {
+  it('reports a range when every price found is for a different vintage', () => {
+    // Ardoisières had five real prices and displayed nothing at all.
+    const result = aggregatePriceData([
+      makeRetailer({ slug: 'a', price: 28, vintage_mismatch: true }),
+      makeRetailer({ slug: 'b', price: 40, vintage_mismatch: true }),
+      makeRetailer({ slug: 'c', price: 149.95, vintage_mismatch: true }),
+    ])
+
+    expect(result.price_min).toBeNull()
+    expect(result.other_vintage_price_range).toEqual({ min: 28, max: 149.95 })
+  })
+
+  it('keeps wrong-vintage prices out of the headline figures', () => {
+    const result = aggregatePriceData([
+      makeRetailer({ slug: 'right', price: 60 }),
+      makeRetailer({ slug: 'wrong', price: 500, vintage_mismatch: true }),
+    ])
+
+    expect(result.price_min).toBe(60)
+    expect(result.price_max).toBe(60)
+    expect(result.other_vintage_price_range).toEqual({ min: 500, max: 500 })
+  })
+
+  it('is null when nothing was found for another vintage', () => {
+    const result = aggregatePriceData([makeRetailer({ price: 60 })])
+    expect(result.other_vintage_price_range).toBeNull()
+  })
+
+  it('excludes non-standard formats from the other-vintage range too', () => {
+    // A wrong-vintage magnum tells you even less than a wrong-vintage bottle.
+    const result = aggregatePriceData([
+      makeRetailer({ slug: 'a', price: 40, vintage_mismatch: true }),
+      makeRetailer({ slug: 'b', price: 900, vintage_mismatch: true, non_standard_format: true }),
+    ])
+    expect(result.other_vintage_price_range).toEqual({ min: 40, max: 40 })
+  })
+})
 
 describe('aggregatePriceData', () => {
   it('computes min/avg/max across all priced retailers', () => {

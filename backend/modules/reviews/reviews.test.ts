@@ -466,7 +466,7 @@ describe('extractCandidateText (keyword-window)', () => {
     // one merged window, not two separate "...".join()-ed pieces.
     expect(result).toContain('Wine Advocate 96 points')
     expect(result).toContain('Vinous at 95 points')
-    expect(result.split('\n...\n').length).toBe(1)
+    expect(result!.split('\n...\n').length).toBe(1)
   })
 
   it('falls back to stripped, capped text when no score-citation pattern is found', () => {
@@ -511,14 +511,29 @@ describe('canonicalizePublication', () => {
 })
 
 describe('fetchReviewData', () => {
-  it('returns an empty array when SERPER_API_KEY is not configured', async () => {
+  // Null, not [] (2026-08-05): a missing key means the search could not be
+  // run, which is not the same as running it and finding nothing. The route
+  // writes nothing on null — otherwise a misconfigured environment silently
+  // erases every wine's review_data on the next refresh.
+  it('returns null — not an empty array — when SERPER_API_KEY is not configured', async () => {
     delete process.env.SERPER_API_KEY
-    expect(await fetchReviewData(makeWine())).toEqual([])
+    expect(await fetchReviewData(makeWine())).toBeNull()
   })
 
-  it('returns an empty array when OPENAI_API_KEY is not configured', async () => {
+  it('returns null when OPENAI_API_KEY is not configured', async () => {
     delete process.env.OPENAI_API_KEY
-    expect(await fetchReviewData(makeWine())).toEqual([])
+    expect(await fetchReviewData(makeWine())).toBeNull()
+  })
+
+  it('returns null when every Serper request fails, rather than reporting nothing found', async () => {
+    // The 2026-08-05 data loss: Serper ran out of credits mid-batch and
+    // answered every query with HTTP 400 in milliseconds. Each wine's
+    // review_data was then overwritten with [].
+    jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(new Response('{"message":"Not enough credits"}', { status: 400 }))
+    )
+
+    expect(await fetchReviewData(makeWine())).toBeNull()
   })
 
   it('returns an empty array when producer and denomination are both missing', async () => {
@@ -563,6 +578,7 @@ describe('fetchReviewData', () => {
           candidateVintage: 2019,
           vintageGap: 0,
         },
+        page_price: 1200,
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://shop.klwines.com/products/details/1557135')
@@ -579,7 +595,7 @@ describe('fetchReviewData', () => {
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
-    expect(result[0].slug).toBe('zachys')
+    expect(result![0].slug).toBe('zachys')
   })
 
   it('skips a retailer whose product page render times out', async () => {
@@ -612,7 +628,7 @@ describe('fetchReviewData', () => {
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
-    expect(result[0].critic_scores).toEqual([])
+    expect(result![0].critic_scores).toEqual([])
   })
 })
 
@@ -649,12 +665,12 @@ describe('fetchReviewData — page-stated vintage', () => {
     )
 
     expect(result).toHaveLength(1)
-    expect(result[0].page_vintage).toBe(2020)
-    expect(result[0].vintage_gap).toBe(2)
-    expect(result[0].match.vintage).toBe('mismatch')
+    expect(result![0].page_vintage).toBe(2020)
+    expect(result![0].vintage_gap).toBe(2)
+    expect(result![0].match.vintage).toBe('mismatch')
     // The scores themselves are never dropped — only excluded from
     // wine-level derivation (see derive-wine-level.ts).
-    expect(result[0].critic_scores).toHaveLength(1)
+    expect(result![0].critic_scores).toHaveLength(1)
   })
 
   it('lets the page vintage overturn a wrong year parsed from the search title', async () => {
@@ -675,9 +691,9 @@ describe('fetchReviewData — page-stated vintage', () => {
 
     const result = await fetchReviewData(makeWine())
 
-    expect(result[0].page_vintage).toBe(2019)
-    expect(result[0].vintage_gap).toBe(0)
-    expect(result[0].match.vintage).toBe('match')
+    expect(result![0].page_vintage).toBe(2019)
+    expect(result![0].vintage_gap).toBe(0)
+    expect(result![0].match.vintage).toBe('match')
   })
 
   it('falls back to the search-result verdict when the page states no vintage', async () => {
@@ -691,8 +707,8 @@ describe('fetchReviewData — page-stated vintage', () => {
 
     const result = await fetchReviewData(makeWine())
 
-    expect(result[0].page_vintage).toBe(2019)
-    expect(result[0].match.vintage).toBe('match')
+    expect(result![0].page_vintage).toBe(2019)
+    expect(result![0].match.vintage).toBe('match')
   })
 })
 
@@ -743,7 +759,7 @@ describe('fetchReviewData — open-web fallback pass', () => {
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
-    expect(result[0].source).toBe('configured')
+    expect(result![0].source).toBe('configured')
     // No query without a site: token was ever sent — the fallback never ran.
     expect(queries.some(q => !q.includes('site:'))).toBe(false)
   })
@@ -781,6 +797,7 @@ describe('fetchReviewData — open-web fallback pass', () => {
           candidateVintage: 2019,
           vintageGap: 0,
         },
+        page_price: null,
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.amsterwine.com/p/1')
@@ -807,7 +824,7 @@ describe('fetchReviewData — open-web fallback pass', () => {
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
-    expect(result[0].product_url).toBe('https://www.amsterwine.com/p/1')
+    expect(result![0].product_url).toBe('https://www.amsterwine.com/p/1')
     expect(mockRenderPageHtml).not.toHaveBeenCalledWith(expect.stringContaining('cellartracker'))
     expect(mockRenderPageHtml).not.toHaveBeenCalledWith(expect.stringContaining('wineberserkers'))
   })
@@ -972,8 +989,8 @@ describe('fetchReviewData — retailers discovered by the price module', () => {
     })
 
     expect(result).toHaveLength(1)
-    expect(result[0].product_url).toBe('https://www.centralwinemerchants.com/p/1')
-    expect(result[0].source).toBe('fallback')
+    expect(result![0].product_url).toBe('https://www.centralwinemerchants.com/p/1')
+    expect(result![0].source).toBe('fallback')
     expect(queries.some(q => q.includes('"Central Wine Merchants"'))).toBe(true)
   })
 
@@ -1045,17 +1062,17 @@ describe('extractCandidateText — regression fixtures', () => {
   it('K&L: a bot-detection stub page yields no meaningful content (known-bad case)', () => {
     const html = readFixture('kl-product-page-bot-block.html')
     const result = extractCandidateText(html)
-    expect(result.toLowerCase()).not.toContain('advocate')
-    expect(result.toLowerCase()).not.toContain('vinous')
+    expect(result!.toLowerCase()).not.toContain('advocate')
+    expect(result!.toLowerCase()).not.toContain('vinous')
   })
 
   it('Zachys: a real 879K-char product page — the review section (offset 384,907, far past the old 80K cutoff) is captured', () => {
     const html = readFixture('zachys-clos-des-papes-2020.html')
     const result = extractCandidateText(html)
-    expect(result.toLowerCase()).toContain('advocate')
+    expect(result!.toLowerCase()).toContain('advocate')
     expect(result).toContain('96+ Points')
     // The whole point of windowing: send far less than the full page.
-    expect(result.length).toBeLessThan(html.length / 10)
+    expect(result!.length).toBeLessThan(html.length / 10)
   })
 
   it('Benchmark: a real 189K-char product page — badge-form scores (title attribute + bare number) are captured', () => {

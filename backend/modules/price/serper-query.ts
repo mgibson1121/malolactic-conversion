@@ -12,6 +12,7 @@ import {
   type WineIdentity,
 } from '@shared/utils/wine-match'
 import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
+import { fetchWithRetry } from '@shared/utils/concurrency'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — the implementation now lives in
@@ -21,11 +22,21 @@ export { isRelevantMatch }
 
 const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
 
-/** Total retailers returned once the preferred and fallback passes are
- * merged (Phase 9.1). Was an implicit 5 on the fallback pass alone; raised
- * because the merged list now has to hold the configured retailers too, and
- * each surviving entry costs one Puppeteer render in verify-listing. */
-const MERGED_RESULT_CAP = 8
+/**
+ * How many retailers a wine should end up with (2026-08-05).
+ *
+ * The rule is "preferred first, then top up", not "cap the total":
+ *
+ * - Every matching *preferred* retailer is returned, however many. These are
+ *   the shops the developer actually buys from, they carry real coordinates,
+ *   and their URL is their own site rather than a search engine.
+ * - Non-preferred retailers are added only to bring the total up to this
+ *   number. If eight preferred retailers match, all eight are returned and no
+ *   fallback is added at all.
+ * - Fewer than this is a perfectly good result. It means that is all there
+ *   was — never a reason to withhold what was found.
+ */
+const TARGET_RETAILER_COUNT = 5
 
 interface SerperShoppingItem {
   title: string
@@ -160,12 +171,26 @@ export interface QuerySerperResult {
    * stay quiet when there isn't.
    */
   klItemSeen: boolean
+  /**
+   * The Serper request itself failed — rate limited, errored, or timed out
+   * (2026-08-05).
+   *
+   * Distinct from "searched and found nothing", and the distinction is
+   * load-bearing: collapsing the two is how a transient 429 came to
+   * *overwrite good stored data with an empty result*. On the 2026-08-05
+   * batch re-run, eight of fourteen wines were written back with zero
+   * retailers, while the same wine queried alone returned five in two
+   * seconds. A caller must not persist anything when this is true.
+   */
+  requestFailed: boolean
 }
 
-/** No Serper data at all — request failed, or nothing came back. Distinct
- * from "searched and matched nothing", which returns an empty retailer list
- * with klItemSeen still false. */
-const EMPTY_RESULT: QuerySerperResult = { retailers: [], klItemSeen: false }
+/** Searched successfully and matched nothing. Safe to store — it is a real
+ * finding. */
+const EMPTY_RESULT: QuerySerperResult = { retailers: [], klItemSeen: false, requestFailed: false }
+
+/** Could not search. Never store this over existing data. */
+const FAILED_RESULT: QuerySerperResult = { retailers: [], klItemSeen: false, requestFailed: true }
 
 /**
  * @param searchQuery  Sent to Serper's Shopping endpoint. Includes the
@@ -191,7 +216,7 @@ export async function querySerper(
 ): Promise<QuerySerperResult> {
   let items: SerperShoppingItem[] = []
   try {
-    const res = await fetch(SERPER_ENDPOINT, {
+    const res = await fetchWithRetry(SERPER_ENDPOINT, {
       method: 'POST',
       headers: {
         'X-API-KEY': apiKey,
@@ -200,11 +225,11 @@ export async function querySerper(
       body: JSON.stringify({ q: `${searchQuery} wine`, gl: 'us' }),
       signal: AbortSignal.timeout(15_000),
     })
-    if (!res.ok) return EMPTY_RESULT
+    if (!res.ok) return FAILED_RESULT
     const json = await res.json() as SerperResponse
     items = json.shopping ?? []
   } catch {
-    return EMPTY_RESULT
+    return FAILED_RESULT
   }
 
   if (items.length === 0) return EMPTY_RESULT
@@ -310,13 +335,23 @@ export async function querySerper(
   // would have found the other shops never ran. Three reported symptoms,
   // one line.
   //
-  // Preferred first: they carry real coordinates, a constructed on-site URL,
-  // and a price that verify-listing can actually check. The slug dedupe
-  // below is the second line of defence, for two Serper listings from the
-  // same non-configured merchant.
+  // Preferred first, and *all* of them: they carry real coordinates, their
+  // own site's URL rather than a search engine's, and a price
+  // verify-listing can actually check. Non-preferred retailers only top the
+  // list up to TARGET_RETAILER_COUNT — so eight preferred matches return
+  // eight and add no fallback, while two preferred matches are topped up
+  // with three fallbacks. Fewer than the target is a fine result; it means
+  // that was all there was.
+  //
+  // The slug dedupe is the second line of defence, for two Serper listings
+  // from the same non-configured merchant.
   const bySlug = new Map<string, RetailerResult>()
-  for (const r of [...preferred, ...fallback]) {
+  for (const r of preferred) {
     if (!bySlug.has(r.slug)) bySlug.set(r.slug, r)
   }
-  return { retailers: [...bySlug.values()].slice(0, MERGED_RESULT_CAP), klItemSeen }
+  for (const r of fallback) {
+    if (bySlug.size >= Math.max(TARGET_RETAILER_COUNT, preferred.length)) break
+    if (!bySlug.has(r.slug)) bySlug.set(r.slug, r)
+  }
+  return { retailers: [...bySlug.values()], klItemSeen, requestFailed: false }
 }

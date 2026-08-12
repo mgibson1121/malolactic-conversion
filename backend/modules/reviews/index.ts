@@ -8,6 +8,7 @@ import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
 import type { ReviewResult } from './types'
+import { mapWithConcurrency } from '@shared/utils/concurrency'
 
 /** Derives a display name/slug for an open-web fallback result, which isn't
  * backed by a RETAILER_CONFIG entry. Prefixed 'fallback-' so it can never
@@ -102,6 +103,7 @@ async function fetchFallbackReview(
     fetched_at: new Date().toISOString(),
     source: 'fallback',
     ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+    page_price: extraction.price,
   }
 }
 
@@ -128,8 +130,10 @@ async function fetchDiscoveredMerchantReviews(
     .filter(m => !configuredSlugs.has(m.slug))
     .slice(0, MERCHANT_PROBE_LIMIT)
 
-  const results = await Promise.all(
-    candidates.map(async (merchant): Promise<ReviewResult | null> => {
+  const results = await mapWithConcurrency(
+    candidates,
+    SERPER_CONCURRENCY,
+    async (merchant): Promise<ReviewResult | null> => {
       const outcome = await findMerchantProductPage(identity, merchant.name, serperKey, { attemptedDomains })
       if (!outcome.url || !outcome.match) return null
 
@@ -147,8 +151,9 @@ async function fetchDiscoveredMerchantReviews(
         // a vetted domain — 'fallback', same as the open-web pass.
         source: 'fallback',
         ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+        page_price: extraction.price,
       }
-    })
+    }
   )
 
   return results.filter((r): r is ReviewResult => r !== null)
@@ -202,13 +207,23 @@ export interface ReviewFetchOptions {
  * up to eight retailers. */
 const MERCHANT_PROBE_LIMIT = 3
 
+/** Outbound Serper requests in flight at once, per wine. Chosen low
+ * deliberately: the cost of being slow is seconds, the cost of being rate
+ * limited is a wine silently losing its data (see mapWithConcurrency). */
+const SERPER_CONCURRENCY = 3
+
 export async function fetchReviewData(
   wine: WineEntry,
   opts: ReviewFetchOptions = {}
-): Promise<ReviewResult[]> {
+): Promise<ReviewResult[] | null> {
   const serperKey = process.env.SERPER_API_KEY
   const openaiKey = process.env.OPENAI_API_KEY
-  if (!serperKey || !openaiKey) return []
+  // Null means "could not search" — the caller must write nothing. An empty
+  // array means "searched, found nothing", which is a real finding and safe
+  // to store. Collapsing the two is how a transient Serper failure came to
+  // erase good review_data on the 2026-08-05 batch run: every call returned
+  // HTTP 200 with an empty array in under a second, and the route stored it.
+  if (!serperKey || !openaiKey) return null
   if (!wine.producer && !wine.denomination) return []
 
   const identity: WineIdentity = {
@@ -220,9 +235,20 @@ export async function fetchReviewData(
   }
   const openai = new OpenAI({ apiKey: openaiKey })
 
-  const configuredResults = await Promise.all(
-    RETAILER_CONFIG.map(async (retailer): Promise<ReviewResult | null> => {
+  // Counted so a run that found nothing *because it could not search* can be
+  // told apart from one that searched and genuinely found nothing.
+  let requestFailures = 0
+
+  // Bounded, not Promise.all (2026-08-05). Twelve retailers × up to four
+  // Serper queries each is a burst large enough to get rate limited, and a
+  // rate-limited query is indistinguishable from "this shop doesn't carry
+  // it" — so the failure mode is silent data loss, not a visible error.
+  const configuredResults = await mapWithConcurrency(
+    RETAILER_CONFIG,
+    SERPER_CONCURRENCY,
+    async (retailer): Promise<ReviewResult | null> => {
       const outcome = await findProductPageDetailed(identity, retailer, serperKey)
+      if (outcome.stage === 'request_failed') requestFailures += 1
       if (!outcome.url || !outcome.match) return null
 
       const extraction = await renderAndExtract(openai, outcome.url)
@@ -236,8 +262,9 @@ export async function fetchReviewData(
         fetched_at: new Date().toISOString(),
         source: 'configured',
         ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+        page_price: extraction.price,
       }
-    })
+    }
   )
 
   const results = configuredResults.filter((r): r is ReviewResult => r !== null)
@@ -271,6 +298,10 @@ export async function fetchReviewData(
     const fallback = await fetchFallbackReview(identity, openai, serperKey, attemptedPlusDiscovered)
     if (fallback) results.push(fallback)
   }
+
+  // Nothing found, and at least one search never actually ran. Refuse to
+  // report that as "found nothing" — see the null contract above.
+  if (results.length === 0 && requestFailures > 0) return null
 
   return results
 }

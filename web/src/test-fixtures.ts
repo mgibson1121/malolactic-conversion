@@ -12,9 +12,10 @@ import type { RetailerReview } from '@shared/types'
  * or uncertain page should override the fields they exercise rather than
  * reach for a second constant.
  */
-export const MATCHED_IDENTITY: Pick<RetailerReview, 'page_vintage' | 'vintage_gap' | 'match'> = {
+export const MATCHED_IDENTITY: Pick<RetailerReview, 'page_vintage' | 'vintage_gap' | 'match' | 'page_price'> = {
   page_vintage: 2019,
   vintage_gap: 0,
+  page_price: null,
   match: {
     producer: 'match',
     denomination: 'match',
