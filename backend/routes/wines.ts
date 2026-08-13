@@ -16,6 +16,7 @@ import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
+import { accountSerperUsage } from '@shared/utils/serper-client'
 
 const router = Router()
 
@@ -142,31 +143,42 @@ router.post(
       return
     }
 
-    // Cross-feed (Phase 9.1): a product page modules/reviews/ already
-    // rendered and matched is the strongest possible evidence a shop carries
-    // this wine, and price/ was throwing it away — reviews found a live
-    // Woodland Hills product page for Mangot 2022 with 7 critic scores in the
-    // same run price/ returned zero retailers for it. The two modules must
-    // not import each other (CLAUDE.md §5), so the router is where they meet.
-    const result = await fetchPriceData(wine, {
-      confirmedProductPages: (wine.review_data ?? []).map((r) => ({
-        slug: r.slug,
-        name: r.name,
-        product_url: r.product_url,
-        // The shop's own price, off the shop's own page — see
-        // ConfirmedProductPage. Null when the extraction read none.
-        price: r.page_price ?? null,
-      })),
-    })
-    if (!result) {
+    // Every outbound Serper call below is attributed to this wine and this
+    // action (Phase 9.2) — see shared/utils/serper-client.ts.
+    const retailers = await accountSerperUsage(
+      { wine_id: req.params.id, action: 'fetch-price' },
+      async () => {
+        // Cross-feed (Phase 9.1): a product page modules/reviews/ already
+        // rendered and matched is the strongest possible evidence a shop
+        // carries this wine, and price/ was throwing it away — reviews found a
+        // live Woodland Hills product page for Mangot 2022 with 7 critic
+        // scores in the same run price/ returned zero retailers for it. The
+        // two modules must not import each other (CLAUDE.md §5), so the router
+        // is where they meet.
+        const result = await fetchPriceData(wine, {
+          confirmedProductPages: (wine.review_data ?? []).map((r) => ({
+            slug: r.slug,
+            name: r.name,
+            product_url: r.product_url,
+            // The shop's own price, off the shop's own page — see
+            // ConfirmedProductPage. Null when the extraction read none.
+            price: r.page_price ?? null,
+          })),
+        })
+        if (!result) return null
+
+        // Point non-preferred retailers at their real product page rather than
+        // a Google search.
+        return resolveFallbackProductUrls(wine, result.retailers)
+      }
+    )
+    if (!retailers) {
       res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found' })
       return
     }
 
-    // Point non-preferred retailers at their real product page rather than a
-    // Google search, then re-aggregate so nearest_retailer references the
+    // Re-aggregated after resolution so nearest_retailer references the
     // updated entries rather than the pre-resolution copies.
-    const retailers = await resolveFallbackProductUrls(wine, result.retailers)
     const priceData = aggregatePriceData(retailers)
 
     const updates: UpdateWineInput = {
@@ -203,12 +215,16 @@ router.post(
     // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants for
     // Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
     // looked. Consumed only when no configured retailer yields a score.
-    const review_data = await fetchReviewData(wine, {
-      discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
-        slug: r.slug,
-        name: r.name,
-      })),
-    })
+    const review_data = await accountSerperUsage(
+      { wine_id: req.params.id, action: 'fetch-reviews' },
+      () =>
+        fetchReviewData(wine, {
+          discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
+            slug: r.slug,
+            name: r.name,
+          })),
+        })
+    )
     // Null means the search could not be run (no key, or every Serper
     // request failed) — as distinct from running and finding nothing. Write
     // nothing rather than erasing whatever this wine already had; a
