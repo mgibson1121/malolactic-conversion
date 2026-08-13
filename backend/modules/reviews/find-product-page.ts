@@ -308,8 +308,24 @@ export interface OpenQueryOptions {
  * bot-detection challenge at the product-page render, documented since
  * Phase 7 and explicitly not pursued via evasion (CLAUDE.md §15). This is a
  * cost guard, not an access decision — the denylist above is where access
- * decisions live. */
-const UNRENDERABLE_DOMAINS = ['klwines.com']
+ * decisions live. It is also not a `reviewTier` judgement: that says a shop
+ * rarely pays off, this says its pages cannot be read at all. Three separate
+ * mechanisms, deliberately never collapsed (CLAUDE.md §15). */
+export const UNRENDERABLE_DOMAINS = ['klwines.com']
+
+/**
+ * Whether a domain's pages can never be rendered by this pipeline (Phase 9.2).
+ *
+ * Exported alongside the list because the check is a suffix match, not
+ * equality — `shop.klwines.com` is as unreadable as `klwines.com` — and a
+ * caller reimplementing that would eventually get it wrong. It stays in this
+ * module because renderability is a property of the render step, which this
+ * module owns.
+ */
+export function isUnrenderableDomain(domain: string): boolean {
+  const host = domain.toLowerCase().replace(/^www\./, '')
+  return UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))
+}
 
 /**
  * Searches the open web for a *named merchant's* page for this wine
@@ -378,7 +394,7 @@ async function runOpenQuery(
         // Already exhausted this run, or known not to render — either way,
         // spending a render + GPT-4o call here buys a guaranteed empty.
         if (attempted.some(d => host === d || host.endsWith(`.${d}`))) return false
-        if (UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))) return false
+        if (isUnrenderableDomain(host)) return false
         return true
       } catch {
         return false // an unparseable link can't be rendered anyway

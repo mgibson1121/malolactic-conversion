@@ -1,7 +1,12 @@
 import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPageDetailed, findFallbackProductPage, findMerchantProductPage } from './find-product-page'
+import {
+  findProductPageDetailed,
+  findFallbackProductPage,
+  findMerchantProductPage,
+  isUnrenderableDomain,
+} from './find-product-page'
 import type { WineIdentity } from './find-product-page'
 import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
@@ -9,6 +14,7 @@ import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
 import type { ReviewResult } from './types'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
+import { recordAvoidedCalls } from '@shared/utils/serper-client'
 
 /** Derives a display name/slug for an open-web fallback result, which isn't
  * backed by a RETAILER_CONFIG entry. Prefixed 'fallback-' so it can never
@@ -212,6 +218,18 @@ const MERCHANT_PROBE_LIMIT = 3
  * limited is a wine silently losing its data (see mapWithConcurrency). */
 const SERPER_CONCURRENCY = 3
 
+/**
+ * What a skipped retailer is assumed to have cost, for the avoided-call
+ * figure only (Phase 9.2).
+ *
+ * buildQueryVariants issues between one and four queries depending on the
+ * wine's fields and on how many come back empty, so the true figure is only
+ * knowable by spending it. Three is the typical middle of that range. This
+ * feeds `avoided` in the usage report and never `attempts` — it is an
+ * estimate of money not spent, and is labelled as one.
+ */
+const ESTIMATED_VARIANTS_PER_RETAILER = 3
+
 export async function fetchReviewData(
   wine: WineEntry,
   opts: ReviewFetchOptions = {}
@@ -239,12 +257,24 @@ export async function fetchReviewData(
   // told apart from one that searched and genuinely found nothing.
   let requestFailures = 0
 
+  // Retailers whose product pages this pipeline can never read (Phase 9.2).
+  // UNRENDERABLE_DOMAINS already existed but was consulted only in the
+  // fallback passes, so the configured loop still spent a full variant
+  // ladder on K&L for every wine before a render that has been known to be
+  // bot-blocked since Phase 7 — a guaranteed-empty result, paid for since the
+  // feature shipped. They stay in RETAILER_CONFIG and in attemptedDomains
+  // below: the fallback passes must still know K&L was never worth trying.
+  const searchable = RETAILER_CONFIG.filter(r => !isUnrenderableDomain(r.domain))
+  for (const skipped of RETAILER_CONFIG.filter(r => isUnrenderableDomain(r.domain))) {
+    recordAvoidedCalls(`reviews:skipped:unrenderable:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+  }
+
   // Bounded, not Promise.all (2026-08-05). Twelve retailers × up to four
   // Serper queries each is a burst large enough to get rate limited, and a
   // rate-limited query is indistinguishable from "this shop doesn't carry
   // it" — so the failure mode is silent data loss, not a visible error.
   const configuredResults = await mapWithConcurrency(
-    RETAILER_CONFIG,
+    searchable,
     SERPER_CONCURRENCY,
     async (retailer): Promise<ReviewResult | null> => {
       const outcome = await findProductPageDetailed(identity, retailer, serperKey)
