@@ -142,6 +142,7 @@ describe('findProductPageDetailed — graded candidate selection', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }
@@ -253,6 +254,7 @@ describe('findProductPage — relaxed-query retry', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }
@@ -363,6 +365,7 @@ describe('findProductPage — relaxed-query retry', () => {
       name: 'Morrell & Company',
       domain: 'morrellwine.com',
       matchKeyword: 'morrell',
+    reviewTier: 'primary',
       lat: 40.7587,
       lng: -73.9787,
     }
@@ -669,6 +672,104 @@ describe('fetchReviewData — domains that cannot be rendered', () => {
   })
 })
 
+// ─── Primary / extended tiers (Phase 9.2, WI-3) ────────────────────────────
+// RETAILER_CONFIG grew 4 → 11 → 12 without the per-wine query cost being
+// revisited, and every entry was searched for every wine. Coverage is not
+// shrinking; what changes is *when* a retailer is searched. An extended
+// retailer is fully trusted, just not paid for up front.
+describe('fetchReviewData — primary and extended review tiers', () => {
+  function recordQueries(byDomain: Record<string, Array<{ title: string; link: string }>>): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const q = (JSON.parse(String(init?.body)) as { q: string }).q
+      queries.push(q)
+      const domain = Object.keys(byDomain).find(d => q.includes(`site:${d}`))
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: domain ? byDomain[domain] : [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    })
+    return queries
+  }
+
+  const primarySlugs = RETAILER_CONFIG.filter(r => r.reviewTier === 'primary').map(r => r.slug)
+  const extendedSlugs = RETAILER_CONFIG.filter(r => r.reviewTier === 'extended').map(r => r.slug)
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('never pays for an extended retailer once the primary tier has produced a score', async () => {
+    const queries = recordQueries({
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
+      ],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 1200,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(false)
+    for (const slug of extendedSlugs) {
+      const domain = RETAILER_CONFIG.find(r => r.slug === slug)!.domain
+      expect(queries.some(q => q.includes(`site:${domain}`))).toBe(false)
+    }
+  })
+
+  // The escalation gate is the same predicate the discovered-merchant and
+  // open-web passes already used — a page that rendered but cited no score
+  // counts as nothing found.
+  it('escalates to the extended tier when the primary tier renders pages but finds no score', async () => {
+    const queries = recordQueries({
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
+      ],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 1200,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [],
+    })
+
+    await fetchReviewData(makeWine())
+
+    expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(true)
+  })
+
+  it('searches every configured retailer except the unrenderable ones when the primary tier finds nothing', async () => {
+    const queries = recordQueries({})
+
+    await fetchReviewData(makeWine())
+
+    for (const retailer of RETAILER_CONFIG) {
+      const searched = queries.some(q => q.includes(`site:${retailer.domain}`))
+      expect({ slug: retailer.slug, searched }).toEqual({
+        slug: retailer.slug,
+        searched: !isUnrenderableDomain(retailer.domain),
+      })
+    }
+  })
+
+  // Guards the seeding itself: a tier that emptied out would silently turn
+  // this into either "search everything twice" or "search nothing".
+  it('has retailers in both tiers', () => {
+    expect(primarySlugs.length).toBeGreaterThan(0)
+    expect(extendedSlugs.length).toBeGreaterThan(0)
+    expect([...primarySlugs, ...extendedSlugs].sort()).toEqual(RETAILER_CONFIG.map(r => r.slug).sort())
+  })
+})
+
 // ─── Page-stated vintage (Phase 9.1, WI-2) ─────────────────────────────────
 // gpt-extract.ts has always returned { price, url, vintage, critic_scores }
 // and fetchReviewData read only critic_scores, dropping the rest. The
@@ -880,6 +981,7 @@ describe('product page candidate hygiene', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }

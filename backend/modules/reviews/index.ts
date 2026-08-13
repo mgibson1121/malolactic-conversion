@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import type { WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from '@shared/config/retailers.config'
+import { RETAILER_CONFIG, type RetailerConfig } from '@shared/config/retailers.config'
 import {
   findProductPageDetailed,
   findFallbackProductPage,
@@ -230,6 +230,8 @@ const SERPER_CONCURRENCY = 3
  */
 const ESTIMATED_VARIANTS_PER_RETAILER = 3
 
+type ReviewTier = RetailerConfig['reviewTier']
+
 export async function fetchReviewData(
   wine: WineEntry,
   opts: ReviewFetchOptions = {}
@@ -269,35 +271,80 @@ export async function fetchReviewData(
     recordAvoidedCalls(`reviews:skipped:unrenderable:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
   }
 
+  /**
+   * One retailer, searched and extracted. Extracted as a named function
+   * (Phase 9.2) because the primary and extended passes below both call it,
+   * and this file has a documented history of the same logic drifting between
+   * copies (see @shared/utils/wine-match.ts's header).
+   */
+  // Re-bound with an explicit type: the two passes below are hoisted function
+  // declarations, which do not inherit the `if (!serperKey) return null`
+  // narrowing above.
+  const apiKey: string = serperKey
+
+  async function sourceFromRetailer(
+    retailer: RetailerConfig,
+    tier: ReviewTier
+  ): Promise<ReviewResult | null> {
+    const outcome = await findProductPageDetailed(
+      identity,
+      retailer,
+      apiKey,
+      `reviews:${tier}:${retailer.slug}`
+    )
+    if (outcome.stage === 'request_failed') requestFailures += 1
+    if (!outcome.url || !outcome.match) return null
+
+    const extraction = await renderAndExtract(openai, outcome.url)
+    if (!extraction) return null
+
+    return {
+      slug: retailer.slug,
+      name: retailer.name,
+      product_url: outcome.url,
+      critic_scores: extraction.critic_scores,
+      fetched_at: new Date().toISOString(),
+      source: 'configured',
+      ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+      page_price: extraction.price,
+    }
+  }
+
   // Bounded, not Promise.all (2026-08-05). Twelve retailers × up to four
   // Serper queries each is a burst large enough to get rate limited, and a
   // rate-limited query is indistinguishable from "this shop doesn't carry
   // it" — so the failure mode is silent data loss, not a visible error.
-  const configuredResults = await mapWithConcurrency(
-    searchable,
-    SERPER_CONCURRENCY,
-    async (retailer): Promise<ReviewResult | null> => {
-      const outcome = await findProductPageDetailed(identity, retailer, serperKey)
-      if (outcome.stage === 'request_failed') requestFailures += 1
-      if (!outcome.url || !outcome.match) return null
+  async function runPass(retailers: RetailerConfig[], tier: ReviewTier): Promise<ReviewResult[]> {
+    const passResults = await mapWithConcurrency(retailers, SERPER_CONCURRENCY, r =>
+      sourceFromRetailer(r, tier)
+    )
+    return passResults.filter((r): r is ReviewResult => r !== null)
+  }
 
-      const extraction = await renderAndExtract(openai, outcome.url)
-      if (!extraction) return null
-
-      return {
-        slug: retailer.slug,
-        name: retailer.name,
-        product_url: outcome.url,
-        critic_scores: extraction.critic_scores,
-        fetched_at: new Date().toISOString(),
-        source: 'configured',
-        ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
-        page_price: extraction.price,
-      }
-    }
+  const results = await runPass(
+    searchable.filter(r => r.reviewTier === 'primary'),
+    'primary'
   )
 
-  const results = configuredResults.filter((r): r is ReviewResult => r !== null)
+  /**
+   * "This run has found nothing worth having" — one definition, shared by
+   * every escalation below (Phase 9.2, CLAUDE.md §15 "prefer escalation over
+   * breadth"). A retailer whose page rendered fine but cited no score counts
+   * as nothing: a page without a critic score is not what any of these passes
+   * are being paid to find.
+   */
+  const foundNoScore = () => !results.some(r => r.critic_scores.length > 0)
+
+  // Extended tier — fully trusted retailers, just not paid for up front. Only
+  // reached when the primary pass came back without a single critic score.
+  const extended = searchable.filter(r => r.reviewTier === 'extended')
+  if (foundNoScore()) {
+    results.push(...(await runPass(extended, 'extended')))
+  } else {
+    for (const skipped of extended) {
+      recordAvoidedCalls(`reviews:skipped:extended:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+    }
+  }
 
   // Every configured retailer domain, attempted or not — the open passes
   // below must not spend a render on one this run has already exhausted.
@@ -309,7 +356,7 @@ export async function fetchReviewData(
   // Nothing from any configured retailer. Try the shops modules/price/ found
   // for this wine first — a merchant its Shopping search actually surfaced is
   // better aimed than a blind open-web query — then fall back to that query.
-  if (!results.some(r => r.critic_scores.length > 0)) {
+  if (foundNoScore()) {
     const discovered = await fetchDiscoveredMerchantReviews(
       identity,
       opts.discoveredRetailers ?? [],
@@ -320,7 +367,7 @@ export async function fetchReviewData(
     results.push(...discovered)
   }
 
-  if (!results.some(r => r.critic_scores.length > 0)) {
+  if (foundNoScore()) {
     const attemptedPlusDiscovered = [
       ...attemptedDomains,
       ...results.map(r => hostnameOf(r.product_url)).filter((h): h is string => h !== null),
