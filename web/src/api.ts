@@ -86,9 +86,35 @@ export async function listTastingNotesByWine(wineId: string): Promise<TastingNot
   return handleResponse(await fetch(`${BASE}/tasting-notes/wine/${wineId}`))
 }
 
-export async function fetchWinePrice(wineId: string): Promise<WineEntry> {
+/**
+ * A wine returned by one of the two enrichment routes (Phase 9.2, WI-4).
+ *
+ * `cached` is set when the server declined to re-fetch because what it already
+ * had was inside its TTL — the wine itself comes back unchanged, so a caller
+ * that just wanted the data needs no special case. `fetched_at` is when that
+ * stored data was actually sourced.
+ */
+export interface EnrichmentResponse extends WineEntry {
+  cached?: boolean
+  fetched_at?: string
+}
+
+export interface EnrichmentOptions {
+  /** Skip the server's freshness guard and spend the credits. */
+  force?: boolean
+}
+
+function enrichmentUrl(wineId: string, action: string, opts?: EnrichmentOptions): string {
+  const base = `${BASE}/wines/${wineId}/${action}`
+  return opts?.force ? `${base}?force=true` : base
+}
+
+export async function fetchWinePrice(
+  wineId: string,
+  opts?: EnrichmentOptions
+): Promise<EnrichmentResponse> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${wineId}/fetch-price`, { method: 'POST' })
+    await fetch(enrichmentUrl(wineId, 'fetch-price', opts), { method: 'POST' })
   )
 }
 
@@ -96,9 +122,12 @@ export async function fetchRetailerLinks(wineId: string): Promise<RetailerLink[]
   return handleResponse(await fetch(`${BASE}/wines/${wineId}/retailer-links`))
 }
 
-export async function fetchWineReviews(wineId: string): Promise<WineEntry> {
+export async function fetchWineReviews(
+  wineId: string,
+  opts?: EnrichmentOptions
+): Promise<EnrichmentResponse> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${wineId}/fetch-reviews`, { method: 'POST' })
+    await fetch(enrichmentUrl(wineId, 'fetch-reviews', opts), { method: 'POST' })
   )
 }
 

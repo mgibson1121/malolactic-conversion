@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
 import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
-import type { RetailerPrice, RetailerReview, UpdateWineInput, WineFilter } from '@shared/types'
+import type { RetailerPrice, RetailerReview, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
 import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
@@ -17,6 +17,13 @@ import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
 import { accountSerperUsage } from '@shared/utils/serper-client'
+import {
+  coalesce,
+  isWithinTtl,
+  newestTimestamp,
+  PRICE_TTL_DAYS,
+  REVIEWS_TTL_DAYS,
+} from './enrichment-cache'
 
 const router = Router()
 
@@ -133,7 +140,34 @@ router.patch(
   })
 )
 
+/**
+ * What one coalesced enrichment run produced (Phase 9.2, WI-4).
+ *
+ * A union rather than a thrown error because the failure is shared: two
+ * requests that coalesced onto one run both receive this, and both must be
+ * able to send the same status the single run would have sent.
+ */
+type EnrichmentOutcome =
+  | { ok: true; wine: WineEntry }
+  | { ok: false; status: number; error: string }
+
+/** `?force=true` bypasses the freshness guard (Phase 9.2, WI-4). Anything else
+ * — absent, empty, 'false' — leaves it in place, so a mistyped query string
+ * costs nothing. */
+function isForced(req: Request): boolean {
+  return req.query.force === 'true'
+}
+
+/** The response body for a run the freshness guard declined to make. The wine
+ * is returned unchanged, so a caller that only wanted to see its data gets it
+ * without a special case. */
+function cachedResponse(wine: WineEntry, fetched_at: string) {
+  return { ...wine, cached: true, fetched_at }
+}
+
 // POST /api/wines/:id/fetch-price — trigger retailer crawl and store price + critic score data
+// Without ?force=true, stored price data newer than PRICE_TTL_DAYS is returned
+// as-is and no outbound call is made (Phase 9.2, WI-4).
 router.post(
   '/:id/fetch-price',
   wrap(async (req, res) => {
@@ -143,11 +177,20 @@ router.post(
       return
     }
 
-    // Every outbound Serper call below is attributed to this wine and this
-    // action (Phase 9.2) — see shared/utils/serper-client.ts.
-    const retailers = await accountSerperUsage(
-      { wine_id: req.params.id, action: 'fetch-price' },
-      async () => {
+    const storedAt = wine.price_data?.fetched_at ?? null
+    if (!isForced(req) && isWithinTtl(storedAt, PRICE_TTL_DAYS)) {
+      res.json(cachedResponse(wine, storedAt!))
+      return
+    }
+
+    // Coalesced, so a double-click joins the run already under way rather than
+    // starting a second full-price one — see enrichment-cache.ts. The write is
+    // inside the coalesced region too: two runs racing to persist the same
+    // wine is the other half of what a double-click costs.
+    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-price`, () =>
+      // Every outbound Serper call below is attributed to this wine and this
+      // action (Phase 9.2) — see shared/utils/serper-client.ts.
+      accountSerperUsage({ wine_id: req.params.id, action: 'fetch-price' }, async () => {
         // Cross-feed (Phase 9.1): a product page modules/reviews/ already
         // rendered and matched is the strongest possible evidence a shop
         // carries this wine, and price/ was throwing it away — reviews found a
@@ -165,36 +208,40 @@ router.post(
             price: r.page_price ?? null,
           })),
         })
-        if (!result) return null
+        if (!result) {
+          return {
+            ok: false,
+            status: 503,
+            error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found',
+          }
+        }
 
         // Point non-preferred retailers at their real product page rather than
-        // a Google search.
-        return resolveFallbackProductUrls(wine, result.retailers)
-      }
+        // a Google search, then re-aggregate so nearest_retailer references the
+        // updated entries rather than the pre-resolution copies.
+        const retailers = await resolveFallbackProductUrls(wine, result.retailers)
+        const priceData = aggregatePriceData(retailers)
+
+        const updates: UpdateWineInput = {
+          price_data: {
+            price_min: priceData.price_min,
+            price_avg: priceData.price_avg,
+            price_max: priceData.price_max,
+            other_vintage_price_range: priceData.other_vintage_price_range,
+            retailers: priceData.retailers,
+            nearest_retailer: priceData.nearest_retailer,
+            fetched_at: priceData.fetched_at,
+          },
+        }
+        return { ok: true, wine: await getStorage().updateWine(req.params.id, updates) }
+      })
     )
-    if (!retailers) {
-      res.status(503).json({ error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found' })
+
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error })
       return
     }
-
-    // Re-aggregated after resolution so nearest_retailer references the
-    // updated entries rather than the pre-resolution copies.
-    const priceData = aggregatePriceData(retailers)
-
-    const updates: UpdateWineInput = {
-      price_data: {
-        price_min: priceData.price_min,
-        price_avg: priceData.price_avg,
-        price_max: priceData.price_max,
-        other_vintage_price_range: priceData.other_vintage_price_range,
-        retailers: priceData.retailers,
-        nearest_retailer: priceData.nearest_retailer,
-        fetched_at: priceData.fetched_at,
-      },
-    }
-
-    const updated = await getStorage().updateWine(req.params.id, updates)
-    res.json(updated)
+    res.json(outcome.wine)
   })
 )
 
@@ -211,38 +258,56 @@ router.post(
       return
     }
 
-    // The other half of the cross-feed: retailers price/ discovered that
-    // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants for
-    // Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
-    // looked. Consumed only when no configured retailer yields a score.
-    const review_data = await accountSerperUsage(
-      { wine_id: req.params.id, action: 'fetch-reviews' },
-      () =>
-        fetchReviewData(wine, {
+    // review_data timestamps each retailer separately, so the wine's own
+    // freshness is the newest of them. A wine that has never been fetched has
+    // no timestamp at all and always runs.
+    const storedAt = newestTimestamp((wine.review_data ?? []).map((r) => r.fetched_at))
+    if (!isForced(req) && isWithinTtl(storedAt, REVIEWS_TTL_DAYS)) {
+      res.json(cachedResponse(wine, storedAt!))
+      return
+    }
+
+    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-reviews`, () =>
+      accountSerperUsage({ wine_id: req.params.id, action: 'fetch-reviews' }, async () => {
+        // The other half of the cross-feed: retailers price/ discovered that
+        // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
+        // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
+        // looked. Consumed only when no configured retailer yields a score.
+        const review_data = await fetchReviewData(wine, {
           discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
             slug: r.slug,
             name: r.name,
           })),
         })
-    )
-    // Null means the search could not be run (no key, or every Serper
-    // request failed) — as distinct from running and finding nothing. Write
-    // nothing rather than erasing whatever this wine already had; a
-    // transient failure must never look like a result.
-    if (review_data === null) {
-      res.status(503).json({
-        error:
-          'Review sourcing unavailable — SERPER_API_KEY/OPENAI_API_KEY not configured, or the search requests failed. Existing review_data left untouched.',
+        // Null means the search could not be run (no key, or every Serper
+        // request failed) — as distinct from running and finding nothing.
+        // Write nothing rather than erasing whatever this wine already had; a
+        // transient failure must never look like a result.
+        if (review_data === null) {
+          return {
+            ok: false,
+            status: 503,
+            error:
+              'Review sourcing unavailable — SERPER_API_KEY/OPENAI_API_KEY not configured, or the search requests failed. Existing review_data left untouched.',
+          }
+        }
+
+        const derived = deriveWineLevelFields(review_data, {
+          drinking_window_source: wine.drinking_window_source,
+          vintage_rating_source: wine.vintage_rating_source,
+        })
+        return {
+          ok: true,
+          wine: await getStorage().updateWine(req.params.id, { review_data, ...derived }),
+        }
       })
+    )
+
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error })
       return
     }
-
-    const derived = deriveWineLevelFields(review_data, {
-      drinking_window_source: wine.drinking_window_source,
-      vintage_rating_source: wine.vintage_rating_source,
-    })
-    const updated = await getStorage().updateWine(req.params.id, { review_data, ...derived })
-    res.json(updated)
+    res.json(outcome.wine)
   })
 )
 
