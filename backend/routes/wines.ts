@@ -23,7 +23,6 @@ import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
-import { mapWithConcurrency } from '@shared/utils/concurrency'
 import { accountSerperUsage } from '@shared/utils/serper-client'
 import {
   coalesce,
@@ -36,8 +35,8 @@ import {
 const router = Router()
 
 /**
- * Replaces a fallback retailer's Google-search URL with its real product page
- * (2026-08-05).
+ * Turns one fallback retailer's Google-search URL into its real product page
+ * (2026-08-05, reworked Phase 9.2 WI-6).
  *
  * Serper's Shopping endpoint returns a merchant *name* and a
  * `google.com/search?ibp=oshop` aggregator link — never the merchant's own
@@ -47,22 +46,28 @@ const router = Router()
  * non-preferred shops, which is what made every non-preferred "View" link go
  * to Google rather than the wine.
  *
+ * Until WI-6 this ran automatically, for every fallback retailer, on every
+ * fetch-price call — up to 5 Serper calls per price fetch, for links most
+ * users never open. It now runs once, for one shop, at the moment the user
+ * actually clicks "View" — see POST /:id/resolve-retailer-url below. A shop
+ * whose page can't be found keeps its Google search link, which at least
+ * loads; a shop already resolved is not re-queried, since a real product URL
+ * does not go stale into a search page.
+ *
  * modules/reviews/ already knows how to turn a merchant name into a real
  * product page — findMerchantProductPage, added for the Phase 9.1 cross-feed.
  * Reusing it here keeps one implementation of "find this shop's page for this
  * wine" rather than a second copy inside price/. The two modules still never
  * import each other; the router is where they meet (CLAUDE.md §5).
- *
- * Best-effort by design: a shop whose page can't be found keeps its Google
- * search link, which at least loads. Preferred retailers are untouched —
- * their URL is already their own site's search.
  */
-async function resolveFallbackProductUrls(
+export async function resolveOneRetailerUrl(
   wine: { producer: string | null; denomination: string | null; vintage: number | null; cuvee: string | null; vineyard: string | null },
-  retailers: RetailerPrice[]
-): Promise<RetailerPrice[]> {
+  retailer: RetailerPrice
+): Promise<RetailerPrice> {
+  if (!retailer.url.includes('google.com/search')) return retailer
+
   const serperKey = process.env.SERPER_API_KEY
-  if (!serperKey) return retailers
+  if (!serperKey) return retailer
 
   const identity = {
     producer: wine.producer ?? '',
@@ -72,15 +77,11 @@ async function resolveFallbackProductUrls(
     vineyard: wine.vineyard,
   }
 
-  // Bounded — see mapWithConcurrency. This runs immediately after the price
-  // module's own Serper burst, so it is the tail of an already-large batch.
-  return mapWithConcurrency(retailers, 3, async (r) => {
-    // Only the constructed Google searches need replacing.
-    if (!r.url.includes('google.com/search')) return r
-    const outcome = await findMerchantProductPage(identity, r.name, serperKey)
-    if (!outcome.url) return r
-    return { ...r, url: outcome.url, is_search_results_page: false }
+  const outcome = await findMerchantProductPage(identity, retailer.name, serperKey, {
+    label: `price:resolve-url:${retailer.slug}`,
   })
+  if (!outcome.url) return retailer
+  return { ...retailer, url: outcome.url, is_search_results_page: false }
 }
 
 function wrap(fn: (req: Request, res: Response) => Promise<void>) {
@@ -224,11 +225,12 @@ router.post(
           }
         }
 
-        // Point non-preferred retailers at their real product page rather than
-        // a Google search, then re-aggregate so nearest_retailer references the
-        // updated entries rather than the pre-resolution copies.
-        const retailers = await resolveFallbackProductUrls(wine, result.retailers)
-        const priceData = aggregatePriceData(retailers)
+        // Fallback retailers keep their constructed Google search URL here —
+        // resolving it to a real product page is deferred to the moment the
+        // user clicks "View" (Phase 9.2, WI-6; see POST
+        // /:id/resolve-retailer-url below), not spent unconditionally on
+        // links most users never open.
+        const priceData = aggregatePriceData(result.retailers)
 
         const updates: UpdateWineInput = {
           price_data: {
@@ -329,6 +331,74 @@ router.post(
       return
     }
     res.json(outcome.wine)
+  })
+)
+
+// POST /api/wines/:id/resolve-retailer-url — resolve one fallback retailer's
+// Google-search link into its real product page, at the moment the user
+// clicks "View" (Phase 9.2, WI-6). Previously this ran unconditionally for
+// every fallback retailer on every fetch-price call — up to 5 Serper calls
+// per price fetch, for links most users never open. One credit, at the
+// moment of intent, once per shop per wine forever: a retailer already
+// resolved, or a retailer that never needed resolving (a preferred
+// retailer's own on-site URL), is returned unchanged with no outbound call.
+router.post(
+  '/:id/resolve-retailer-url',
+  wrap(async (req, res) => {
+    const { slug } = req.body as { slug?: string }
+    if (!slug) {
+      res.status(400).json({ error: 'slug is required' })
+      return
+    }
+
+    const wine = await getStorage().getWine(req.params.id)
+    if (!wine) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    const retailers = wine.price_data?.retailers ?? []
+    const target = retailers.find((r) => r.slug === slug)
+    if (!target) {
+      res.status(404).json({ error: `No stored retailer with slug: ${slug}` })
+      return
+    }
+
+    const resolved = await accountSerperUsage(
+      { wine_id: req.params.id, action: 'resolve-retailer-url' },
+      () => resolveOneRetailerUrl(wine, target)
+    )
+    // Nothing changed — already resolved, no key configured, or the search
+    // came up empty (best-effort: the existing Google link still loads).
+    if (resolved.url === target.url) {
+      res.json(wine)
+      return
+    }
+
+    const updatedRetailers = retailers.map((r) => (r.slug === slug ? resolved : r))
+    // Re-aggregated so nearest_retailer references the updated entry rather
+    // than its pre-resolution copy — the same class of stale-copy bug the
+    // confirm-retailer-link handler already guards against.
+    const priceData = aggregatePriceData(updatedRetailers)
+
+    const updated = await getStorage().updateWine(req.params.id, {
+      price_data: {
+        price_min: priceData.price_min,
+        price_avg: priceData.price_avg,
+        price_max: priceData.price_max,
+        other_vintage_price_range: priceData.other_vintage_price_range,
+        retailers: priceData.retailers,
+        nearest_retailer: priceData.nearest_retailer,
+        // Deliberately not priceData.fetched_at (WI-4 vs WI-6 note): resolving
+        // one link is not a re-check of every retailer's price, and stamping
+        // "now" here would silently extend fetch-price's freshness TTL on the
+        // strength of one shop's URL swap. price_min/avg/max/nearest_retailer
+        // are recomputed correctly above from the same, unchanged price
+        // figures — only fetched_at is held at its prior value.
+        fetched_at: wine.price_data?.fetched_at ?? priceData.fetched_at,
+      },
+    })
+    res.json(updated)
   })
 )
 

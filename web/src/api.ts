@@ -131,6 +131,22 @@ export async function fetchWineReviews(
   )
 }
 
+/**
+ * Resolves one fallback retailer's constructed Google search into its real
+ * product page (Phase 9.2, WI-6). One credit, spent at the moment the user
+ * clicks "View" on that retailer — not ahead of time for every fallback
+ * retailer on every price fetch.
+ */
+export async function resolveRetailerUrl(wineId: string, slug: string): Promise<WineEntry> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${wineId}/resolve-retailer-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug }),
+    })
+  )
+}
+
 export async function confirmRetailerLink(wineId: string, slug: string, url: string): Promise<WineEntry> {
   return handleResponse(
     await fetch(`${BASE}/wines/${wineId}/confirm-retailer-link`, {

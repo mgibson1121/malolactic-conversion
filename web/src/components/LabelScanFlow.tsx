@@ -465,7 +465,7 @@ function EnrichingCard({ wine: initialWine, preview, onDone }: EnrichingProps) {
           )}
 
           {priceState === 'loaded' && wine.price_data && (
-            <PriceSection priceData={wine.price_data} />
+            <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={setWine} />
           )}
 
           {priceState === 'unavailable' && (

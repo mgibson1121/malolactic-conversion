@@ -198,7 +198,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
       {/* Price data from Wine-Searcher */}
       {wine.price_data ? (
         <div>
-          <PriceSection priceData={wine.price_data} />
+          <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={onWineUpdated} />
           <button
             className="btn-fetch-price"
             onClick={() => price.run()}

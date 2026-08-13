@@ -310,7 +310,7 @@ export function WineDetailModal({
             <h3 className="detail-section-title">Pricing</h3>
             {wine.price_data ? (
               <>
-                <PriceSection priceData={wine.price_data} />
+                <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={applyUpdate} />
                 <button
                   className="btn-fetch-price"
                   onClick={() => price.run()}
