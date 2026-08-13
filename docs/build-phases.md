@@ -1017,6 +1017,43 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 ---
 
+## Phase 9.2 — Enrichment cost reduction (Serper budget)
+
+**Goal:** Bring per-wine Serper spend down without narrowing retailer coverage or reopening any Phase 9.1 decision.
+
+**Trigger:** Serper credits consuming faster than expected during Phase 9 validation, noticed 2026-08-12. Measured against current code, one wine enriched through both buttons costs **~42 credits, ~90% of it `fetch-reviews`** — not pricing, which is a single `/shopping` call.
+
+**Root cause — structural, not a defect:** `fetchReviewData` searches every entry in `RETAILER_CONFIG`, and `findProductPageDetailed` issues up to four progressively-broader `site:`-scoped queries per retailer, retrying whenever a variant returns zero organic results — the normal outcome for the smaller shops. `RETAILER_CONFIG` went from 4 entries (`63160d4`, Phase 7) to 11 (`92c9d42`, Phase 7.3, 2026-07-29) to 12 (`9aafe88`, JJ Buckley, 2026-08-02); the per-wine query cost was never revisited across that 3× expansion. The list has not changed since 2026-08-02 — this is the cost of growth that already happened, not of a recent change. Nothing auto-fetches: both routes are already behind explicit buttons, so deferring work to a click is only available for fallback product-URL resolution (WI-6).
+
+**Full execution spec:** `docs/specs/2026-08-12-phase-9.2-enrichment-cost-reduction.md` — work items, cost model, seed tier assignment, commit sequence, acceptance criteria.
+
+**Deliverables:**
+- **WI-1 — Serper call accounting.** `shared/utils/serper-client.ts` wrapping every outbound call, counting *attempts* (a `fetchWithRetry` retry is a billed request), attributed per wine via `AsyncLocalStorage` opened at the route. `GET /api/debug/serper-usage`. Lands first; nothing else in the phase is evaluable without a baseline.
+- **WI-2 — Skip unrenderable domains in the configured review loop.** `UNRENDERABLE_DOMAINS` already exists but is consulted only by the fallback passes, so every wine still spends a full variant ladder on `klwines.com` before a render Phase 7 documented as permanently bot-blocked. Guaranteed-empty since the feature shipped. K&L stays in `RETAILER_CONFIG` — `price/` needs it for `klItemSeen` and `buildKlLinkOnlyResult`.
+- **WI-3 — Tier the review retailer list.** New `reviewTier: 'primary' | 'extended'` on `RetailerConfig`. Extended retailers are searched only when the primary pass yields no critic score, reusing the existing `!results.some(r => r.critic_scores.length > 0)` predicate so all three escalation gates share one definition of "found nothing." Cost, not trust.
+- **WI-4 — Freshness guard on both enrichment routes.** TTL (price 7 days, reviews 30 — different kinds of fact, not different priorities) with `?force=true` bypass, plus in-flight coalescing so a double-click cannot spend twice. UI shows "updated N days ago" with a secondary "Refresh anyway".
+- **WI-5 — Per-wine negative probe memory.** Migration `004_phase9_2_probe_log.sql` adds `review_probe_log`; a retailer that returned `zero_results` for a bottling is not re-asked for `NEGATIVE_PROBE_TTL_DAYS` (start 90).
+- **WI-6 — Resolve fallback product URLs on click.** Removes up to 5 `/search` calls per price fetch spent upgrading links on shops the user does not buy from; replaced by `POST /:id/resolve-retailer-url`, one credit at the moment of intent, persisted.
+- **WI-7 — Calibrate tiers from the 14-wine re-run.** Per-retailer yield table in `validate-reviews.ts`, ranked on scores-per-credit.
+
+**Key decisions (fixed 2026-08-12):**
+- **No retailer is removed from `RETAILER_CONFIG`.** Coverage stays; only *when* each shop is searched changes. Shrinking the list would reintroduce the JJ Buckley failure mode from `docs/sessions/2026-08-02-review-sourcing-drift-analysis.md` — a retailer with real content producing a result indistinguishable from "we looked and found nothing."
+- **Query-variant reduction (four variants → two) is deferred, not rejected.** It is the only proposed change with a known recall cost — the Woodland Hills / Fèvre miss that motivated the relaxation in the first place. Revisit only if still over budget after this phase.
+- **`UNRENDERABLE_DOMAINS` and `reviewTier` stay separate mechanisms.** The first is a technical fact about whether a page can be read; the second is a product judgement about coverage versus cost. Conflating them would label a readable low-yield shop "unrenderable."
+- **Negative caching applies to `zero_results` only** — never `request_failed`. Phase 9.1's central lesson was that "the search failed" and "the search ran and found nothing" are different facts; a cache that collapses them re-creates the 2026-08-05 data-loss defect with a longer fuse.
+- Enrichment stays user-initiated. No auto-enrichment or background refresh is introduced here.
+
+**Notes:**
+- The seed tier assignment in the spec is drawn from the 2026-08-04 batch and is **explicitly provisional** — that evidence predates Phase 9.1, whose headline defect was scores attributed to the wrong wine, so "retailer X yielded 5 scores" may mean five scores for a different wine. WI-7 replaces it with measured numbers.
+- Morrell is seeded `extended` despite demonstrably carrying attributed reviews (the Jean-Marc Vincent case); it failed on query shape, which Phase 9.1's honorific relaxation has since fixed, and has never been measured post-fix. Strong promotion candidate.
+- WI-7 consumes the same 14-wine re-run already outstanding under Phase 9.1 ("purge and re-run… deferred pending the developer's go-ahead"). Run it once and take both outputs from it.
+- Expected position: first enrichment of a new wine ~20–29 credits against a ~42 baseline, depending on the primary-tier hit rate; **re-enrichment of an already-enriched wine drops to ~0–5.** That second figure is invisible in per-wine math and is likely the larger real-world saving.
+- Phase 10 is not blocked on this phase — 9.1's milestone is. This is budget hygiene that should land before the 14-wine re-run spends real money, not before UI work starts.
+
+**Milestone:** Every Serper call is attributed and counted; a re-enriched wine costs approximately nothing; a wine covered by the primary tier never pays for the extended one; and no cost measure has turned a failed search into a stored "found nothing."
+
+---
+
 ## Phase 10 — UX design and prototyping
 
 **Goal:** Map out the full application experience before writing any frontend code.
