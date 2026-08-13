@@ -10,7 +10,7 @@ import {
   type WineIdentity,
 } from '@shared/utils/wine-match'
 import { isDenylistedDomain, isNonProductUrl } from '@shared/config/denylisted-domains'
-import { fetchWithRetry } from '@shared/utils/concurrency'
+import { serperFetch } from '@shared/utils/serper-client'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -18,8 +18,6 @@ export type { WineIdentity }
 // @shared/utils/wine-match.ts alongside price/serper-query.ts's identical
 // copy — see that file's header for why.
 export { isRelevantMatch }
-
-const SERPER_ENDPOINT = 'https://google.serper.dev/search'
 
 interface SerperOrganicItem {
   title: string
@@ -105,16 +103,12 @@ function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
   return [...new Set(variants)]
 }
 
-async function runSerperQuery(query: string, apiKey: string): Promise<SerperOrganicItem[] | null> {
-  const res = await fetchWithRetry(SERPER_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ q: query, gl: 'us' }),
-    signal: AbortSignal.timeout(15_000),
-  })
+async function runSerperQuery(
+  query: string,
+  apiKey: string,
+  label: string
+): Promise<SerperOrganicItem[] | null> {
+  const res = await serperFetch('search', { q: query, gl: 'us' }, apiKey, label)
   if (!res.ok) return null
   const json = (await res.json()) as SerperOrganicResponse
   return json.organic ?? []
@@ -219,7 +213,11 @@ function pickBestCandidate(
 export async function findProductPageDetailed(
   wine: WineIdentity,
   retailer: RetailerConfig,
-  apiKey: string
+  apiKey: string,
+  /** Serper accounting tag (Phase 9.2) — the caller supplies which pass this
+   * search belongs to, since the same retailer is reachable from more than
+   * one. See shared/utils/serper-client.ts. */
+  label = `reviews:configured:${retailer.slug}`
 ): Promise<Step1Outcome> {
   try {
     const variants = buildQueryVariants(wine, retailer.domain)
@@ -227,7 +225,7 @@ export async function findProductPageDetailed(
     let variantsTried = 0
     for (const query of variants) {
       variantsTried += 1
-      const items = await runSerperQuery(query, apiKey)
+      const items = await runSerperQuery(query, apiKey, label)
       if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [] }
       if (items.length === 0) continue
       sawAnyResults = true
@@ -281,7 +279,10 @@ export async function findFallbackProductPage(
   apiKey: string,
   opts: OpenQueryOptions = {}
 ): Promise<Step1Outcome> {
-  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey, opts)
+  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey, {
+    label: 'reviews:open-web',
+    ...opts,
+  })
 }
 
 /**
@@ -296,6 +297,10 @@ export async function findFallbackProductPage(
  */
 export interface OpenQueryOptions {
   attemptedDomains?: string[]
+  /** Serper accounting tag (Phase 9.2) — see shared/utils/serper-client.ts.
+   * findMerchantProductPage is reached from three different passes, which
+   * cost very different amounts; one shared label would hide that. */
+  label?: string
 }
 
 /** Domains known not to render for this pipeline, so a fallback hit on them
@@ -303,8 +308,24 @@ export interface OpenQueryOptions {
  * bot-detection challenge at the product-page render, documented since
  * Phase 7 and explicitly not pursued via evasion (CLAUDE.md §15). This is a
  * cost guard, not an access decision — the denylist above is where access
- * decisions live. */
-const UNRENDERABLE_DOMAINS = ['klwines.com']
+ * decisions live. It is also not a `reviewTier` judgement: that says a shop
+ * rarely pays off, this says its pages cannot be read at all. Three separate
+ * mechanisms, deliberately never collapsed (CLAUDE.md §15). */
+export const UNRENDERABLE_DOMAINS = ['klwines.com']
+
+/**
+ * Whether a domain's pages can never be rendered by this pipeline (Phase 9.2).
+ *
+ * Exported alongside the list because the check is a suffix match, not
+ * equality — `shop.klwines.com` is as unreadable as `klwines.com` — and a
+ * caller reimplementing that would eventually get it wrong. It stays in this
+ * module because renderability is a property of the render step, which this
+ * module owns.
+ */
+export function isUnrenderableDomain(domain: string): boolean {
+  const host = domain.toLowerCase().replace(/^www\./, '')
+  return UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))
+}
 
 /**
  * Searches the open web for a *named merchant's* page for this wine
@@ -333,7 +354,7 @@ export async function findMerchantProductPage(
     `${openWebIdentityPhrase(wine)} "${foldDiacritics(merchantName)}"`,
     wine,
     apiKey,
-    opts
+    { label: 'reviews:merchant-probe', ...opts }
   )
 }
 
@@ -360,7 +381,7 @@ async function runOpenQuery(
   const attempted = (opts.attemptedDomains ?? []).map(d => d.toLowerCase().replace(/^www\./, ''))
 
   try {
-    const items = await runSerperQuery(query, apiKey)
+    const items = await runSerperQuery(query, apiKey, opts.label ?? 'reviews:open-query')
     if (items === null) {
       return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
     }
@@ -373,7 +394,7 @@ async function runOpenQuery(
         // Already exhausted this run, or known not to render — either way,
         // spending a render + GPT-4o call here buys a guaranteed empty.
         if (attempted.some(d => host === d || host.endsWith(`.${d}`))) return false
-        if (UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))) return false
+        if (isUnrenderableDomain(host)) return false
         return true
       } catch {
         return false // an unparseable link can't be rendered anyway

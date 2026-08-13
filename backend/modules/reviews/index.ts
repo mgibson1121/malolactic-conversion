@@ -1,7 +1,12 @@
 import OpenAI from 'openai'
-import type { WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from '@shared/config/retailers.config'
-import { findProductPageDetailed, findFallbackProductPage, findMerchantProductPage } from './find-product-page'
+import type { WineEntry, ReviewProbeLogEntry } from '@shared/types'
+import { RETAILER_CONFIG, type RetailerConfig } from '@shared/config/retailers.config'
+import {
+  findProductPageDetailed,
+  findFallbackProductPage,
+  findMerchantProductPage,
+  isUnrenderableDomain,
+} from './find-product-page'
 import type { WineIdentity } from './find-product-page'
 import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
@@ -9,6 +14,8 @@ import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
 import type { ReviewResult } from './types'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
+import { recordAvoidedCalls } from '@shared/utils/serper-client'
+import { findProbeEntry, shouldSkipProbedRetailer } from './probe-log'
 
 /** Derives a display name/slug for an open-web fallback result, which isn't
  * backed by a RETAILER_CONFIG entry. Prefixed 'fallback-' so it can never
@@ -200,6 +207,17 @@ export interface DiscoveredRetailer {
 
 export interface ReviewFetchOptions {
   discoveredRetailers?: DiscoveredRetailer[]
+  /** Phase 9.2 (WI-5) — this wine's stored probe history. A configured
+   * retailer whose most recent entry is a still-fresh zero_results is
+   * skipped rather than re-searched. See probe-log.ts for exactly which
+   * stages qualify — request_failed never does. */
+  existingProbeLog?: ReviewProbeLogEntry[]
+  /** Phase 9.2 (WI-5) — when provided, one entry per retailer actually
+   * queried in the configured passes (primary + extended) is pushed here, so
+   * the caller can persist an updated log. Not part of the return value:
+   * fetchReviewData's return stays ReviewResult[] | null so every existing
+   * caller and test keeps working unchanged. */
+  probeLogSink?: ReviewProbeLogEntry[]
 }
 
 /** Merchants probed per wine in the discovered-retailer pass. Each costs a
@@ -211,6 +229,20 @@ const MERCHANT_PROBE_LIMIT = 3
  * deliberately: the cost of being slow is seconds, the cost of being rate
  * limited is a wine silently losing its data (see mapWithConcurrency). */
 const SERPER_CONCURRENCY = 3
+
+/**
+ * What a skipped retailer is assumed to have cost, for the avoided-call
+ * figure only (Phase 9.2).
+ *
+ * buildQueryVariants issues between one and four queries depending on the
+ * wine's fields and on how many come back empty, so the true figure is only
+ * knowable by spending it. Three is the typical middle of that range. This
+ * feeds `avoided` in the usage report and never `attempts` — it is an
+ * estimate of money not spent, and is labelled as one.
+ */
+const ESTIMATED_VARIANTS_PER_RETAILER = 3
+
+type ReviewTier = RetailerConfig['reviewTier']
 
 export async function fetchReviewData(
   wine: WineEntry,
@@ -239,35 +271,118 @@ export async function fetchReviewData(
   // told apart from one that searched and genuinely found nothing.
   let requestFailures = 0
 
+  // Retailers whose product pages this pipeline can never read (Phase 9.2).
+  // UNRENDERABLE_DOMAINS already existed but was consulted only in the
+  // fallback passes, so the configured loop still spent a full variant
+  // ladder on K&L for every wine before a render that has been known to be
+  // bot-blocked since Phase 7 — a guaranteed-empty result, paid for since the
+  // feature shipped. They stay in RETAILER_CONFIG and in attemptedDomains
+  // below: the fallback passes must still know K&L was never worth trying.
+  const renderable = RETAILER_CONFIG.filter(r => !isUnrenderableDomain(r.domain))
+  for (const skipped of RETAILER_CONFIG.filter(r => isUnrenderableDomain(r.domain))) {
+    recordAvoidedCalls(`reviews:skipped:unrenderable:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+  }
+
+  // Retailers a previous run already learned nothing about this bottling
+  // (Phase 9.2, WI-5). Skip on a fresh zero_results only — see probe-log.ts
+  // for why no_relevant_match and request_failed are never skipped here.
+  const searchable = renderable.filter(
+    r => !shouldSkipProbedRetailer(findProbeEntry(opts.existingProbeLog, r.slug))
+  )
+  for (const skipped of renderable.filter(r =>
+    shouldSkipProbedRetailer(findProbeEntry(opts.existingProbeLog, r.slug))
+  )) {
+    recordAvoidedCalls(`reviews:skipped:negative-probe:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+  }
+
+  /**
+   * One retailer, searched and extracted. Extracted as a named function
+   * (Phase 9.2) because the primary and extended passes below both call it,
+   * and this file has a documented history of the same logic drifting between
+   * copies (see @shared/utils/wine-match.ts's header).
+   */
+  // Re-bound with an explicit type: the two passes below are hoisted function
+  // declarations, which do not inherit the `if (!serperKey) return null`
+  // narrowing above.
+  const apiKey: string = serperKey
+
+  async function sourceFromRetailer(
+    retailer: RetailerConfig,
+    tier: ReviewTier
+  ): Promise<ReviewResult | null> {
+    const outcome = await findProductPageDetailed(
+      identity,
+      retailer,
+      apiKey,
+      `reviews:${tier}:${retailer.slug}`
+    )
+    if (outcome.stage === 'request_failed') requestFailures += 1
+
+    // Recorded regardless of outcome — 'found' and 'request_failed' are as
+    // much a fact about this run as 'zero_results' is (Phase 9.2, WI-5). Only
+    // the configured passes write here: a fallback/discovered-merchant result
+    // isn't a RETAILER_CONFIG entry, and the probe log's question is
+    // specifically "does this known shop carry this bottling".
+    opts.probeLogSink?.push({
+      slug: retailer.slug,
+      domain: retailer.domain,
+      stage: outcome.stage,
+      variants_tried: outcome.variantsTried,
+      probed_at: new Date().toISOString(),
+    })
+
+    if (!outcome.url || !outcome.match) return null
+
+    const extraction = await renderAndExtract(openai, outcome.url)
+    if (!extraction) return null
+
+    return {
+      slug: retailer.slug,
+      name: retailer.name,
+      product_url: outcome.url,
+      critic_scores: extraction.critic_scores,
+      fetched_at: new Date().toISOString(),
+      source: 'configured',
+      ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+      page_price: extraction.price,
+    }
+  }
+
   // Bounded, not Promise.all (2026-08-05). Twelve retailers × up to four
   // Serper queries each is a burst large enough to get rate limited, and a
   // rate-limited query is indistinguishable from "this shop doesn't carry
   // it" — so the failure mode is silent data loss, not a visible error.
-  const configuredResults = await mapWithConcurrency(
-    RETAILER_CONFIG,
-    SERPER_CONCURRENCY,
-    async (retailer): Promise<ReviewResult | null> => {
-      const outcome = await findProductPageDetailed(identity, retailer, serperKey)
-      if (outcome.stage === 'request_failed') requestFailures += 1
-      if (!outcome.url || !outcome.match) return null
+  async function runPass(retailers: RetailerConfig[], tier: ReviewTier): Promise<ReviewResult[]> {
+    const passResults = await mapWithConcurrency(retailers, SERPER_CONCURRENCY, r =>
+      sourceFromRetailer(r, tier)
+    )
+    return passResults.filter((r): r is ReviewResult => r !== null)
+  }
 
-      const extraction = await renderAndExtract(openai, outcome.url)
-      if (!extraction) return null
-
-      return {
-        slug: retailer.slug,
-        name: retailer.name,
-        product_url: outcome.url,
-        critic_scores: extraction.critic_scores,
-        fetched_at: new Date().toISOString(),
-        source: 'configured',
-        ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
-        page_price: extraction.price,
-      }
-    }
+  const results = await runPass(
+    searchable.filter(r => r.reviewTier === 'primary'),
+    'primary'
   )
 
-  const results = configuredResults.filter((r): r is ReviewResult => r !== null)
+  /**
+   * "This run has found nothing worth having" — one definition, shared by
+   * every escalation below (Phase 9.2, CLAUDE.md §15 "prefer escalation over
+   * breadth"). A retailer whose page rendered fine but cited no score counts
+   * as nothing: a page without a critic score is not what any of these passes
+   * are being paid to find.
+   */
+  const foundNoScore = () => !results.some(r => r.critic_scores.length > 0)
+
+  // Extended tier — fully trusted retailers, just not paid for up front. Only
+  // reached when the primary pass came back without a single critic score.
+  const extended = searchable.filter(r => r.reviewTier === 'extended')
+  if (foundNoScore()) {
+    results.push(...(await runPass(extended, 'extended')))
+  } else {
+    for (const skipped of extended) {
+      recordAvoidedCalls(`reviews:skipped:extended:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+    }
+  }
 
   // Every configured retailer domain, attempted or not — the open passes
   // below must not spend a render on one this run has already exhausted.
@@ -279,7 +394,7 @@ export async function fetchReviewData(
   // Nothing from any configured retailer. Try the shops modules/price/ found
   // for this wine first — a merchant its Shopping search actually surfaced is
   // better aimed than a blind open-web query — then fall back to that query.
-  if (!results.some(r => r.critic_scores.length > 0)) {
+  if (foundNoScore()) {
     const discovered = await fetchDiscoveredMerchantReviews(
       identity,
       opts.discoveredRetailers ?? [],
@@ -290,7 +405,7 @@ export async function fetchReviewData(
     results.push(...discovered)
   }
 
-  if (!results.some(r => r.critic_scores.length > 0)) {
+  if (foundNoScore()) {
     const attemptedPlusDiscovered = [
       ...attemptedDomains,
       ...results.map(r => hostnameOf(r.product_url)).filter((h): h is string => h !== null),

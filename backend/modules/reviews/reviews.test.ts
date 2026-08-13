@@ -7,8 +7,9 @@ import {
   findProductPage,
   findProductPageDetailed,
   findFallbackProductPage,
+  isUnrenderableDomain,
 } from './find-product-page'
-import type { RetailerConfig } from '@shared/config/retailers.config'
+import { RETAILER_CONFIG, type RetailerConfig } from '@shared/config/retailers.config'
 import { extractCandidateText } from './keyword-window'
 import { canonicalizePublication } from './gpt-extract'
 
@@ -141,6 +142,7 @@ describe('findProductPageDetailed — graded candidate selection', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }
@@ -252,6 +254,7 @@ describe('findProductPage — relaxed-query retry', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }
@@ -362,6 +365,7 @@ describe('findProductPage — relaxed-query retry', () => {
       name: 'Morrell & Company',
       domain: 'morrellwine.com',
       matchKeyword: 'morrell',
+    reviewTier: 'primary',
       lat: 40.7587,
       lng: -73.9787,
     }
@@ -542,10 +546,10 @@ describe('fetchReviewData', () => {
 
   it('finds a product page, renders it, extracts scores, and populates review_data for the matching retailer only', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [
+      'benchmarkwine.com': [
         {
-          title: 'Domaine Rousseau Gevrey-Chambertin 2019 | K&L Wines',
-          link: 'https://shop.klwines.com/products/details/1557135',
+          title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Benchmark Wine Group',
+          link: 'https://www.benchmarkwine.com/products/details/1557135',
           snippet: 'Buy Domaine Rousseau Gevrey-Chambertin 2019',
         },
       ],
@@ -553,7 +557,7 @@ describe('fetchReviewData', () => {
     mockRenderPageHtml.mockResolvedValue('<html>rendered product page</html>')
     mockExtract.mockResolvedValue({
       price: 1200,
-      url: 'https://shop.klwines.com/products/details/1557135',
+      url: 'https://www.benchmarkwine.com/products/details/1557135',
       vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })
@@ -562,9 +566,9 @@ describe('fetchReviewData', () => {
 
     expect(result).toEqual([
       {
-        slug: 'kl',
-        name: 'K&L Wine Merchants',
-        product_url: 'https://shop.klwines.com/products/details/1557135',
+        slug: 'benchmark',
+        name: 'Benchmark Wine Group',
+        product_url: 'https://www.benchmarkwine.com/products/details/1557135',
         critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
         fetched_at: expect.any(String),
         source: 'configured',
@@ -581,12 +585,12 @@ describe('fetchReviewData', () => {
         page_price: 1200,
       },
     ])
-    expect(mockRenderPageHtml).toHaveBeenCalledWith('https://shop.klwines.com/products/details/1557135')
+    expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.benchmarkwine.com/products/details/1557135')
   })
 
   it('skips a retailer with no relevant organic result, without failing the others', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [{ title: 'Unrelated Cabernet from a different producer', link: 'https://shop.klwines.com/x' }],
+      'benchmarkwine.com': [{ title: 'Unrelated Cabernet from a different producer', link: 'https://www.benchmarkwine.com/x' }],
       'zachys.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.zachys.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
@@ -600,7 +604,7 @@ describe('fetchReviewData', () => {
 
   it('skips a retailer whose product page render times out', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+      'benchmarkwine.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue(null)
 
@@ -610,7 +614,7 @@ describe('fetchReviewData', () => {
 
   it('skips a retailer when GPT-4o extraction fails', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+      'benchmarkwine.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue(null)
@@ -620,15 +624,290 @@ describe('fetchReviewData', () => {
 
   it('includes a retailer with a successful extraction even when no attributed score was found', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+      'benchmarkwine.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
-    mockExtract.mockResolvedValue({ price: 1200, url: 'https://shop.klwines.com/p/1', vintage: 2019, critic_scores: [] })
+    mockExtract.mockResolvedValue({ price: 1200, url: 'https://www.benchmarkwine.com/p/1', vintage: 2019, critic_scores: [] })
 
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
     expect(result![0].critic_scores).toEqual([])
+  })
+})
+
+// ─── Unrenderable domains (Phase 9.2, WI-2) ────────────────────────────────
+// UNRENDERABLE_DOMAINS existed since Phase 9.1 but was consulted only in the
+// fallback passes, so the configured loop still burned a full variant ladder
+// on K&L for every wine before a render that has been bot-blocked since
+// Phase 7. Guaranteed empty, and paid for on every run since the feature
+// shipped.
+describe('fetchReviewData — domains that cannot be rendered', () => {
+  it('issues no site:-scoped query against a domain whose pages can never be read', async () => {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      queries.push((JSON.parse(String(init?.body)) as { q: string }).q)
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    await fetchReviewData(makeWine())
+
+    expect(queries.some(q => q.includes('site:klwines.com'))).toBe(false)
+    // The rest of the configured list is still searched — this is a skip, not
+    // a shrunken retailer list (see the spec's §2, RETAILER_CONFIG is not
+    // shrinking).
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  // The two mechanisms are deliberately separate: renderability is a
+  // technical fact about the page, reviewTier is a product judgement about
+  // cost. K&L is a primary retailer that happens to be unreadable, and the
+  // skip must not read as a demotion.
+  it('keeps the unreadable retailer configured, so the fallback passes still know it was hopeless', async () => {
+    expect(RETAILER_CONFIG.some(r => r.slug === 'kl')).toBe(true)
+    expect(isUnrenderableDomain('shop.klwines.com')).toBe(true)
+    expect(isUnrenderableDomain('benchmarkwine.com')).toBe(false)
+  })
+})
+
+// ─── Primary / extended tiers (Phase 9.2, WI-3) ────────────────────────────
+// RETAILER_CONFIG grew 4 → 11 → 12 without the per-wine query cost being
+// revisited, and every entry was searched for every wine. Coverage is not
+// shrinking; what changes is *when* a retailer is searched. An extended
+// retailer is fully trusted, just not paid for up front.
+describe('fetchReviewData — primary and extended review tiers', () => {
+  function recordQueries(byDomain: Record<string, Array<{ title: string; link: string }>>): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const q = (JSON.parse(String(init?.body)) as { q: string }).q
+      queries.push(q)
+      const domain = Object.keys(byDomain).find(d => q.includes(`site:${d}`))
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: domain ? byDomain[domain] : [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    })
+    return queries
+  }
+
+  const primarySlugs = RETAILER_CONFIG.filter(r => r.reviewTier === 'primary').map(r => r.slug)
+  const extendedSlugs = RETAILER_CONFIG.filter(r => r.reviewTier === 'extended').map(r => r.slug)
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('never pays for an extended retailer once the primary tier has produced a score', async () => {
+    const queries = recordQueries({
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
+      ],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 1200,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(false)
+    for (const slug of extendedSlugs) {
+      const domain = RETAILER_CONFIG.find(r => r.slug === slug)!.domain
+      expect(queries.some(q => q.includes(`site:${domain}`))).toBe(false)
+    }
+  })
+
+  // The escalation gate is the same predicate the discovered-merchant and
+  // open-web passes already used — a page that rendered but cited no score
+  // counts as nothing found.
+  it('escalates to the extended tier when the primary tier renders pages but finds no score', async () => {
+    const queries = recordQueries({
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
+      ],
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: 1200,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [],
+    })
+
+    await fetchReviewData(makeWine())
+
+    expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(true)
+  })
+
+  it('searches every configured retailer except the unrenderable ones when the primary tier finds nothing', async () => {
+    const queries = recordQueries({})
+
+    await fetchReviewData(makeWine())
+
+    for (const retailer of RETAILER_CONFIG) {
+      const searched = queries.some(q => q.includes(`site:${retailer.domain}`))
+      expect({ slug: retailer.slug, searched }).toEqual({
+        slug: retailer.slug,
+        searched: !isUnrenderableDomain(retailer.domain),
+      })
+    }
+  })
+
+  // Guards the seeding itself: a tier that emptied out would silently turn
+  // this into either "search everything twice" or "search nothing".
+  it('has retailers in both tiers', () => {
+    expect(primarySlugs.length).toBeGreaterThan(0)
+    expect(extendedSlugs.length).toBeGreaterThan(0)
+    expect([...primarySlugs, ...extendedSlugs].sort()).toEqual(RETAILER_CONFIG.map(r => r.slug).sort())
+  })
+})
+
+// ─── Negative probe memory (Phase 9.2, WI-5) ───────────────────────────────
+// A retailer that returned zero_results for this bottling burns the full
+// query-variant ladder every run to learn the same thing again. The one rule
+// this whole section exists to protect: skip on zero_results only, and
+// categorically never on request_failed — reading a transient failure as a
+// negative is the exact conflation that erased eight wines' review_data on
+// 2026-08-05.
+describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () => {
+  function recordQueries(): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      queries.push((JSON.parse(String(init?.body)) as { q: string }).q)
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    return queries
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('issues no query for a retailer whose last probe was a fresh zero_results', async () => {
+    const queries = recordQueries()
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: tenDaysAgo },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(false)
+    // The rest of the primary tier is still searched — this is a per-retailer
+    // skip, not a shrunken list.
+    expect(queries.some(q => q.includes('site:whwc.com'))).toBe(true)
+  })
+
+  // The load-bearing case: a transient failure must re-query on the very next
+  // run, no matter how it's stored.
+  it('re-queries a retailer whose last probe was request_failed, even if very recent', async () => {
+    const queries = recordQueries()
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'request_failed', variants_tried: 0, probed_at: oneHourAgo },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('re-queries a retailer whose last probe was no_relevant_match', async () => {
+    const queries = recordQueries()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'no_relevant_match', variants_tried: 2, probed_at: new Date().toISOString() },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('re-queries once a zero_results probe has aged past the TTL', async () => {
+    const queries = recordQueries()
+    const veryOld = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: veryOld },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('writes one probe entry per retailer actually queried in the configured passes', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string; stage: string }> = []
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    const primaryAndExtendedSlugs = RETAILER_CONFIG
+      .filter(r => !isUnrenderableDomain(r.domain))
+      .map(r => r.slug)
+    expect(sink.map(e => e.slug).sort()).toEqual(primaryAndExtendedSlugs.sort())
+    expect(sink.every(e => e.stage === 'zero_results')).toBe(true)
+  })
+
+  it('does not write a probe entry for a retailer this run skipped on a fresh negative', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string }> = []
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: tenDaysAgo },
+      ],
+      probeLogSink: sink as never,
+    })
+
+    expect(sink.some(e => e.slug === 'benchmark')).toBe(false)
+  })
+
+  it('does not write a probe entry for an unrenderable retailer', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string }> = []
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    expect(sink.some(e => e.slug === 'kl')).toBe(false)
+  })
+
+  it('does not write probe entries for an extended-tier retailer the primary tier already made unnecessary', async () => {
+    const sink: Array<{ slug: string }> = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const q = (JSON.parse(String(init?.body)) as { q: string }).q
+      const organic = q.includes('site:benchmarkwine.com')
+        ? [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }]
+        : []
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    expect(sink.some(e => e.slug === 'sokolin')).toBe(false)
   })
 })
 
@@ -677,14 +956,14 @@ describe('fetchReviewData — page-stated vintage', () => {
     // The title carries "2020" from an unrelated vintage-report link; the
     // page itself states 2022. The rendered page wins.
     mockOrganicByDomain = {
-      'klwines.com': [
-        { title: 'Domaine Rousseau Gevrey-Chambertin — 2020 vintage report', link: 'https://shop.klwines.com/p/1' },
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin — 2020 vintage report', link: 'https://www.benchmarkwine.com/p/1' },
       ],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue({
       price: null,
-      url: 'https://shop.klwines.com/p/1',
+      url: 'https://www.benchmarkwine.com/p/1',
       vintage: 2019,
       critic_scores: [],
     })
@@ -698,12 +977,12 @@ describe('fetchReviewData — page-stated vintage', () => {
 
   it('falls back to the search-result verdict when the page states no vintage', async () => {
     mockOrganicByDomain = {
-      'klwines.com': [
-        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' },
+      'benchmarkwine.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
       ],
     }
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
-    mockExtract.mockResolvedValue({ price: null, url: 'https://shop.klwines.com/p/1', vintage: null, critic_scores: [] })
+    mockExtract.mockResolvedValue({ price: null, url: 'https://www.benchmarkwine.com/p/1', vintage: null, critic_scores: [] })
 
     const result = await fetchReviewData(makeWine())
 
@@ -745,13 +1024,13 @@ describe('fetchReviewData — open-web fallback pass', () => {
 
   it('does not run the fallback pass when a configured retailer already returned a critic score', async () => {
     const queries = installSerperMock(
-      { 'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }] },
+      { 'benchmarkwine.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }] },
       [{ title: 'Should never be reached', link: 'https://someblog.com/review' }]
     )
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue({
       price: 1200,
-      url: 'https://shop.klwines.com/p/1',
+      url: 'https://www.benchmarkwine.com/p/1',
       vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })
@@ -843,6 +1122,7 @@ describe('product page candidate hygiene', () => {
     name: 'Woodland Hills Wine Co.',
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   }
@@ -996,12 +1276,12 @@ describe('fetchReviewData — retailers discovered by the price module', () => {
 
   it('does not probe discovered merchants when a configured retailer already found a score', async () => {
     const queries = installSerperMock({
-      'klwines.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/p/1' }],
+      'benchmarkwine.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }],
     })
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue({
       price: null,
-      url: 'https://shop.klwines.com/p/1',
+      url: 'https://www.benchmarkwine.com/p/1',
       vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })

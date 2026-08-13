@@ -1,13 +1,16 @@
-import type { PriceData } from '@shared/types'
+import type { PriceData, WineEntry } from '@shared/types'
+import { RetailerViewLink } from './RetailerViewLink'
 
 interface Props {
   priceData: PriceData
+  wineId: string
+  onWineUpdated: (wine: WineEntry) => void
 }
 
 const fmt = (n: number | null | undefined) =>
   n != null ? `$${n.toFixed(0)}` : '—'
 
-export function PriceSection({ priceData }: Props) {
+export function PriceSection({ priceData, wineId, onWineUpdated }: Props) {
   // Fetched successfully but no relevant listing was found — do not fall
   // through to the price range/retailer list below, which would otherwise
   // render as all dashes with no explanation of why.
@@ -79,14 +82,12 @@ export function PriceSection({ priceData }: Props) {
             </span>
           )}
           <span className="nearest-distance">{priceData.nearest_retailer.distance_miles} mi</span>
-          <a
-            href={priceData.nearest_retailer.url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <RetailerViewLink
+            wineId={wineId}
+            retailer={priceData.nearest_retailer}
+            onWineUpdated={onWineUpdated}
             className="retailer-link"
-          >
-            View
-          </a>
+          />
         </div>
       )}
 
@@ -124,14 +125,12 @@ export function PriceSection({ priceData }: Props) {
                   {r.format_label}
                 </span>
               )}
-              <a
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <RetailerViewLink
+                wineId={wineId}
+                retailer={r}
+                onWineUpdated={onWineUpdated}
                 className="retailer-link"
-              >
-                View
-              </a>
+              />
             </div>
           ))}
         </div>

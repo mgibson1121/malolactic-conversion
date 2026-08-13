@@ -9,15 +9,39 @@ export interface RetailerConfig {
   matchKeyword: string
   lat: number
   lng: number
+  /** Which review-sourcing pass this retailer is searched in (Phase 9.2).
+   *  'primary'  — searched for every wine.
+   *  'extended' — searched only when the primary pass yields no critic score.
+   *  Cost, not trust: an extended retailer is fully trusted, just not paid for
+   *  up front. See docs/specs/2026-08-12-phase-9.2-enrichment-cost-reduction.md.
+   *  Affects modules/reviews/ only — price discovery, retailer links and
+   *  nearest-retailer ranking read the whole list regardless. */
+  reviewTier: 'primary' | 'extended'
 }
 
 // K&L has a NYC store at 45 W 36th St; all others are their primary locations.
+//
+// `reviewTier` values below are an explicitly PROVISIONAL seeding (Phase 9.2),
+// drawn from which retailers produced any real product page in the 2026-08-04
+// batch. That evidence is contaminated: it predates Phase 9.1, and that batch's
+// headline defect was scores attributed to the wrong wine entirely, so
+// "Benchmark yielded 5 scores" may mean Benchmark yielded 5 scores for a
+// different wine. Do not read these as measured. WI-7 of the Phase 9.2 spec
+// replaces them with a per-retailer yield table from the 14-wine re-run,
+// ranked on scores-per-credit rather than scores.
+//
+// Morrell in particular is 'extended' despite
+// docs/sessions/2026-08-02-review-sourcing-drift-analysis.md showing it does
+// carry attributed reviews (the Jean-Marc Vincent case). It failed there for
+// query-shape reasons Phase 9.1's honorific relaxation has since fixed, and
+// has never been measured post-fix — a strong candidate for promotion.
 export const RETAILER_CONFIG: RetailerConfig[] = [
   {
     slug: 'kl',
     name: 'K&L Wine Merchants',
     domain: 'klwines.com',
     matchKeyword: 'k&l',
+    reviewTier: 'primary',
     lat: 40.758,
     lng: -73.9855,
   },
@@ -26,6 +50,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Zachys',
     domain: 'zachys.com',
     matchKeyword: 'zachys',
+    reviewTier: 'extended',
     lat: 41.0026,
     lng: -73.6693,
   },
@@ -36,6 +61,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     // Current live site is whwc.com — do not revert to the old domain.
     domain: 'whwc.com',
     matchKeyword: 'woodland',
+    reviewTier: 'primary',
     lat: 34.1684,
     lng: -118.6059,
   },
@@ -44,6 +70,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Benchmark Wine Group',
     domain: 'benchmarkwine.com',
     matchKeyword: 'benchmark',
+    reviewTier: 'primary',
     lat: 38.2975,
     lng: -122.2869,
   },
@@ -58,6 +85,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Sokolin',
     domain: 'sokolin.com',
     matchKeyword: 'sokolin',
+    reviewTier: 'extended',
     lat: 40.9376,
     lng: -72.3009,
   },
@@ -66,6 +94,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Acker Wines',
     domain: 'ackerwines.com',
     matchKeyword: 'acker',
+    reviewTier: 'extended',
     lat: 40.7796,
     lng: -73.98,
   },
@@ -74,6 +103,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Wine Library',
     domain: 'winelibrary.com',
     matchKeyword: 'wine library',
+    reviewTier: 'primary',
     lat: 40.6976,
     lng: -74.3421,
   },
@@ -82,6 +112,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Morrell & Company',
     domain: 'morrellwine.com',
     matchKeyword: 'morrell',
+    reviewTier: 'extended',
     lat: 41.1445,
     lng: -73.8557,
   },
@@ -97,6 +128,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Crush Wine & Spirits',
     domain: 'crushwineco.com',
     matchKeyword: 'crush',
+    reviewTier: 'extended',
     lat: 40.7614,
     lng: -73.9676,
   },
@@ -109,6 +141,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     // the right store. Re-verify if `site:` results come back empty.
     domain: 'nyc.flatiron-wines.com',
     matchKeyword: 'flatiron',
+    reviewTier: 'primary',
     lat: 40.7365,
     lng: -73.9905,
   },
@@ -117,6 +150,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: "Thatcher's Wine",
     domain: 'thatcherswine.com',
     matchKeyword: 'thatcher',
+    reviewTier: 'extended',
     // Brentwood, Los Angeles — not tri-state, unlike every other configured
     // retailer. Included for review coverage only; will essentially never
     // win nearest-retailer ranking against the NYC-based user. Do not treat
@@ -141,6 +175,7 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'JJ Buckley Fine Wines',
     domain: 'jjbuckley.com',
     matchKeyword: 'jj buckley',
+    reviewTier: 'primary',
     // 7307 Edgewater Dr, Oakland, CA 94621 — approximate (street-level),
     // consistent with the precision used elsewhere in this file.
     lat: 37.7458,
