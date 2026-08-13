@@ -40,10 +40,39 @@ function buildLinkQuery(wine: WineEntry): string {
 // backs it up. Returns null to signal "drop this retailer entirely" — a
 // wine that isn't actually in this retailer's live search isn't a match,
 // so this is a drop, not a downgrade.
+/**
+ * Is this URL actually the retailer's own site? (2026-08-05)
+ *
+ * Pass 2 fallback retailers have no known site-search pattern, so their URL
+ * is a constructed `google.com/search?q=<merchant> <wine>` — see
+ * buildFallbackUrl in serper-query.ts. Rendering *that* and asking what it
+ * says about the wine is asking Google, not the shop, and Google serves
+ * Puppeteer a ~3.4KB "please enable javascript" interstitial anyway.
+ *
+ * This distinction was harmless until Phase 9.1 added a positive
+ * verification signal: an interstitial never contains a "no results" phrase,
+ * so fallback retailers used to pass vacuously, and now they fail vacuously
+ * — which silently dropped every Pass 2 retailer that had a real price.
+ * Neither answer was ever informative. 'unverified' is the honest one.
+ */
+function isRetailerOwnPage(retailer: RetailerResult): boolean {
+  const config = RETAILER_CONFIG.find(r => r.slug === retailer.slug)
+  if (!config) return false
+  try {
+    return new URL(retailer.url).hostname.toLowerCase().endsWith(config.domain.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 async function verifyStillListed(
   retailer: RetailerResult,
   producer: string | null
 ): Promise<RetailerResult | null> {
+  // Not the shop's own page — nothing renderable here can confirm or refute
+  // the listing, so don't spend a Puppeteer launch to find that out.
+  if (!isRetailerOwnPage(retailer)) return { ...retailer, verification: 'unverified' }
+
   const html = await renderPageHtml(retailer.url)
 
   // Render failed/timed out. An infra hiccup still isn't evidence the
@@ -154,13 +183,19 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
  * (Phase 9.1) — see ConfirmedProductPage in ./types.
  *
  * Only pages for shops this run didn't already produce are added, so a
- * retailer with a real Serper price keeps it. The entries carry no price
- * (`link_only`): the pipeline never saw one for these, and inventing one
- * from a review page's list price is exactly the blending CLAUDE.md §15
- * forbids. Unlike everything else here, `url` is a genuine single product
- * page rather than a constructed search — which is why is_search_results_page
- * is false and verify-listing is not run against them: the page was already
- * rendered successfully by the module that found it.
+ * retailer with a real Serper price keeps it.
+ *
+ * These carry the price the extraction read off that product page when there
+ * was one (2026-08-05). That is not blending across sources (CLAUDE.md §15):
+ * it is the retailer's own price, from the retailer's own page, attributed
+ * to that retailer — better evidence than the Google Shopping snapshot the
+ * rest of this module runs on. Only when no price was read does the entry
+ * stay `link_only`.
+ *
+ * Unlike everything else here, `url` is a genuine single product page rather
+ * than a constructed search — which is why is_search_results_page is false
+ * and verify-listing is not run against them: the page was already rendered
+ * successfully by the module that found it.
  */
 function confirmedPageResults(
   pages: ConfirmedProductPage[],
@@ -176,7 +211,7 @@ function confirmedPageResults(
     results.push({
       slug: page.slug,
       name: page.name,
-      price: null,
+      price: page.price,
       url: page.product_url,
       is_preferred_retailer: configured !== undefined,
       distance_miles: configured
@@ -194,11 +229,13 @@ function confirmedPageResults(
       bottle_size_ml: null,
       non_standard_format: false,
       format_label: '',
-      link_only: true,
+      // link_only means "no verifiable price attached" — so it is true only
+      // when the extraction actually read no price off the page.
+      link_only: page.price === null,
       // modules/reviews/ already rendered this exact page successfully;
       // re-rendering it here to confirm what it just confirmed would spend a
-      // second Puppeteer launch for nothing.
-      verification: 'unchecked',
+      // second Puppeteer launch for nothing. The price came off that render.
+      verification: page.price === null ? 'unchecked' : 'verified',
     })
   }
 
@@ -215,10 +252,107 @@ function emptyPriceData(): PriceData {
     price_min: null,
     price_avg: null,
     price_max: null,
+    other_vintage_price_range: null,
     retailers: [],
     nearest_retailer: null,
     fetched_at: new Date().toISOString(),
   }
+}
+
+/**
+ * Drops prices that are wildly out of line with the rest of the set
+ * (2026-08-05).
+ *
+ * `pack-format.ts` catches a listing that *says* it is a case or a magnum.
+ * It cannot catch one that doesn't: a Rully priced at $2,044.76 and a village
+ * Marsannay at $299.99 both came back titled as ordinary 750ml bottles in the
+ * 2026-08-04 batch, and both set price_max. A retailer's own data-entry error
+ * looks identical.
+ *
+ * Uses an interquartile fence rather than a fixed multiple of the cheapest
+ * listing, because wine prices spread genuinely wide and a fixed rule is
+ * either too tight for Burgundy or useless for Muscadet.
+ *
+ * The fence is applied in *log* space. Prices are roughly log-normal, and the
+ * failure this catches is multiplicative — a case of twelve is ~12× a bottle,
+ * a magnum ~2–3×. An additive fence has to be set so loose to accommodate a
+ * genuine $86–$430 Burgundy spread that it then waves through a $1,486
+ * Chablis, which is exactly what happened on the 2026-08-05 run. In log space
+ * the textbook 1.5×IQR keeps that Burgundy spread intact and still rejects
+ * both the $1,486 and a $2,044 Rully.
+ *
+ * Nothing is dropped below four prices: with three or fewer there is no
+ * distribution to reason about, and discarding one of three real prices is a
+ * bigger error than keeping one bad one. Excluded listings still appear in
+ * the retailer list — this only governs the headline figures.
+ */
+export function excludeOutliers(prices: number[]): number[] {
+  if (prices.length < 4) return prices
+  // log() needs strictly positive input; a non-positive price is not a price.
+  if (prices.some(p => p <= 0)) return prices
+
+  const logs = prices.map(Math.log).sort((a, b) => a - b)
+  const quantile = (q: number) => {
+    const pos = (logs.length - 1) * q
+    const lo = Math.floor(pos)
+    const hi = Math.ceil(pos)
+    return logs[lo] + (logs[hi] - logs[lo]) * (pos - lo)
+  }
+
+  const q1 = quantile(0.25)
+  const q3 = quantile(0.75)
+  const iqr = q3 - q1
+  // No spread at all — nothing can be an outlier.
+  if (iqr === 0) return prices
+
+  const upper = q3 + 1.5 * iqr
+  const lower = q1 - 1.5 * iqr
+  const kept = prices.filter(p => Math.log(p) >= lower && Math.log(p) <= upper)
+
+  // Never return nothing: if the test would empty the set, it is the test
+  // that is wrong about this data, not the data.
+  return kept.length > 0 ? kept : prices
+}
+
+/**
+ * Drops a price wildly out of line with the rest, for sets too small for
+ * `excludeOutliers`' quartile fence to reason about (2026-08-12).
+ *
+ * `other_vintage_price_range` is fed by `vintage_mismatch` listings, which
+ * are usually a handful at most — Bessin-Tremblay's 2026-08-12 run had
+ * exactly three: $37.99 / $84.99 / $1,486. `excludeOutliers` requires four
+ * prices before it will drop anything, so that set passed through untouched
+ * and the $1,486 landed in the UI's advisory range. Worse, quartile-based
+ * IQR is the wrong tool even if the four-price gate were lowered: at n=3 the
+ * outlier itself is one of only three points feeding Q3, so it pulls its own
+ * fence wide enough to survive (confirmed: the same $1,486 still clears an
+ * IQR fence run directly against this three-price set). A median is immune
+ * to that — the median of an odd-length set is the middle value and doesn't
+ * move no matter how extreme the top or bottom entry is.
+ *
+ * This range is advisory ("no price for this vintage, but others have run
+ * $86-$430"), not the headline figure, so a looser, ratio-based fence is the
+ * right trade here — reject anything more than 5x above or below the
+ * median. Needs at least three prices for a median that isn't just an
+ * average of the two inputs (which would arbitrarily favor whichever side
+ * of a 2-element set happens to be near their average).
+ */
+export function excludeExtremeOutliers(prices: number[]): number[] {
+  if (prices.length < 3) return prices
+  if (prices.some(p => p <= 0)) return prices
+
+  const sorted = [...prices].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median =
+    sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+
+  const RATIO_FENCE = 5
+  const kept = prices.filter(p => p / median <= RATIO_FENCE && median / p <= RATIO_FENCE)
+
+  // Never return nothing: an all-extreme set (shouldn't happen given the
+  // median is always in range of itself) falls back to the input rather
+  // than an empty advisory range.
+  return kept.length > 0 ? kept : prices
 }
 
 /**
@@ -245,13 +379,30 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
   const eligibleForStats = retailers.filter(r => !r.vintage_mismatch && !r.non_standard_format && !r.link_only)
 
   const withPrice = eligibleForStats.filter(r => r.price !== null)
-  const prices = withPrice.map(r => r.price as number)
+  const prices = excludeOutliers(withPrice.map(r => r.price as number))
 
   const price_min = prices.length ? Math.min(...prices) : null
   const price_max = prices.length ? Math.max(...prices) : null
   const price_avg =
     prices.length
       ? Math.round((prices.reduce((s, p) => s + p, 0) / prices.length) * 100) / 100
+      : null
+
+  // Prices for a different year of this wine (2026-08-05). Reported
+  // separately rather than folded in: a 2020's price is not the 2022's. But
+  // "no price at all" and "nothing for this year, though the 2021 runs
+  // $28–$150" are very different things to show, and several wines in the
+  // 2026-08-04 batch had five real prices and displayed nothing.
+  // Non-standard formats stay excluded here too — a wrong-vintage magnum
+  // tells you even less than a wrong-vintage bottle.
+  const otherVintagePrices = excludeExtremeOutliers(
+    retailers
+      .filter(r => r.vintage_mismatch && !r.non_standard_format && r.price !== null)
+      .map(r => r.price as number)
+  )
+  const other_vintage_price_range =
+    otherVintagePrices.length > 0
+      ? { min: Math.min(...otherVintagePrices), max: Math.max(...otherVintagePrices) }
       : null
 
   // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
@@ -265,6 +416,7 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
     price_min,
     price_avg,
     price_max,
+    other_vintage_price_range,
     retailers,
     nearest_retailer,
     fetched_at: new Date().toISOString(),
@@ -292,7 +444,7 @@ export async function fetchPriceData(
   const linkQuery = buildLinkQuery(wine)
 
   // Step 1 — Serper query: discover retailer URLs + prices (K&L excluded — see querySerper)
-  const { retailers: baseResults, klItemSeen } = await querySerper(
+  const { retailers: baseResults, klItemSeen, requestFailed } = await querySerper(
     searchQuery,
     RETAILER_CONFIG,
     serperKey,
@@ -305,6 +457,16 @@ export async function fetchPriceData(
     },
     linkQuery
   )
+
+  // The search itself failed — rate limited, errored, or timed out. Return
+  // null, the same "never attempted" signal used when no API key is
+  // configured, so the caller writes nothing. Returning an empty PriceData
+  // here would be a lie ("attempted, found nothing") *and* would overwrite
+  // whatever good data the wine already had. That is not hypothetical: on
+  // the 2026-08-05 batch re-run a burst of concurrent Serper calls rate
+  // limited, and eight of fourteen wines had real retailer lists replaced
+  // with nothing.
+  if (requestFailed) return null
 
   // Step 2 — Puppeteer pass: render each retailer's live search page and drop
   // any retailer whose search doesn't actually surface a result today. See

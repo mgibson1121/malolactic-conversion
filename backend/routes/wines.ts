@@ -10,12 +10,62 @@ import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
 import { fetchReviewData } from '../modules/reviews'
+import { findMerchantProductPage } from '../modules/reviews/find-product-page'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
+import { mapWithConcurrency } from '@shared/utils/concurrency'
 
 const router = Router()
+
+/**
+ * Replaces a fallback retailer's Google-search URL with its real product page
+ * (2026-08-05).
+ *
+ * Serper's Shopping endpoint returns a merchant *name* and a
+ * `google.com/search?ibp=oshop` aggregator link — never the merchant's own
+ * domain, and never a product URL (confirmed against the live response: the
+ * only fields are title, source, link, price, imageUrl, productId, position,
+ * rating, ratingCount). So `price/` can only construct a Google search for
+ * non-preferred shops, which is what made every non-preferred "View" link go
+ * to Google rather than the wine.
+ *
+ * modules/reviews/ already knows how to turn a merchant name into a real
+ * product page — findMerchantProductPage, added for the Phase 9.1 cross-feed.
+ * Reusing it here keeps one implementation of "find this shop's page for this
+ * wine" rather than a second copy inside price/. The two modules still never
+ * import each other; the router is where they meet (CLAUDE.md §5).
+ *
+ * Best-effort by design: a shop whose page can't be found keeps its Google
+ * search link, which at least loads. Preferred retailers are untouched —
+ * their URL is already their own site's search.
+ */
+async function resolveFallbackProductUrls(
+  wine: { producer: string | null; denomination: string | null; vintage: number | null; cuvee: string | null; vineyard: string | null },
+  retailers: RetailerPrice[]
+): Promise<RetailerPrice[]> {
+  const serperKey = process.env.SERPER_API_KEY
+  if (!serperKey) return retailers
+
+  const identity = {
+    producer: wine.producer ?? '',
+    denomination: wine.denomination ?? '',
+    vintage: wine.vintage,
+    cuvee: wine.cuvee,
+    vineyard: wine.vineyard,
+  }
+
+  // Bounded — see mapWithConcurrency. This runs immediately after the price
+  // module's own Serper burst, so it is the tail of an already-large batch.
+  return mapWithConcurrency(retailers, 3, async (r) => {
+    // Only the constructed Google searches need replacing.
+    if (!r.url.includes('google.com/search')) return r
+    const outcome = await findMerchantProductPage(identity, r.name, serperKey)
+    if (!outcome.url) return r
+    return { ...r, url: outcome.url, is_search_results_page: false }
+  })
+}
 
 function wrap(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next)
@@ -103,6 +153,9 @@ router.post(
         slug: r.slug,
         name: r.name,
         product_url: r.product_url,
+        // The shop's own price, off the shop's own page — see
+        // ConfirmedProductPage. Null when the extraction read none.
+        price: r.page_price ?? null,
       })),
     })
     if (!result) {
@@ -110,14 +163,21 @@ router.post(
       return
     }
 
+    // Point non-preferred retailers at their real product page rather than a
+    // Google search, then re-aggregate so nearest_retailer references the
+    // updated entries rather than the pre-resolution copies.
+    const retailers = await resolveFallbackProductUrls(wine, result.retailers)
+    const priceData = aggregatePriceData(retailers)
+
     const updates: UpdateWineInput = {
       price_data: {
-        price_min: result.price_min,
-        price_avg: result.price_avg,
-        price_max: result.price_max,
-        retailers: result.retailers,
-        nearest_retailer: result.nearest_retailer,
-        fetched_at: result.fetched_at,
+        price_min: priceData.price_min,
+        price_avg: priceData.price_avg,
+        price_max: priceData.price_max,
+        other_vintage_price_range: priceData.other_vintage_price_range,
+        retailers: priceData.retailers,
+        nearest_retailer: priceData.nearest_retailer,
+        fetched_at: priceData.fetched_at,
       },
     }
 
@@ -149,6 +209,18 @@ router.post(
         name: r.name,
       })),
     })
+    // Null means the search could not be run (no key, or every Serper
+    // request failed) — as distinct from running and finding nothing. Write
+    // nothing rather than erasing whatever this wine already had; a
+    // transient failure must never look like a result.
+    if (review_data === null) {
+      res.status(503).json({
+        error:
+          'Review sourcing unavailable — SERPER_API_KEY/OPENAI_API_KEY not configured, or the search requests failed. Existing review_data left untouched.',
+      })
+      return
+    }
+
     const derived = deriveWineLevelFields(review_data, {
       drinking_window_source: wine.drinking_window_source,
       vintage_rating_source: wine.vintage_rating_source,
@@ -274,6 +346,7 @@ router.post(
       page_vintage: verdict.candidateVintage,
       vintage_gap: verdict.vintageGap,
       match: verdict,
+      page_price: extraction.price,
     }
     const review_data = [
       ...(wine.review_data ?? []).filter((r) => r.slug !== slug),

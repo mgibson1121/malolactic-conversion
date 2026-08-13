@@ -148,12 +148,36 @@ export interface RetailerReview {
   // can say which dimension is uncertain and validate-reviews.ts can report
   // *why* a candidate was rejected, rather than re-deriving either.
   match: MatchVerdict
+  // The price stated on this product page, when the extraction read one
+  // (2026-08-05). Like page_vintage before it, GptPageExtraction has always
+  // returned this and it was being dropped — which is why a preferred
+  // retailer whose product page the pipeline had rendered still showed no
+  // price. The router feeds it to modules/price/, where it becomes that
+  // retailer's price: the shop's own figure from the shop's own page, not a
+  // blend across sources.
+  page_price: number | null
+}
+
+/** A price range over some set of listings. Null bounds mean the set was
+ * empty. */
+export interface PriceRange {
+  min: number
+  max: number
 }
 
 export interface PriceData {
+  // Headline stats. Computed over standard-format, single-bottle listings of
+  // *this* vintage only, with statistical outliers excluded — see
+  // aggregatePriceData in backend/modules/price/.
   price_min: number | null
   price_avg: number | null
   price_max: number | null
+  // Prices found for a *different* vintage of the same wine (2026-08-05).
+  // Kept out of the headline figures above — a 2020's price is not the 2022's
+  // — but reported, because "no price" and "no price for this year, though
+  // the 2021 runs $28–$150" are very different things to show. Several wines
+  // in the 2026-08-04 batch had five real prices and displayed nothing.
+  other_vintage_price_range: PriceRange | null
   retailers: RetailerPrice[]
   nearest_retailer: RetailerPrice | null
   fetched_at: string     // ISO timestamp

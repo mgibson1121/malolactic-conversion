@@ -1184,6 +1184,7 @@ describe('serialization round-trips', () => {
         },
       ],
       nearest_retailer: null,
+      other_vintage_price_range: null,
       fetched_at: '2026-01-01T00:00:00.000Z',
     }
     await adapter.updateWine(wine.id, { price_data: priceData })

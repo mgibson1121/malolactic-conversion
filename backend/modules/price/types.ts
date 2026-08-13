@@ -90,12 +90,28 @@ export interface ConfirmedProductPage {
   slug: string
   name: string
   product_url: string
+  /**
+   * The price stated on that product page, when the extraction read one
+   * (2026-08-05).
+   *
+   * This is not blending across sources (CLAUDE.md §15) — it is the
+   * retailer's own price, read off the retailer's own product page, and
+   * attributed to that retailer. It is *better* evidence than Serper's
+   * Google Shopping snapshot, which is what the rest of this module runs on
+   * and which can be stale. Passing null here was over-cautious: it left
+   * preferred retailers showing no price at all when the pipeline had one in
+   * hand.
+   */
+  price: number | null
 }
 
 export interface PriceData {
   price_min: number | null
   price_avg: number | null
   price_max: number | null
+  // Prices found for a different vintage of the same wine (2026-08-05) —
+  // see shared/types.ts PriceData for the field-level docs this mirrors.
+  other_vintage_price_range: { min: number; max: number } | null
   retailers: RetailerResult[]
   nearest_retailer: RetailerResult | null
   fetched_at: string

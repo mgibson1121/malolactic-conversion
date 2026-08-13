@@ -10,6 +10,7 @@ import {
   type WineIdentity,
 } from '@shared/utils/wine-match'
 import { isDenylistedDomain, isNonProductUrl } from '@shared/config/denylisted-domains'
+import { fetchWithRetry } from '@shared/utils/concurrency'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -105,7 +106,7 @@ function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
 }
 
 async function runSerperQuery(query: string, apiKey: string): Promise<SerperOrganicItem[] | null> {
-  const res = await fetch(SERPER_ENDPOINT, {
+  const res = await fetchWithRetry(SERPER_ENDPOINT, {
     method: 'POST',
     headers: {
       'X-API-KEY': apiKey,
