@@ -100,4 +100,51 @@ describe('extractCandidateText', () => {
     const result = extractCandidateText(html)
     expect(result).toContain('96 points')
   })
+
+  // ─── Regression: price dropped when a score citation sits elsewhere on
+  // the page (2026-08-12) ─────────────────────────────────────────────────
+  // Live on nyc.flatiron-wines.com's Gour de Chaulé Gigondas page: a real
+  // "93 points" critic citation anchored the only window this module sent
+  // for extraction, and the actual product price —
+  // `<div class="price price--sale-color"><div class="price__default">
+  // <span class="price__current">$44.99` — sat ~3,800 characters away,
+  // entirely outside that window. `page_price` came back null even though
+  // the page plainly states $44.99: the text GPT-4o was given never
+  // contained the number.
+
+  it('includes the price when a score citation elsewhere on the page would otherwise be the only window', () => {
+    const filler = 'x'.repeat(4000)
+    const html = `<html><body>
+      <div class="review-content" data-review-content="galloni">
+        <h4>Antonio Galloni</h4>
+        <span class="review-score">93 points</span>
+        <p class="review-text">"The full-bodied 2022 Gigondas is a total delight."</p>
+      </div>
+      ${filler}
+      <div class="price price--sale-color"><div class="price__default">
+        <span class="price__current">$44.99</span>
+      </div></div>
+      </body></html>`
+    const result = extractCandidateText(html)
+    expect(result).toContain('93 points')
+    expect(result).toContain('$44.99')
+  })
+
+  it('does not add a price window when the page has no price markup', () => {
+    const html = `<html><body><p>96 Points, Vinous: "A gorgeous, layered wine."</p></body></html>`
+    const result = extractCandidateText(html)
+    expect(result).not.toContain('$')
+  })
+
+  it('picks up a schema.org itemprop="price" anchor the same way as a class-based one', () => {
+    const filler = 'x'.repeat(4000)
+    const html = `<html><body>
+      <p>96 Points, Vinous: "A gorgeous, layered wine."</p>
+      ${filler}
+      <span itemprop="price" content="29.99">$29.99</span>
+      </body></html>`
+    const result = extractCandidateText(html)
+    expect(result).toContain('96 Points')
+    expect(result).toContain('$29.99')
+  })
 })

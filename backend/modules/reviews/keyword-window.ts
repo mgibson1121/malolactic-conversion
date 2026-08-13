@@ -17,6 +17,13 @@ const FALLBACK_CAP = 280_000
 const WINDOW_RADIUS = 600
 const MERGE_GAP = 200
 const MAX_TOTAL_WINDOW_CHARS = 8_000
+// Separate, smaller budget for price-anchored windows (2026-08-12) — see
+// PRICE_PATTERN below. Additive to MAX_TOTAL_WINDOW_CHARS, not shared with
+// it: a page with several score citations can already fill the citation
+// budget on its own, and the price anchor needs guaranteed room rather than
+// whatever the citations happened to leave over.
+const MAX_PRICE_WINDOW_CHARS = 2_000
+const PRICE_WINDOW_RADIUS = 300
 const MIN_SCORE = 50
 const MAX_SCORE = 100
 // Bare-number badge form (ORDER_C) has no scoring word to anchor on, so it's
@@ -56,6 +63,23 @@ const ORDER_C = String.raw`title="[^"]{2,60}"[\s\S]{0,150}?(?<!-)\b(\d{2,3})\b(?
 
 const SCORE_PATTERN = new RegExp(`${ORDER_A}|${ORDER_B}|${ORDER_C}`, 'gi')
 
+// Matches a currency-formatted amount sitting inside markup that identifies
+// it as the page's own price, not any other number (2026-08-12). Found live
+// on nyc.flatiron-wines.com/products/domaine-du-gour-de-chaule-...: a real
+// GPT-4o-extractable "93 points" critic citation anchored the only window
+// this module sent for extraction, and the actual product price —
+// `<div class="price price--sale-color"><div class="price__default">
+// <span class="price__current">$44.99` — sat ~3,800 characters away in the
+// stripped text, entirely outside it. `page_price` on that retailer came
+// back null even though the page plainly states $44.99, because the text
+// GPT-4o was given never contained the number at all.
+//
+// `class="..."` containing "price" and schema.org's `itemprop="price"` are
+// both generic e-commerce conventions (Shopify, WooCommerce, and
+// microdata-based storefronts alike), not a per-site pattern — same
+// standard this module already holds ORDER_A/B/C to.
+const PRICE_PATTERN = /(?:class="[^"]{0,100}price[^"]{0,100}"|itemprop="price")[^>]{0,60}>[\s\S]{0,150}?\$\s?\d{1,5}(?:\.\d{2})?/gi
+
 interface Span {
   start: number
   end: number
@@ -93,25 +117,53 @@ function findScoreCitationSpans(text: string): Span[] {
   return spans
 }
 
-/** Expands each span by WINDOW_RADIUS, then merges spans that overlap or sit within MERGE_GAP of each other. */
-function windowAndMerge(spans: Span[], textLength: number): Span[] {
+/**
+ * Finds every price-markup match — see PRICE_PATTERN above. Unlike score
+ * citations there is no plausible-range filter to apply; a dollar amount
+ * inside price-identifying markup is accepted as-is.
+ */
+function findPriceAnchorSpans(text: string): Span[] {
+  const spans: Span[] = []
+  PRICE_PATTERN.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = PRICE_PATTERN.exec(text))) {
+    spans.push({ start: m.index, end: m.index + m[0].length })
+  }
+  return spans
+}
+
+/** Expands each span by `radius`, then merges spans that overlap or sit within `gap` of each other. */
+function windowAndMerge(spans: Span[], textLength: number, radius: number, gap: number): Span[] {
   const expanded = spans
     .map((s) => ({
-      start: Math.max(0, s.start - WINDOW_RADIUS),
-      end: Math.min(textLength, s.end + WINDOW_RADIUS),
+      start: Math.max(0, s.start - radius),
+      end: Math.min(textLength, s.end + radius),
     }))
     .sort((a, b) => a.start - b.start)
 
   const merged: Span[] = []
   for (const span of expanded) {
     const last = merged[merged.length - 1]
-    if (last && span.start <= last.end + MERGE_GAP) {
+    if (last && span.start <= last.end + gap) {
       last.end = Math.max(last.end, span.end)
     } else {
       merged.push({ ...span })
     }
   }
   return merged
+}
+
+/** Renders windows into joined text pieces, stopping once `budget` characters have been used. */
+function renderWindows(stripped: string, windows: Span[], budget: number): string[] {
+  const pieces: string[] = []
+  let total = 0
+  for (const w of windows) {
+    if (total >= budget) break
+    const piece = stripped.slice(w.start, w.end)
+    pieces.push(piece)
+    total += piece.length
+  }
+  return pieces
 }
 
 /**
@@ -123,23 +175,32 @@ function windowAndMerge(spans: Span[], textLength: number): Span[] {
  * critic-keywords.ts). Falls back to the stripped text, capped at
  * FALLBACK_CAP, when no citation pattern is found at all, so an unusual
  * format still gets a real extraction attempt instead of nothing.
+ *
+ * Also always adds a small, separately budgeted set of windows around any
+ * price-markup match (PRICE_PATTERN, 2026-08-12) — this used to be citation
+ * windows only, which meant a real product page's own price was silently
+ * dropped from the text sent to GPT-4o whenever a critic score happened to
+ * sit elsewhere on the page (confirmed live: a $44.99 price ~3,800
+ * characters from the nearest "93 points" citation, outside every citation
+ * window). The fallback path already includes the whole page up to
+ * FALLBACK_CAP, so it already carries the price — only the citation-window
+ * path needed this.
  */
 export function extractCandidateText(html: string): string {
   const stripped = stripBoilerplate(html)
-  const spans = findScoreCitationSpans(stripped)
+  const scoreSpans = findScoreCitationSpans(stripped)
 
-  if (spans.length === 0) {
+  if (scoreSpans.length === 0) {
     return stripped.slice(0, FALLBACK_CAP)
   }
 
-  const windows = windowAndMerge(spans, stripped.length)
-  const pieces: string[] = []
-  let total = 0
-  for (const w of windows) {
-    if (total >= MAX_TOTAL_WINDOW_CHARS) break
-    const piece = stripped.slice(w.start, w.end)
-    pieces.push(piece)
-    total += piece.length
-  }
+  const scoreWindows = windowAndMerge(scoreSpans, stripped.length, WINDOW_RADIUS, MERGE_GAP)
+  const priceSpans = findPriceAnchorSpans(stripped)
+  const priceWindows = windowAndMerge(priceSpans, stripped.length, PRICE_WINDOW_RADIUS, MERGE_GAP)
+
+  const pieces = [
+    ...renderWindows(stripped, scoreWindows, MAX_TOTAL_WINDOW_CHARS),
+    ...renderWindows(stripped, priceWindows, MAX_PRICE_WINDOW_CHARS),
+  ]
   return pieces.join('\n...\n')
 }
