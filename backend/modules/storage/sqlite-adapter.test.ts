@@ -766,6 +766,34 @@ describe('serialization round-trips', () => {
     expect(fetched!.review_data![0].vintage_gap).toBe(2)
   })
 
+  // Phase 9.2 (WI-5): review_probe_log is a new JSON TEXT column
+  // (migration 004). Same "no migration needed for a nested value" claim as
+  // review_data above, worth its own test since the two columns are written
+  // by separate arguments in the adapter's positional SQL params — a
+  // transposition there wouldn't be caught by testing only one.
+  it('round-trips review_probe_log', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine({
+      producer: 'Sokolin Test', vintage: 2019, region: 'Burgundy',
+      denomination: 'Gevrey-Chambertin', grape_varieties: null, label_image_url: null,
+      tag_discovered: true, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
+      cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
+      my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
+      purchased_from: null, date_first_consumed: null, quality_classification: null,
+      vineyard: null, cuvee: null,
+    })
+
+    const review_probe_log = [
+      { slug: 'sokolin', domain: 'sokolin.com', stage: 'zero_results' as const, variants_tried: 3, probed_at: '2026-08-12T00:00:00.000Z' },
+      { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'found' as const, variants_tried: 1, probed_at: '2026-08-12T00:00:00.000Z' },
+    ]
+
+    await adapter.updateWine(wine.id, { review_probe_log })
+    const fetched = await adapter.getWine(wine.id)
+
+    expect(fetched!.review_probe_log).toEqual(review_probe_log)
+  })
+
   it('preserves null optional fields', async () => {
     const adapter = makeAdapter()
     const wine = await adapter.createWine({
@@ -790,6 +818,7 @@ describe('serialization round-trips', () => {
     expect(fetched!.community_sentiment).toBeNull()
     expect(fetched!.community_excerpts).toBeNull()
     expect(fetched!.price_data).toBeNull()
+    expect(fetched!.review_probe_log).toBeNull()
     expect(fetched!.wishlist_notes).toBeNull()
     expect(fetched!.price_paid).toBeNull()
     expect(fetched!.purchased_from).toBeNull()

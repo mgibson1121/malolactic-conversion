@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import type { WineEntry } from '@shared/types'
+import type { WineEntry, ReviewProbeLogEntry } from '@shared/types'
 import { RETAILER_CONFIG, type RetailerConfig } from '@shared/config/retailers.config'
 import {
   findProductPageDetailed,
@@ -15,6 +15,7 @@ import { extractFromRenderedHtml } from './gpt-extract'
 import type { ReviewResult } from './types'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
 import { recordAvoidedCalls } from '@shared/utils/serper-client'
+import { findProbeEntry, shouldSkipProbedRetailer } from './probe-log'
 
 /** Derives a display name/slug for an open-web fallback result, which isn't
  * backed by a RETAILER_CONFIG entry. Prefixed 'fallback-' so it can never
@@ -206,6 +207,17 @@ export interface DiscoveredRetailer {
 
 export interface ReviewFetchOptions {
   discoveredRetailers?: DiscoveredRetailer[]
+  /** Phase 9.2 (WI-5) — this wine's stored probe history. A configured
+   * retailer whose most recent entry is a still-fresh zero_results is
+   * skipped rather than re-searched. See probe-log.ts for exactly which
+   * stages qualify — request_failed never does. */
+  existingProbeLog?: ReviewProbeLogEntry[]
+  /** Phase 9.2 (WI-5) — when provided, one entry per retailer actually
+   * queried in the configured passes (primary + extended) is pushed here, so
+   * the caller can persist an updated log. Not part of the return value:
+   * fetchReviewData's return stays ReviewResult[] | null so every existing
+   * caller and test keeps working unchanged. */
+  probeLogSink?: ReviewProbeLogEntry[]
 }
 
 /** Merchants probed per wine in the discovered-retailer pass. Each costs a
@@ -266,9 +278,21 @@ export async function fetchReviewData(
   // bot-blocked since Phase 7 — a guaranteed-empty result, paid for since the
   // feature shipped. They stay in RETAILER_CONFIG and in attemptedDomains
   // below: the fallback passes must still know K&L was never worth trying.
-  const searchable = RETAILER_CONFIG.filter(r => !isUnrenderableDomain(r.domain))
+  const renderable = RETAILER_CONFIG.filter(r => !isUnrenderableDomain(r.domain))
   for (const skipped of RETAILER_CONFIG.filter(r => isUnrenderableDomain(r.domain))) {
     recordAvoidedCalls(`reviews:skipped:unrenderable:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+  }
+
+  // Retailers a previous run already learned nothing about this bottling
+  // (Phase 9.2, WI-5). Skip on a fresh zero_results only — see probe-log.ts
+  // for why no_relevant_match and request_failed are never skipped here.
+  const searchable = renderable.filter(
+    r => !shouldSkipProbedRetailer(findProbeEntry(opts.existingProbeLog, r.slug))
+  )
+  for (const skipped of renderable.filter(r =>
+    shouldSkipProbedRetailer(findProbeEntry(opts.existingProbeLog, r.slug))
+  )) {
+    recordAvoidedCalls(`reviews:skipped:negative-probe:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
   }
 
   /**
@@ -293,6 +317,20 @@ export async function fetchReviewData(
       `reviews:${tier}:${retailer.slug}`
     )
     if (outcome.stage === 'request_failed') requestFailures += 1
+
+    // Recorded regardless of outcome — 'found' and 'request_failed' are as
+    // much a fact about this run as 'zero_results' is (Phase 9.2, WI-5). Only
+    // the configured passes write here: a fallback/discovered-merchant result
+    // isn't a RETAILER_CONFIG entry, and the probe log's question is
+    // specifically "does this known shop carry this bottling".
+    opts.probeLogSink?.push({
+      slug: retailer.slug,
+      domain: retailer.domain,
+      stage: outcome.stage,
+      variants_tried: outcome.variantsTried,
+      probed_at: new Date().toISOString(),
+    })
+
     if (!outcome.url || !outcome.match) return null
 
     const extraction = await renderAndExtract(openai, outcome.url)

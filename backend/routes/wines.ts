@@ -2,7 +2,14 @@ import OpenAI from 'openai'
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
 import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
-import type { RetailerPrice, RetailerReview, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
+import type {
+  RetailerPrice,
+  RetailerReview,
+  ReviewProbeLogEntry,
+  UpdateWineInput,
+  WineEntry,
+  WineFilter,
+} from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
 import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
@@ -10,6 +17,7 @@ import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
 import { fetchReviewData } from '../modules/reviews'
+import { mergeProbeLog } from '../modules/reviews/probe-log'
 import { findMerchantProductPage } from '../modules/reviews/find-product-page'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
@@ -267,8 +275,14 @@ router.post(
       return
     }
 
+    // force=true clears this wine's probe log as well as bypassing the TTL
+    // (Phase 9.2, WI-4/WI-5): a deliberate re-check should not be silently
+    // skipped by a stale negative from before whatever prompted the click.
+    const existingProbeLog = isForced(req) ? [] : wine.review_probe_log ?? []
+
     const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-reviews`, () =>
       accountSerperUsage({ wine_id: req.params.id, action: 'fetch-reviews' }, async () => {
+        const probeLogSink: ReviewProbeLogEntry[] = []
         // The other half of the cross-feed: retailers price/ discovered that
         // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
         // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
@@ -278,6 +292,8 @@ router.post(
             slug: r.slug,
             name: r.name,
           })),
+          existingProbeLog,
+          probeLogSink,
         })
         // Null means the search could not be run (no key, or every Serper
         // request failed) — as distinct from running and finding nothing.
@@ -296,9 +312,14 @@ router.post(
           drinking_window_source: wine.drinking_window_source,
           vintage_rating_source: wine.vintage_rating_source,
         })
+        const review_probe_log = mergeProbeLog(existingProbeLog, probeLogSink)
         return {
           ok: true,
-          wine: await getStorage().updateWine(req.params.id, { review_data, ...derived }),
+          wine: await getStorage().updateWine(req.params.id, {
+            review_data,
+            review_probe_log,
+            ...derived,
+          }),
         }
       })
     )

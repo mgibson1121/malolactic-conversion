@@ -770,6 +770,147 @@ describe('fetchReviewData — primary and extended review tiers', () => {
   })
 })
 
+// ─── Negative probe memory (Phase 9.2, WI-5) ───────────────────────────────
+// A retailer that returned zero_results for this bottling burns the full
+// query-variant ladder every run to learn the same thing again. The one rule
+// this whole section exists to protect: skip on zero_results only, and
+// categorically never on request_failed — reading a transient failure as a
+// negative is the exact conflation that erased eight wines' review_data on
+// 2026-08-05.
+describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () => {
+  function recordQueries(): string[] {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      queries.push((JSON.parse(String(init?.body)) as { q: string }).q)
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    return queries
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
+  it('issues no query for a retailer whose last probe was a fresh zero_results', async () => {
+    const queries = recordQueries()
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: tenDaysAgo },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(false)
+    // The rest of the primary tier is still searched — this is a per-retailer
+    // skip, not a shrunken list.
+    expect(queries.some(q => q.includes('site:whwc.com'))).toBe(true)
+  })
+
+  // The load-bearing case: a transient failure must re-query on the very next
+  // run, no matter how it's stored.
+  it('re-queries a retailer whose last probe was request_failed, even if very recent', async () => {
+    const queries = recordQueries()
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'request_failed', variants_tried: 0, probed_at: oneHourAgo },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('re-queries a retailer whose last probe was no_relevant_match', async () => {
+    const queries = recordQueries()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'no_relevant_match', variants_tried: 2, probed_at: new Date().toISOString() },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('re-queries once a zero_results probe has aged past the TTL', async () => {
+    const queries = recordQueries()
+    const veryOld = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: veryOld },
+      ],
+    })
+
+    expect(queries.some(q => q.includes('site:benchmarkwine.com'))).toBe(true)
+  })
+
+  it('writes one probe entry per retailer actually queried in the configured passes', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string; stage: string }> = []
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    const primaryAndExtendedSlugs = RETAILER_CONFIG
+      .filter(r => !isUnrenderableDomain(r.domain))
+      .map(r => r.slug)
+    expect(sink.map(e => e.slug).sort()).toEqual(primaryAndExtendedSlugs.sort())
+    expect(sink.every(e => e.stage === 'zero_results')).toBe(true)
+  })
+
+  it('does not write a probe entry for a retailer this run skipped on a fresh negative', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string }> = []
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+
+    await fetchReviewData(makeWine(), {
+      existingProbeLog: [
+        { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'zero_results', variants_tried: 3, probed_at: tenDaysAgo },
+      ],
+      probeLogSink: sink as never,
+    })
+
+    expect(sink.some(e => e.slug === 'benchmark')).toBe(false)
+  })
+
+  it('does not write a probe entry for an unrenderable retailer', async () => {
+    recordQueries()
+    const sink: Array<{ slug: string }> = []
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    expect(sink.some(e => e.slug === 'kl')).toBe(false)
+  })
+
+  it('does not write probe entries for an extended-tier retailer the primary tier already made unnecessary', async () => {
+    const sink: Array<{ slug: string }> = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      const q = (JSON.parse(String(init?.body)) as { q: string }).q
+      const organic = q.includes('site:benchmarkwine.com')
+        ? [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }]
+        : []
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockResolvedValue({
+      price: null,
+      url: 'https://www.benchmarkwine.com/p/1',
+      vintage: 2019,
+      critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+    })
+
+    await fetchReviewData(makeWine(), { probeLogSink: sink as never })
+
+    expect(sink.some(e => e.slug === 'sokolin')).toBe(false)
+  })
+})
+
 // ─── Page-stated vintage (Phase 9.1, WI-2) ─────────────────────────────────
 // gpt-extract.ts has always returned { price, url, vintage, critic_scores }
 // and fetchReviewData read only critic_scores, dropping the rest. The
