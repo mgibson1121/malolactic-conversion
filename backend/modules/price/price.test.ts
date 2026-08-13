@@ -1,4 +1,4 @@
-import { fetchPriceData, aggregatePriceData, excludeOutliers } from './index'
+import { fetchPriceData, aggregatePriceData, excludeOutliers, excludeExtremeOutliers } from './index'
 import { pageMentionsProducer } from './verify-listing'
 import type { WineEntry } from '@shared/types'
 import type { RetailerResult } from './types'
@@ -1094,6 +1094,40 @@ describe('excludeOutliers', () => {
 
   it('never returns an empty set', () => {
     expect(excludeOutliers([1, 2, 3, 1000]).length).toBeGreaterThan(0)
+  })
+})
+
+// ─── other_vintage_price_range small-n fence (2026-08-12) ──────────────────
+// Reported: Bessin-Tremblay's other-vintage range still showed $1,486 after
+// the 2026-08-05 fix. Cause: that run's vintage_mismatch set had only three
+// prices ($37.99 / $84.99 / $1,486), and excludeOutliers is a no-op below
+// four — by design, since quartiles need more points than that to mean
+// anything, and (confirmed separately) even lowering the four-price gate
+// wouldn't have helped: at n=3 the $1,486 is one of the only three points
+// feeding its own IQR fence, which pulls wide enough to let it through.
+describe('excludeExtremeOutliers', () => {
+  it('drops a price an order of magnitude off a 3-price set', () => {
+    // The actual Bessin-Tremblay 2026-08-12 vintage_mismatch set.
+    const kept = excludeExtremeOutliers([37.99, 84.99, 1486])
+    expect(kept).not.toContain(1486)
+    expect(kept).toEqual(expect.arrayContaining([37.99, 84.99]))
+  })
+
+  it('leaves a plausible 3-price spread alone', () => {
+    expect(excludeExtremeOutliers([39.97, 40.5, 59.99])).toEqual([39.97, 40.5, 59.99])
+  })
+
+  it('does nothing with fewer than three prices', () => {
+    expect(excludeExtremeOutliers([30, 900])).toEqual([30, 900])
+    expect(excludeExtremeOutliers([30])).toEqual([30])
+  })
+
+  it('ignores a non-positive price rather than dividing by it', () => {
+    expect(excludeExtremeOutliers([0, 30, 40])).toEqual([0, 30, 40])
+  })
+
+  it('never returns an empty set', () => {
+    expect(excludeExtremeOutliers([1, 2, 3000]).length).toBeGreaterThan(0)
   })
 })
 

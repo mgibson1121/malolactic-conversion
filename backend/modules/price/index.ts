@@ -315,6 +315,47 @@ export function excludeOutliers(prices: number[]): number[] {
 }
 
 /**
+ * Drops a price wildly out of line with the rest, for sets too small for
+ * `excludeOutliers`' quartile fence to reason about (2026-08-12).
+ *
+ * `other_vintage_price_range` is fed by `vintage_mismatch` listings, which
+ * are usually a handful at most — Bessin-Tremblay's 2026-08-12 run had
+ * exactly three: $37.99 / $84.99 / $1,486. `excludeOutliers` requires four
+ * prices before it will drop anything, so that set passed through untouched
+ * and the $1,486 landed in the UI's advisory range. Worse, quartile-based
+ * IQR is the wrong tool even if the four-price gate were lowered: at n=3 the
+ * outlier itself is one of only three points feeding Q3, so it pulls its own
+ * fence wide enough to survive (confirmed: the same $1,486 still clears an
+ * IQR fence run directly against this three-price set). A median is immune
+ * to that — the median of an odd-length set is the middle value and doesn't
+ * move no matter how extreme the top or bottom entry is.
+ *
+ * This range is advisory ("no price for this vintage, but others have run
+ * $86-$430"), not the headline figure, so a looser, ratio-based fence is the
+ * right trade here — reject anything more than 5x above or below the
+ * median. Needs at least three prices for a median that isn't just an
+ * average of the two inputs (which would arbitrarily favor whichever side
+ * of a 2-element set happens to be near their average).
+ */
+export function excludeExtremeOutliers(prices: number[]): number[] {
+  if (prices.length < 3) return prices
+  if (prices.some(p => p <= 0)) return prices
+
+  const sorted = [...prices].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median =
+    sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+
+  const RATIO_FENCE = 5
+  const kept = prices.filter(p => p / median <= RATIO_FENCE && median / p <= RATIO_FENCE)
+
+  // Never return nothing: an all-extreme set (shouldn't happen given the
+  // median is always in range of itself) falls back to the input rather
+  // than an empty advisory range.
+  return kept.length > 0 ? kept : prices
+}
+
+/**
  * Computes price_min/avg/max and nearest_retailer from a retailers list.
  * Pure — no I/O. Exported so callers that already have a RetailerResult[]
  * from somewhere other than a fresh fetchPriceData run (e.g. the
@@ -354,7 +395,7 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
   // 2026-08-04 batch had five real prices and displayed nothing.
   // Non-standard formats stay excluded here too — a wrong-vintage magnum
   // tells you even less than a wrong-vintage bottle.
-  const otherVintagePrices = excludeOutliers(
+  const otherVintagePrices = excludeExtremeOutliers(
     retailers
       .filter(r => r.vintage_mismatch && !r.non_standard_format && r.price !== null)
       .map(r => r.price as number)
