@@ -18,7 +18,7 @@ import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
 import { fetchReviewData } from '../modules/reviews'
 import { mergeProbeLog } from '../modules/reviews/probe-log'
-import { findMerchantProductPage } from '../modules/reviews/find-product-page'
+import { findMerchantProductPage, findProductPageDetailed } from '../modules/reviews/find-product-page'
 import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
@@ -35,36 +35,47 @@ import {
 const router = Router()
 
 /**
- * Turns one fallback retailer's Google-search URL into its real product page
- * (2026-08-05, reworked Phase 9.2 WI-6).
+ * Turns one retailer's search-results URL into its real product page
+ * (2026-08-05, reworked Phase 9.2 WI-6, widened 2026-08-15).
  *
- * Serper's Shopping endpoint returns a merchant *name* and a
- * `google.com/search?ibp=oshop` aggregator link — never the merchant's own
- * domain, and never a product URL (confirmed against the live response: the
- * only fields are title, source, link, price, imageUrl, productId, position,
- * rating, ratingCount). So `price/` can only construct a Google search for
- * non-preferred shops, which is what made every non-preferred "View" link go
- * to Google rather than the wine.
+ * Two kinds of search-results URL reach this function, and each gets the
+ * search that actually fits it:
  *
- * Until WI-6 this ran automatically, for every fallback retailer, on every
- * fetch-price call — up to 5 Serper calls per price fetch, for links most
- * users never open. It now runs once, for one shop, at the moment the user
- * actually clicks "View" — see POST /:id/resolve-retailer-url below. A shop
- * whose page can't be found keeps its Google search link, which at least
- * loads; a shop already resolved is not re-queried, since a real product URL
- * does not go stale into a search page.
+ * - A **fallback** merchant (not in RETAILER_CONFIG) has no known domain —
+ *   `price/` only has a name, from Serper Shopping's `source` field, and a
+ *   `google.com/search?ibp=oshop` aggregator link, never a product URL
+ *   (confirmed against the live response: the only fields are title, source,
+ *   link, price, imageUrl, productId, position, rating, ratingCount). The
+ *   open, name-based findMerchantProductPage (added for the Phase 9.1
+ *   cross-feed) is the only thing that can search for it.
+ * - A **configured** retailer (RETAILER_CONFIG has its domain) gets a
+ *   `site:`-restricted search instead — findProductPageDetailed, the same
+ *   Step 1 modules/reviews/ runs. This is why K&L's price-section link used
+ *   to be permanently a generic on-site search box even though modules/
+ *   reviews/ can find its real product pages just fine: K&L's bot-block is
+ *   at *render* (Puppeteer), not *search* (Serper), and this function only
+ *   ever searches — it never renders. Widening the gate below from
+ *   "URL looks like google.com/search" to `is_search_results_page` (already
+ *   computed correctly server-side for every retailer, preferred or not) is
+ *   what actually lets that shorter, more reliable search run for K&L and
+ *   every other configured retailer whose price entry is still a search box
+ *   (Benchmark, Acker, etc.) — previously the string check only ever matched
+ *   fallback merchants, so configured retailers never got a resolve attempt
+ *   at all, regardless of intent.
  *
- * modules/reviews/ already knows how to turn a merchant name into a real
- * product page — findMerchantProductPage, added for the Phase 9.1 cross-feed.
- * Reusing it here keeps one implementation of "find this shop's page for this
- * wine" rather than a second copy inside price/. The two modules still never
- * import each other; the router is where they meet (CLAUDE.md §5).
+ * Either way this runs once, for one shop, at the moment the user actually
+ * clicks "View" — see POST /:id/resolve-retailer-url below — never eagerly
+ * on every fetch-price call (that discipline predates this widening; WI-6
+ * killed the old up-to-5-calls-per-fetch version). A shop whose page can't
+ * be found keeps its search link, which at least loads; a shop already
+ * resolved is not re-queried, since a real product URL does not go stale
+ * into a search page.
  */
 export async function resolveOneRetailerUrl(
   wine: { producer: string | null; denomination: string | null; vintage: number | null; cuvee: string | null; vineyard: string | null },
   retailer: RetailerPrice
 ): Promise<RetailerPrice> {
-  if (!retailer.url.includes('google.com/search')) return retailer
+  if (!retailer.is_search_results_page) return retailer
 
   const serperKey = process.env.SERPER_API_KEY
   if (!serperKey) return retailer
@@ -77,9 +88,12 @@ export async function resolveOneRetailerUrl(
     vineyard: wine.vineyard,
   }
 
-  const outcome = await findMerchantProductPage(identity, retailer.name, serperKey, {
-    label: `price:resolve-url:${retailer.slug}`,
-  })
+  const configured = RETAILER_CONFIG.find(r => r.slug === retailer.slug)
+  const outcome = configured
+    ? await findProductPageDetailed(identity, configured, serperKey, `price:resolve-url:${retailer.slug}`)
+    : await findMerchantProductPage(identity, retailer.name, serperKey, {
+        label: `price:resolve-url:${retailer.slug}`,
+      })
   if (!outcome.url) return retailer
   return { ...retailer, url: outcome.url, is_search_results_page: false }
 }
@@ -334,14 +348,17 @@ router.post(
   })
 )
 
-// POST /api/wines/:id/resolve-retailer-url — resolve one fallback retailer's
-// Google-search link into its real product page, at the moment the user
-// clicks "View" (Phase 9.2, WI-6). Previously this ran unconditionally for
-// every fallback retailer on every fetch-price call — up to 5 Serper calls
-// per price fetch, for links most users never open. One credit, at the
-// moment of intent, once per shop per wine forever: a retailer already
-// resolved, or a retailer that never needed resolving (a preferred
-// retailer's own on-site URL), is returned unchanged with no outbound call.
+// POST /api/wines/:id/resolve-retailer-url — resolve one retailer's
+// search-results link (a fallback merchant's constructed Google search, or a
+// configured retailer's own on-site search box) into its real product page,
+// at the moment the user clicks "View" (Phase 9.2, WI-6, widened 2026-08-15
+// to cover configured retailers — see resolveOneRetailerUrl's docs for why
+// that's safe even for K&L, whose render is bot-blocked but whose search
+// isn't). Previously this ran unconditionally for every fallback retailer on
+// every fetch-price call — up to 5 Serper calls per price fetch, for links
+// most users never open. One credit, at the moment of intent, once per shop
+// per wine forever: a retailer already resolved (is_search_results_page is
+// already false) is returned unchanged with no outbound call.
 router.post(
   '/:id/resolve-retailer-url',
   wrap(async (req, res) => {

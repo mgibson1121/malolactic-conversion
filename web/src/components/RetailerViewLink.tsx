@@ -28,13 +28,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * A retailer's "View" link (Phase 9.2, WI-6).
+ * A retailer's "View" link (Phase 9.2, WI-6, widened 2026-08-15).
  *
- * Most retailers already have a real destination: a preferred retailer's own
- * on-site search, or a fallback link a previous click already resolved — both
- * are plain links, untouched. An unresolved fallback link (a constructed
- * Google search) is resolved at the moment of the click instead of ahead of
- * time for every fallback retailer on every price fetch.
+ * `needsResolution` reads `is_search_results_page` — computed correctly
+ * server-side for every retailer, preferred or fallback alike — rather than
+ * sniffing the URL for `google.com/search`. That string check only ever
+ * matched fallback (non-preferred) retailers' constructed Google searches;
+ * a preferred retailer's on-site search box (K&L, Benchmark, Acker, …) never
+ * matched it, so those links never got a resolve attempt at all, even though
+ * the same click-to-resolve mechanism works for them too (see
+ * resolveOneRetailerUrl in routes/wines.ts for the search-vs-render
+ * distinction that makes this safe even for K&L, whose product-page *render*
+ * is bot-blocked but whose *search* isn't).
+ *
+ * A retailer whose price entry is already a real product page (not a search
+ * results page) is a plain link, untouched — resolution only ever fires
+ * once per shop per wine, at the moment of the click.
  *
  * A blank tab opens synchronously in the click handler, so the click is never
  * blocked and never trips a popup blocker (those require a same-tick
@@ -42,9 +51,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * found or RESOLVE_TIMEOUT_MS elapses, whichever comes first — either way it
  * lands on a page that loads: the resolved product page, or the same Google
  * search the link always pointed at.
+ *
+ * `window.open` is called without the `noopener` flag deliberately — per
+ * spec, `noopener` makes `window.open` return `null`, which is exactly the
+ * handle this code needs to later set `.location.href` on. (Confirmed live,
+ * not just from docs: a real click landed on a permanently stranded
+ * `about:blank` tab with zero network activity, because `if (!tab) return`
+ * fired before `resolveRetailerUrl` was ever called — the existing tests
+ * never caught it because they mock `window.open` to always return a
+ * working handle.) `tab.opener = null` gets the same reverse-tabnabbing
+ * protection `noopener` would have provided, without losing the reference.
  */
 export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }: Props) {
-  const needsResolution = retailer.url.includes('google.com/search')
+  const needsResolution = retailer.is_search_results_page
 
   if (!needsResolution) {
     return (
@@ -56,10 +75,11 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
 
   async function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     e.preventDefault()
-    const tab = window.open('about:blank', '_blank', 'noopener,noreferrer')
+    const tab = window.open('about:blank', '_blank')
     // Popup blocked — nothing more to do; the same outcome an ordinary
     // blocked link click would have had.
     if (!tab) return
+    tab.opener = null
 
     const fallbackUrl = retailer.url
     try {
