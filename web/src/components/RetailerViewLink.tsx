@@ -42,6 +42,16 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * found or RESOLVE_TIMEOUT_MS elapses, whichever comes first — either way it
  * lands on a page that loads: the resolved product page, or the same Google
  * search the link always pointed at.
+ *
+ * `window.open` is called without the `noopener` flag deliberately — per
+ * spec, `noopener` makes `window.open` return `null`, which is exactly the
+ * handle this code needs to later set `.location.href` on. (Confirmed live,
+ * not just from docs: a real click landed on a permanently stranded
+ * `about:blank` tab with zero network activity, because `if (!tab) return`
+ * fired before `resolveRetailerUrl` was ever called — the existing tests
+ * never caught it because they mock `window.open` to always return a
+ * working handle.) `tab.opener = null` gets the same reverse-tabnabbing
+ * protection `noopener` would have provided, without losing the reference.
  */
 export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }: Props) {
   const needsResolution = retailer.url.includes('google.com/search')
@@ -56,10 +66,11 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
 
   async function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     e.preventDefault()
-    const tab = window.open('about:blank', '_blank', 'noopener,noreferrer')
+    const tab = window.open('about:blank', '_blank')
     // Popup blocked — nothing more to do; the same outcome an ordinary
     // blocked link click would have had.
     if (!tab) return
+    tab.opener = null
 
     const fallbackUrl = retailer.url
     try {

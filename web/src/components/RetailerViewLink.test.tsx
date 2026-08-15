@@ -60,6 +60,27 @@ describe('RetailerViewLink — retailer that does not need resolution', () => {
 })
 
 describe('RetailerViewLink — an unresolved fallback link', () => {
+  // Regression: `window.open(url, '_blank', 'noopener,noreferrer')` returns
+  // `null` per spec — noopener and a controllable window handle are mutually
+  // exclusive. A mocked window.open (every other test in this file) can't
+  // catch a return-value regression like that; only asserting on the actual
+  // call arguments can. Confirmed live in a real browser before this test was
+  // added: the flags string caused every fallback "View" click to strand a
+  // tab at about:blank with zero network activity.
+  it('never passes the noopener flag to window.open, since that would make the returned handle null', async () => {
+    const tab = fakeTab()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(tab)
+    const retailer = makeRetailer()
+    mockResolve.mockResolvedValue({ price_data: { retailers: [retailer] } } as unknown as WineEntry)
+
+    render(<RetailerViewLink wineId="wine-1" retailer={retailer} onWineUpdated={() => {}} />)
+    await userEvent.click(screen.getByRole('link', { name: 'View' }))
+
+    const flags = openSpy.mock.calls[0]?.[2]
+    expect(flags ?? '').not.toContain('noopener')
+    expect(tab.opener).toBeNull()
+  })
+
   it('opens a blank tab synchronously, then points it at the resolved product page', async () => {
     const tab = fakeTab()
     vi.spyOn(window, 'open').mockReturnValue(tab)
