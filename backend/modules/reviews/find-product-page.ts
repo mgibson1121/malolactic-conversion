@@ -358,14 +358,32 @@ export async function findMerchantProductPage(
   )
 }
 
-/** The quoted producer/denomination/vintage core shared by both open-web
- * queries. Honorific-stripped from the outset — these are last-resort
- * passes, so there is no narrower attempt for a relaxation to undercut, and
- * the open web is even less likely than a retailer to write "Domaine". */
+/** The quoted producer/denomination/bottling/vintage core shared by both
+ * open-web queries. Honorific-stripped from the outset — these are
+ * last-resort passes, so there is no narrower attempt for a relaxation to
+ * undercut, and the open web is even less likely than a retailer to write
+ * "Domaine".
+ *
+ * cuvee/vineyard included (2026-08-15) — this function previously dropped
+ * them even though buildQuery (the configured-retailer search, above)
+ * already includes both. For a wine with no vintage set, "producer" +
+ * "denomination" alone can be too generic to reach the right page at all —
+ * confirmed live: Olivier Leflaive's Bourgogne entry has no stored vintage,
+ * and the single un-retried fallback query for just `"Olivier Leflaive"
+ * "Bourgogne" review` missed a real, findable page (kdwine.com) whose own
+ * title foregrounds the cuvee ("Les Sétilles"), not the denomination — the
+ * one distinguishing term this query was throwing away despite already
+ * having it on hand. Since both callers here send exactly one query with no
+ * retry (unlike buildQuery's variant ladder), there is no cheaper narrower
+ * attempt to fall back to if a wine's cuvee happens to be wrong for a given
+ * page — but a wine with cuvee/vineyard set and no vintage was already
+ * under-specified without this, so the trade favors inclusion. */
 function openWebIdentityPhrase(wine: WineIdentity): string {
   const parts: string[] = []
   if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(wine.producer))}"`)
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
+  if (wine.cuvee) parts.push(`"${foldDiacritics(wine.cuvee)}"`)
+  if (wine.vineyard) parts.push(`"${foldDiacritics(wine.vineyard)}"`)
   if (wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')
 }
