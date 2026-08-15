@@ -99,4 +99,66 @@ describe('resolveOneRetailerUrl', () => {
     expect(resolved).toEqual(retailer)
     expect(fetchSpy).not.toHaveBeenCalled()
   })
+
+  // 2026-08-15 widening: the gate used to check the URL string for
+  // "google.com/search", so it only ever matched fallback merchants. A
+  // configured retailer's own on-site search box (K&L, whose price entry
+  // has always been a constructed search URL with no resolve attempt) never
+  // triggered resolution at all, regardless of intent.
+  describe('a configured retailer (RETAILER_CONFIG has its domain)', () => {
+    it('resolves an on-site search URL that is not shaped like google.com/search', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            organic: [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/products/details/1954099' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      const retailer = makeRetailer({
+        slug: 'kl',
+        name: 'K&L Wine Merchants',
+        url: 'https://shop.klwines.com/products?searchText=Domaine+Rousseau',
+        link_only: true,
+      })
+
+      const resolved = await resolveOneRetailerUrl(WINE, retailer)
+
+      expect(resolved.url).toBe('https://shop.klwines.com/products/details/1954099')
+      expect(resolved.is_search_results_page).toBe(false)
+      // A configured retailer has a known domain — it must get the
+      // site:-restricted search (Step 1), not the open merchant-name query,
+      // so K&L's bot-blocked render is never in the request path at all.
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+      const body = JSON.parse(String(init.body)) as { q: string }
+      expect(body.q).toContain('site:klwines.com')
+    })
+
+    it('still keeps link_only true — a resolved link is not the same claim as a verified price', async () => {
+      jest.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({ organic: [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://shop.klwines.com/products/details/1954099' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      const retailer = makeRetailer({ slug: 'kl', name: 'K&L Wine Merchants', link_only: true })
+
+      const resolved = await resolveOneRetailerUrl(WINE, retailer)
+
+      expect(resolved.link_only).toBe(true)
+    })
+  })
+
+  it('leaves a real product page untouched regardless of its URL shape, since is_search_results_page is the only gate', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch')
+    const retailer = makeRetailer({
+      url: 'https://www.kandlwines.example/products/details/123',
+      is_search_results_page: false,
+    })
+
+    const resolved = await resolveOneRetailerUrl(WINE, retailer)
+
+    expect(resolved).toEqual(retailer)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
 })
