@@ -1219,6 +1219,33 @@ describe('product page candidate hygiene', () => {
 
     expect(outcome.url).toBe('https://www.amsterwine.com/p/1')
   })
+
+  // 2026-08-15: the open-web fallback query used to drop cuvee/vineyard even
+  // though the configured-retailer search above already includes both — for
+  // a wine with no vintage set, producer + denomination alone can be too
+  // generic to reach the right page. Confirmed live: Olivier Leflaive's
+  // Bourgogne entry (no stored vintage) missed a real page on kdwine.com
+  // whose own title foregrounds the cuvee ("Les Sétilles"), not the generic
+  // denomination.
+  it('includes cuvee and vineyard in the open-web query, the same as the configured search does', async () => {
+    const queries: string[] = []
+    jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
+      queries.push((JSON.parse(String(init?.body)) as { q: string }).q)
+      return Promise.resolve(
+        new Response(JSON.stringify({ organic: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      )
+    })
+
+    await findFallbackProductPage({
+      producer: 'Olivier Leflaive',
+      denomination: 'Bourgogne',
+      vintage: null,
+      cuvee: 'Les Sétilles',
+      vineyard: null,
+    }, 'test-key')
+
+    expect(queries[0]).toContain('"Les Setilles"')
+  })
 })
 
 // ─── Cross-feed from modules/price/ (Phase 9.1, WI-7) ──────────────────────
