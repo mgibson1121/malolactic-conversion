@@ -703,14 +703,14 @@ describe('fetchReviewData — primary and extended review tiers', () => {
 
   it('never pays for an extended retailer once the primary tier has produced a score', async () => {
     const queries = recordQueries({
-      'benchmarkwine.com': [
-        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
+      'jjbuckley.com': [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.jjbuckley.com/p/1' },
       ],
     })
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue({
       price: 1200,
-      url: 'https://www.benchmarkwine.com/p/1',
+      url: 'https://www.jjbuckley.com/p/1',
       vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })
@@ -890,8 +890,8 @@ describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () =
     const sink: Array<{ slug: string }> = []
     jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
       const q = (JSON.parse(String(init?.body)) as { q: string }).q
-      const organic = q.includes('site:benchmarkwine.com')
-        ? [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' }]
+      const organic = q.includes('site:jjbuckley.com')
+        ? [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.jjbuckley.com/p/1' }]
         : []
       return Promise.resolve(
         new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -900,7 +900,7 @@ describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () =
     mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
     mockExtract.mockResolvedValue({
       price: null,
-      url: 'https://www.benchmarkwine.com/p/1',
+      url: 'https://www.jjbuckley.com/p/1',
       vintage: 2019,
       critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
     })

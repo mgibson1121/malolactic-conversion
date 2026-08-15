@@ -21,20 +21,38 @@ export interface RetailerConfig {
 
 // K&L has a NYC store at 45 W 36th St; all others are their primary locations.
 //
-// `reviewTier` values below are an explicitly PROVISIONAL seeding (Phase 9.2),
-// drawn from which retailers produced any real product page in the 2026-08-04
-// batch. That evidence is contaminated: it predates Phase 9.1, and that batch's
-// headline defect was scores attributed to the wrong wine entirely, so
-// "Benchmark yielded 5 scores" may mean Benchmark yielded 5 scores for a
-// different wine. Do not read these as measured. WI-7 of the Phase 9.2 spec
-// replaces them with a per-retailer yield table from the 14-wine re-run,
-// ranked on scores-per-credit rather than scores.
+// `reviewTier` values below are MEASURED (Phase 9.2, WI-7, 2026-08-15) —
+// `npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json
+// backend/scripts/validate-reviews.ts` run against the 14-wine 2026-08-04
+// batch, untiered (every RETAILER_CONFIG entry probed directly, bypassing
+// this file's tiers, so every retailer's real yield could be measured rather
+// than assumed). 387 Serper credits spent. Full per-retailer yield table
+// (wines searched / zero_results / no_relevant_match / pages found / scores
+// for the right producer+vintage / credits spent) is in that run's output;
+// see docs/sessions/2026-08-12-phase-9.2-enrichment-cost-reduction.md's
+// 2026-08-15 addendum for the captured table. Ranked on scores-per-credit,
+// not raw scores: woodland (0.226) and jjbuckley (0.276) clearly earned
+// primary; flatiron (0.034) and winelibrary (0.029) are far weaker but still
+// nonzero and were the best of the rest. Every other retailer — including
+// benchmark, despite carrying real off-vintage pages for several of these
+// wines — scored zero right-producer-and-vintage hits across the batch
+// while costing among the most credits (36, tied for highest), so it moved
+// to extended. Measured p (fraction of wines where the primary tier alone —
+// woodland/jjbuckley/flatiron/winelibrary/kl — yielded at least one critic
+// score, any vintage) is 7/14 = 0.5, unchanged by benchmark's demotion since
+// its one hit (Gour de Chaulé) was already covered by another primary
+// retailer. Re-measure if RETAILER_CONFIG's retailer set or the matcher
+// changes materially — this is a snapshot of one 14-wine batch on one day,
+// not a permanent ranking, and every non-kl/woodland/jjbuckley retailer's
+// signal here is thin (most attempts were zero_results or no_relevant_match,
+// not a real head-to-head).
 //
-// Morrell in particular is 'extended' despite
-// docs/sessions/2026-08-02-review-sourcing-drift-analysis.md showing it does
-// carry attributed reviews (the Jean-Marc Vincent case). It failed there for
-// query-shape reasons Phase 9.1's honorific relaxation has since fixed, and
-// has never been measured post-fix — a strong candidate for promotion.
+// Morrell remains 'extended': the honorific-relaxation fix does find its
+// page for Jean-Marc Vincent now (verdict: producer=match, vintage=match, a
+// real improvement over the pre-fix query-shape failure), but GPT-4o
+// extraction failed on that render both times it was tried in this batch, so
+// it has yet to convert a correct match into a stored score. Worth
+// re-measuring once that's investigated, not a matching problem.
 export const RETAILER_CONFIG: RetailerConfig[] = [
   {
     slug: 'kl',
@@ -70,7 +88,11 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     name: 'Benchmark Wine Group',
     domain: 'benchmarkwine.com',
     matchKeyword: 'benchmark',
-    reviewTier: 'primary',
+    // Demoted primary → extended (Phase 9.2, WI-7, 2026-08-15): zero
+    // right-producer-and-vintage scores across the 14-wine measured batch
+    // despite costing 36 credits — tied for the most expensive retailer in
+    // the configured loop. See the file header's measured-tier note.
+    reviewTier: 'extended',
     lat: 38.2975,
     lng: -122.2869,
   },
