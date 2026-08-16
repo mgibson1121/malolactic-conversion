@@ -1778,3 +1778,14 @@ input.scan-field-missing {
   margin-top: 8px;
   text-align: center;
 }
+
+.preferred-retailer-summary p {
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  margin: 0;
+  padding: 8px 16px;
+  background: #f9f6f2;
+  border: 1px solid #e8e0d6;
+  border-radius: 8px;
+}

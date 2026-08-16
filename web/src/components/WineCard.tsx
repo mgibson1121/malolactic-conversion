@@ -195,7 +195,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         {reviews.error && <span className="price-error">{reviews.error}</span>}
       </div>
 
-      {/* Price data from Wine-Searcher */}
+      {/* Price data from Retailer Crawl */}
       {wine.price_data ? (
         <div>
           <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={onWineUpdated} />
