@@ -12,7 +12,7 @@ import type { MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
-import type { ReviewResult } from './types'
+import type { ReviewResult, GptPageExtraction } from './types'
 import { mapWithConcurrency } from '@shared/utils/concurrency'
 import { recordAvoidedCalls } from '@shared/utils/serper-client'
 import { findProbeEntry, shouldSkipProbedRetailer } from './probe-log'
@@ -42,6 +42,40 @@ async function renderAndExtract(openai: OpenAI, url: string) {
   if (!html) return null
   const candidateText = extractCandidateText(html)
   return extractFromRenderedHtml(openai, candidateText, url)
+}
+
+/** Candidates from a single open-web query worth spending a render+extract
+ * on, in rank order (Phase 9.3). pickBestCandidate (find-product-page.ts)
+ * already scores every organic result from the one Serper query that was
+ * paid for; discarding everything but the top pick meant a wine whose
+ * best-matched page simply didn't cite a score came back empty even when the
+ * same response held another plausible page that was never looked at —
+ * confirmed live for Olivier Leflaive's Bourgogne (corkerywine.com matched
+ * but had no citable score; the same response also carried a Wine Enthusiast
+ * page for the identical bottling). Zero extra Serper cost either way — it's
+ * the same paid-for result set — but each extra candidate tried is one more
+ * Puppeteer render + GPT-4o call, so this stays capped at 2 and only ever
+ * runs in the open-web passes below, which are themselves reached only once
+ * every configured retailer has already come up empty. */
+const CANDIDATE_TRY_LIMIT = 2
+
+/** Walks candidates in rank order, rendering and extracting each, and
+ * returns the first with a nonempty critic_scores. Falls back to the
+ * top-ranked candidate's own extraction (even with no score) when none of
+ * the tried candidates cite one — a page with price data but no critic score
+ * was always still worth storing, and this must not regress that. */
+async function extractBestCandidate(
+  openai: OpenAI,
+  candidates: Array<{ url: string; match: MatchVerdict }>
+): Promise<{ url: string; match: MatchVerdict; extraction: GptPageExtraction } | null> {
+  let firstExtracted: { url: string; match: MatchVerdict; extraction: GptPageExtraction } | null = null
+  for (const candidate of candidates.slice(0, CANDIDATE_TRY_LIMIT)) {
+    const extraction = await renderAndExtract(openai, candidate.url)
+    if (!extraction) continue
+    if (extraction.critic_scores.length > 0) return { url: candidate.url, match: candidate.match, extraction }
+    firstExtracted ??= { url: candidate.url, match: candidate.match, extraction }
+  }
+  return firstExtracted
 }
 
 /**
@@ -96,21 +130,21 @@ async function fetchFallbackReview(
   attemptedDomains: string[]
 ): Promise<ReviewResult | null> {
   const outcome = await findFallbackProductPage(identity, serperKey, { attemptedDomains })
-  if (!outcome.url || !outcome.match) return null
+  if (outcome.candidates.length === 0) return null
 
-  const extraction = await renderAndExtract(openai, outcome.url)
-  if (!extraction) return null
+  const picked = await extractBestCandidate(openai, outcome.candidates)
+  if (!picked) return null
 
-  const { slug, name } = labelFromUrl(outcome.url)
+  const { slug, name } = labelFromUrl(picked.url)
   return {
     slug,
     name,
-    product_url: outcome.url,
-    critic_scores: extraction.critic_scores,
+    product_url: picked.url,
+    critic_scores: picked.extraction.critic_scores,
     fetched_at: new Date().toISOString(),
     source: 'fallback',
-    ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
-    page_price: extraction.price,
+    ...vintageFields(verdictFromPage(picked.match, picked.extraction.vintage, identity.vintage)),
+    page_price: picked.extraction.price,
   }
 }
 
@@ -142,23 +176,23 @@ async function fetchDiscoveredMerchantReviews(
     SERPER_CONCURRENCY,
     async (merchant): Promise<ReviewResult | null> => {
       const outcome = await findMerchantProductPage(identity, merchant.name, serperKey, { attemptedDomains })
-      if (!outcome.url || !outcome.match) return null
+      if (outcome.candidates.length === 0) return null
 
-      const extraction = await renderAndExtract(openai, outcome.url)
-      if (!extraction) return null
+      const picked = await extractBestCandidate(openai, outcome.candidates)
+      if (!picked) return null
 
-      const { slug, name } = labelFromUrl(outcome.url)
+      const { slug, name } = labelFromUrl(picked.url)
       return {
         slug,
         name,
-        product_url: outcome.url,
-        critic_scores: extraction.critic_scores,
+        product_url: picked.url,
+        critic_scores: picked.extraction.critic_scores,
         fetched_at: new Date().toISOString(),
         // Reached by an open query rather than a site:-restricted search of
         // a vetted domain — 'fallback', same as the open-web pass.
         source: 'fallback',
-        ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
-        page_price: extraction.price,
+        ...vintageFields(verdictFromPage(picked.match, picked.extraction.vintage, identity.vintage)),
+        page_price: picked.extraction.price,
       }
     }
   )

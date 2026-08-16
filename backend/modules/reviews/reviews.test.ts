@@ -1083,6 +1083,68 @@ describe('fetchReviewData — open-web fallback pass', () => {
     expect(queries.some(q => !q.includes('site:') && q.includes('review'))).toBe(true)
   })
 
+  // 2026-08-15 (Phase 9.3): the fallback used to throw away every candidate
+  // but the single top-ranked one, even though pickBestCandidate already
+  // scored the whole result set from the one query that was paid for. Live
+  // case: corkerywine.com correctly matched Olivier Leflaive's Bourgogne but
+  // its page cited no score, while the same Serper response also carried a
+  // Wine Enthusiast page for the identical bottling that was never tried.
+  it('tries the runner-up candidate when the top-ranked page has no citable score', async () => {
+    const queries = installSerperMock(
+      {},
+      [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Corkery Wine', link: 'https://www.corkerywine.com/p/1' },
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Wine Enthusiast', link: 'https://www.wineenthusiast.com/p/1' },
+      ]
+    )
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockImplementation((_openai, _text, url) => {
+      if (url === 'https://www.corkerywine.com/p/1') {
+        return Promise.resolve({ price: 45, url, vintage: 2019, critic_scores: [] })
+      }
+      return Promise.resolve({
+        price: null,
+        url,
+        vintage: 2019,
+        critic_scores: [
+          { publication: 'Wine Enthusiast', score: 91, known_publication: true, drinking_window: null, vintage_character: null, deal: false },
+        ],
+      })
+    })
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(result![0].product_url).toBe('https://www.wineenthusiast.com/p/1')
+    expect(result![0].critic_scores).toHaveLength(1)
+    expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.corkerywine.com/p/1')
+    expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.wineenthusiast.com/p/1')
+    // No second Serper query — both candidates came from the one open query.
+    expect(queries.filter(q => !q.includes('site:'))).toHaveLength(1)
+  })
+
+  it('falls back to the top-ranked candidate when neither of the tried candidates cites a score', async () => {
+    installSerperMock(
+      {},
+      [
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Corkery Wine', link: 'https://www.corkerywine.com/p/1' },
+        { title: 'Domaine Rousseau Gevrey-Chambertin 2019 | Other Shop', link: 'https://www.othershop.com/p/1' },
+      ]
+    )
+    mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+    mockExtract.mockImplementation((_openai, _text, url) =>
+      Promise.resolve({ price: null, url, vintage: 2019, critic_scores: [] })
+    )
+
+    const result = await fetchReviewData(makeWine())
+
+    expect(result).toHaveLength(1)
+    expect(result![0].product_url).toBe('https://www.corkerywine.com/p/1')
+    expect(result![0].critic_scores).toEqual([])
+    // Capped at 2 — a third candidate, if there were one, must never be tried.
+    expect(mockRenderPageHtml).toHaveBeenCalledTimes(2)
+  })
+
   it('excludes CellarTracker and WineBerserkers from fallback candidates even when Serper returns them', async () => {
     installSerperMock(
       {},

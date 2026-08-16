@@ -134,6 +134,14 @@ export interface Step1Outcome {
   // dimension disqualified it. This is what turns the next report into a log
   // read — see backend/scripts/validate-reviews.ts.
   rejected: RejectedCandidate[]
+  // Every acceptable candidate from the query that produced `url`, sorted
+  // best-first (Phase 9.3) — `url`/`match` above are just `candidates[0]`.
+  // pickBestCandidate already scores the full organic result set from the
+  // one Serper query that was paid for; keeping the rest here lets a caller
+  // try the runner-up when the top pick's page turns out not to cite a
+  // critic score, without spending a second query. Empty whenever `url` is
+  // null.
+  candidates: Array<{ url: string; match: MatchVerdict }>
 }
 
 export interface RejectedCandidate {
@@ -145,7 +153,9 @@ export interface RejectedCandidate {
 }
 
 /**
- * Picks the single best candidate out of a Serper result set (Phase 9.1).
+ * Scores and ranks every candidate out of a Serper result set (Phase 9.1;
+ * returns the full ranked list rather than just the winner as of Phase 9.3
+ * — see Step1Outcome.candidates).
  *
  * Replaces `items.find(item => isRelevantMatch(...))`, which took whichever
  * result Serper happened to rank first among those passing a boolean check.
@@ -168,7 +178,7 @@ export interface RejectedCandidate {
 function pickBestCandidate(
   items: SerperOrganicItem[],
   wine: WineIdentity
-): { best: { item: SerperOrganicItem; verdict: MatchVerdict } | null; rejected: RejectedCandidate[] } {
+): { candidates: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }>; rejected: RejectedCandidate[] } {
   const acceptable: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }> = []
   const rejected: RejectedCandidate[] = []
 
@@ -182,11 +192,8 @@ function pickBestCandidate(
     else rejected.push({ title: item.title, url: item.link, verdict })
   }
 
-  if (acceptable.length === 0) return { best: null, rejected }
-  return {
-    best: acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))[0],
-    rejected,
-  }
+  acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))
+  return { candidates: acceptable, rejected }
 }
 
 /**
@@ -226,12 +233,24 @@ export async function findProductPageDetailed(
     for (const query of variants) {
       variantsTried += 1
       const items = await runSerperQuery(query, apiKey, label)
-      if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [] }
+      if (items === null) {
+        return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [], candidates: [] }
+      }
       if (items.length === 0) continue
       sawAnyResults = true
-      const { best, rejected } = pickBestCandidate(items, wine)
-      if (best) return { url: best.item.link, stage: 'found', variantsTried, match: best.verdict, rejected: [] }
-      return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected }
+      const { candidates, rejected } = pickBestCandidate(items, wine)
+      if (candidates.length > 0) {
+        const best = candidates[0]
+        return {
+          url: best.item.link,
+          stage: 'found',
+          variantsTried,
+          match: best.verdict,
+          rejected: [],
+          candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+        }
+      }
+      return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected, candidates: [] }
     }
     return {
       url: null,
@@ -239,9 +258,10 @@ export async function findProductPageDetailed(
       variantsTried,
       match: null,
       rejected: [],
+      candidates: [],
     }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 0, match: null, rejected: [] }
+    return { url: null, stage: 'request_failed', variantsTried: 0, match: null, rejected: [], candidates: [] }
   }
 }
 
@@ -401,7 +421,7 @@ async function runOpenQuery(
   try {
     const items = await runSerperQuery(query, apiKey, opts.label ?? 'reviews:open-query')
     if (items === null) {
-      return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
+      return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [], candidates: [] }
     }
 
     const allowed = items.filter(item => {
@@ -425,15 +445,24 @@ async function runOpenQuery(
         variantsTried: 1,
         match: null,
         rejected: [],
+        candidates: [],
       }
     }
 
-    const { best, rejected } = pickBestCandidate(allowed, wine)
-    if (best) {
-      return { url: best.item.link, stage: 'found', variantsTried: 1, match: best.verdict, rejected: [] }
+    const { candidates, rejected } = pickBestCandidate(allowed, wine)
+    if (candidates.length > 0) {
+      const best = candidates[0]
+      return {
+        url: best.item.link,
+        stage: 'found',
+        variantsTried: 1,
+        match: best.verdict,
+        rejected: [],
+        candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+      }
     }
-    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected }
+    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected, candidates: [] }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
+    return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [], candidates: [] }
   }
 }
