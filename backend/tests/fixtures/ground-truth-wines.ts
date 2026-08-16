@@ -179,6 +179,22 @@ export const KNOWN_BAD: GroundTruthCase[] = [
     disqualifiedBy: 'url_shape',
   },
   {
+    // Phase 9.2 calibration (2026-08-15): Zachys's product search returns
+    // this redirect/proxy shape for auction lots, which the old
+    // `/(^|\.)bid\./` pattern silently missed — it never matches "bid." when
+    // preceded by "//" instead of "." or the string start, i.e. on every
+    // real https:// URL. Caught a wasted Puppeteer render + GPT-4o call, not
+    // a wrong-data bug (the page has no score citation), but it's exactly
+    // the class of defect the url_shape guard exists to prevent.
+    what: 'A Zachys auction redirect URL is not a product page',
+    wine: wineByLabel('Gour de Chaulé · Gigondas 2022'),
+    candidate: {
+      title: 'Gigondas Tradition Gour de Chaule 2015',
+      url: 'https://bid.zachys.com/language?url=%2Flot-details%2Findex%2Fcatalog%2F101%2Flot%2F54812%2FGigondas-Tradition-Gour-de-Chaule-2015&ln=3',
+    },
+    disqualifiedBy: 'url_shape',
+  },
+  {
     what: 'A retailer offers blog post is not a product page',
     wine: wineByLabel('Clos Manou · Médoc 2022'),
     candidate: {
