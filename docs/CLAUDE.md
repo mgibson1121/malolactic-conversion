@@ -298,20 +298,22 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not add microservice infrastructure — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
 - Do not merge a PR while CI is red
-- Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after
+- Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after — see "Metered-API cost is a design constraint" below
 
-### Metered-API cost is a design constraint (Phase 9.2)
+### Metered-API cost is a design constraint (Phase 9.2, 2026-08-12)
 
-Serper is billed per request, and it is the one dependency whose cost scales with **configuration** rather than with usage.
+Serper is billed per request, and it is the one dependency whose cost scales with **configuration** rather than with usage. Adding a retailer to `RETAILER_CONFIG` is a one-line change that permanently raises the price of every future wine enrichment, because `modules/reviews/` searches the whole list and issues up to four query variants per entry. That is how per-wine review sourcing reached ~38 credits across Phases 7.3–8 without anyone deciding it should: the list went 4 → 11 → 12, each step individually reasonable, and the multiplication was never written down.
 
-- **State the arithmetic before adding fan-out.** Any change that multiplies outbound search calls must give calls-per-wine before and after, in the spec or the PR description.
-- **Prefer escalation over breadth.** Ask the cheap, well-aimed question first; pay for the broad one only when the first comes back empty.
-- **Never buy the same answer twice.** A result already computed elsewhere in the run should be fed across; a result already stored should not be re-fetched without an explicit refresh.
-- **Keep cost guards and access decisions separate.** A domain skipped because it cannot be rendered, a domain skipped because it rarely pays off, and a domain skipped because its ToS forbids access are three different mechanisms — never collapse them into one flag.
-- **Latency is not the metric.** §9's targets are about the developer waiting, not about call volume.
+Treat outbound metered calls the way the rest of this document treats data correctness — as something with a stated design, not something that emerges.
+
+- **State the arithmetic before adding fan-out.** Any change that multiplies outbound search calls — a new retailer, a new query variant, a new fallback pass, a new per-item probe — must give calls-per-wine before and after, in the spec or the PR description. "One more retailer" is not a cost estimate; "12 → 13 entries × ~3 variants = +3 per wine, permanently" is.
+- **Prefer escalation over breadth.** Ask the cheap, well-aimed question first; pay for the broad one only when the first comes back empty. `fetchReviewData`'s existing gate — `!results.some(r => r.critic_scores.length > 0)` — is the pattern to reuse rather than reinvent, so every escalation in the pipeline shares one definition of "found nothing."
+- **Never buy the same answer twice.** A result already computed elsewhere in the run should be fed across (the Phase 9.1 router cross-feed), and a result already stored should not be re-fetched without an explicit refresh. Cheap local evidence beats a paid call: check `UNRENDERABLE_DOMAINS`, `attemptedDomains`, and `isNonProductUrl` *before* spending, not after.
+- **Keep cost guards and access decisions separate.** A domain skipped because it cannot be rendered is a technical fact; a domain skipped because it rarely pays off is a product judgement; a domain skipped because its ToS forbids access is a hard constraint (the CellarTracker/WineBerserkers bullets above). Three different mechanisms, never collapsed into one flag — collapsing them produces config that lies about why something was excluded.
+- **Latency is not the metric.** §9's targets are about the developer waiting. A bounded-concurrency change can leave call volume identical while feeling faster; that is not a saving.
 - **Enrichment stays user-initiated.** No auto-enrichment or background refresh — fixed by Phase 9.2 and reaffirmed by Phase 9.3, which makes reviews the *most prominent* click-gated action rather than an automatic one.
 
-**Raise it, don't just build it.** If a requested change adds a per-wine or per-request call to a metered API — or if several such additions are accumulating across a phase — say so before implementing, with the arithmetic, in a sentence or two. Then build it if the developer still wants it.
+**Raise it, don't just build it.** If a requested change adds a per-wine or per-request call to a metered API — or if you notice several such additions accumulating across a phase — say so before implementing, with the arithmetic, in a sentence or two. Then build it if the developer still wants it. This is a single-developer project paying retail for every call, and the failure mode to watch for is not one expensive feature but a series of individually reasonable ones. Gentle, specific, and early is the right register: flag the cost, propose the cheaper shape if there is one, and defer to the developer's call.
 
 ---
 

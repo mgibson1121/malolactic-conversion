@@ -7,6 +7,7 @@ import winesRouter from './routes/wines'
 import tastingNotesRouter from './routes/tasting-notes'
 import adviceRouter from './routes/advice'
 import labelScanRouter from './routes/label-scan'
+import debugRouter from './routes/debug'
 
 const app = express()
 app.use(cors({ origin: 'http://localhost:5173' }))
@@ -16,6 +17,7 @@ app.use('/api/wines', winesRouter)
 app.use('/api/tasting-notes', tastingNotesRouter)
 app.use('/api/advice', adviceRouter)
 app.use('/api/label-scan', labelScanRouter)
+app.use('/api/debug', debugRouter)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 

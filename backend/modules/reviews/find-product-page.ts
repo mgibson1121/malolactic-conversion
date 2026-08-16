@@ -10,7 +10,7 @@ import {
   type WineIdentity,
 } from '@shared/utils/wine-match'
 import { isDenylistedDomain, isNonProductUrl } from '@shared/config/denylisted-domains'
-import { fetchWithRetry } from '@shared/utils/concurrency'
+import { serperFetch } from '@shared/utils/serper-client'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -18,8 +18,6 @@ export type { WineIdentity }
 // @shared/utils/wine-match.ts alongside price/serper-query.ts's identical
 // copy — see that file's header for why.
 export { isRelevantMatch }
-
-const SERPER_ENDPOINT = 'https://google.serper.dev/search'
 
 interface SerperOrganicItem {
   title: string
@@ -105,16 +103,12 @@ function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
   return [...new Set(variants)]
 }
 
-async function runSerperQuery(query: string, apiKey: string): Promise<SerperOrganicItem[] | null> {
-  const res = await fetchWithRetry(SERPER_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ q: query, gl: 'us' }),
-    signal: AbortSignal.timeout(15_000),
-  })
+async function runSerperQuery(
+  query: string,
+  apiKey: string,
+  label: string
+): Promise<SerperOrganicItem[] | null> {
+  const res = await serperFetch('search', { q: query, gl: 'us' }, apiKey, label)
   if (!res.ok) return null
   const json = (await res.json()) as SerperOrganicResponse
   return json.organic ?? []
@@ -140,6 +134,14 @@ export interface Step1Outcome {
   // dimension disqualified it. This is what turns the next report into a log
   // read — see backend/scripts/validate-reviews.ts.
   rejected: RejectedCandidate[]
+  // Every acceptable candidate from the query that produced `url`, sorted
+  // best-first (Phase 9.3) — `url`/`match` above are just `candidates[0]`.
+  // pickBestCandidate already scores the full organic result set from the
+  // one Serper query that was paid for; keeping the rest here lets a caller
+  // try the runner-up when the top pick's page turns out not to cite a
+  // critic score, without spending a second query. Empty whenever `url` is
+  // null.
+  candidates: Array<{ url: string; match: MatchVerdict }>
 }
 
 export interface RejectedCandidate {
@@ -151,7 +153,9 @@ export interface RejectedCandidate {
 }
 
 /**
- * Picks the single best candidate out of a Serper result set (Phase 9.1).
+ * Scores and ranks every candidate out of a Serper result set (Phase 9.1;
+ * returns the full ranked list rather than just the winner as of Phase 9.3
+ * — see Step1Outcome.candidates).
  *
  * Replaces `items.find(item => isRelevantMatch(...))`, which took whichever
  * result Serper happened to rank first among those passing a boolean check.
@@ -174,7 +178,7 @@ export interface RejectedCandidate {
 function pickBestCandidate(
   items: SerperOrganicItem[],
   wine: WineIdentity
-): { best: { item: SerperOrganicItem; verdict: MatchVerdict } | null; rejected: RejectedCandidate[] } {
+): { candidates: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }>; rejected: RejectedCandidate[] } {
   const acceptable: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }> = []
   const rejected: RejectedCandidate[] = []
 
@@ -188,11 +192,8 @@ function pickBestCandidate(
     else rejected.push({ title: item.title, url: item.link, verdict })
   }
 
-  if (acceptable.length === 0) return { best: null, rejected }
-  return {
-    best: acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))[0],
-    rejected,
-  }
+  acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))
+  return { candidates: acceptable, rejected }
 }
 
 /**
@@ -219,7 +220,11 @@ function pickBestCandidate(
 export async function findProductPageDetailed(
   wine: WineIdentity,
   retailer: RetailerConfig,
-  apiKey: string
+  apiKey: string,
+  /** Serper accounting tag (Phase 9.2) — the caller supplies which pass this
+   * search belongs to, since the same retailer is reachable from more than
+   * one. See shared/utils/serper-client.ts. */
+  label = `reviews:configured:${retailer.slug}`
 ): Promise<Step1Outcome> {
   try {
     const variants = buildQueryVariants(wine, retailer.domain)
@@ -227,13 +232,25 @@ export async function findProductPageDetailed(
     let variantsTried = 0
     for (const query of variants) {
       variantsTried += 1
-      const items = await runSerperQuery(query, apiKey)
-      if (items === null) return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [] }
+      const items = await runSerperQuery(query, apiKey, label)
+      if (items === null) {
+        return { url: null, stage: 'request_failed', variantsTried, match: null, rejected: [], candidates: [] }
+      }
       if (items.length === 0) continue
       sawAnyResults = true
-      const { best, rejected } = pickBestCandidate(items, wine)
-      if (best) return { url: best.item.link, stage: 'found', variantsTried, match: best.verdict, rejected: [] }
-      return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected }
+      const { candidates, rejected } = pickBestCandidate(items, wine)
+      if (candidates.length > 0) {
+        const best = candidates[0]
+        return {
+          url: best.item.link,
+          stage: 'found',
+          variantsTried,
+          match: best.verdict,
+          rejected: [],
+          candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+        }
+      }
+      return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected, candidates: [] }
     }
     return {
       url: null,
@@ -241,9 +258,10 @@ export async function findProductPageDetailed(
       variantsTried,
       match: null,
       rejected: [],
+      candidates: [],
     }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 0, match: null, rejected: [] }
+    return { url: null, stage: 'request_failed', variantsTried: 0, match: null, rejected: [], candidates: [] }
   }
 }
 
@@ -281,7 +299,10 @@ export async function findFallbackProductPage(
   apiKey: string,
   opts: OpenQueryOptions = {}
 ): Promise<Step1Outcome> {
-  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey, opts)
+  return runOpenQuery(`${openWebIdentityPhrase(wine)} review`, wine, apiKey, {
+    label: 'reviews:open-web',
+    ...opts,
+  })
 }
 
 /**
@@ -296,6 +317,10 @@ export async function findFallbackProductPage(
  */
 export interface OpenQueryOptions {
   attemptedDomains?: string[]
+  /** Serper accounting tag (Phase 9.2) — see shared/utils/serper-client.ts.
+   * findMerchantProductPage is reached from three different passes, which
+   * cost very different amounts; one shared label would hide that. */
+  label?: string
 }
 
 /** Domains known not to render for this pipeline, so a fallback hit on them
@@ -303,8 +328,24 @@ export interface OpenQueryOptions {
  * bot-detection challenge at the product-page render, documented since
  * Phase 7 and explicitly not pursued via evasion (CLAUDE.md §15). This is a
  * cost guard, not an access decision — the denylist above is where access
- * decisions live. */
-const UNRENDERABLE_DOMAINS = ['klwines.com']
+ * decisions live. It is also not a `reviewTier` judgement: that says a shop
+ * rarely pays off, this says its pages cannot be read at all. Three separate
+ * mechanisms, deliberately never collapsed (CLAUDE.md §15). */
+export const UNRENDERABLE_DOMAINS = ['klwines.com']
+
+/**
+ * Whether a domain's pages can never be rendered by this pipeline (Phase 9.2).
+ *
+ * Exported alongside the list because the check is a suffix match, not
+ * equality — `shop.klwines.com` is as unreadable as `klwines.com` — and a
+ * caller reimplementing that would eventually get it wrong. It stays in this
+ * module because renderability is a property of the render step, which this
+ * module owns.
+ */
+export function isUnrenderableDomain(domain: string): boolean {
+  const host = domain.toLowerCase().replace(/^www\./, '')
+  return UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))
+}
 
 /**
  * Searches the open web for a *named merchant's* page for this wine
@@ -333,18 +374,36 @@ export async function findMerchantProductPage(
     `${openWebIdentityPhrase(wine)} "${foldDiacritics(merchantName)}"`,
     wine,
     apiKey,
-    opts
+    { label: 'reviews:merchant-probe', ...opts }
   )
 }
 
-/** The quoted producer/denomination/vintage core shared by both open-web
- * queries. Honorific-stripped from the outset — these are last-resort
- * passes, so there is no narrower attempt for a relaxation to undercut, and
- * the open web is even less likely than a retailer to write "Domaine". */
+/** The quoted producer/denomination/bottling/vintage core shared by both
+ * open-web queries. Honorific-stripped from the outset — these are
+ * last-resort passes, so there is no narrower attempt for a relaxation to
+ * undercut, and the open web is even less likely than a retailer to write
+ * "Domaine".
+ *
+ * cuvee/vineyard included (2026-08-15) — this function previously dropped
+ * them even though buildQuery (the configured-retailer search, above)
+ * already includes both. For a wine with no vintage set, "producer" +
+ * "denomination" alone can be too generic to reach the right page at all —
+ * confirmed live: Olivier Leflaive's Bourgogne entry has no stored vintage,
+ * and the single un-retried fallback query for just `"Olivier Leflaive"
+ * "Bourgogne" review` missed a real, findable page (kdwine.com) whose own
+ * title foregrounds the cuvee ("Les Sétilles"), not the denomination — the
+ * one distinguishing term this query was throwing away despite already
+ * having it on hand. Since both callers here send exactly one query with no
+ * retry (unlike buildQuery's variant ladder), there is no cheaper narrower
+ * attempt to fall back to if a wine's cuvee happens to be wrong for a given
+ * page — but a wine with cuvee/vineyard set and no vintage was already
+ * under-specified without this, so the trade favors inclusion. */
 function openWebIdentityPhrase(wine: WineIdentity): string {
   const parts: string[] = []
   if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(wine.producer))}"`)
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
+  if (wine.cuvee) parts.push(`"${foldDiacritics(wine.cuvee)}"`)
+  if (wine.vineyard) parts.push(`"${foldDiacritics(wine.vineyard)}"`)
   if (wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')
 }
@@ -360,9 +419,9 @@ async function runOpenQuery(
   const attempted = (opts.attemptedDomains ?? []).map(d => d.toLowerCase().replace(/^www\./, ''))
 
   try {
-    const items = await runSerperQuery(query, apiKey)
+    const items = await runSerperQuery(query, apiKey, opts.label ?? 'reviews:open-query')
     if (items === null) {
-      return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
+      return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [], candidates: [] }
     }
 
     const allowed = items.filter(item => {
@@ -373,7 +432,7 @@ async function runOpenQuery(
         // Already exhausted this run, or known not to render — either way,
         // spending a render + GPT-4o call here buys a guaranteed empty.
         if (attempted.some(d => host === d || host.endsWith(`.${d}`))) return false
-        if (UNRENDERABLE_DOMAINS.some(d => host === d || host.endsWith(`.${d}`))) return false
+        if (isUnrenderableDomain(host)) return false
         return true
       } catch {
         return false // an unparseable link can't be rendered anyway
@@ -386,15 +445,24 @@ async function runOpenQuery(
         variantsTried: 1,
         match: null,
         rejected: [],
+        candidates: [],
       }
     }
 
-    const { best, rejected } = pickBestCandidate(allowed, wine)
-    if (best) {
-      return { url: best.item.link, stage: 'found', variantsTried: 1, match: best.verdict, rejected: [] }
+    const { candidates, rejected } = pickBestCandidate(allowed, wine)
+    if (candidates.length > 0) {
+      const best = candidates[0]
+      return {
+        url: best.item.link,
+        stage: 'found',
+        variantsTried: 1,
+        match: best.verdict,
+        rejected: [],
+        candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+      }
     }
-    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected }
+    return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected, candidates: [] }
   } catch {
-    return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [] }
+    return { url: null, stage: 'request_failed', variantsTried: 1, match: null, rejected: [], candidates: [] }
   }
 }

@@ -1019,6 +1019,12 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 ## Phase 9.2 — Enrichment cost reduction (Serper budget)
 
+**Status:** WI-1 through WI-7 landed — WI-1–6 on 2026-08-12, WI-7 (the live 14-wine
+calibration re-run) on 2026-08-15, both on `service/phase-9.2-serper-cost-reduction`
+(one commit per work item, per the spec's §5 sequence). See
+`docs/specs/2026-08-12-phase-9.2-enrichment-cost-reduction.md` §3 for the measured
+before/after figures.
+
 **Goal:** Bring per-wine Serper spend down without narrowing retailer coverage or reopening any Phase 9.1 decision.
 
 **Trigger:** Serper credits consuming faster than expected during Phase 9 validation, noticed 2026-08-12. Measured against current code, one wine enriched through both buttons costs **~42 credits, ~90% of it `fetch-reviews`** — not pricing, which is a single `/shopping` call.
