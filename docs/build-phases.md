@@ -1062,7 +1062,9 @@ before/after figures.
 
 ## Phase 9.3 — Discovery review UI (post-scan / add-wine decision screen)
 
-**Status:** Spec written 2026-08-16. Not started.
+**Status:** Spec written 2026-08-16; WI-1 through WI-7 landed the same day on
+`feature/discovery-review-ui`. Full backend (405/409, 4 intentional skips) and
+web (89/89) suites green, `tsc --noEmit` clean in both projects.
 
 **Goal:** Rebuild the one screen the developer sees in the first ten seconds after a scan
 or a manual add, which hadn't been touched since Phase 6.5 and had drifted out of step
