@@ -1054,6 +1054,70 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 ---
 
+## Phase 9.3 — Discovery review UI (post-scan / add-wine decision screen)
+
+**Status:** Spec written 2026-08-16. Not started.
+
+**Goal:** Rebuild the one screen the developer sees in the first ten seconds after a scan
+or a manual add, which hadn't been touched since Phase 6.5 and had drifted out of step
+with everything Phases 7–9.2 built. Reorder it around the developer's stated priorities:
+reviews first (the signal that answers "is this worth keeping"), then whether a preferred
+retailer carries the wine, then a wishlist/cellar/discovered decision, then a price sanity
+check.
+
+**Trigger:** Developer review of the running app, 2026-08-16, alongside recent PR history.
+Four concrete gaps, each verified against the code:
+- `cellar_category` is asked for at creation (both `LabelScanFlow` and `AddWineForm`) but
+  read nowhere else in the app — dead weight at exactly the wrong moment.
+- Only price auto-fetches post-scan; reviews — the developer's top priority — are never
+  fetched during discovery at all, only later from the wine's card.
+- `+ Add Wine` has no post-save screen whatsoever — `AddWineForm`'s `onSubmit` returns
+  `void` and `App.tsx` closes the form immediately, so a manually-added wine gets zero
+  decision support, unlike a scanned one.
+- Stale "Wine-Searcher" copy/comments remain in `LabelScanFlow.tsx`, `WineCard.tsx`, and
+  `WineDetailModal.tsx` from before the Phase 6 pivot to Serper — the abandoned
+  Wine-Searcher-era query the developer recalled seeing.
+
+**Full execution spec:** `docs/specs/2026-08-16-phase-9.3-discovery-review-ui.md` — work
+items, current-state findings, cost arithmetic, commit sequence, acceptance criteria.
+
+**Deliverables:**
+- `cellar_category` no longer collected at creation (schema/column left in place,
+  documented as reserved — same treatment as `expert_reviews`/`community_sentiment`).
+- `AddWineForm` and `LabelScanFlow` unified behind one new post-save `DiscoveryReview`
+  screen, built entirely from Phase 9.2's existing enrichment plumbing
+  (`useEnrichmentAction`, `fetchWineReviews`/`fetchWinePrice`, `EnrichmentFreshness`,
+  `PriceSection`, `CriticScoreBadges`) — no new backend route, no new Serper call site.
+- New screen order: identity → **Fetch Reviews** (click-gated, first and most prominent)
+  → preferred-retailer carry-check (frontend-only summary, zero new cost) → price
+  (unchanged auto-fetch) → wishlist/cellar tag decision → done.
+- Label image dropped from both the pre-save and post-save screens — `label_image_url`
+  was already hardcoded `null` at creation in both paths, so nothing persisted is lost.
+- All "Wine-Searcher" copy and comments retired from the three files that still had them.
+
+**Key decisions (fixed in the spec, 2026-08-16):**
+- **Net new Serper calls introduced: zero.** This phase reorders and unifies existing
+  enrichment actions; it does not add a call, query variant, or fallback pass.
+- **Reviews stay click-gated**, even as the top-priority action — auto-firing them on
+  every save would spend ~12–42 credits regardless of whether the wine is kept, and
+  directly contradicts Phase 9.2's fixed decision ("Enrichment stays user-initiated. No
+  auto-enrichment or background refresh.").
+- **`cellar_category` is not migrated out** — stopped being asked for, not deleted.
+- **No delete/discard endpoint added.** One doesn't exist today (`wines.ts` exposes
+  POST/GET/PATCH only); worth its own phase if wanted, not bundled here.
+
+**Notes:**
+- Builds directly on Phase 9.2's `useEnrichmentAction`/`EnrichmentFreshness` mechanism —
+  do not build a second enrichment path for the discovery screen.
+- Web only; no iOS work in this phase.
+
+**Milestone:** A wine created via either Scan Label or + Add Wine lands on the same
+Discovery Review screen, sees reviews first, learns whether a preferred retailer carries
+it, makes an explicit wishlist/cellar decision, and can sanity-check price — all without
+adding a single new outbound Serper call.
+
+---
+
 ## Phase 10 — UX design and prototyping
 
 **Goal:** Map out the full application experience before writing any frontend code.
