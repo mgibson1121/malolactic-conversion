@@ -37,6 +37,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     community_excerpts: null,
     price_data: null,
     date_added: '2024-01-01T00:00:00.000Z',
+    promoted_at: '2024-01-01T00:00:00.000Z',
     date_first_consumed: null,
     ...overrides,
   }

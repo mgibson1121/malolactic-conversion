@@ -29,6 +29,7 @@ import {
   isWithinTtl,
   newestTimestamp,
   PRICE_TTL_DAYS,
+  reachedExtendedTier,
   REVIEWS_TTL_DAYS,
 } from './enrichment-cache'
 
@@ -163,6 +164,65 @@ router.patch(
   })
 )
 
+// DELETE /api/wines/:id — discard a wine (Phase 9.4, WI-7). Used for both an
+// explicit Discard on the Discovery Review screen and Cancel on the scan
+// edit form, and by the 24h draft sweep below. Refuses when the wine has a
+// tasting note — a note is never cascaded away silently.
+router.delete(
+  '/:id',
+  wrap(async (req, res) => {
+    const wine = await getStorage().getWine(req.params.id)
+    if (!wine) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    const notes = await getStorage().listTastingNotesByWine(req.params.id)
+    if (notes.length > 0) {
+      res.status(409).json({ error: 'Cannot delete a wine that has tasting notes.' })
+      return
+    }
+
+    await getStorage().deleteWine(req.params.id)
+    res.status(204).end()
+  })
+)
+
+// POST /api/wines/:id/promote — move a draft into the collection (Phase 9.4,
+// WI-2). Not a PATCH special case: promotion is a state transition with a
+// precondition (at least one list tag), and burying it in the general update
+// route means every future caller has to remember that precondition. Free —
+// no metered call — so this costs nothing but a handler.
+router.post(
+  '/:id/promote',
+  wrap(async (req, res) => {
+    const body = req.body as { tag_discovered?: boolean; tag_wishlist?: boolean; tag_cellar?: boolean }
+    const tag_discovered = !!body.tag_discovered
+    const tag_wishlist = !!body.tag_wishlist
+    const tag_cellar = !!body.tag_cellar
+    if (!tag_discovered && !tag_wishlist && !tag_cellar) {
+      res.status(400).json({ error: 'At least one of tag_discovered, tag_wishlist, tag_cellar is required to promote a wine.' })
+      return
+    }
+
+    const wine = await getStorage().getWine(req.params.id)
+    if (!wine) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    // Idempotent: re-promoting an already-promoted wine updates tags and
+    // leaves promoted_at at its original value.
+    const updated = await getStorage().updateWine(req.params.id, {
+      tag_discovered,
+      tag_wishlist,
+      tag_cellar,
+      promoted_at: wine.promoted_at ?? new Date().toISOString(),
+    })
+    res.json(updated)
+  })
+)
+
 /**
  * What one coalesced enrichment run produced (Phase 9.2, WI-4).
  *
@@ -179,6 +239,13 @@ type EnrichmentOutcome =
  * costs nothing. */
 function isForced(req: Request): boolean {
   return req.query.force === 'true'
+}
+
+/** `?tier=primary|full` on fetch-reviews (Phase 9.4, WI-3). Anything other
+ * than the literal string 'primary' — absent, empty, mistyped — is 'full',
+ * so every existing caller (WineCard, WineDetailModal) is unchanged. */
+function reviewTier(req: Request): 'primary' | 'full' {
+  return req.query.tier === 'primary' ? 'primary' : 'full'
 }
 
 /** The response body for a run the freshness guard declined to make. The wine
@@ -282,11 +349,20 @@ router.post(
       return
     }
 
+    const tier = reviewTier(req)
+
     // review_data timestamps each retailer separately, so the wine's own
     // freshness is the newest of them. A wine that has never been fetched has
     // no timestamp at all and always runs.
     const storedAt = newestTimestamp((wine.review_data ?? []).map((r) => r.fetched_at))
-    if (!isForced(req) && isWithinTtl(storedAt, REVIEWS_TTL_DAYS)) {
+    // Phase 9.4, WI-5 — a tier=primary request is satisfied by any fresh
+    // stored data, same as before. A tier=full request additionally needs
+    // the stored data to have actually come from a run that reached the
+    // extended tier — otherwise a primary-tier auto-fire's result would
+    // silently satisfy an escalation click for up to REVIEWS_TTL_DAYS. See
+    // reachedExtendedTier's docs for the one accepted over-invalidation case.
+    const cacheSatisfiesTier = tier === 'primary' || reachedExtendedTier(wine.review_probe_log)
+    if (!isForced(req) && cacheSatisfiesTier && isWithinTtl(storedAt, REVIEWS_TTL_DAYS)) {
       res.json(cachedResponse(wine, storedAt!))
       return
     }
@@ -296,7 +372,10 @@ router.post(
     // skipped by a stale negative from before whatever prompted the click.
     const existingProbeLog = isForced(req) ? [] : wine.review_probe_log ?? []
 
-    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-reviews`, () =>
+    // Keyed by tier so an in-flight primary-tier auto-fire and a concurrent
+    // tier=full escalation click never coalesce onto each other's (narrower
+    // or wider) result.
+    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-reviews:${tier}`, () =>
       accountSerperUsage({ wine_id: req.params.id, action: 'fetch-reviews' }, async () => {
         const probeLogSink: ReviewProbeLogEntry[] = []
         // The other half of the cross-feed: retailers price/ discovered that
@@ -310,6 +389,7 @@ router.post(
           })),
           existingProbeLog,
           probeLogSink,
+          tier,
         })
         // Null means the search could not be run (no key, or every Serper
         // request failed) — as distinct from running and finding nothing.

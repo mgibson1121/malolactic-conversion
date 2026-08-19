@@ -33,7 +33,9 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
       cuvee: cuvee.trim() || null,
       grape_varieties: grapes.length > 0 ? grapes : null,
       label_image_url: null,
-      tag_discovered: true,
+      // Phase 9.4 — every creation path starts as a draft with no list tag;
+      // the developer picks at least one on the Discovery Review screen.
+      tag_discovered: false,
       tag_wishlist: false,
       tag_cellar: false,
       tag_consumed: false,

@@ -1,3 +1,6 @@
+import { RETAILER_CONFIG } from '@shared/config/retailers.config'
+import type { ReviewProbeLogEntry } from '@shared/types'
+
 /**
  * Freshness and coalescing for the two metered enrichment routes
  * (Phase 9.2, WI-4).
@@ -91,4 +94,31 @@ export function coalesce<T>(key: string, fn: () => Promise<T>): Promise<T> {
 /** Number of runs currently in flight — for tests and diagnostics. */
 export function inFlightCount(): number {
   return inFlight.size
+}
+
+/**
+ * Whether stored review_data can satisfy a `tier=full` request as-is
+ * (Phase 9.4, WI-5).
+ *
+ * A `tier=primary` auto-fire probes only primary-tier retailers, so its
+ * probe log carries no entry for any 'extended'-tier slug. Reading that
+ * absence back is how a later `tier=full` request tells "this was a
+ * primary-only run" apart from "this was already a full run" — without a new
+ * column. `force=true` clears the probe log and isn't a substitute: it also
+ * discards the negative-probe memory that keeps a later full run cheap.
+ *
+ * One case is deliberately over-invalidated: a full run whose primary tier
+ * itself found a score never touches the extended tier either (see
+ * fetchReviewData's foundNoScore gate), so its probe log looks identical to
+ * a primary-only run's. That run gets re-run once more on the next
+ * `tier=full` click than strictly necessary — a bounded, ~primary-tier-cost
+ * re-check, not a wrong result — which is the trade this heuristic accepts
+ * in exchange for not adding a column.
+ */
+export function reachedExtendedTier(probeLog: ReviewProbeLogEntry[] | null | undefined): boolean {
+  if (!probeLog || probeLog.length === 0) return false
+  return probeLog.some((entry) => {
+    const config = RETAILER_CONFIG.find((r) => r.slug === entry.slug)
+    return config?.reviewTier === 'extended'
+  })
 }

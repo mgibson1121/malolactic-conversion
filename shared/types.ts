@@ -297,6 +297,11 @@ export interface WineEntry {
   review_probe_log?: ReviewProbeLogEntry[] | null
   date_added: string                      // ISO timestamp
   date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
+  // Phase 9.4 — NULL means draft: persisted (so scan-time enrichment has a
+  // row to attach to) but excluded from every list, count, and query until
+  // the developer promotes it (POST /:id/promote) with at least one list
+  // tag. Set once, on promotion; never cleared. See CLAUDE.md §3.
+  promoted_at: string | null
 }
 
 export interface TastingNote {
@@ -341,7 +346,7 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>
@@ -357,6 +362,9 @@ export interface WineFilter {
   has_tasting_note?: boolean
   my_rating?: MyRating
   region?: string
+  // Phase 9.4 — false by default, so every existing caller keeps excluding
+  // drafts without modification. True includes wines with promoted_at NULL.
+  include_drafts?: boolean
 }
 
 export interface AdviceFilter {

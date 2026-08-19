@@ -72,6 +72,35 @@ export async function updateWine(id: string, data: UpdateWineInput): Promise<Win
   )
 }
 
+/**
+ * Moves a draft into the collection (Phase 9.4, WI-2). At least one of the
+ * three list tags must be true, or the server rejects with 400.
+ */
+export async function promoteWine(
+  id: string,
+  tags: { tag_discovered?: boolean; tag_wishlist?: boolean; tag_cellar?: boolean }
+): Promise<WineEntry> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${id}/promote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tags),
+    })
+  )
+}
+
+/**
+ * Discards a wine (Phase 9.4, WI-7) — an explicit Discard/Cancel, or the 24h
+ * draft sweep. Rejects with 409 if the wine has a tasting note.
+ */
+export async function deleteWine(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/wines/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.error ? String(body.error) : `HTTP ${res.status}`)
+  }
+}
+
 export async function createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
   return handleResponse(
     await fetch(`${BASE}/tasting-notes`, {
@@ -102,11 +131,18 @@ export interface EnrichmentResponse extends WineEntry {
 export interface EnrichmentOptions {
   /** Skip the server's freshness guard and spend the credits. */
   force?: boolean
+  /** Phase 9.4 (WI-3) — fetch-reviews only. 'primary' searches only the
+   * primary retailer tier; omitted defaults to 'full' server-side. */
+  tier?: 'primary' | 'full'
 }
 
 function enrichmentUrl(wineId: string, action: string, opts?: EnrichmentOptions): string {
   const base = `${BASE}/wines/${wineId}/${action}`
-  return opts?.force ? `${base}?force=true` : base
+  const params = new URLSearchParams()
+  if (opts?.force) params.set('force', 'true')
+  if (opts?.tier) params.set('tier', opts.tier)
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
 }
 
 export async function fetchWinePrice(

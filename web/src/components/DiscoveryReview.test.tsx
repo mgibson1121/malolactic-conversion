@@ -101,6 +101,8 @@ async function renderAndSettle(wine: WineEntry, props: Partial<{
   onDone: () => void
   onTagUpdate: (id: string, tags: Record<string, unknown>) => void
   onWineUpdated: (wine: WineEntry) => void
+  onPromote: (id: string, tags: Record<string, unknown>) => Promise<void>
+  onDiscard: (id: string) => Promise<void>
 }> = {}) {
   const result = render(
     <DiscoveryReview
@@ -108,6 +110,8 @@ async function renderAndSettle(wine: WineEntry, props: Partial<{
       onDone={props.onDone ?? (() => {})}
       onTagUpdate={props.onTagUpdate ?? (() => {})}
       onWineUpdated={props.onWineUpdated ?? (() => {})}
+      onPromote={props.onPromote}
+      onDiscard={props.onDiscard}
     />
   )
   if (!wine.price_data) {
@@ -219,5 +223,131 @@ describe('DiscoveryReview — done', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
     expect(onDone).toHaveBeenCalled()
+  })
+})
+
+// Phase 9.4 — draft mode (wine.promoted_at === null)
+describe('DiscoveryReview — draft mode', () => {
+  function draftWine(overrides: Partial<WineEntry> = {}): WineEntry {
+    return makeWine({
+      promoted_at: null,
+      tag_discovered: false,
+      tag_wishlist: false,
+      tag_cellar: false,
+      price_data: makePriceData([]),
+      ...overrides,
+    })
+  }
+
+  it('shows a neutral header instead of "Saved to Collection"', async () => {
+    await renderAndSettle(draftWine())
+    expect(screen.queryByText('✓ Saved to Collection')).not.toBeInTheDocument()
+    expect(screen.getByText(/Not yet saved/)).toBeInTheDocument()
+  })
+
+  it('offers a three-way Discovered/Wishlist/Cellar tag choice', async () => {
+    await renderAndSettle(draftWine())
+    expect(screen.getByRole('button', { name: /Discovered/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Wishlist/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Cellar/ })).toBeInTheDocument()
+  })
+
+  it('Save to Collection is disabled until a tag is selected', async () => {
+    await renderAndSettle(draftWine())
+    expect(screen.getByRole('button', { name: 'Save to Collection' })).toBeDisabled()
+  })
+
+  it('tag toggles update local state only — no onTagUpdate call for a draft', async () => {
+    const onTagUpdate = vi.fn()
+    await renderAndSettle(draftWine(), { onTagUpdate })
+
+    await userEvent.click(screen.getByRole('button', { name: /Wishlist/ }))
+
+    expect(onTagUpdate).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Save to Collection' })).toBeEnabled()
+  })
+
+  it('Save to Collection calls onPromote with the selected tags', async () => {
+    const onPromote = vi.fn().mockResolvedValue(undefined)
+    await renderAndSettle(draftWine(), { onPromote })
+
+    await userEvent.click(screen.getByRole('button', { name: /Cellar/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save to Collection' }))
+
+    expect(onPromote).toHaveBeenCalledWith('wine-1', {
+      tag_discovered: false,
+      tag_wishlist: false,
+      tag_cellar: true,
+    })
+  })
+
+  it('Discard calls onDiscard', async () => {
+    const onDiscard = vi.fn().mockResolvedValue(undefined)
+    await renderAndSettle(draftWine(), { onDiscard })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(onDiscard).toHaveBeenCalledWith('wine-1')
+  })
+
+  it('does not show Done for a draft', async () => {
+    await renderAndSettle(draftWine())
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+  })
+})
+
+describe('DiscoveryReview — autoFireReviews (Phase 9.4, WI-6)', () => {
+  it('fires the primary tier on mount when autoFireReviews is true and there is no review data yet', async () => {
+    mockFetchReviews.mockResolvedValue(makeWine({ review_data: [] }))
+    render(
+      <DiscoveryReview
+        wine={makeWine({ price_data: makePriceData([]), review_data: null })}
+        autoFireReviews
+        onDone={() => {}}
+        onTagUpdate={() => {}}
+        onWineUpdated={() => {}}
+      />
+    )
+
+    await waitFor(() => expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { tier: 'primary' }))
+  })
+
+  it('does not fire reviews on mount when autoFireReviews is false (manual add / duplicate match)', async () => {
+    await renderAndSettle(makeWine({ price_data: makePriceData([]) }))
+    expect(mockFetchReviews).not.toHaveBeenCalled()
+  })
+})
+
+describe('DiscoveryReview — reviews button copy (Phase 9.4, WI-6)', () => {
+  it('shows "Search more retailers" once review_data exists with no critic scores', async () => {
+    await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: [] }))
+    expect(screen.getByRole('button', { name: 'Search more retailers' })).toBeInTheDocument()
+  })
+
+  it('shows "Refresh Reviews" once a critic score is present', async () => {
+    const wine = makeWine({
+      price_data: makePriceData([]),
+      review_data: [
+        {
+          slug: 'kl',
+          name: 'K&L Wine Merchants',
+          product_url: 'https://shop.klwines.com/p/1',
+          critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+          fetched_at: '2026-08-16T00:00:00.000Z',
+          source: 'configured',
+          page_vintage: 2019,
+          vintage_gap: 0,
+          match: { producer: 'match', denomination: 'match', bottling: 'unknown', vintage: 'match', candidateVintage: 2019, vintageGap: 0 },
+          page_price: 120,
+        },
+      ],
+    })
+    await renderAndSettle(wine)
+    expect(screen.getByRole('button', { name: 'Refresh Reviews' })).toBeInTheDocument()
+  })
+
+  it('shows "Fetch Reviews" when review_data has never been fetched', async () => {
+    await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: null }))
+    expect(screen.getByRole('button', { name: 'Fetch Reviews' })).toBeInTheDocument()
   })
 })
