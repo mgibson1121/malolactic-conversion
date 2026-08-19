@@ -100,6 +100,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     review_data: null,
     date_added: '2024-01-01T00:00:00.000Z',
     date_first_consumed: null,
+    promoted_at: '2024-01-01T00:00:00.000Z',
     ...overrides,
   }
 }
@@ -767,6 +768,72 @@ describe('fetchReviewData — primary and extended review tiers', () => {
     expect(primarySlugs.length).toBeGreaterThan(0)
     expect(extendedSlugs.length).toBeGreaterThan(0)
     expect([...primarySlugs, ...extendedSlugs].sort()).toEqual(RETAILER_CONFIG.map(r => r.slug).sort())
+  })
+
+  // Phase 9.4, WI-3 — bounded to the primary tier, even when it finds
+  // nothing. This is what lets the scan-creation path auto-fire without
+  // paying for the three escalation stages every time the primary tier
+  // comes up empty (about half of all scans — see the spec's §3).
+  describe("tier: 'primary'", () => {
+    it('issues Serper calls only for primary-tier retailers, never extended', async () => {
+      const queries = recordQueries({})
+
+      await fetchReviewData(makeWine(), { tier: 'primary' })
+
+      for (const retailer of RETAILER_CONFIG) {
+        const searched = queries.some(q => q.includes(`site:${retailer.domain}`))
+        if (retailer.reviewTier === 'extended') {
+          expect(searched).toBe(false)
+        } else if (!isUnrenderableDomain(retailer.domain)) {
+          expect(searched).toBe(true)
+        }
+      }
+    })
+
+    it('does not escalate to extended even when the primary tier finds nothing', async () => {
+      const queries = recordQueries({})
+
+      const result = await fetchReviewData(makeWine(), { tier: 'primary' })
+
+      expect(result).toEqual([])
+      for (const slug of extendedSlugs) {
+        const domain = RETAILER_CONFIG.find(r => r.slug === slug)!.domain
+        expect(queries.some(q => q.includes(`site:${domain}`))).toBe(false)
+      }
+    })
+
+    it('still returns a score found within the primary tier', async () => {
+      recordQueries({
+        'jjbuckley.com': [
+          { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.jjbuckley.com/p/1' },
+        ],
+      })
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({
+        price: 1200,
+        url: 'https://www.jjbuckley.com/p/1',
+        vintage: 2019,
+        critic_scores: [{ publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }],
+      })
+
+      const result = await fetchReviewData(makeWine(), { tier: 'primary' })
+
+      expect(result).toHaveLength(1)
+      expect(result![0].critic_scores).toHaveLength(1)
+    })
+
+    it('probe log carries only primary-tier entries, never an extended one', async () => {
+      recordQueries({})
+      const sink: import('@shared/types').ReviewProbeLogEntry[] = []
+
+      await fetchReviewData(makeWine(), { tier: 'primary', probeLogSink: sink })
+
+      const probedSlugs = sink.map(e => e.slug)
+      expect(probedSlugs.length).toBeGreaterThan(0)
+      for (const slug of probedSlugs) {
+        expect(extendedSlugs).not.toContain(slug)
+      }
+    })
   })
 })
 

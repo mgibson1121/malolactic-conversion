@@ -4,8 +4,14 @@ import {
   isWithinTtl,
   newestTimestamp,
   PRICE_TTL_DAYS,
+  reachedExtendedTier,
   REVIEWS_TTL_DAYS,
 } from '../../routes/enrichment-cache'
+import type { ReviewProbeLogEntry } from '@shared/types'
+
+function probeEntry(slug: string, overrides: Partial<ReviewProbeLogEntry> = {}): ReviewProbeLogEntry {
+  return { slug, domain: `${slug}.example.com`, stage: 'zero_results', variants_tried: 3, probed_at: '2026-08-12T00:00:00.000Z', ...overrides }
+}
 
 const NOW = new Date('2026-08-12T12:00:00.000Z')
 
@@ -120,5 +126,28 @@ describe('coalesce', () => {
     await expect(first).rejects.toThrow('serper exploded')
     await expect(second).rejects.toThrow('serper exploded')
     expect(inFlightCount()).toBe(0)
+  })
+})
+
+// Phase 9.4, WI-5
+describe('reachedExtendedTier', () => {
+  it('is false with no probe log', () => {
+    expect(reachedExtendedTier(null)).toBe(false)
+    expect(reachedExtendedTier(undefined)).toBe(false)
+    expect(reachedExtendedTier([])).toBe(false)
+  })
+
+  it('is false when only primary-tier retailers were probed', () => {
+    // 'kl' is a primary-tier slug (shared/config/retailers.config.ts).
+    expect(reachedExtendedTier([probeEntry('kl')])).toBe(false)
+  })
+
+  it('is true once an extended-tier retailer was probed', () => {
+    // 'zachys' is an extended-tier slug.
+    expect(reachedExtendedTier([probeEntry('kl'), probeEntry('zachys', { stage: 'found' })])).toBe(true)
+  })
+
+  it('is false for an unrecognized slug (not in RETAILER_CONFIG)', () => {
+    expect(reachedExtendedTier([probeEntry('fallback-someshop-com')])).toBe(false)
   })
 })

@@ -65,7 +65,7 @@ describe('AddWineForm', () => {
           vintage: 2018,
           region: 'Burgundy',
           grape_varieties: ['Pinot Noir'],
-          tag_discovered: true,
+          tag_discovered: false,
           tag_wishlist: false,
           tag_cellar: false,
           tag_consumed: false,
@@ -90,7 +90,7 @@ describe('AddWineForm', () => {
           producer: null,
           vintage: null,
           cellar_category: null,
-          tag_discovered: true,
+          tag_discovered: false,
         })
       )
     })
