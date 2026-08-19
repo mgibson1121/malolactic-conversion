@@ -2,7 +2,7 @@
  * WineDetailModal.tsx
  * Full-screen detail overlay for a wine entry.
  * Shows all identity fields, tags, cellar quantity, drinking window,
- * Wine-Searcher price section, and tasting notes summary.
+ * Retailer Crawl price section, and tasting notes summary.
  */
 
 import { useEffect, useState } from 'react'

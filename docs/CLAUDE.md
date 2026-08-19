@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-07-26
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-08-16
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -50,6 +50,7 @@ Phases 1–4.5 are complete. The wine entry schema was validated against real da
 - `drinking_window_start` / `drinking_window_end` are cached/derived values — overwritten by review data, never manually set.
 - `my_tags` must stay in sync with tags extracted from `tasting_notes`; GPT-4o writes back to the wine entry when a note is saved.
 - The wine entry uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable. See `wine-app-product-context.md` Section 3 for full definitions before building the label scan module.
+- `cellar_category` (`table` / `near_term` / `long_term`) is a reserved field, same treatment as `expert_reviews` and `community_sentiment` below — see the Phase 9.3 note. It is not read or displayed anywhere in the shipped UI, and as of Phase 9.3 is no longer collected at wine creation either. Leave the column and type in place; do not remove without a separate decision.
 
 ### Phase 5 — SQLite migration
 Schema is validated. Replace the Google Sheets adapter with SQLite. No feature behaviour changes.
@@ -61,7 +62,7 @@ Schema is validated. Replace the Google Sheets adapter with SQLite. No feature b
 - All Phase 1–4 tests must pass identically against SQLite before this phase is closed
 
 ### Phase 6 — Price enrichment
-Serper.dev (organic + Shopping) + Puppeteer. Populates a single `price_data` JSON column (`price_min`/`price_avg`/`price_max`/`retailers`/`nearest_retailer` are keys inside it, not separate SQL columns) plus `retailer_links`. A dead migration (`ws_price_min` etc., from an earlier Wine-Searcher-based design) exists in the DB but is never read/written by the adapter — don't build against it. Full detail in `docs/build-phases.md`.
+Serper.dev (organic + Shopping) + Puppeteer. Populates a single `price_data` JSON column (`price_min`/`price_avg`/`price_max`/`retailers`/`nearest_retailer` are keys inside it, not separate SQL columns) plus `retailer_links`. A dead migration (`ws_price_min` etc., from an earlier Wine-Searcher-based design) exists in the DB but is never read/written by the adapter — don't build against it. **Phase 9.3 note:** that same Wine-Searcher-era language had also leaked into live UI copy and code comments in `LabelScanFlow.tsx`, `WineCard.tsx`, and `WineDetailModal.tsx` — retired as part of Phase 9.3, since the actual price source has been Serper since this phase. Full detail in `docs/build-phases.md`.
 
 ### Phase 7 — Review & critic score sourcing (current)
 Separate module from pricing — locates a real retailer *product* page (not a search-results page) via Serper's organic `/search` endpoint with a `site:`-restricted query, renders it with Puppeteer, and runs GPT-4o extraction (moved from the price module, where it was dead code) to pull attributed critic scores into a new `review_data` column. Extraction windows the rendered page (`keyword-window.ts`, decided 2026-07-24 after live testing showed a blind 80K-character truncation was discarding review content on real product pages) around a generic, publication-agnostic score-citation pattern rather than sending the full rendered page to GPT-4o — cheaper per call and more robust to page size than a fixed truncation limit, and it captures any attributed score, not just ones from a pre-known list. `critic-keywords.ts` is applied only after extraction, to canonicalize a recognized publication's name and flag it `known_publication: true`/`false` — it never gates whether a score gets captured. That lookup is living config, expected to need periodic updates as critics change publications, but a miss there is now low-stakes (unnormalized name, not a dropped score). K&L is a known gap (bot-blocked at the product-page render, not just search) and is not pursued via bot-detection evasion. Full detail is in `docs/build-phases.md`.
@@ -72,7 +73,16 @@ First attempt at diagnosing a reported retailer-search failure tested the wrong 
 ### Phase 7.2 — Guided retailer search with confirmed-URL extraction (current)
 The real bug: the "Find Reviews" button's search URL is built by `backend/modules/retailer-links/index.ts` — a third independent copy of query-building logic (distinct from `price/` and `reviews/`, each module keeps its own per §5) — and it includes the vintage, which returned zero results for Clos des Papes at Zachys even though a plain producer+denomination query works. Fix: drop vintage from that query, and layer a guided workflow on top — click search, find the product yourself, copy its URL, switch back to the app, which checks the clipboard for a matching-domain URL and offers to save it; saving triggers Puppeteer + GPT-4o extraction (price, vintage, critic scores — extending the existing Phase 7 pipeline) against that exact confirmed page, writing to both `price_data` and `review_data`. This is a fallback path for when Phase 7's automated discovery finds nothing for a retailer the developer trusts — automated results always take precedence when present. Full detail in `docs/build-phases.md`.
 
-### Phase 8 and beyond
+### Phase 8 — Professional review parsing extension
+Extends the Phase 7 extraction pass (no new fetch) to also pull a per-critic drinking window, vintage character, and value/deal signal from the same rendered product page. Full detail in `docs/build-phases.md`.
+
+### Phase 9 / 9.1 / 9.2 — Data review, identity matching remediation, enrichment cost reduction
+A structured data-quality checkpoint (Phase 9) found stored critic scores attributed to the wrong wine and vintage; Phase 9.1 fixed the root cause with a single graded wine-identity matcher (`shared/utils/wine-match.ts`, `scoreMatch`) used everywhere identity is judged; Phase 9.2 brought per-wine Serper spend down (retailer review-search tiering, freshness/TTL guards with in-flight coalescing, negative-probe memory, on-click fallback-URL resolution) without narrowing retailer coverage. Full detail, decisions, and status in `docs/build-phases.md`.
+
+### Phase 9.3 — Discovery review UI (current)
+The post-scan / post-add screen the developer actually sees first had not been touched since Phase 6.5 and had drifted out of step with Phases 7–9.2: it asked for a `cellar_category` nothing downstream reads, it auto-fetched only price (never reviews, the top-priority signal for deciding whether to keep a wine), the manual "+ Add Wine" path had no post-save screen at all, and it still carried Wine-Searcher-era copy. Rebuilds that one screen — reviews first (click-gated, reusing Phase 9.2's `useEnrichmentAction`/`fetchWineReviews` unchanged), then a preferred-retailer carry-check (frontend-only, computed from the existing price fetch, zero new Serper cost), then price, then an explicit wishlist/cellar decision — and unifies the scan and manual-add paths behind it. No new backend route or Serper call site. Full spec: `docs/specs/2026-08-16-phase-9.3-discovery-review-ui.md`. Full detail in `docs/build-phases.md`.
+
+### Phase 10 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -89,8 +99,8 @@ Defined in `docs/build-phases.md`.
 | SERP data | Serper.dev | Shopping endpoint (Phase 6, price discovery) and organic `/search` endpoint (Phase 7, product page discovery for review sourcing) — different endpoints for different purposes; Shopping links are never trustworthy product URLs, organic links are. |
 | Headless browser | Puppeteer | Phase 6: renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Phase 7: renders a single confirmed *product* page (found via Serper organic search, not by rendering the retailer's own on-site search) for GPT-4o critic-score extraction. Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
-| Shared config | `shared/config/retailers.config.ts` (Phase 7) | Retailer slug/name/domain/coordinates. Moved from `backend/modules/price/` in Phase 7 because both `price` and `reviews` need it and modules cannot import from each other. |
-| Shared query/matching utils | `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` (2026-08-02) | Same reasoning as `retailers.config.ts` above, applied to the logic that used to be hand-duplicated across `price`, `reviews`, and `retailer-links`: `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery` and `buildRetailerSearchUrl`. See §5's note below on why this moved. **Phase 9.1 (2026-08-04)** replaced the boolean `isRelevantMatch` with a graded `scoreMatch` — see §5's note on wine identity. |
+| Shared config | `shared/config/retailers.config.ts` (Phase 7) | Retailer slug/name/domain/coordinates/`reviewTier` (Phase 9.2). Moved from `backend/modules/price/` in Phase 7 because both `price` and `reviews` need it and modules cannot import from each other. |
+| Shared query/matching utils | `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts`, `shared/utils/serper-client.ts` (Phase 9.2) | `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery`, `buildRetailerSearchUrl`, and the single wrapped path to every outbound Serper call (call/attempt accounting, Phase 9.2 WI-1). Same reasoning as `retailers.config.ts` above. **Phase 9.1** replaced the boolean `isRelevantMatch` with a graded `scoreMatch` — see §5's note on wine identity. |
 
 ---
 
@@ -101,39 +111,40 @@ Each capability is an isolated module in `backend/modules/`. Every module expose
 | Module | Directory | Responsibility |
 |---|---|---|
 | Label scanning | `modules/label-scan/` | GPT-4o vision → structured wine entry fields |
-| Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; twelve retailers as of 2026-08-02: the original four (K&L, Zachys, Woodland Hills, Benchmark), Phase 6.7's four tri-state additions (Sokolin, Acker Wines, Wine Library, Morrell & Company), three developer-nominated retailers (Crush Wine & Spirits, Flatiron Wines & Spirits, Thatcher's Wine), and JJ Buckley Fine Wines (added 2026-08-02 — a user-reported coverage gap, not a query bug: it carries real reviews but was never in `RETAILER_CONFIG`, so `modules/reviews/` never searched it). Reads `RETAILER_CONFIG` from `@shared/config/retailers.config.ts` directly as of Phase 7.3 — previously held its own stale local duplicate of this list, fixed alongside the count update. |
-| Price enrichment | `modules/price/` | Serper.dev Shopping endpoint → price/retailer discovery (preferred retailers first, any relevant retailer as fallback capped at 5). Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`). Retailer list is config-driven (imported from `shared/config/retailers.config.ts` as of Phase 7) and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats. Does not attempt critic-score extraction — see `modules/reviews/`. |
-| Review & critic score sourcing | `modules/reviews/` (Phase 7, extended Phase 8) | Locates the correct single product page for a retailer via Serper's organic `/search` endpoint (`site:`-restricted query — not by rendering the retailer's own on-site search, which is unreliable and, for K&L specifically, blocked by bot detection even though its robots.txt permits automated access). Tries progressively broader query variants if the fully-qualified one returns zero results (`findProductPageDetailed` in `find-product-page.ts`, 2026-08-02 — dropping cuvee/vineyard, then vintage, before giving up; diacritics are folded before the query is quoted). Renders the found product page with Puppeteer and runs GPT-4o extraction (`gpt-extract.ts`, moved here from `modules/price/`) to pull attributed critic scores into `review_data`. Deliberately separate from `modules/price/` — pricing only ever needs a search-results page, review sourcing needs a real product page, and the two shouldn't share a module despite sharing a retailer list. **Phase 8** extends the same extraction pass (no new fetch) to also pull a per-critic drinking window, vintage character, and value/deal signal — see `docs/build-phases.md` Phase 8. **Open-web fallback (Phase 7.3, actually implemented 2026-08-02 — see that phase's note in `build-phases.md` on the doc having claimed this was done since 2026-07-29 when it wasn't):** if every configured retailer returns zero critic scores for a wine, `findFallbackProductPage` runs one un-restricted Serper search (`"<producer>" "<denomination>" <vintage> review`), excluding CellarTracker/WineBerserkers (`shared/config/denylisted-domains.ts` — ToS-prohibited, §15), before giving up. Results are tagged `source: 'configured' \| 'fallback'` on `ReviewResult`/`RetailerReview`. Not yet live-tested against real APIs — unit/integration-tested only. |
+| Retailer links | `modules/retailer-links/` | Construct retailer search URLs from wine entry data; twelve retailers as of 2026-08-02 (see `shared/config/retailers.config.ts`). Reads `RETAILER_CONFIG` directly as of Phase 7.3. |
+| Price enrichment | `modules/price/` | Serper.dev Shopping endpoint → price/retailer discovery (preferred retailers first, any relevant retailer as fallback capped at 5). Puppeteer renders each retailer's constructed search-results page and verifies it still shows results before trusting Serper's price (`verify-listing.ts`). Retailer list is config-driven and extensible; vintage mismatches and non-standard pack/bottle-size listings are flagged and excluded from aggregate price stats. Does not attempt critic-score extraction — see `modules/reviews/`. As of Phase 9.2, fallback retailer product-URL resolution moved from an unconditional part of this fetch to a one-credit, on-click action (`POST /:id/resolve-retailer-url`, WI-6). |
+| Review & critic score sourcing | `modules/reviews/` (Phase 7, extended Phase 8, cost-tiered Phase 9.2) | Locates the correct single product page for a retailer via Serper's organic `/search` endpoint, tries progressively broader query variants (`findProductPageDetailed`), renders with Puppeteer, and runs GPT-4o extraction (`gpt-extract.ts`) into `review_data`. Phase 9.2 split the retailer list into `primary` (searched for every wine) and `extended` (only when the primary tier yields no critic score) tiers, skips domains in `UNRENDERABLE_DOMAINS` in the configured loop (not just fallback), and remembers per-wine `zero_results` probes (`review_probe_log`) for `NEGATIVE_PROBE_TTL_DAYS`. Open-web fallback (Phase 7.3) still runs when every configured retailer yields nothing. |
 | Environment monitoring | `modules/environment/` | SensorPush Cloud API → temperature + humidity readings |
 | Storage adapter | `modules/storage/` | Unified read/write interface; implementation swapped between phases |
 
 Shared utilities:
-- `shared/utils/proximity.ts` — Haversine distance calculation used to determine nearest retailer to NYC. Pure function, no side effects. Used by the price module display layer and the wine detail view.
-- `shared/config/retailers.config.ts` (Phase 7) — retailer slug/name/domain/coordinates, used by both `modules/price/` and `modules/reviews/`.
-- `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` (2026-08-02) — `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery` and `buildRetailerSearchUrl`, used by `modules/price/`, `modules/reviews/`, and `modules/retailer-links/`. These used to be hand-copied into each module under the "modules don't import from each other" rule below, and the duplication measurably drifted in practice — see the file-level comment in `wine-match.ts` for the specific commits (af37ac8, a1caf18, 7ccdf2c, ba61e23) where a fix landed in one copy and had to be separately ported to the others, sometimes in a follow-up commit, once missed until reported. Treat this the same as `retailers.config.ts`: a query/relevance/retailer-URL fix belongs here, once — do not reintroduce a per-module copy.
+- `shared/utils/proximity.ts` — Haversine distance calculation used to determine nearest retailer to NYC.
+- `shared/config/retailers.config.ts` (Phase 7, tiered Phase 9.2) — retailer slug/name/domain/coordinates/`reviewTier`, used by both `modules/price/` and `modules/reviews/`.
+- `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts` — query-building and relevance-matching primitives, used by `modules/price/`, `modules/reviews/`, and `modules/retailer-links/`. Do not reintroduce a per-module copy — see the file-level comment in `wine-match.ts` for the specific commits where duplication drifted before this consolidation.
+- `shared/utils/serper-client.ts` (Phase 9.2) — the single wrapped path every outbound Serper call goes through; counts attempts (not just calls, since a `fetchWithRetry` retry is a billed request), attributed per-request via `AsyncLocalStorage`. A grep-based test asserts no other file calls `google.serper.dev` directly.
 
-### Wine identity — one definition, one place (Phase 9.1, 2026-08-04)
+### Wine identity — one definition, one place (Phase 9.1)
 
 `shared/utils/wine-match.ts` exports `scoreMatch(candidate, wine) → MatchVerdict`, which answers the four dimensions of wine identity — **producer, denomination, bottling, vintage** — separately, each as `match` / `mismatch` / `unknown`. It replaces the boolean `isRelevantMatch`, which is retained only as a thin wrapper for flat-text callers.
 
-The reason this exists is worth keeping: the 2026-08-02 dedup into `shared/` was correct and it held, but the defects recurred anyway, because duplication was the mechanism and not the cause. The cause was that no module had a stated definition of "this result is about this wine," and the three implicit definitions still disagreed — they had just moved into one file. A boolean cannot express *"right producer, right appellation, wrong vintage"*, which was the single most common real outcome in the batch, and which the old check silently reported as a clean match.
-
 Rules that follow from it, all load-bearing:
 
-- **Producer is judged on title + URL only, and every significant word must be present.** The snippet is excluded deliberately: body copy routinely name-drops other estates, and a Château Lafleur page mentioning its sister property is how nine 99–100pt scores were stored against a ~$30 Château Grand Village.
-- **Vintage ranks and labels; it never rejects.** A shop whose only page for a wine is two vintages off still yields that page, with `vintage_gap` recorded. Rejecting it yields nothing instead of something.
-- **No hard-coded vintage tolerance in the pipeline.** The gap is recorded; a single display-layer constant decides what renders as flagged. Vintage variation is region-dependent, so any fixed threshold is advisory, not a matching rule.
-- **Absence is `unknown`, never `mismatch`.** A retailer who didn't write the appellation has not told us the wine isn't from there.
-- **The verdict is stored on the result** (`RetailerReview.match`, `RetailerPrice.vintage_verdict`), so the UI and the diagnostics read it rather than re-deriving it. Callers wanting a different bar read the verdict; they do not reimplement `isAcceptableMatch`.
-- **Two queries, not one.** The vintage belongs in a relevance-ranked Serper query and must never reach a retailer's own literal on-site search — that mismatch was every reported dead link.
+- **Producer is judged on title + URL only, and every significant word must be present.** The snippet is excluded deliberately — body copy routinely name-drops other estates.
+- **Vintage ranks and labels; it never rejects.** A shop whose only page for a wine is two vintages off still yields that page, with `vintage_gap` recorded.
+- **No hard-coded vintage tolerance in the pipeline.** The gap is recorded; a single display-layer constant decides what renders as flagged.
+- **Absence is `unknown`, never `mismatch`.**
+- **The verdict is stored on the result** (`RetailerReview.match`, `RetailerPrice.vintage_verdict`) — callers read it rather than re-deriving it.
+- **Two queries, not one.** The vintage belongs in a relevance-ranked Serper query and must never reach a retailer's own literal on-site search.
 - **`VerificationState` is three-valued.** "Couldn't check" is not spelled the same way as "checked and confirmed."
 
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file
-- Modules do not import from each other — they communicate via the backend router only. Where two modules genuinely need the same data or logic (e.g. retailer metadata, or the query-building/relevance-matching primitives above), it belongs in `shared/`, not duplicated or cross-imported. The bar is "would a fix here need to be manually re-applied elsewhere?" — if yes, it belongs in `shared/`.
+- Modules do not import from each other — they communicate via the backend router only. Where two modules genuinely need the same data or logic, it belongs in `shared/`. The bar is "would a fix here need to be manually re-applied elsewhere?" — if yes, it belongs in `shared/`.
 - Each module must degrade gracefully if its API key or credential is not configured (return null or empty state, never throw uncaught errors)
-- `RETAILER_CONFIG` (in `shared/config/retailers.config.ts`) is a hand-curated allowlist, not a discovered list — a retailer missing from it produces an empty result indistinguishable from "searched and found nothing" (this is what happened with JJ Buckley, 2026-08-02). When a user reports "no reviews found" for a retailer they know carries the wine, check this file for the domain before assuming it's a query/matching bug. `validate-reviews.ts` now says this explicitly in its output (Phase 9.1).
-- Modules communicate through `backend/routes/wines.ts`, and as of Phase 9.1 that includes **cross-feeding their discoveries**: a product page `reviews/` confirmed is evidence for `price/`, and a retailer `price/` discovered is a search target for `reviews/`. Both directions were in the reported defects. Keep this coupling in the router — do not add a cross-module import.
+- `RETAILER_CONFIG` (in `shared/config/retailers.config.ts`) is a hand-curated allowlist, not a discovered list — a retailer missing from it produces an empty result indistinguishable from "searched and found nothing."
+- Modules communicate through `backend/routes/wines.ts`, and as of Phase 9.1 that includes cross-feeding their discoveries: a product page `reviews/` confirmed is evidence for `price/`, and a retailer `price/` discovered is a search target for `reviews/`. Keep this coupling in the router — do not add a cross-module import.
+
+**Frontend enrichment mechanism (Phase 9.2, `web/src/hooks/useEnrichmentAction.ts`):** `WineCard` and `WineDetailModal` both drive their Fetch/Refresh Price and Fetch/Refresh Reviews buttons through this one hook — busy/error/cached state, TTL-aware, `force`-bypassable. **This is the only enrichment mechanism in the app.** Any new surface that needs to fetch price or reviews (e.g. Phase 9.3's discovery screen) must reuse it rather than writing a parallel `useEffect`-based fetch, which is what the pre-Phase-9.3 post-scan screen did for price only and is exactly the kind of duplication this hook was extracted to stop.
 
 ---
 
@@ -162,44 +173,42 @@ GOOGLE_SHEETS_SPREADSHEET_ID=
 
 The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty from Phase 5 onward. `SERPER_API_KEY` is used by both `modules/price/` (Shopping endpoint) and `modules/reviews/` (organic search endpoint, Phase 7) — one key covers both.
 
-`REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` were removed 2026-07-28 — the Reddit-based community layer they supported was retired (see `docs/build-phases.md` Phase 8's context note). If Phase 8.5's YouTube PoC is adopted, it will need its own key (a Google Cloud API key, self-service — not the OAuth client credentials Reddit would have required) added here at that point.
+`REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` were removed 2026-07-28 — the Reddit-based community layer they supported was retired.
 
 ---
 
 ## 7. Label Scanning
 
 - Model: GPT-4o vision, high detail mode
-- Images must be resized to max 1024px on the longest side before the API call — enforce this in the module regardless of input source (file upload or camera)
-- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. `name` is not in the schema — do not include it in scan output.
-- The label scan prompt must explicitly target Tier 2 extraction rules as defined in `wine-app-product-context.md` Section 3
-- **Phase 3 capture surface:** web file upload (HTML file input, image/*). The module receives an image file; resize and scan. No native camera in this phase.
-- **Phase 11 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change — only the input path is swapped.
+- Images must be resized to max 1024px on the longest side before the API call
+- Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. `name` is not in the schema — do not include it in scan output.
+- **Phase 3 capture surface:** web file upload (HTML file input, image/*).
+- **Phase 11 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change.
 - Estimated cost: ~$0.004 per scan at 1024×1024
-- Future: evaluate GPT-4o Mini once the feature is stable (potential 75% cost saving for clean labels)
 - Key: `OPENAI_API_KEY` from `.env` (web/backend) or iOS Keychain (iOS)
+- **Note (Phase 9.3):** the scanned image itself is never persisted — `label_image_url` is hardcoded `null` in every `CreateWineInput` built by the web frontend as of this writing. The on-screen preview during scan review is a same-session `URL.createObjectURL`, not a stored asset. If persisting the image becomes a goal, that's a separate decision — don't assume it already happens.
 
 ---
 
 ## 8. LLM Usage
 
-- Model: GPT-4o for all LLM tasks (label scanning, tasting note tag extraction, critic score extraction, drinking window / vintage character / value-signal extraction — Phase 8)
+- Model: GPT-4o for all LLM tasks (label scanning, tasting note tag extraction, critic score extraction, drinking window / vintage character / value-signal extraction)
 - Do not use GPT-4 Turbo or GPT-3.5
 - Key: BYOK — user supplies their own OpenAI API key
-- Fallback: if no key is configured, features that require LLM degrade gracefully (e.g. label scan unavailable with clear UI message; `modules/reviews/` returns empty `review_data`)
+- Fallback: if no key is configured, features that require LLM degrade gracefully
 
 ---
 
 ## 9. Performance Targets
 
 - Label scan → populated wine entry card: under 30 seconds end-to-end
-- This is the primary latency constraint for the iOS capture flow
-- Price fetches and review/critic-score sourcing (including Phase 8's drinking window / vintage character / value-signal extraction) are all async / background — they populate the wine entry card after the initial scan result is shown
+- Price fetches and review/critic-score sourcing are async / background — they populate the wine entry card after the initial scan result is shown, and (as of Phase 9.2) reviews are click-gated, not automatic
 
 ---
 
 ## 10. Offline Behaviour
 
-Offline mode is out of scope for v1. The app requires connectivity. No offline caching or queue is required at this stage.
+Offline mode is out of scope for v1.
 
 ---
 
@@ -208,50 +217,35 @@ Offline mode is out of scope for v1. The app requires connectivity. No offline c
 - Test-driven development is followed for all new features
 - Each module has unit tests co-located in its directory (`*.test.ts`)
 - Integration tests live in `backend/tests/integration/`
-- Use Jest for the backend, Vitest for web (`web/package.json`'s `test` script is `vitest run`; test files use `vi.mock`/`vi.fn`, not Jest APIs — corrected 2026-07-26); XCTest for iOS
+- Use Jest for the backend, Vitest for web; XCTest for iOS
 - All tests must pass before merging to `main`
 
 ### GitHub Actions (CI)
 
-From Phase 5 onward, all test runs happen in GitHub Actions — not just locally. A CI workflow file lives in `.github/workflows/ci.yml`.
-
-The CI pipeline runs on every pull request and every push to `main`:
-1. Install dependencies
-2. Lint (`tsc --noEmit` + ESLint)
-3. Run backend unit and integration tests (`jest`)
-4. Run frontend unit tests (`jest`)
-5. Build (`tsc` — confirm no type errors)
-
-Claude Code must create or update `.github/workflows/ci.yml` when starting Phase 5. Tests that pass locally must also pass in CI before a PR is merged. Do not merge a branch while CI is red.
+CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to `main`: install → lint (`tsc --noEmit` + ESLint) → backend tests (`jest`) → frontend tests → build.
 
 ---
 
 ## 12. Frontend Prototyping
 
-UI designs are prototyped in Magic Patterns before implementation. Prototypes are used as reference only — they are not imported or used as production code. Claude Code should implement UI based on the prototype's visual design and layout, producing clean HTML/CSS/JS or SwiftUI from scratch.
+UI designs are prototyped in Magic Patterns before implementation, used as reference only. In practice, most UI since Phase 6.5 has been built directly against product-context.md and iterative developer feedback rather than a prior Magic Patterns pass — see Phase 9.3's note if this file's Phase 10/11 sequence is ever revisited.
 
 ---
 
 ## 13. Git Workflow
 
 ### Identity
-Before making any commits, ensure git is configured with the following identity so commits appear correctly on GitHub:
-
 ```bash
 git config user.name "Matt Gibson"
 git config user.email "mjgibson1121@gmail.com"
 ```
 
-Run these commands in the repo root if not already set. Verify with `git config --list`.
-
 ### Remote
 GitHub repository: https://github.com/mgibson1121/malolactic-conversion
 
-All work is pushed to the remote. Do not leave branches local-only. Push the branch before opening a PR.
+All work is pushed to the remote. Do not leave branches local-only.
 
 ### Branching
-Branches are scoped to a feature or core technical service. Branch names follow this pattern:
-
 ```
 feature/<short-description>     # New user-facing feature
 service/<short-description>     # Core technical module or integration
@@ -259,96 +253,33 @@ fix/<short-description>         # Bug fix
 chore/<short-description>       # Refactoring, dependency updates, config changes
 ```
 
-Examples:
-- `feature/label-scanning`
-- `feature/cellar-view`
-- `service/sqlite-migration`
-- `service/reddit-module`
-- `service/review-score-sourcing`
-- `fix/wine-entry-tag-toggle`
-
 All work happens on a branch. Merge to `main` only when CI is green.
 
 ### Pull requests
-Every phase or discrete unit of work is delivered as a pull request, not a direct push to `main`. This applies from Phase 5 onward.
-
-PR requirements:
-- Title follows the same `<type>: <description>` format as commit messages (e.g. `service: sqlite migration — replace Sheets adapter`)
-- Description includes: what changed, why, and any decisions made. Bullet points are fine. This is the record of intent — write it as if someone reviewing the project 6 months later needs to understand what was done and why.
-- Link to the relevant phase in `docs/build-phases.md` where applicable
-- All CI checks must pass before merge
-- Squash merge to `main` to keep the commit history on `main` clean
-
-Claude Code must open a PR for every phase. Do not merge the PR — leave it open for the developer to review and merge. Notify the developer in the session summary when a PR is ready.
+Every phase or discrete unit of work is delivered as a pull request. Title follows `<type>: <description>`. Description covers what changed, why, and decisions made. Link the relevant `docs/build-phases.md` phase. All CI checks must pass before merge. Squash merge. Claude Code opens the PR but does not merge it.
 
 ### Commit message conventions
-Every commit message must follow this format:
-
 ```
 <type>: <brief description>
 ```
-
-Types:
-- `feat` — new user-facing feature
-- `service` — new backend module or integration
-- `fix` — bug fix
-- `test` — adding or updating tests
-- `refactor` — code changes with no behaviour change
-- `chore` — config, dependencies, tooling
-- `docs` — documentation only
-
-Examples:
-- `feat: add quick-log capture flow`
-- `service: implement sqlite storage adapter`
-- `fix: correct tag toggle from cellar list view`
-- `test: add integration tests for label scan module`
-- `docs: update CLAUDE.md with phase 5 schema decisions`
-
-Descriptions should be lowercase, present tense, and under 72 characters.
+Types: `feat`, `service`, `fix`, `test`, `refactor`, `chore`, `docs`.
 
 ### Commit cadence
-Make multiple small, focused commits rather than one large commit per phase. Each logical unit of work (schema DDL, adapter implementation, test suite, CI config) should be a separate commit. This produces a meaningful commit history and reflects the actual progression of the work.
+Multiple small, focused commits per phase, not one large commit.
 
 ---
 
 ## 14. GitHub Activity
 
-This project is the primary technical portfolio signal for the developer. The GitHub activity graph, PR history, and commit log are likely to be reviewed by prospective employers.
-
-Claude Code should help produce a professional-looking commit history by default:
-
-- Commit frequently with meaningful messages — not in bulk at the end of a session
-- Every phase produces at least one PR with a substantive description
-- Avoid single-commit PRs unless the change genuinely is atomic
-- `docs` commits (updating specs, CLAUDE.md, build-phases.md) are real commits — make them
-- Test commits (`test: ...`) are visible in the log and signal discipline — don't batch them with feature commits
-
-The goal is a history that shows consistent, deliberate progress — not just a series of large drops.
+Commit frequently with meaningful messages. Every phase produces at least one PR with a substantive description. `docs:` commits are real commits. Test commits are visible and signal discipline.
 
 ### Planning document commits
 
-`CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents. They are the canonical source of truth — not the copies held in Claude.ai project context.
-
-At the end of every session, Claude Code must:
-1. Check whether any of these three files differ from the versions currently in the repo
-2. If they do, overwrite the repo copy with the updated version
-3. Commit the change with a `docs:` commit message (e.g. `docs: update CLAUDE.md — add github activity section`)
-
-These commits go on the current working branch, not a separate branch. Do not open a separate PR for docs-only changes — include them in the phase PR they belong to. If a planning session in Claude.ai produces updated documents with no accompanying code change, commit them directly to `main` with a `docs:` commit.
-
-The Claude.ai project context copy may lag behind — the repo is always authoritative.
+`CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents — the canonical source of truth, not the copies held in Claude.ai project context. At the end of every session, check whether these three files differ from the repo and, if so, commit the update with a `docs:` message on the current working branch. The Claude.ai project context copy may lag behind — the repo is always authoritative. (**Note, 2026-08-16:** the Claude.ai project copies of this file and `wine-app-product-context.md` had drifted significantly — describing Phase 1/2-era Google Sheets/Wine-Searcher/Reddit/status-enum design well after the repo had moved through Phase 9.2. Synced back up as part of Phase 9.3's documentation work; keep them current going forward rather than letting another multi-phase gap reopen.)
 
 ### Session summaries
 
-At the end of every session, Claude Code must write a session summary to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md`. The summary must include:
-
-- What was done (list of commits or logical changes)
-- Key decisions and their rationale
-- Any bugs found and fixed
-- A link to the PR once opened
-- What's next
-
-Commit the session summary with a `docs:` commit on the current working branch, as the final commit before opening the PR.
+Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every coding session: what was done, key decisions, bugs found/fixed, PR link, what's next. Committed with a `docs:` commit as the final commit before opening the PR.
 
 ---
 
@@ -360,11 +291,11 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not build a hosted backend or cloud database — everything runs locally
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
-- The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages. Puppeteer fetching is the responsibility of the price enrichment module (Phase 6, search-results verification) and the reviews module (Phase 7, single product-page rendering) — it must not bleed into other modules.
-- Before treating a retailer as off-limits for automated access, check that retailer's own `robots.txt` on the actual host being used (not just the marketing domain — see the K&L `www.klwines.com` vs. `shop.klwines.com` distinction in `docs/build-phases.md` Phase 7). A live block from bot detection is a technical problem to route around; an explicit ToS/robots.txt prohibition (as with CellarTracker and WineBerserkers) is not.
+- The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages.
+- Before treating a retailer as off-limits for automated access, check that retailer's own `robots.txt` on the actual host being used. A live block from bot detection is a technical problem to route around; an explicit ToS/robots.txt prohibition is not.
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
-- Extraction from third-party review/retail text (Phase 7, Phase 8) must produce structured facts only — scores, dates, enum values, booleans. Never store or reproduce source prose (copyright boundary). Store the source URL instead, so the developer can read the original review manually — never re-fetch or re-scrape that URL outside the module's own refresh cycle.
-- Do not add microservice infrastructure (separate deployables, Docker Compose, service mesh) — modular code in a monorepo is sufficient
+- Extraction from third-party review/retail text must produce structured facts only — scores, dates, enum values, booleans. Never store or reproduce source prose (copyright boundary). Store the source URL instead.
+- Do not add microservice infrastructure — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
 - Do not merge a PR while CI is red
 - Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after — see "Metered-API cost is a design constraint" below
@@ -380,6 +311,7 @@ Treat outbound metered calls the way the rest of this document treats data corre
 - **Never buy the same answer twice.** A result already computed elsewhere in the run should be fed across (the Phase 9.1 router cross-feed), and a result already stored should not be re-fetched without an explicit refresh. Cheap local evidence beats a paid call: check `UNRENDERABLE_DOMAINS`, `attemptedDomains`, and `isNonProductUrl` *before* spending, not after.
 - **Keep cost guards and access decisions separate.** A domain skipped because it cannot be rendered is a technical fact; a domain skipped because it rarely pays off is a product judgement; a domain skipped because its ToS forbids access is a hard constraint (the CellarTracker/WineBerserkers bullets above). Three different mechanisms, never collapsed into one flag — collapsing them produces config that lies about why something was excluded.
 - **Latency is not the metric.** §9's targets are about the developer waiting. A bounded-concurrency change can leave call volume identical while feeling faster; that is not a saving.
+- **Enrichment stays user-initiated.** No auto-enrichment or background refresh — fixed by Phase 9.2 and reaffirmed by Phase 9.3, which makes reviews the *most prominent* click-gated action rather than an automatic one.
 
 **Raise it, don't just build it.** If a requested change adds a per-wine or per-request call to a metered API — or if you notice several such additions accumulating across a phase — say so before implementing, with the arithmetic, in a sentence or two. Then build it if the developer still wants it. This is a single-developer project paying retail for every call, and the failure mode to watch for is not one expensive feature but a series of individually reasonable ones. Gentle, specific, and early is the right register: flag the cost, propose the cheaper shape if there is one, and defer to the developer's call.
 
@@ -387,11 +319,9 @@ Treat outbound metered calls the way the rest of this document treats data corre
 
 ## 16. Open Technical Questions
 
-- [ ] Serper Shopping coverage: verify Serper returns Shopping results for the wines in the collection (Burgundy, Barolo, Rioja) before closing Phase 6
-- [ ] K&L NYC store coordinates: confirm whether K&L has a NYC store and update `retailers.config.ts` accordingly
-- [x] Puppeteer score extraction coverage: resolved 2026-07-19 — not a coverage question, a structural one. No retailer URL the price module produces is ever a single product page, so attributed score extraction can't work as part of pricing. Split out to Phase 7 (`build-phases.md`).
-- [x] Reddit community-sentiment layer: closed off 2026-07-28 — self-service access ended under Reddit's Responsible Builder Policy. Phase 8 (`build-phases.md`) was redefined around extending the existing review-extraction module instead; see that phase's context note for the full decision record.
-- [ ] **New 2026-07-20 — Serper organic search coverage:** confirm Serper's organic `/search` endpoint (Phase 7's Step 1) reliably returns real product pages on all four retailer domains for the wines actually in the collection — validated so far for only one wine on one retailer during scoping. Close out during Phase 7 testing.
-- [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition after Phase 6.6 is stable
+- [ ] Serper Shopping coverage: continue verifying return quality across the wines actually in the collection
+- [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
-- [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once the feature is stable
+- [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once volume justifies it
+- [ ] Phase 9.2 WI-7: the 14-wine re-run and `reviewTier` calibration remains outstanding, gated on the developer's go-ahead to spend the budget
+- [ ] Whether a delete/discard endpoint for a wine is wanted (surfaced by Phase 9.3's review — no such endpoint exists today)

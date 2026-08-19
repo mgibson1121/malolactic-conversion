@@ -4,6 +4,7 @@ import { listWines, createWine, updateWine, createTastingNote, listTastingNotesB
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
+import { DiscoveryReview } from './components/DiscoveryReview'
 import { EvaluateForm } from './components/EvaluateForm'
 import { TastingNoteHistory } from './components/TastingNoteHistory'
 import { WineDetailModal } from './components/WineDetailModal'
@@ -29,6 +30,7 @@ export default function App() {
   const [historyWine, setHistoryWine] = useState<WineEntry | null>(null)
   const [historyNotes, setHistoryNotes] = useState<TastingNote[]>([])
   const [detailWine, setDetailWine] = useState<WineEntry | null>(null)
+  const [reviewingWine, setReviewingWine] = useState<WineEntry | null>(null)
 
   const fetchWines = useCallback(async (tab: TabId) => {
     setLoading(true)
@@ -51,22 +53,26 @@ export default function App() {
     fetchWines(activeTab)
   }, [activeTab, fetchWines])
 
-  // ── Manual add form ──────────────────────────────────────────────────────────
-  const handleFormCreate = async (data: CreateWineInput) => {
-    await createWine(data)
-    setShowForm(false)
-    fetchWines(activeTab)
-  }
-
-  // ── Scan flow — returns WineEntry so scan flow can manage enriching step ────
-  const handleScanSave = async (data: CreateWineInput): Promise<WineEntry> => {
+  // ── Manual add form — lands on the same Discovery Review screen as a scan ──
+  const handleFormCreate = async (data: CreateWineInput): Promise<WineEntry> => {
     const wine = await createWine(data)
+    setShowForm(false)
+    setReviewingWine(wine)
     fetchWines(activeTab)   // Refresh list in background
     return wine
   }
 
-  const handleScanDone = () => {
+  // ── Scan flow — same post-save destination as the manual add form ──────────
+  const handleScanSave = async (data: CreateWineInput): Promise<WineEntry> => {
+    const wine = await createWine(data)
     setShowScan(false)
+    setReviewingWine(wine)
+    fetchWines(activeTab)   // Refresh list in background
+    return wine
+  }
+
+  const handleReviewDone = () => {
+    setReviewingWine(null)
     fetchWines(activeTab)   // Ensure list reflects any changes
   }
 
@@ -144,7 +150,7 @@ export default function App() {
       {showScan && (
         <LabelScanFlow
           onSave={handleScanSave}
-          onDone={handleScanDone}
+          onDone={() => setShowScan(false)}
         />
       )}
 
@@ -153,6 +159,16 @@ export default function App() {
         <AddWineForm
           onSubmit={handleFormCreate}
           onCancel={() => setShowForm(false)}
+        />
+      )}
+
+      {/* Discovery Review — shared post-save screen for both creation paths */}
+      {reviewingWine && (
+        <DiscoveryReview
+          wine={reviewingWine}
+          onDone={handleReviewDone}
+          onTagUpdate={handleTagUpdate}
+          onWineUpdated={(updated) => setReviewingWine(updated)}
         />
       )}
 

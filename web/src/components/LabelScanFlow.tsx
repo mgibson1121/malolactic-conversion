@@ -5,20 +5,19 @@
  *   2. Scanning state (progress indicator)
  *   3. Scan result card — visual preview of detected fields
  *      → "Edit Details" expands inline form for any adjustments
- *   4. Enriching state — wine saved, Wine-Searcher price loading
- *   5. Done — user dismisses
+ *   4. Saving — wine created, hands off to the shared Discovery Review
+ *      screen (see App.tsx), which the parent mounts once onSave resolves
  */
 
-import { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react'
-import type { CellarCategory, CreateWineInput, WineEntry } from '@shared/types'
-import { fetchWinePrice, scanLabel } from '../api'
+import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import type { CreateWineInput, WineEntry } from '@shared/types'
+import { scanLabel } from '../api'
 import type { LabelScanResult } from '../api'
-import { PriceSection } from './PriceSection'
 
 interface Props {
   /** Called when the user confirms a wine. Returns the created WineEntry. */
   onSave: (data: CreateWineInput) => Promise<WineEntry>
-  /** Called when the user is done (after save + enriching, or on cancel). */
+  /** Called when the user cancels before saving. */
   onDone: () => void
 }
 
@@ -26,9 +25,8 @@ type FlowState =
   | { step: 'upload' }
   | { step: 'scanning' }
   | { step: 'unavailable'; reason: string }
-  | { step: 'review'; scan: LabelScanResult; preview: string; editing: boolean }
-  | { step: 'saving'; scan: LabelScanResult; preview: string; data: CreateWineInput }
-  | { step: 'enriching'; wine: WineEntry; preview: string }
+  | { step: 'review'; scan: LabelScanResult; editing: boolean }
+  | { step: 'saving'; scan: LabelScanResult; data: CreateWineInput }
   | { step: 'error'; message: string }
 
 export function LabelScanFlow({ onSave, onDone }: Props) {
@@ -42,12 +40,11 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
       return
     }
 
-    const preview = URL.createObjectURL(file)
     setFlow({ step: 'scanning' })
 
     try {
       const result = await scanLabel(file)
-      setFlow({ step: 'review', scan: result, preview, editing: false })
+      setFlow({ step: 'review', scan: result, editing: false })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.toLowerCase().includes('openai_api_key') || msg.toLowerCase().includes('unavailable')) {
@@ -173,25 +170,15 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
     )
   }
 
-  // ── Enriching step ───────────────────────────────────────────────────────────
-  if (flow.step === 'enriching') {
-    return (
-      <EnrichingCard
-        wine={flow.wine}
-        preview={flow.preview}
-        onDone={onDone}
-      />
-    )
-  }
-
   // ── Review step ──────────────────────────────────────────────────────────────
-  const { scan, preview, editing } = flow
+  const { scan, editing } = flow
 
   async function handleConfirm(data: CreateWineInput) {
-    setFlow({ step: 'saving', scan, preview, data })
+    setFlow({ step: 'saving', scan, data })
     try {
-      const wine = await onSave(data)
-      setFlow({ step: 'enriching', wine, preview })
+      await onSave(data)
+      // The parent (App.tsx) closes this flow and opens the Discovery Review
+      // screen for the saved wine — see WI-2/WI-3 of the Phase 9.3 spec.
     } catch {
       setFlow({ step: 'error', message: 'Failed to save. Is the backend running?' })
     }
@@ -201,9 +188,8 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
     return (
       <ScanEditForm
         scan={scan}
-        preview={preview}
         onSave={handleConfirm}
-        onBack={() => setFlow({ step: 'review', scan, preview, editing: false })}
+        onBack={() => setFlow({ step: 'review', scan, editing: false })}
         onCancel={onDone}
       />
     )
@@ -212,9 +198,8 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
   return (
     <ScanResultCard
       scan={scan}
-      preview={preview}
       onConfirm={handleConfirm}
-      onEdit={() => setFlow({ step: 'review', scan, preview, editing: true })}
+      onEdit={() => setFlow({ step: 'review', scan, editing: true })}
       onRetry={() => setFlow({ step: 'upload' })}
       onCancel={onDone}
     />
@@ -226,14 +211,13 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
 
 interface ResultCardProps {
   scan: LabelScanResult
-  preview: string
   onConfirm: (data: CreateWineInput) => Promise<void>
   onEdit: () => void
   onRetry: () => void
   onCancel: () => void
 }
 
-function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }: ResultCardProps) {
+function ScanResultCard({ scan, onConfirm, onEdit, onRetry, onCancel }: ResultCardProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
   // Only collect inline inputs for missing Tier 1 fields
@@ -241,7 +225,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
   const [vintage, setVintage] = useState(scan.vintage ? String(scan.vintage) : '')
   const [region, setRegion] = useState(scan.region ?? '')
   const [denomination, setDenomination] = useState(scan.denomination ?? '')
-  const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
 
   const hasMissing = missing.size > 0
@@ -274,7 +257,7 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
       tag_cellar: false,
       tag_consumed: false,
       cellar_quantity: 0,
-      cellar_category: cellarCategory || null,
+      cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
       my_rating: null,
@@ -300,11 +283,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
             <button className="btn-text" onClick={onRetry}>Scan Again</button>
             <button className="btn-text" onClick={onCancel}>✕</button>
           </div>
-        </div>
-
-        {/* Label image */}
-        <div className="scan-result-image-wrap">
-          <img src={preview} alt="Scanned label" className="scan-result-image" />
         </div>
 
         {/* Wine identity */}
@@ -376,21 +354,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
           </div>
         )}
 
-        {/* Cellar category */}
-        <div className="scan-result-cellar">
-          <label htmlFor="src-cellar">Cellar category</label>
-          <select
-            id="src-cellar"
-            value={cellarCategory}
-            onChange={e => setCellarCategory(e.target.value as CellarCategory | '')}
-          >
-            <option value="">None</option>
-            <option value="table">Table</option>
-            <option value="near_term">Near Term</option>
-            <option value="long_term">Long Term</option>
-          </select>
-        </div>
-
         {/* Actions */}
         <div className="scan-result-actions">
           <button className="btn-text" onClick={onEdit}>Edit Details</button>
@@ -407,104 +370,17 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
   )
 }
 
-// ── EnrichingCard ──────────────────────────────────────────────────────────────
-// Shown after save. Triggers price fetch and shows result as it loads.
-
-interface EnrichingProps {
-  wine: WineEntry
-  preview: string
-  onDone: () => void
-}
-
-function EnrichingCard({ wine: initialWine, preview, onDone }: EnrichingProps) {
-  const [wine, setWine] = useState(initialWine)
-  const [priceState, setPriceState] = useState<'loading' | 'loaded' | 'unavailable'>('loading')
-
-  useEffect(() => {
-    fetchWinePrice(wine.id)
-      .then(updated => {
-        setWine(updated)
-        setPriceState('loaded')
-      })
-      .catch(() => setPriceState('unavailable'))
-  }, [wine.id])
-
-  const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
-  const metaParts = [wine.vintage ? String(wine.vintage) : null, wine.region, wine.quality_classification].filter(Boolean)
-
-  return (
-    <div className="form-overlay">
-      <div className="scan-result-card scan-enriching-card">
-
-        {/* Header */}
-        <div className="scan-result-header scan-result-header--saved">
-          <div className="scan-saved-badge">✓ Saved to Collection</div>
-        </div>
-
-        {/* Label image */}
-        <div className="scan-result-image-wrap">
-          <img src={preview} alt="Wine label" className="scan-result-image" />
-        </div>
-
-        {/* Wine identity */}
-        <div className="scan-result-identity">
-          <h2 className="scan-result-name">{primaryLine || 'Wine'}</h2>
-          {metaParts.length > 0 && <p className="scan-result-meta">{metaParts.join(' · ')}</p>}
-          {wine.grape_varieties && wine.grape_varieties.length > 0 && (
-            <p className="scan-result-tier2">{wine.grape_varieties.join(', ')}</p>
-          )}
-        </div>
-
-        {/* Price enrichment */}
-        <div className="scan-enrichment-section">
-          {priceState === 'loading' && (
-            <div className="scan-price-loading">
-              <span className="scan-price-loading-icon">🔎</span>
-              <span>Fetching prices from Wine-Searcher…</span>
-            </div>
-          )}
-
-          {priceState === 'loaded' && wine.price_data && (
-            <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={setWine} />
-          )}
-
-          {priceState === 'unavailable' && (
-            <p className="scan-price-unavailable">
-              Price data unavailable — check your Wine-Searcher API key or try again from the wine card.
-            </p>
-          )}
-
-          {/* Drinking window from Wine-Searcher */}
-          {wine.drinking_window && (
-            <div className="drinking-window scan-drinking-window">
-              Drink {wine.drinking_window.start} – {wine.drinking_window.end}
-            </div>
-          )}
-        </div>
-
-        {/* Done */}
-        <div className="scan-result-actions">
-          <button className="btn-save btn-save--primary" onClick={onDone}>
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── ScanEditForm ───────────────────────────────────────────────────────────────
 // Full field-by-field edit form reached via "Edit Details".
 
 interface EditFormProps {
   scan: LabelScanResult
-  preview: string
   onSave: (data: CreateWineInput) => Promise<void>
   onBack: () => void
   onCancel: () => void
 }
 
-function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps) {
+function ScanEditForm({ scan, onSave, onBack, onCancel }: EditFormProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
   const [producer, setProducer] = useState(scan.producer ?? '')
@@ -515,7 +391,6 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
   const [vineyard, setVineyard] = useState(scan.vineyard ?? '')
   const [cuvee, setCuvee] = useState(scan.cuvee ?? '')
   const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties?.join(', ') ?? '')
-  const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -542,7 +417,7 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
       tag_cellar: false,
       tag_consumed: false,
       cellar_quantity: 0,
-      cellar_category: cellarCategory || null,
+      cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
       my_rating: null,
@@ -566,16 +441,13 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
     <div className="form-overlay">
       <form className="add-wine-form scan-review-form" onSubmit={handleSubmit}>
         <div className="scan-review-header">
-          <div>
-            <button type="button" className="btn-text" onClick={onBack}>← Back</button>
-            <h2>Edit Details</h2>
-            {missing.size > 0 && (
-              <p className="scan-missing-notice">
-                ⚠️ Highlighted fields couldn't be read — please fill them in.
-              </p>
-            )}
-          </div>
-          <img src={preview} alt="Label preview" className="scan-label-preview" />
+          <button type="button" className="btn-text" onClick={onBack}>← Back</button>
+          <h2>Edit Details</h2>
+          {missing.size > 0 && (
+            <p className="scan-missing-notice">
+              ⚠️ Highlighted fields couldn't be read — please fill them in.
+            </p>
+          )}
         </div>
 
         <label htmlFor="se-producer" className={fieldClass('producer')}>
@@ -617,15 +489,6 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
         <label htmlFor="se-cuvee">Cuvée <span className="scan-field-tier2">(Tier 2)</span></label>
         <input id="se-cuvee" value={cuvee}
           onChange={e => setCuvee(e.target.value)} placeholder="e.g. Cristal, Opus One" />
-
-        <label htmlFor="se-cellar">Cellar Category</label>
-        <select id="se-cellar" value={cellarCategory}
-          onChange={e => setCellarCategory(e.target.value as CellarCategory | '')}>
-          <option value="">None</option>
-          <option value="table">Table</option>
-          <option value="near_term">Near Term</option>
-          <option value="long_term">Long Term</option>
-        </select>
 
         {error && <p className="error-msg">{error}</p>}
 
