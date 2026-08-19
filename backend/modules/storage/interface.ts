@@ -22,6 +22,13 @@ export interface StorageAdapter {
   getWine(id: string): Promise<WineEntry | null>
   listWines(filter?: WineFilter): Promise<WineEntry[]>
   updateWine(id: string, data: UpdateWineInput): Promise<WineEntry>
+  /** Phase 9.4 (WI-7). Caller is responsible for checking preconditions
+   * (e.g. no tasting notes) before calling — the adapter deletes
+   * unconditionally. */
+  deleteWine(id: string): Promise<void>
+  /** Phase 9.4 (WI-7). Drafts (promoted_at IS NULL) with date_added older
+   * than the cutoff. Returns the number deleted. */
+  sweepStaleDrafts(olderThan: Date): Promise<number>
 
   // ── Tasting notes ──────────────────────────────────────────────────────────
 
