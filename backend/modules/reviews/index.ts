@@ -252,6 +252,12 @@ export interface ReviewFetchOptions {
    * fetchReviewData's return stays ReviewResult[] | null so every existing
    * caller and test keeps working unchanged. */
   probeLogSink?: ReviewProbeLogEntry[]
+  /** Phase 9.4 (WI-3) — 'primary' runs only the primary retailer tier and
+   * returns, whether or not it found a score: the extended tier, the
+   * discovered-merchant probes, and the open-web fallback are never reached.
+   * Defaults to 'full' (today's behaviour) so WineCard and WineDetailModal's
+   * existing buttons are unchanged. */
+  tier?: 'primary' | 'full'
 }
 
 /** Merchants probed per wine in the discovered-retailer pass. Each costs a
@@ -410,6 +416,29 @@ export async function fetchReviewData(
   // Extended tier — fully trusted retailers, just not paid for up front. Only
   // reached when the primary pass came back without a single critic score.
   const extended = searchable.filter(r => r.reviewTier === 'extended')
+
+  // Phase 9.4 (WI-3) — bounded to the primary tier. Stops here regardless of
+  // foundNoScore(): extended, discovered-merchant, and open-web escalation
+  // are a click away (POST /:id/fetch-reviews?tier=full), never automatic.
+  // The avoided-call label is only recorded when the tier boundary actually
+  // changed the outcome (foundNoScore() true) — when primary already found a
+  // score, extended would have been skipped in 'full' mode too, and
+  // attributing that skip to tiering would misreport why it was cheap.
+  if (opts.tier === 'primary') {
+    if (foundNoScore()) {
+      for (const skipped of extended) {
+        recordAvoidedCalls(`reviews:skipped:tier-primary:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+      }
+      recordAvoidedCalls(
+        'reviews:skipped:tier-primary:discovered-merchants',
+        ESTIMATED_VARIANTS_PER_RETAILER * MERCHANT_PROBE_LIMIT
+      )
+      recordAvoidedCalls('reviews:skipped:tier-primary:open-web-fallback', ESTIMATED_VARIANTS_PER_RETAILER)
+    }
+    if (results.length === 0 && requestFailures > 0) return null
+    return results
+  }
+
   if (foundNoScore()) {
     results.push(...(await runPass(extended, 'extended')))
   } else {
