@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
-import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine } from './api'
+import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, promoteWine, deleteWine } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
@@ -31,6 +31,13 @@ export default function App() {
   const [historyNotes, setHistoryNotes] = useState<TastingNote[]>([])
   const [detailWine, setDetailWine] = useState<WineEntry | null>(null)
   const [reviewingWine, setReviewingWine] = useState<WineEntry | null>(null)
+  const [reviewingAutoFireReviews, setReviewingAutoFireReviews] = useState(false)
+  // Phase 9.4, WI-4 — the promoted wines already in the collection, used
+  // only for the scan flow's free duplicate check. Refreshed each time the
+  // scan flow opens rather than kept continuously in sync — a few seconds
+  // of staleness costs nothing here (worst case a very recent duplicate
+  // slips through as "new"), and it avoids a second list subscription.
+  const [existingWines, setExistingWines] = useState<WineEntry[]>([])
 
   const fetchWines = useCallback(async (tab: TabId) => {
     setLoading(true)
@@ -53,27 +60,55 @@ export default function App() {
     fetchWines(activeTab)
   }, [activeTab, fetchWines])
 
+  // Phase 9.4, WI-4 — load the duplicate-check candidate list fresh each
+  // time the scan flow opens. listWines() with no filter already excludes
+  // drafts by default, which is exactly "promoted wines only."
+  useEffect(() => {
+    if (showScan) {
+      listWines().then(setExistingWines).catch(() => setExistingWines([]))
+    }
+  }, [showScan])
+
   // ── Manual add form — lands on the same Discovery Review screen as a scan ──
+  // No auto-fired reviews (WI-6 is scan-only) — the draft/promote treatment
+  // still applies (WI-2 covers every creation path).
   const handleFormCreate = async (data: CreateWineInput): Promise<WineEntry> => {
     const wine = await createWine(data)
     setShowForm(false)
+    setReviewingAutoFireReviews(false)
     setReviewingWine(wine)
-    fetchWines(activeTab)   // Refresh list in background
     return wine
   }
 
-  // ── Scan flow — same post-save destination as the manual add form ──────────
-  const handleScanSave = async (data: CreateWineInput): Promise<WineEntry> => {
-    const wine = await createWine(data)
+  // ── Scan flow — the draft row is created inside LabelScanFlow itself
+  // (Phase 9.4, WI-1), immediately after parsing. This just receives the
+  // result: either that new draft, or an existing wine the free duplicate
+  // check (WI-4) matched.
+  const handleScanReview = (wine: WineEntry, autoFireReviews: boolean) => {
     setShowScan(false)
+    setReviewingAutoFireReviews(autoFireReviews)
     setReviewingWine(wine)
-    fetchWines(activeTab)   // Refresh list in background
-    return wine
   }
 
   const handleReviewDone = () => {
     setReviewingWine(null)
     fetchWines(activeTab)   // Ensure list reflects any changes
+  }
+
+  // Phase 9.4, WI-2/WI-7 — promote or discard the draft currently under
+  // review, then close the screen.
+  const handlePromote = async (
+    id: string,
+    tags: { tag_discovered: boolean; tag_wishlist: boolean; tag_cellar: boolean }
+  ) => {
+    await promoteWine(id, tags)
+    setReviewingWine(null)
+    fetchWines(activeTab)
+  }
+
+  const handleDiscard = async (id: string) => {
+    await deleteWine(id)
+    setReviewingWine(null)
   }
 
   // ── Tasting notes ────────────────────────────────────────────────────────────
@@ -149,7 +184,8 @@ export default function App() {
       {/* Scan flow */}
       {showScan && (
         <LabelScanFlow
-          onSave={handleScanSave}
+          wines={existingWines}
+          onReview={handleScanReview}
           onDone={() => setShowScan(false)}
         />
       )}
@@ -166,9 +202,12 @@ export default function App() {
       {reviewingWine && (
         <DiscoveryReview
           wine={reviewingWine}
+          autoFireReviews={reviewingAutoFireReviews}
           onDone={handleReviewDone}
           onTagUpdate={handleTagUpdate}
           onWineUpdated={(updated) => setReviewingWine(updated)}
+          onPromote={handlePromote}
+          onDiscard={handleDiscard}
         />
       )}
 
