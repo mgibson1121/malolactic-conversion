@@ -233,7 +233,9 @@ CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to
 
 ## 12. Frontend Prototyping
 
-UI designs are prototyped in Magic Patterns before implementation, used as reference only. In practice, most UI since Phase 6.5 has been built directly against product-context.md and iterative developer feedback rather than a prior Magic Patterns pass — see Phase 9.3's note if this file's Phase 10/11 sequence is ever revisited.
+**All planning, design, and execution happens inside Claude — no external tools.** This project is deliberately run end-to-end through Claude products (Claude.ai / Cowork for planning and UI design, Claude Code for filesystem execution and PRs) rather than handing design or implementation off to a separate tool. That choice is itself part of the project's purpose: it is as much an exercise in learning to use Claude well across a full build as it is about shipping a wine app. Do not introduce Magic Patterns, Cursor, Figma, or any other external design/build tool without an explicit developer decision recorded here first.
+
+**Design method (updated 2026-08-25, Phase 10):** UI screens are designed as a multi-artboard canvas built with Claude's Design skill and published as a Claude.ai Artifact — not prototyped in Magic Patterns. The original Phase 10 plan named Magic Patterns before any UI design work had started; it was dropped without ever being used, and Phase 10 as originally written is superseded (see `docs/build-phases.md`). The canvas is iterated in place: the developer leaves comments directly on the published design, and a later session re-reads the artifact, addresses the comments, and republishes — no export/handoff step. Most UI before Phase 10 (since Phase 6.5) was built directly against product-context.md and iterative developer feedback with no prototyping step at all; Phase 10 is the first phase with a dedicated design pass.
 
 ---
 
@@ -378,5 +380,3 @@ The consequence is counterintuitive and should be stated plainly before the next
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once volume justifies it
-- [ ] Phase 9.2 WI-7: the 14-wine re-run and `reviewTier` calibration remains outstanding, gated on the developer's go-ahead to spend the budget
-- [ ] Whether a delete/discard endpoint for a wine is wanted (surfaced by Phase 9.3's review — no such endpoint exists today)

@@ -1228,20 +1228,25 @@ without an explicit Save to Collection; an abandoned draft is gone within 24 hou
 
 ## Phase 10 — UX design and prototyping
 
+**Status:** In progress, started 2026-08-25. The plan as originally written below (flow diagrams in Claude.ai, prototypes handed to Magic Patterns) was never executed — this entry now records what actually happened instead of what was planned.
+
 **Goal:** Map out the full application experience before writing any frontend code.
 
+**What changed and why:**
+- **No Magic Patterns, no Cursor.** The toolchain is deliberately all-Claude — Claude.ai/Cowork for planning and design, Claude Code for execution — both because a single-tool chain is simpler than a multi-tool handoff and because part of this project's purpose is learning to use Claude well end-to-end, not only shipping the app. The original plan named Magic Patterns before any UI design work had started; it was dropped without ever being tried. See `docs/CLAUDE.md` §12.
+- **Design happens as a multi-artboard canvas** built with Claude's Design skill and published as a Claude.ai Artifact, not as static diagrams handed to a separate prototyping tool. The developer reviews it in place and leaves comments directly on the design; a later session re-reads the artifact, addresses the comments, and republishes a new version — no export/handoff step.
+- **This pass started web-first, not mobile-first**, reversing the note below — the developer's stated reasoning: easier to design the whole picture at desktop scale and adapt down to mobile than the reverse. This is a statement about how this design pass sequences itself, not a reversal of iOS-as-primary-surface as a product decision (Phase 11 below still holds).
+- **First pass covered all six hotspots** (Capture, Research, Evaluate, Cellar, Wishlist + Purchasing, Learn) in one canvas, built from real rows in the live `wine.db` rather than placeholder content — so the design surfaces real gaps (a thin Cellar and Wishlist, an empty Advice archive, only two saved tasting notes) instead of hiding them behind sample data.
+- **First round of developer feedback (2026-08-25, 5 comments on the canvas):** the data presentation needs more visual presence generally; add quick add/remove list-tagging directly from the Discovered list rather than only from a detail panel; critic-score display needs to pick one prioritized review from a definable preferred-source list rather than showing every score found; cut "each source in its own voice" as UI copy — it doesn't add anything; and figure out how to visually distinguish GPT-inferred conclusions (vintage character, "Deal" badges) from raw sourced facts. To be addressed in the next design iteration.
+
+**Context found while starting this phase (2026-08-25):** `main` is 39 commits behind the `feature/discovery-review-ui` branch and does not contain Phase 9.3's Discovery Review screen or any of Phase 9.4 — the only thing that landed on `main` after Phase 9.2 is a docs-sync PR (#25). The actually-running app, and the one this design pass is grounded in, is the unmerged branch: four tabs (Discovered / Wishlist / Cellar / Tasting Notes) rather than the six-hotspot navigation modeled in the design canvas, Scan Label and + Add Wine as header actions rather than nav destinations, and Discovery Review / Evaluate / Wine Detail as modals rather than routes. This is a real process gap worth its own PR and merge to `main`, independent of the design work here.
+
 **Deliverables:**
-- Flow diagrams for each hotspot: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing, Learn
-- Diagrams produced in Claude.ai (this interface), not Claude Code
-- Prototypes built in Magic Patterns from the diagrams
-- Prototypes are reference only — not imported into the codebase
+- Flow/screen design produced directly in Claude (the Design skill's canvas), reviewed and iterated via comments on the published Artifact
+- Mockups are reference only — not imported into the codebase
+- iOS-shaped screens still to come, extending the same visual language established in the web-first pass
 
-**Notes:**
-- This phase happens in Claude.ai and Magic Patterns, not in Claude Code
-- Claude Code receives the prototype as a visual reference and implements UI from scratch in HTML/CSS/JS or SwiftUI
-- iOS is the primary surface — design mobile-first
-
-**Milestone:** Full UX flow documented and prototyped. Ready to build frontend.
+**Milestone:** Full UX flow documented and designed, developer feedback incorporated. Ready to build frontend.
 
 ---
 
@@ -1258,7 +1263,7 @@ without an explicit Save to Collection; an abandoned draft is gone within 24 hou
 - All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 12)
 
 **Notes:**
-- Implement from Magic Patterns prototypes as visual reference — do not import prototype code
+- Implement from the Phase 10 Claude Design canvas as visual reference — do not import prototype code
 - iOS is primary surface; web parity follows
 - SensorPush environment monitoring module (`backend/modules/environment/`) is included in this phase alongside the Cellar UI
 - Allocation drift view (target distribution vs. actual) is included in the Cellar UI
