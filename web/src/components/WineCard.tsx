@@ -1,6 +1,7 @@
-import { useState } from 'react'
 import type { WineEntry, UpdateWineInput } from '@shared/types'
 import { fetchWinePrice, fetchWineReviews } from '../api'
+import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { EnrichmentFreshness } from './EnrichmentFreshness'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
 import { CriticScoreBadges } from './CriticScoreBadges'
@@ -44,36 +45,8 @@ const VINTAGE_RATING_LABELS: Record<string, string> = {
 }
 
 export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail }: Props) {
-  const [fetchingPrice, setFetchingPrice] = useState(false)
-  const [priceError, setPriceError] = useState<string | null>(null)
-  const [fetchingReviews, setFetchingReviews] = useState(false)
-  const [reviewsError, setReviewsError] = useState<string | null>(null)
-
-  async function handleFetchPrice() {
-    setFetchingPrice(true)
-    setPriceError(null)
-    try {
-      const updated = await fetchWinePrice(wine.id)
-      onWineUpdated(updated)
-    } catch (err) {
-      setPriceError(err instanceof Error ? err.message : 'Price lookup failed')
-    } finally {
-      setFetchingPrice(false)
-    }
-  }
-
-  async function handleFetchReviews() {
-    setFetchingReviews(true)
-    setReviewsError(null)
-    try {
-      const updated = await fetchWineReviews(wine.id)
-      onWineUpdated(updated)
-    } catch (err) {
-      setReviewsError(err instanceof Error ? err.message : 'Review lookup failed')
-    } finally {
-      setFetchingReviews(false)
-    }
-  }
+  const price = useEnrichmentAction(wine.id, fetchWinePrice, onWineUpdated, 'Price lookup failed')
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Review lookup failed')
 
   const criticScores = getDedupedCriticScores(wine.review_data)
   const attributedWindows = getAttributedDrinkingWindows(wine.review_data)
@@ -206,36 +179,52 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
       <div className="reviews-fetch-row">
         <button
           className="btn-fetch-price"
-          onClick={handleFetchReviews}
-          disabled={fetchingReviews}
+          onClick={() => reviews.run()}
+          disabled={reviews.busy}
         >
-          {fetchingReviews ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
+          {reviews.busy ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
         </button>
-        {reviewsError && <span className="price-error">{reviewsError}</span>}
+        {reviews.cachedAt && (
+          <EnrichmentFreshness
+            fetchedAt={reviews.cachedAt}
+            label="Reviews"
+            onRefreshAnyway={() => reviews.run({ force: true })}
+            disabled={reviews.busy}
+          />
+        )}
+        {reviews.error && <span className="price-error">{reviews.error}</span>}
       </div>
 
-      {/* Price data from Wine-Searcher */}
+      {/* Price data from Retailer Crawl */}
       {wine.price_data ? (
         <div>
-          <PriceSection priceData={wine.price_data} />
+          <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={onWineUpdated} />
           <button
             className="btn-fetch-price"
-            onClick={handleFetchPrice}
-            disabled={fetchingPrice}
+            onClick={() => price.run()}
+            disabled={price.busy}
           >
-            {fetchingPrice ? 'Refreshing…' : 'Refresh Price'}
+            {price.busy ? 'Refreshing…' : 'Refresh Price'}
           </button>
+          {price.cachedAt && (
+            <EnrichmentFreshness
+              fetchedAt={price.cachedAt}
+              label="Price"
+              onRefreshAnyway={() => price.run({ force: true })}
+              disabled={price.busy}
+            />
+          )}
         </div>
       ) : (
         <div className="price-fetch-prompt">
           <button
             className="btn-fetch-price"
-            onClick={handleFetchPrice}
-            disabled={fetchingPrice}
+            onClick={() => price.run()}
+            disabled={price.busy}
           >
-            {fetchingPrice ? 'Fetching price…' : 'Fetch Price'}
+            {price.busy ? 'Fetching price…' : 'Fetch Price'}
           </button>
-          {priceError && <span className="price-error">{priceError}</span>}
+          {price.error && <span className="price-error">{price.error}</span>}
         </div>
       )}
 

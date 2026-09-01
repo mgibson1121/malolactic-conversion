@@ -198,8 +198,17 @@ describe('getWine', () => {
 })
 
 describe('listWines', () => {
+  // Phase 9.4 — createWine now always starts a wine as an unpromoted draft
+  // (promoted_at NULL), invisible to listWines by default. These tests are
+  // about the pre-existing tag/region/rating filters, not draft state, so
+  // promote each wine immediately — draft exclusion itself is covered in
+  // 'draft/promotion (Phase 9.4)' below.
+  async function promote(adapter: SQLiteAdapter, id: string) {
+    return adapter.updateWine(id, { promoted_at: new Date().toISOString() })
+  }
+
   async function makeTwoWines(adapter: SQLiteAdapter) {
-    await adapter.createWine({
+    const w1 = await adapter.createWine({
       producer: null, vintage: 2022, region: 'Loire', denomination: 'Muscadet',
       grape_varieties: ['Melon de Bourgogne'], label_image_url: null,
       tag_discovered: true, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
@@ -208,7 +217,7 @@ describe('listWines', () => {
       purchased_from: null, date_first_consumed: null, quality_classification: null,
       vineyard: null, cuvee: null,
     })
-    await adapter.createWine({
+    const w2 = await adapter.createWine({
       producer: 'Raveneau', vintage: 2020, region: 'Burgundy', denomination: 'Chablis',
       grape_varieties: ['Chardonnay'], label_image_url: null,
       tag_discovered: true, tag_wishlist: true, tag_cellar: false, tag_consumed: false,
@@ -217,6 +226,8 @@ describe('listWines', () => {
       purchased_from: null, date_first_consumed: null, quality_classification: null,
       vineyard: null, cuvee: null,
     })
+    await promote(adapter, w1.id)
+    await promote(adapter, w2.id)
   }
 
   it('returns all wines without a filter', async () => {
@@ -286,6 +297,85 @@ describe('listWines', () => {
     expect(withNotes).toHaveLength(1)
     expect(withNotes[0].id).toBe(wineWithNote.id)
     expect(withNotes[0].latest_tasting_note_id).not.toBeNull()
+  })
+})
+
+// Phase 9.4 — draft/promotion model
+describe('draft/promotion (Phase 9.4)', () => {
+  function draftInput(overrides: Partial<Parameters<SQLiteAdapter['createWine']>[0]> = {}) {
+    return {
+      producer: 'Test Draft', vintage: 2021, region: 'Burgundy', denomination: 'Volnay',
+      grape_varieties: null, label_image_url: null,
+      tag_discovered: false, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
+      cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
+      my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
+      purchased_from: null, date_first_consumed: null, quality_classification: null,
+      vineyard: null, cuvee: null,
+      ...overrides,
+    }
+  }
+
+  it('createWine always starts a wine unpromoted, regardless of supplied tags', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine(draftInput({ tag_discovered: true }))
+    expect(wine.promoted_at).toBeNull()
+  })
+
+  it('excludes drafts from listWines by default', async () => {
+    const adapter = makeAdapter()
+    await adapter.createWine(draftInput())
+    expect(await adapter.listWines()).toHaveLength(0)
+  })
+
+  it('includes drafts when include_drafts is set', async () => {
+    const adapter = makeAdapter()
+    await adapter.createWine(draftInput())
+    expect(await adapter.listWines({ include_drafts: true })).toHaveLength(1)
+  })
+
+  it('getWine returns a draft regardless of promotion state', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine(draftInput())
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched).not.toBeNull()
+    expect(fetched!.promoted_at).toBeNull()
+  })
+
+  it('a wine becomes visible once promoted_at is set', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine(draftInput())
+    await adapter.updateWine(wine.id, { tag_wishlist: true, promoted_at: new Date().toISOString() })
+    const listed = await adapter.listWines()
+    expect(listed.map((w) => w.id)).toContain(wine.id)
+  })
+
+  it('deleteWine removes the row', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine(draftInput())
+    await adapter.deleteWine(wine.id)
+    expect(await adapter.getWine(wine.id)).toBeNull()
+  })
+
+  it('sweepStaleDrafts deletes only drafts older than the cutoff, never promoted wines', async () => {
+    const adapter = makeAdapter()
+    const stale = await adapter.createWine(draftInput())
+    const fresh = await adapter.createWine(draftInput({ denomination: 'Pommard' }))
+    const promoted = await adapter.createWine(draftInput({ denomination: 'Meursault' }))
+    await adapter.updateWine(promoted.id, { promoted_at: new Date().toISOString() })
+
+    // Backdate the stale draft's date_added directly — createWine always
+    // stamps "now", and the sweep's whole job is comparing against age.
+    ;(adapter as unknown as { db: import('better-sqlite3').Database }).db
+      .prepare('UPDATE wines SET date_added = ? WHERE id = ?')
+      .run(new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), stale.id)
+
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const deleted = await adapter.sweepStaleDrafts(cutoff)
+
+    expect(deleted).toBe(1)
+    expect(await adapter.getWine(stale.id)).toBeNull()
+    expect(await adapter.getWine(fresh.id)).not.toBeNull()
+    expect(await adapter.getWine(promoted.id)).not.toBeNull()
   })
 })
 
@@ -766,6 +856,34 @@ describe('serialization round-trips', () => {
     expect(fetched!.review_data![0].vintage_gap).toBe(2)
   })
 
+  // Phase 9.2 (WI-5): review_probe_log is a new JSON TEXT column
+  // (migration 004). Same "no migration needed for a nested value" claim as
+  // review_data above, worth its own test since the two columns are written
+  // by separate arguments in the adapter's positional SQL params — a
+  // transposition there wouldn't be caught by testing only one.
+  it('round-trips review_probe_log', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine({
+      producer: 'Sokolin Test', vintage: 2019, region: 'Burgundy',
+      denomination: 'Gevrey-Chambertin', grape_varieties: null, label_image_url: null,
+      tag_discovered: true, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
+      cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
+      my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
+      purchased_from: null, date_first_consumed: null, quality_classification: null,
+      vineyard: null, cuvee: null,
+    })
+
+    const review_probe_log = [
+      { slug: 'sokolin', domain: 'sokolin.com', stage: 'zero_results' as const, variants_tried: 3, probed_at: '2026-08-12T00:00:00.000Z' },
+      { slug: 'benchmark', domain: 'benchmarkwine.com', stage: 'found' as const, variants_tried: 1, probed_at: '2026-08-12T00:00:00.000Z' },
+    ]
+
+    await adapter.updateWine(wine.id, { review_probe_log })
+    const fetched = await adapter.getWine(wine.id)
+
+    expect(fetched!.review_probe_log).toEqual(review_probe_log)
+  })
+
   it('preserves null optional fields', async () => {
     const adapter = makeAdapter()
     const wine = await adapter.createWine({
@@ -790,6 +908,7 @@ describe('serialization round-trips', () => {
     expect(fetched!.community_sentiment).toBeNull()
     expect(fetched!.community_excerpts).toBeNull()
     expect(fetched!.price_data).toBeNull()
+    expect(fetched!.review_probe_log).toBeNull()
     expect(fetched!.wishlist_notes).toBeNull()
     expect(fetched!.price_paid).toBeNull()
     expect(fetched!.purchased_from).toBeNull()

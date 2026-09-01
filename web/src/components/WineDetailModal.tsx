@@ -2,12 +2,14 @@
  * WineDetailModal.tsx
  * Full-screen detail overlay for a wine entry.
  * Shows all identity fields, tags, cellar quantity, drinking window,
- * Wine-Searcher price section, and tasting notes summary.
+ * Retailer Crawl price section, and tasting notes summary.
  */
 
 import { useEffect, useState } from 'react'
 import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
+import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { EnrichmentFreshness } from './EnrichmentFreshness'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
 import { CriticScoreBadges } from './CriticScoreBadges'
@@ -75,10 +77,6 @@ export function WineDetailModal({
   const [wine, setWine] = useState(initialWine)
   const [notes, setNotes] = useState<TastingNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
-  const [fetchingPrice, setFetchingPrice] = useState(false)
-  const [priceError, setPriceError] = useState<string | null>(null)
-  const [fetchingReviews, setFetchingReviews] = useState(false)
-  const [reviewsError, setReviewsError] = useState<string | null>(null)
 
   // Keep local wine in sync if parent updates it
   useEffect(() => { setWine(initialWine) }, [initialWine])
@@ -100,33 +98,15 @@ export function WineDetailModal({
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
-  async function handleFetchPrice() {
-    setFetchingPrice(true)
-    setPriceError(null)
-    try {
-      const updated = await fetchWinePrice(wine.id)
-      setWine(updated)
-      onWineUpdated(updated)
-    } catch (err) {
-      setPriceError(err instanceof Error ? err.message : 'Price lookup failed')
-    } finally {
-      setFetchingPrice(false)
-    }
+  // This modal keeps its own copy of the wine, so both the local copy and the
+  // list behind it are updated on every enrichment result.
+  function applyUpdate(updated: WineEntry) {
+    setWine(updated)
+    onWineUpdated(updated)
   }
 
-  async function handleFetchReviews() {
-    setFetchingReviews(true)
-    setReviewsError(null)
-    try {
-      const updated = await fetchWineReviews(wine.id)
-      setWine(updated)
-      onWineUpdated(updated)
-    } catch (err) {
-      setReviewsError(err instanceof Error ? err.message : 'Review lookup failed')
-    } finally {
-      setFetchingReviews(false)
-    }
-  }
+  const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Review lookup failed')
 
   function handleTagToggle(tag: 'tag_discovered' | 'tag_wishlist' | 'tag_cellar' | 'tag_consumed') {
     const updated = { [tag]: !wine[tag] }
@@ -309,12 +289,20 @@ export function WineDetailModal({
             )}
             <button
               className="btn-fetch-price"
-              onClick={handleFetchReviews}
-              disabled={fetchingReviews}
+              onClick={() => reviews.run()}
+              disabled={reviews.busy}
             >
-              {fetchingReviews ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
+              {reviews.busy ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
             </button>
-            {reviewsError && <span className="price-error">{reviewsError}</span>}
+            {reviews.cachedAt && (
+              <EnrichmentFreshness
+                fetchedAt={reviews.cachedAt}
+                label="Reviews"
+                onRefreshAnyway={() => reviews.run({ force: true })}
+                disabled={reviews.busy}
+              />
+            )}
+            {reviews.error && <span className="price-error">{reviews.error}</span>}
           </section>
 
           {/* Price section */}
@@ -322,26 +310,34 @@ export function WineDetailModal({
             <h3 className="detail-section-title">Pricing</h3>
             {wine.price_data ? (
               <>
-                <PriceSection priceData={wine.price_data} />
+                <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={applyUpdate} />
                 <button
                   className="btn-fetch-price"
-                  onClick={handleFetchPrice}
-                  disabled={fetchingPrice}
+                  onClick={() => price.run()}
+                  disabled={price.busy}
                 >
-                  {fetchingPrice ? 'Refreshing…' : 'Refresh Price'}
+                  {price.busy ? 'Refreshing…' : 'Refresh Price'}
                 </button>
+                {price.cachedAt && (
+                  <EnrichmentFreshness
+                    fetchedAt={price.cachedAt}
+                    label="Price"
+                    onRefreshAnyway={() => price.run({ force: true })}
+                    disabled={price.busy}
+                  />
+                )}
               </>
             ) : (
               <div className="price-fetch-prompt">
                 <p className="detail-empty-hint">No price data yet.</p>
                 <button
                   className="btn-fetch-price"
-                  onClick={handleFetchPrice}
-                  disabled={fetchingPrice}
+                  onClick={() => price.run()}
+                  disabled={price.busy}
                 >
-                  {fetchingPrice ? 'Fetching…' : 'Fetch Price'}
+                  {price.busy ? 'Fetching…' : 'Fetch Price'}
                 </button>
-                {priceError && <span className="price-error">{priceError}</span>}
+                {price.error && <span className="price-error">{price.error}</span>}
               </div>
             )}
           </section>

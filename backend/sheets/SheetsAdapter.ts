@@ -225,6 +225,9 @@ export class SheetsAdapter implements StorageAdapter {
       advice_linked: safeParseJSON<string[] | null>(c(WINE_COLS.advice_linked), null),
       date_added: c(WINE_COLS.date_added),
       date_first_consumed: orNull(c(WINE_COLS.date_first_consumed)),
+      // Phase 9.4 — the legacy adapter never tracked draft/promotion state;
+      // reference-only, not in the active code path (see CLAUDE.md §2).
+      promoted_at: null,
     }
   }
 
@@ -345,6 +348,7 @@ export class SheetsAdapter implements StorageAdapter {
       community_excerpts: null,
       price_data: null,
       date_added: new Date().toISOString(),
+      promoted_at: null,
     }
     await this.appendRow(SHEET_NAMES.wines, this.wineToRow(wine))
     return wine
@@ -380,6 +384,16 @@ export class SheetsAdapter implements StorageAdapter {
     const updated: WineEntry = { ...current, ...data }
     await this.updateRow(SHEET_NAMES.wines, index, this.wineToRow(updated))
     return updated
+  }
+
+  // Phase 9.4 — reference-only adapter, not in the active code path; no
+  // delete or draft-sweep mechanism exists for the Sheets backend.
+  async deleteWine(_id: string): Promise<void> {
+    throw new Error('SheetsAdapter (Phase 1-4, reference only) does not support delete.')
+  }
+
+  async sweepStaleDrafts(_olderThan: Date): Promise<number> {
+    return 0
   }
 
   // ── Tasting notes ──────────────────────────────────────────────────────────

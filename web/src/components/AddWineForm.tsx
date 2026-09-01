@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { CellarCategory, CreateWineInput } from '@shared/types'
+import type { CreateWineInput, WineEntry } from '@shared/types'
 
 interface Props {
-  onSubmit: (data: CreateWineInput) => Promise<void>
+  onSubmit: (data: CreateWineInput) => Promise<WineEntry>
   onCancel: () => void
 }
 
@@ -15,7 +15,6 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
   const [vineyard, setVineyard] = useState('')
   const [cuvee, setCuvee] = useState('')
   const [grapeVarieties, setGrapeVarieties] = useState('')
-  const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,12 +33,14 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
       cuvee: cuvee.trim() || null,
       grape_varieties: grapes.length > 0 ? grapes : null,
       label_image_url: null,
-      tag_discovered: true,
+      // Phase 9.4 — every creation path starts as a draft with no list tag;
+      // the developer picks at least one on the Discovery Review screen.
+      tag_discovered: false,
       tag_wishlist: false,
       tag_cellar: false,
       tag_consumed: false,
       cellar_quantity: 0,
-      cellar_category: cellarCategory || null,
+      cellar_category: null,
       drinking_window: null,
       vintage_rating: null,
       my_rating: null,
@@ -132,18 +133,6 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
           onChange={(e) => setGrapeVarieties(e.target.value)}
           placeholder="e.g. Pinot Noir"
         />
-
-        <label htmlFor="wf-cellar-category">Cellar Category</label>
-        <select
-          id="wf-cellar-category"
-          value={cellarCategory}
-          onChange={(e) => setCellarCategory(e.target.value as CellarCategory | '')}
-        >
-          <option value="">None</option>
-          <option value="table">Table</option>
-          <option value="near_term">Near Term</option>
-          <option value="long_term">Long Term</option>
-        </select>
 
         {error && <p className="error-msg">{error}</p>}
 

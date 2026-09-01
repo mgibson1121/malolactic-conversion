@@ -1019,6 +1019,12 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 ## Phase 9.2 — Enrichment cost reduction (Serper budget)
 
+**Status:** WI-1 through WI-7 landed — WI-1–6 on 2026-08-12, WI-7 (the live 14-wine
+calibration re-run) on 2026-08-15, both on `service/phase-9.2-serper-cost-reduction`
+(one commit per work item, per the spec's §5 sequence). See
+`docs/specs/2026-08-12-phase-9.2-enrichment-cost-reduction.md` §3 for the measured
+before/after figures.
+
 **Goal:** Bring per-wine Serper spend down without narrowing retailer coverage or reopening any Phase 9.1 decision.
 
 **Trigger:** Serper credits consuming faster than expected during Phase 9 validation, noticed 2026-08-12. Measured against current code, one wine enriched through both buttons costs **~42 credits, ~90% of it `fetch-reviews`** — not pricing, which is a single `/shopping` call.
@@ -1056,7 +1062,9 @@ Note this is the second remediation of the same symptom class. The 2026-08-02 pa
 
 ## Phase 9.3 — Discovery review UI (post-scan / add-wine decision screen)
 
-**Status:** Spec written 2026-08-16. Not started.
+**Status:** Spec written 2026-08-16; WI-1 through WI-7 landed the same day on
+`feature/discovery-review-ui`. Full backend (405/409, 4 intentional skips) and
+web (89/89) suites green, `tsc --noEmit` clean in both projects.
 
 **Goal:** Rebuild the one screen the developer sees in the first ten seconds after a scan
 or a manual add, which hadn't been touched since Phase 6.5 and had drifted out of step
@@ -1118,22 +1126,127 @@ adding a single new outbound Serper call.
 
 ---
 
+## Phase 9.4 — Scan-first enrichment and the draft/promote decision
+
+**Status:** Spec written 2026-08-19; WI-1 through WI-8 landed the same day on
+`feature/discovery-review-ui`. Backend (424, 4 intentional skips) and web (120/120)
+suites green, `tsc --noEmit` clean in both projects. Manually verified end-to-end via
+the `+ Add Wine` path (draft creation, disabled/enabled Save to Collection, promotion
+into the Wishlist tab, and Discard actually removing the row) — the scan-triggered
+auto-fire path is covered by the automated suites only, deliberately, to avoid spending
+live Serper/GPT-4o credits during verification.
+
+**Goal:** Phase 9.3 put reviews at the top of the post-scan screen but left them
+click-gated, so the signal that decides whether a wine is worth keeping still arrived
+*after* the wine was already in the collection. Move the fetch earlier and the
+commitment later, together: price and the `primary` review tier fire automatically the
+moment GPT-4o label parsing returns, so the seconds spent verifying the parsed fields
+are the seconds the search needs; a scanned wine is persisted immediately (enrichment
+needs a row to attach to) but stays a **draft** — invisible to every list, count, and
+query — until the developer picks at least one list tag and presses **Save to
+Collection**.
+
+**Trigger:** Developer review of the shipped Phase 9.3 code, 2026-08-19, plus the
+measured Phase 9.2 WI-7 batch (`validate-reviews-results.json`) — the cost arithmetic
+behind bounding auto-fire to the primary tier. Same session, the developer confirmed the
+Serper billing state had drifted (recorded as "2,500 queries/month" since Phase 6; the
+free allowance was actually one-time and is gone), which fed directly into deciding
+*where* the primary-tier boundary should sit: on latency and GPT-4o spend, not Serper
+credits, which turned out to have plenty of headroom.
+
+**Full execution spec:** `docs/specs/2026-08-19-phase-9.4-scan-first-enrichment.md` —
+work items, cost arithmetic, commit sequence, acceptance criteria.
+
+**Deliverables:**
+- `promoted_at` (nullable ISO timestamp) on `wines` — migration
+  `005_phase9_4_draft_promotion.sql`, backfilled so every pre-existing row stays visible.
+  `NULL` means draft. `listWines` filters `promoted_at IS NOT NULL` unless
+  `WineFilter.include_drafts` is set; `getWine` returns drafts unconditionally.
+- `tag_discovered`'s default flips from `true` to `false` (Zod schema, storage adapter,
+  every frontend creation path) — it is no longer set automatically anywhere.
+- `POST /api/wines/:id/promote` — sets the three list tags and `promoted_at` (idempotent:
+  a second promote updates tags, leaves `promoted_at` at its original value); 400 when no
+  tag is supplied.
+- `DELETE /api/wines/:id` — discard; 409 when the wine has a tasting note. Backs both an
+  explicit Discard/Cancel and a sweep (`server.ts`) that deletes drafts older than 24h on
+  startup and every 24h thereafter.
+- `?tier=primary|full` on `POST /:id/fetch-reviews` — `primary` runs only the primary
+  retailer tier and returns, whether or not it found a score; defaults to `full` so
+  `WineCard`/`WineDetailModal`'s existing buttons are unchanged. No new Serper call site —
+  a parameter on the existing route.
+- Tier-aware reviews TTL (`reachedExtendedTier`, `enrichment-cache.ts`) — a `tier=full`
+  request is only served from cache when the stored `review_data` came from a run that
+  itself reached the extended tier, inferred from `review_probe_log` rather than a new
+  column. Otherwise a primary-only auto-fire's result would silently satisfy an
+  escalation click for up to 30 days.
+- `LabelScanFlow.tsx` rebuilt around `createWine` firing immediately after `scanLabel`
+  resolves (not at Continue) — the edit/confirm screen is now a PATCH form over the real
+  row. A free client-side duplicate check (`web/src/utils/duplicateMatch.ts`, reusing
+  `scoreMatch`) runs first against the promoted wines already in the collection; a
+  confident match skips straight to that wine's Discovery Review screen at zero cost, a
+  vintage mismatch surfaces a notice but still creates a new draft.
+- `DiscoveryReview.tsx` renders two modes off `wine.promoted_at`: draft (three-way
+  Discovered/Wishlist/Cellar select, Save to Collection disabled until one is picked,
+  Discard) and promoted (the pre-9.4 behaviour, unchanged). `autoFireReviews` prop joins
+  the primary-tier search already under way via the same coalescing/TTL mechanism price
+  has always used — no parallel fetch path.
+
+**Key decisions (fixed in the spec, 2026-08-19):**
+- **Auto-fire is bounded to the `primary` review tier, on the scan path only, once per
+  wine, after the free duplicate check.** Extended tier, merchant probes, and the
+  open-web fallback stay behind a click. The manual `+ Add Wine` path gets the
+  draft/promote treatment but not the automatic review fetch — a hand-typed wine has no
+  parse to verify and no waiting time to fill.
+- **The boundary is justified on latency and GPT-4o spend, not Serper cost.** The
+  measured batch showed Serper credits have far more headroom than assumed — the
+  original "fire the whole ladder" proposal was affordable too — but three sequential
+  Serper→Puppeteer→GPT-4o escalation stages would leave half of all scans sitting on a
+  spinner past the point where the verification work is done.
+- **Draft state is a `promoted_at` timestamp, not a fifth tag or "all tags false."** A
+  boolean encoding makes an abandoned scan indistinguishable from a wine the developer
+  deliberately removed from every list, which defeats both the sweep and any list-query
+  performance guarantee.
+- **A confident duplicate match spends nothing** — client-side `scoreMatch` against the
+  already-loaded, already-promoted wine list, before any row is created or any call
+  fired.
+
+**Notes:**
+- Existing backend/web test fixtures that predate `promoted_at` were updated in place
+  (price/reviews module fixtures, `sqlite-adapter.test.ts`'s `listWines` helpers,
+  `AddWineForm.test.tsx`'s `tag_discovered` expectation) — the failures were the schema
+  change surfacing correctly, not regressions.
+- `backend/db/seed.ts` now promotes each seeded wine immediately after creating it, since
+  `createWine` starts every row as a draft.
+- Web only; no iOS work in this phase.
+
+**Milestone:** A scan of a wine not already in the collection shows critic scores on the
+Discovery Review screen without a click whenever the primary tier finds one; a scan of a
+wine already in the collection issues zero metered calls; nothing reaches any list
+without an explicit Save to Collection; an abandoned draft is gone within 24 hours.
+
+---
+
 ## Phase 10 — UX design and prototyping
+
+**Status:** In progress, started 2026-08-25. The plan as originally written below (flow diagrams in Claude.ai, prototypes handed to Magic Patterns) was never executed — this entry now records what actually happened instead of what was planned.
 
 **Goal:** Map out the full application experience before writing any frontend code.
 
+**What changed and why:**
+- **No Magic Patterns, no Cursor.** The toolchain is deliberately all-Claude — Claude.ai/Cowork for planning and design, Claude Code for execution — both because a single-tool chain is simpler than a multi-tool handoff and because part of this project's purpose is learning to use Claude well end-to-end, not only shipping the app. The original plan named Magic Patterns before any UI design work had started; it was dropped without ever being tried. See `docs/CLAUDE.md` §12.
+- **Design happens as a multi-artboard canvas** built with Claude's Design skill and published as a Claude.ai Artifact, not as static diagrams handed to a separate prototyping tool. The developer reviews it in place and leaves comments directly on the design; a later session re-reads the artifact, addresses the comments, and republishes a new version — no export/handoff step.
+- **This pass started web-first, not mobile-first**, reversing the note below — the developer's stated reasoning: easier to design the whole picture at desktop scale and adapt down to mobile than the reverse. This is a statement about how this design pass sequences itself, not a reversal of iOS-as-primary-surface as a product decision (Phase 11 below still holds).
+- **First pass covered all six hotspots** (Capture, Research, Evaluate, Cellar, Wishlist + Purchasing, Learn) in one canvas, built from real rows in the live `wine.db` rather than placeholder content — so the design surfaces real gaps (a thin Cellar and Wishlist, an empty Advice archive, only two saved tasting notes) instead of hiding them behind sample data.
+- **First round of developer feedback (2026-08-25, 5 comments on the canvas):** the data presentation needs more visual presence generally; add quick add/remove list-tagging directly from the Discovered list rather than only from a detail panel; critic-score display needs to pick one prioritized review from a definable preferred-source list rather than showing every score found; cut "each source in its own voice" as UI copy — it doesn't add anything; and figure out how to visually distinguish GPT-inferred conclusions (vintage character, "Deal" badges) from raw sourced facts. To be addressed in the next design iteration.
+
+**Context found while starting this phase (2026-08-25):** `main` is 39 commits behind the `feature/discovery-review-ui` branch and does not contain Phase 9.3's Discovery Review screen or any of Phase 9.4 — the only thing that landed on `main` after Phase 9.2 is a docs-sync PR (#25). The actually-running app, and the one this design pass is grounded in, is the unmerged branch: four tabs (Discovered / Wishlist / Cellar / Tasting Notes) rather than the six-hotspot navigation modeled in the design canvas, Scan Label and + Add Wine as header actions rather than nav destinations, and Discovery Review / Evaluate / Wine Detail as modals rather than routes. This is a real process gap worth its own PR and merge to `main`, independent of the design work here.
+
 **Deliverables:**
-- Flow diagrams for each hotspot: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing, Learn
-- Diagrams produced in Claude.ai (this interface), not Claude Code
-- Prototypes built in Magic Patterns from the diagrams
-- Prototypes are reference only — not imported into the codebase
+- Flow/screen design produced directly in Claude (the Design skill's canvas), reviewed and iterated via comments on the published Artifact
+- Mockups are reference only — not imported into the codebase
+- iOS-shaped screens still to come, extending the same visual language established in the web-first pass
 
-**Notes:**
-- This phase happens in Claude.ai and Magic Patterns, not in Claude Code
-- Claude Code receives the prototype as a visual reference and implements UI from scratch in HTML/CSS/JS or SwiftUI
-- iOS is the primary surface — design mobile-first
-
-**Milestone:** Full UX flow documented and prototyped. Ready to build frontend.
+**Milestone:** Full UX flow documented and designed, developer feedback incorporated. Ready to build frontend.
 
 ---
 
@@ -1150,7 +1263,7 @@ adding a single new outbound Serper call.
 - All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 12)
 
 **Notes:**
-- Implement from Magic Patterns prototypes as visual reference — do not import prototype code
+- Implement from the Phase 10 Claude Design canvas as visual reference — do not import prototype code
 - iOS is primary surface; web parity follows
 - SensorPush environment monitoring module (`backend/modules/environment/`) is included in this phase alongside the Cellar UI
 - Allocation drift view (target distribution vs. actual) is included in the Cellar UI

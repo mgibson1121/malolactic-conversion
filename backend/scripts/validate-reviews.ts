@@ -58,6 +58,7 @@ import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import type { CriticScore } from '../modules/reviews/types'
 import { BATCH_WINES } from '../tests/fixtures/ground-truth-wines'
+import { getLifetimeUsage } from '@shared/utils/serper-client'
 
 interface WineProbe {
   label: string
@@ -109,7 +110,28 @@ const CELLAR_WINES: WineProbe[] = [
   { label: '2019 Domaine de Saint Préfert Châteauneuf-du-Pape Réserve Auguste Favier', producer: 'Domaine de Saint Préfert', denomination: 'Châteauneuf-du-Pape Réserve Auguste Favier', vintage: 2019 },
 ]
 
-const WINES: WineProbe[] = process.env.VALIDATE_SET === 'cellar' ? CELLAR_WINES : BATCH_PROBES
+// A 5-wine slice of the batch (Phase 9.2, WI-7) — chosen to cover most of the
+// fixture's KNOWN_GOOD/KNOWN_BAD cases in one cheap run, so a dry run can
+// sanity-check both the yield-table code and the matcher's live behaviour
+// before committing to the full 14-wine spend. Grand Village (Lafleur trap +
+// Zachys dead-vintage link), Gour de Chaulé (Famille Perrin trap + Flatiron's
+// clean hit), Montus (Brumont trap), Mangot (Woodland Hills + JJ Buckley
+// clean hits), Jean-Marc Vincent (Morrell honorific-relaxed hit).
+const DRY_RUN_LABELS = [
+  'Grand Village · Vin de France 2022',
+  'Gour de Chaulé · Gigondas 2022',
+  'Montus · Madiran 2022',
+  'Mangot · Saint-Émilion 2022',
+  'Jean-Marc Vincent · Santenay 2022',
+]
+const DRY_RUN_WINES: WineProbe[] = BATCH_PROBES.filter(w => DRY_RUN_LABELS.includes(w.label))
+
+const WINES: WineProbe[] =
+  process.env.VALIDATE_SET === 'cellar'
+    ? CELLAR_WINES
+    : process.env.VALIDATE_SET === 'dry-run'
+      ? DRY_RUN_WINES
+      : BATCH_PROBES
 
 /**
  * Where a wine×retailer attempt actually stopped (Phase 9.1, WI-10).
@@ -278,6 +300,84 @@ function reportNotConfigured(): void {
   console.log('  check shared/config/retailers.config.ts before treating it as a query or matching bug.')
 }
 
+/**
+ * Per-retailer yield table (Phase 9.2, WI-7).
+ *
+ * This is the calibration input for reviewTier: for each RETAILER_CONFIG
+ * entry, across the batch, how often it was worth asking and how much asking
+ * cost. "Pages found" counts anything Step 1 accepted (product_url set,
+ * regardless of what Step 2 did with it); "right wine + vintage" is the
+ * stricter column that actually justifies primary tier — a page can be
+ * accepted (producer/denomination/bottling all match) and still be a
+ * different vintage, which is kept and labelled everywhere else in this
+ * pipeline but should not count as evidence a retailer is a cheap, reliable
+ * primary source.
+ *
+ * Credits spent per retailer come from shared/utils/serper-client.ts's
+ * lifetime tally under this script's own label (`reviews:configured:<slug>`,
+ * the default findProductPageDetailed uses when no explicit label is passed
+ * — see probeRetailer below) — a fresh process each run, so the lifetime
+ * counter starts at zero and needs no reset.
+ */
+interface RetailerYieldRow {
+  slug: string
+  name: string
+  winesSearched: number
+  zeroResults: number
+  noRelevantMatch: number
+  pagesFound: number
+  rightWineVintageScores: number
+  anyVintageScores: number
+  creditsSpent: number
+  scoresPerCredit: number
+}
+
+function computeRetailerYield(results: WineOutcome[]): RetailerYieldRow[] {
+  const usage = getLifetimeUsage()
+  return RETAILER_CONFIG.map(retailer => {
+    const outcomes = results.map(r => r.retailers.find(x => x.slug === retailer.slug)).filter((r): r is RetailerOutcome => r !== undefined)
+    const creditsSpent = usage.by_label[`reviews:configured:${retailer.slug}`]?.attempts ?? 0
+    const rightWineVintageScores = outcomes
+      .filter(o => o.stage === 'success' && o.vintage_gap === 0)
+      .reduce((n, o) => n + o.critic_scores.length, 0)
+    const anyVintageScores = outcomes
+      .filter(o => o.stage === 'success')
+      .reduce((n, o) => n + o.critic_scores.length, 0)
+    return {
+      slug: retailer.slug,
+      name: retailer.name,
+      winesSearched: outcomes.length,
+      zeroResults: outcomes.filter(o => o.stage === 'zero_results').length,
+      noRelevantMatch: outcomes.filter(o => o.stage === 'no_relevant_match').length,
+      pagesFound: outcomes.filter(o => o.product_url !== null).length,
+      rightWineVintageScores,
+      anyVintageScores,
+      creditsSpent,
+      scoresPerCredit: creditsSpent > 0 ? rightWineVintageScores / creditsSpent : 0,
+    }
+  })
+}
+
+function printRetailerYieldTable(results: WineOutcome[]): void {
+  const rows = computeRetailerYield(results).sort((a, b) => b.scoresPerCredit - a.scoresPerCredit)
+  console.log('\n─── Per-retailer yield table (WI-7 calibration input) ───────────────────')
+  console.log(
+    '  retailer          searched  zero  no-match  pages  right-wine+vintage  any-vintage  credits  scores/credit'
+  )
+  for (const r of rows) {
+    console.log(
+      `  ${r.slug.padEnd(16)}  ${String(r.winesSearched).padStart(8)}  ${String(r.zeroResults).padStart(4)}  ` +
+        `${String(r.noRelevantMatch).padStart(8)}  ${String(r.pagesFound).padStart(5)}  ` +
+        `${String(r.rightWineVintageScores).padStart(18)}  ${String(r.anyVintageScores).padStart(11)}  ` +
+        `${String(r.creditsSpent).padStart(7)}  ${r.scoresPerCredit.toFixed(3).padStart(13)}`
+    )
+  }
+  console.log('  ("right-wine+vintage" = scores from a page whose producer/denomination/bottling were')
+  console.log('   accepted AND whose vintage gap is exactly 0 — the column that justifies primary tier.')
+  console.log('   "any-vintage" includes accepted-but-off-vintage pages, kept per Phase 9.1 but not counted')
+  console.log('   toward scores-per-credit, since a wrong-vintage score doesn\'t answer "should this be asked first?".)')
+}
+
 async function main() {
   const serperKey = process.env.SERPER_API_KEY
   const openaiKey = process.env.OPENAI_API_KEY
@@ -404,6 +504,20 @@ async function main() {
   const withDeal = allScores.filter(s => s.deal).length
   console.log(`\nSummary: ${winesWithAnyScore}/${results.length} wines had at least one attributed score (configured or fallback). ${totalScores} total scores found.`)
   console.log(`Phase 8 fields (of ${totalScores} scores): ${withWindow} with a drinking window, ${withVintageChar} with a vintage character, ${withDeal} flagged as a deal.`)
+
+  // ─── Per-retailer yield table (Phase 9.2, WI-7) ───────────────────────
+  printRetailerYieldTable(results)
+
+  // ─── Serper spend for this process (Phase 9.2, WI-1/WI-7) ────────────
+  // A fresh process each run, so the lifetime counter started at zero —
+  // this total is exactly what this run cost.
+  const usage = getLifetimeUsage()
+  console.log(`\n─── Serper spend this run ─────────────────────────────────────────────`)
+  console.log(`  total calls: ${usage.calls}  |  total attempts (billed): ${usage.attempts}  |  failed: ${usage.failed}  |  avoided: ${usage.avoided}`)
+  console.log('  by label:')
+  for (const [label, counts] of Object.entries(usage.by_label).sort((a, b) => b[1].attempts - a[1].attempts)) {
+    console.log(`    ${label.padEnd(40)} calls=${counts.calls} attempts=${counts.attempts} failed=${counts.failed} avoided=${counts.avoided}`)
+  }
 }
 
 main().catch(err => {

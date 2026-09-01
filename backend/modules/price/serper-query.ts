@@ -12,15 +12,13 @@ import {
   type WineIdentity,
 } from '@shared/utils/wine-match'
 import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
-import { fetchWithRetry } from '@shared/utils/concurrency'
+import { serperFetch } from '@shared/utils/serper-client'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — the implementation now lives in
 // @shared/utils/wine-match.ts alongside reviews/find-product-page.ts's
 // identical copy (extracted 2026-08-02 — see that file's header for why).
 export { isRelevantMatch }
-
-const SERPER_ENDPOINT = 'https://google.serper.dev/shopping'
 
 /**
  * How many retailers a wine should end up with (2026-08-05).
@@ -216,15 +214,12 @@ export async function querySerper(
 ): Promise<QuerySerperResult> {
   let items: SerperShoppingItem[] = []
   try {
-    const res = await fetchWithRetry(SERPER_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ q: `${searchQuery} wine`, gl: 'us' }),
-      signal: AbortSignal.timeout(15_000),
-    })
+    const res = await serperFetch(
+      'shopping',
+      { q: `${searchQuery} wine`, gl: 'us' },
+      apiKey,
+      'price:shopping'
+    )
     if (!res.ok) return FAILED_RESULT
     const json = await res.json() as SerperResponse
     items = json.shopping ?? []

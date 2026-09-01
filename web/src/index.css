@@ -1185,6 +1185,27 @@ input.scan-field-missing {
 .btn-fetch-price:hover { background: #f5ebe0; }
 .btn-fetch-price:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Phase 9.2 — shown when an enrichment click returned stored data rather than
+   spending Serper credits. Deliberately quiet: "Refresh anyway" is the
+   expensive path and should not read as the obvious one. */
+.enrichment-freshness {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #6b5b4d;
+}
+
+.btn-link-inline {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #7b3f00;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn-link-inline:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .price-fetch-prompt {
   margin-top: 8px;
   display: flex;
@@ -1756,4 +1777,15 @@ input.scan-field-missing {
 .scan-drinking-window {
   margin-top: 8px;
   text-align: center;
+}
+
+.preferred-retailer-summary p {
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  margin: 0;
+  padding: 8px 16px;
+  background: #f9f6f2;
+  border: 1px solid #e8e0d6;
+  border-radius: 8px;
 }

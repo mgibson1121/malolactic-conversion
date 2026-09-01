@@ -47,6 +47,18 @@ export interface RetryOptions {
   attempts?: number
   /** Base delay in ms; doubles each attempt. */
   baseDelayMs?: number
+  /**
+   * Called immediately before each outbound request is issued, including
+   * retries (Phase 9.2).
+   *
+   * A retry is a separately billed request on a metered API. Counting one
+   * call per `fetchWithRetry` would under-report by up to 3× in exactly the
+   * case that matters most — a 429 storm, which is both the most expensive
+   * outcome and the one the caller most needs to see. See
+   * shared/utils/serper-client.ts, the only production caller that passes
+   * this.
+   */
+  onAttempt?: () => void
 }
 
 /**
@@ -73,6 +85,7 @@ export async function fetchWithRetry(
       await new Promise(resolve => setTimeout(resolve, baseDelayMs * 2 ** (attempt - 1)))
     }
     try {
+      opts.onAttempt?.()
       const res = await fetch(url, init)
       if (!isRetryable(res.status) || attempt === attempts - 1) return res
     } catch (err) {

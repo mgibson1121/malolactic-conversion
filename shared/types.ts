@@ -107,6 +107,21 @@ export interface RetailerPrice {
   verification: VerificationState
 }
 
+// Phase 9.2 — mirrors backend/modules/reviews/find-product-page.ts's
+// Step1Stage. Duplicated rather than imported: shared/ is imported by
+// backend modules, never the reverse (CLAUDE.md §5), and this is the
+// smallest fact from that stage type that a storage-level record needs to
+// carry, not the full pipeline vocabulary.
+export type ReviewProbeStage = 'request_failed' | 'zero_results' | 'no_relevant_match' | 'found'
+
+export interface ReviewProbeLogEntry {
+  slug: string
+  domain: string
+  stage: ReviewProbeStage
+  variants_tried: number
+  probed_at: string // ISO timestamp
+}
+
 export interface RetailerLink {
   slug: string
   name: string
@@ -270,8 +285,23 @@ export interface WineEntry {
   price_data: PriceData | null            // null until Phase 6 price module populates
   retailer_links?: Record<string, string> | null  // user-saved retailer URLs keyed by slug; null until user saves
   review_data?: RetailerReview[] | null   // null until Phase 7 reviews module populates
+  // Phase 9.2 — one entry per retailer per fetch-reviews run, from the
+  // Step1Outcome findProductPageDetailed already returns (previously read
+  // only by validate-reviews.ts). A retailer whose most recent entry is
+  // stage: 'zero_results' and newer than NEGATIVE_PROBE_TTL_DAYS is skipped
+  // on the next run — a shop's absence of a page for this bottling does not
+  // change week to week the way prices do. Never skipped on
+  // 'request_failed': that conflation (a transient failure read as "found
+  // nothing") is what erased eight wines' review_data on 2026-08-05, and
+  // this log must not recreate it with a longer fuse.
+  review_probe_log?: ReviewProbeLogEntry[] | null
   date_added: string                      // ISO timestamp
   date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
+  // Phase 9.4 — NULL means draft: persisted (so scan-time enrichment has a
+  // row to attach to) but excluded from every list, count, and query until
+  // the developer promotes it (POST /:id/promote) with at least one list
+  // tag. Set once, on promotion; never cleared. See CLAUDE.md §3.
+  promoted_at: string | null
 }
 
 export interface TastingNote {
@@ -316,7 +346,7 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>
@@ -332,6 +362,9 @@ export interface WineFilter {
   has_tasting_note?: boolean
   my_rating?: MyRating
   region?: string
+  // Phase 9.4 — false by default, so every existing caller keeps excluding
+  // drafts without modification. True includes wines with promoted_at NULL.
+  include_drafts?: boolean
 }
 
 export interface AdviceFilter {

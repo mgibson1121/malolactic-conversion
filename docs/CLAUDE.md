@@ -44,6 +44,8 @@ Phases 1–4.5 are complete. The wine entry schema was validated against real da
 
 - Wine identity uses `producer` + `denomination` + `vintage`. `name` has been removed from the schema. Do not add it back.
 - Status is expressed as four additive boolean tags on the `wines` table: `tag_discovered`, `tag_wishlist`, `tag_cellar`, `tag_consumed`. Tags are not mutually exclusive — a row can have multiple set to true simultaneously. Do not add a `status` column.
+- **`tag_discovered` is not set automatically (Phase 9.4).** Its column default is `0`. Every creation path ends at the discovery review screen, where the user picks at least one list tag and presses Save to Collection. Do not reintroduce a default-on-creation tag anywhere.
+- **`promoted_at` (ISO timestamp, nullable) is what "in the collection" means (Phase 9.4).** `NULL` = draft: written to the database so enrichment has a row to attach to, but excluded from every list, count and query, and swept 24 hours after `date_added` if never promoted. `listWines` filters `promoted_at IS NOT NULL` unless `WineFilter.include_drafts` is set; `getWine(id)` returns drafts. Draft-ness is deliberately **not** encoded as "all tags false" — that makes an abandoned scan indistinguishable from a wine the user deliberately removed from every list, which defeats the sweep. Do not collapse the two.
 - `cellar_quantity` is an integer column on the wine entry. Default 0. Do not derive it from any other field.
 - `latest_tasting_note_id` (UUID, nullable) on the wine entry points to the most recent `tasting_notes` row for that wine. Updated on each note save.
 - `tasting_notes` rows include `wine_id` (UUID, not null), `date` (timestamp), and all WSET fields. Multiple rows per wine are supported.
@@ -79,8 +81,11 @@ Extends the Phase 7 extraction pass (no new fetch) to also pull a per-critic dri
 ### Phase 9 / 9.1 / 9.2 — Data review, identity matching remediation, enrichment cost reduction
 A structured data-quality checkpoint (Phase 9) found stored critic scores attributed to the wrong wine and vintage; Phase 9.1 fixed the root cause with a single graded wine-identity matcher (`shared/utils/wine-match.ts`, `scoreMatch`) used everywhere identity is judged; Phase 9.2 brought per-wine Serper spend down (retailer review-search tiering, freshness/TTL guards with in-flight coalescing, negative-probe memory, on-click fallback-URL resolution) without narrowing retailer coverage. Full detail, decisions, and status in `docs/build-phases.md`.
 
-### Phase 9.3 — Discovery review UI (current)
+### Phase 9.3 — Discovery review UI
 The post-scan / post-add screen the developer actually sees first had not been touched since Phase 6.5 and had drifted out of step with Phases 7–9.2: it asked for a `cellar_category` nothing downstream reads, it auto-fetched only price (never reviews, the top-priority signal for deciding whether to keep a wine), the manual "+ Add Wine" path had no post-save screen at all, and it still carried Wine-Searcher-era copy. Rebuilds that one screen — reviews first (click-gated, reusing Phase 9.2's `useEnrichmentAction`/`fetchWineReviews` unchanged), then a preferred-retailer carry-check (frontend-only, computed from the existing price fetch, zero new Serper cost), then price, then an explicit wishlist/cellar decision — and unifies the scan and manual-add paths behind it. No new backend route or Serper call site. Full spec: `docs/specs/2026-08-16-phase-9.3-discovery-review-ui.md`. Full detail in `docs/build-phases.md`.
+
+### Phase 9.4 — Scan-first enrichment and the draft/promote decision (current)
+Phase 9.3 put reviews at the top of the post-save screen but left them click-gated, so the signal that decides whether a wine is worth keeping still arrived *after* the wine was in the collection. Two changes, together: the fetch moves earlier — price and the `primary` review tier fire automatically the moment GPT-4o label parsing returns, so verifying the parsed fields and waiting for the search are the same seconds — and the commitment moves later. A scanned wine is persisted immediately (enrichment needs an id) but is a **draft** until the user selects at least one list tag and presses **Save to Collection**; `tag_discovered` stops being automatic, drafts are invisible to every list and swept after 24 hours, and `DELETE /api/wines/:id` gives an explicit discard. Escalation beyond the primary tier (`extended`, merchant probes, open-web fallback) stays behind a click — the argument is latency and GPT-4o spend, not Serper credits (see §15's billing note). Adds a `tier` parameter to the existing `fetch-reviews` route; no new Serper call site. Full spec: `docs/specs/2026-08-19-phase-9.4-scan-first-enrichment.md`. Full detail in `docs/build-phases.md`.
 
 ### Phase 10 and beyond
 Defined in `docs/build-phases.md`.
@@ -228,7 +233,9 @@ CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to
 
 ## 12. Frontend Prototyping
 
-UI designs are prototyped in Magic Patterns before implementation, used as reference only. In practice, most UI since Phase 6.5 has been built directly against product-context.md and iterative developer feedback rather than a prior Magic Patterns pass — see Phase 9.3's note if this file's Phase 10/11 sequence is ever revisited.
+**All planning, design, and execution happens inside Claude — no external tools.** This project is deliberately run end-to-end through Claude products (Claude.ai / Cowork for planning and UI design, Claude Code for filesystem execution and PRs) rather than handing design or implementation off to a separate tool. That choice is itself part of the project's purpose: it is as much an exercise in learning to use Claude well across a full build as it is about shipping a wine app. Do not introduce Magic Patterns, Cursor, Figma, or any other external design/build tool without an explicit developer decision recorded here first.
+
+**Design method (updated 2026-08-25, Phase 10):** UI screens are designed as a multi-artboard canvas built with Claude's Design skill and published as a Claude.ai Artifact — not prototyped in Magic Patterns. The original Phase 10 plan named Magic Patterns before any UI design work had started; it was dropped without ever being used, and Phase 10 as originally written is superseded (see `docs/build-phases.md`). The canvas is iterated in place: the developer leaves comments directly on the published design, and a later session re-reads the artifact, addresses the comments, and republishes — no export/handoff step. Most UI before Phase 10 (since Phase 6.5) was built directly against product-context.md and iterative developer feedback with no prototyping step at all; Phase 10 is the first phase with a dedicated design pass.
 
 ---
 
@@ -258,6 +265,33 @@ All work happens on a branch. Merge to `main` only when CI is green.
 ### Pull requests
 Every phase or discrete unit of work is delivered as a pull request. Title follows `<type>: <description>`. Description covers what changed, why, and decisions made. Link the relevant `docs/build-phases.md` phase. All CI checks must pass before merge. Squash merge. Claude Code opens the PR but does not merge it.
 
+#### Documentation delta — required on every PR (added 2026-08-19)
+
+Before opening a PR, re-read `CLAUDE.md`, `wine-app-product-context.md`, and the phase's spec **against the diff being proposed**, and fix whatever the change has made untrue. The PR description carries a **`## Documentation impact`** section, which is either a list of the doc commits included or an explicit *"None — no documented behaviour, constraint, field, or number changed,"* which is a claim being made, not a box being ticked. A PR that changes documented behaviour and claims no documentation impact should be treated as incomplete.
+
+This is not the same check as §14's end-of-session file sync. That one asks "has a doc file changed and gone uncommitted." This one asks "has the *code* changed such that a doc is now wrong" — a question that has a different answer, because the failure mode is a doc that was never edited at all, and so produces no diff to notice.
+
+**Triggers.** Any of these in a diff means at least one doc needs an edit in the same PR:
+
+- a schema change — new column, changed default, changed nullability, a new migration
+- a new, removed, or renamed route, or a new parameter on an existing one
+- a changed default anywhere the docs state one (TTLs, tiers, caps, limits, concurrency)
+- a change to metered-call arithmetic — per-wine call counts, tiering, a new guard, a new fallback pass
+- a fact about an external service that turned out to be wrong (pricing, quota, API availability, ToS)
+- an approach tried and rejected, where the *reason* is worth more than the attempt
+- a decision that supersedes an earlier documented one — say so in the earlier place too, do not silently overwrite it
+
+**Ownership — write it in the right file, not just in the nearest one:**
+
+| Doc | Holds | Test |
+|---|---|---|
+| `CLAUDE.md` | Rules an agent must obey before writing code: constraints, module boundaries, schema invariants, cost discipline | *Would getting this wrong make the next agent build the wrong thing?* |
+| `wine-app-product-context.md` | Product decisions, field semantics, why the app behaves as it does, source evaluations | *Would the product owner want this on record?* |
+| `docs/build-phases.md` | The narrative record — what each phase did, in sequence | *Is this "what happened"?* |
+| `docs/specs/<date>-<phase>.md` | The plan for one phase, including what was ruled out and why | *Is this "what we intend to do"?* |
+
+Duplicating a decision across files is fine and often correct; leaving it in none of them is the failure.
+
 ### Commit message conventions
 ```
 <type>: <brief description>
@@ -277,9 +311,26 @@ Commit frequently with meaningful messages. Every phase produces at least one PR
 
 `CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents — the canonical source of truth, not the copies held in Claude.ai project context. At the end of every session, check whether these three files differ from the repo and, if so, commit the update with a `docs:` message on the current working branch. The Claude.ai project context copy may lag behind — the repo is always authoritative. (**Note, 2026-08-16:** the Claude.ai project copies of this file and `wine-app-product-context.md` had drifted significantly — describing Phase 1/2-era Google Sheets/Wine-Searcher/Reddit/status-enum design well after the repo had moved through Phase 9.2. Synced back up as part of Phase 9.3's documentation work; keep them current going forward rather than letting another multi-phase gap reopen.)
 
+### Conversational drift — write decisions back to the docs (added 2026-08-19)
+
+The section above catches a doc file that changed and was not committed. It does not catch the more common loss: a long back-and-forth in a Claude Code session where the approach is argued out, corrected, narrowed, and settled **in conversation**, the code is written to match, and nothing is ever written down. No file diverges, so every sync check passes clean — and the reasoning evaporates when the context window closes. The next session re-derives it, or worse, re-litigates it and lands somewhere else. Iteration is where the real decisions get made; treat the transcript as a source that has to be harvested, not as scaffolding to discard.
+
+**At the end of any session with substantial back-and-forth, re-read the session's own turns before writing the summary**, and pull out anything that changed what the project believes. Signals to scan for:
+
+- the developer overriding, redirecting, or correcting a proposed approach — *"actually, let's…"*, *"don't do X"*, *"that's not what I meant"*
+- an option considered and rejected, and the reason it lost. A rejected alternative is worth more than the chosen one; without it, the next session proposes it again
+- a number that got **measured** rather than estimated, replacing a guess already written down
+- an external fact that turned out to be wrong (this section exists partly because "Serper free tier: 2,500 queries/month" survived nine phases of cost reasoning built on top of it)
+- a constraint discovered mid-build — a bot block, a rate limit, an API that does not exist, a library that does not do what its docs claim
+- a decision that quietly reversed a documented one. Reversals must be recorded **at the original claim** as well as the new one, or the docs will hold two contradictory rules with nothing marking which won
+
+**Where it goes.** A durable decision goes in `CLAUDE.md` or `wine-app-product-context.md` per the ownership table in §13. A session summary is a **log, not a source of truth** — an agent reading `CLAUDE.md` before building will not find it there. If a decision is recorded only in `docs/sessions/` or only in a code comment, it is effectively lost; the summary should link to the doc that now carries it, not substitute for it.
+
+**Where the doubt should fall.** Doc churn is cheap and a stale doc is expensive — this project has already paid for one multi-phase drift (§14 above) and one wrong external fact. When unsure whether something is worth writing down, write it down. When unsure *where*, write it in the most binding place (`CLAUDE.md`) and cross-reference from the others.
+
 ### Session summaries
 
-Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every coding session: what was done, key decisions, bugs found/fixed, PR link, what's next. Committed with a `docs:` commit as the final commit before opening the PR.
+Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every coding session: what was done, key decisions, bugs found/fixed, PR link, what's next. Committed with a `docs:` commit as the final commit before opening the PR. Write it **after** the drift pass above, and have each key decision point at the doc that now holds it — a decision that lives only here has not actually been recorded.
 
 ---
 
@@ -298,20 +349,28 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not add microservice infrastructure — modular code in a monorepo is sufficient
 - Do not build multi-user authentication — v1 is single user
 - Do not merge a PR while CI is red
-- Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after
+- Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after — see "Metered-API cost is a design constraint" below
 
-### Metered-API cost is a design constraint (Phase 9.2)
+### Metered-API cost is a design constraint (Phase 9.2, 2026-08-12)
 
-Serper is billed per request, and it is the one dependency whose cost scales with **configuration** rather than with usage.
+Serper is billed per request, and it is the one dependency whose cost scales with **configuration** rather than with usage. Adding a retailer to `RETAILER_CONFIG` is a one-line change that permanently raises the price of every future wine enrichment, because `modules/reviews/` searches the whole list and issues up to four query variants per entry. That is how per-wine review sourcing reached ~38 credits across Phases 7.3–8 without anyone deciding it should: the list went 4 → 11 → 12, each step individually reasonable, and the multiplication was never written down.
 
-- **State the arithmetic before adding fan-out.** Any change that multiplies outbound search calls must give calls-per-wine before and after, in the spec or the PR description.
-- **Prefer escalation over breadth.** Ask the cheap, well-aimed question first; pay for the broad one only when the first comes back empty.
-- **Never buy the same answer twice.** A result already computed elsewhere in the run should be fed across; a result already stored should not be re-fetched without an explicit refresh.
-- **Keep cost guards and access decisions separate.** A domain skipped because it cannot be rendered, a domain skipped because it rarely pays off, and a domain skipped because its ToS forbids access are three different mechanisms — never collapse them into one flag.
-- **Latency is not the metric.** §9's targets are about the developer waiting, not about call volume.
-- **Enrichment stays user-initiated.** No auto-enrichment or background refresh — fixed by Phase 9.2 and reaffirmed by Phase 9.3, which makes reviews the *most prominent* click-gated action rather than an automatic one.
+Treat outbound metered calls the way the rest of this document treats data correctness — as something with a stated design, not something that emerges.
 
-**Raise it, don't just build it.** If a requested change adds a per-wine or per-request call to a metered API — or if several such additions are accumulating across a phase — say so before implementing, with the arithmetic, in a sentence or two. Then build it if the developer still wants it.
+- **State the arithmetic before adding fan-out.** Any change that multiplies outbound search calls — a new retailer, a new query variant, a new fallback pass, a new per-item probe — must give calls-per-wine before and after, in the spec or the PR description. "One more retailer" is not a cost estimate; "12 → 13 entries × ~3 variants = +3 per wine, permanently" is.
+- **Prefer escalation over breadth.** Ask the cheap, well-aimed question first; pay for the broad one only when the first comes back empty. `fetchReviewData`'s existing gate — `!results.some(r => r.critic_scores.length > 0)` — is the pattern to reuse rather than reinvent, so every escalation in the pipeline shares one definition of "found nothing."
+- **Never buy the same answer twice.** A result already computed elsewhere in the run should be fed across (the Phase 9.1 router cross-feed), and a result already stored should not be re-fetched without an explicit refresh. Cheap local evidence beats a paid call: check `UNRENDERABLE_DOMAINS`, `attemptedDomains`, and `isNonProductUrl` *before* spending, not after.
+- **Keep cost guards and access decisions separate.** A domain skipped because it cannot be rendered is a technical fact; a domain skipped because it rarely pays off is a product judgement; a domain skipped because its ToS forbids access is a hard constraint (the CellarTracker/WineBerserkers bullets above). Three different mechanisms, never collapsed into one flag — collapsing them produces config that lies about why something was excluded.
+- **Latency is not the metric.** §9's targets are about the developer waiting. A bounded-concurrency change can leave call volume identical while feeling faster; that is not a saving.
+- **Enrichment stays user-initiated, with one named exception.** No background refresh, no scheduled re-fetch, no enrichment fired because a screen loaded — fixed by Phase 9.2, reaffirmed by Phase 9.3. **Phase 9.4 (2026-08-19) carves out exactly one exception, and its boundaries are the point:** on the *scan* creation path, after a *free* local duplicate check, for a wine whose Tier 1 fields all parsed, price and the **`primary` review tier only** are fired once, automatically, at the moment label parsing returns. Not the extended tier, not the merchant probes, not the open-web fallback — those stay behind a click. Not the manual `+ Add Wine` path. Not a second time. Anything broader than that sentence is a new decision requiring its own arithmetic, not an extension of this one.
+
+### Serper billing state (updated 2026-08-19)
+
+Recorded here because every cost argument in this repo has been made against a number that was wrong. The free allowance was **2,500 credits one-time on signup — not per month** — and it is **exhausted**. The project is on its **first $50 Starter pack: 50,000 credits, expiring six months from purchase** (developer-confirmed 2026-08-19). There is no smaller pack.
+
+The consequence is counterintuitive and should be stated plainly before the next optimisation. At ~10 credits per scanned wine and 20–50 scans/month, the pack holds roughly **five years** of runway but is forfeited at six months, so ~90% of it will expire unspent. **Effective cost is therefore a flat ~$8.33/month regardless of per-scan thrift, and a credit saved on one scan is not a dollar saved** until scan volume is roughly 10× higher. The $5/month target is unreachable by any change to this application — it is set by pack shape, not by usage. Only a provider with smaller packs or without expiry could move it. The bullets below still hold — unbounded fan-out is still how the 4 → 11 → 12 retailer creep happened, and configuration cost still compounds silently — but an argument for spending fewer credits per wine should now be made on **latency, GPT-4o spend, or correctness** grounds. Those are per-call and have no prepaid pool absorbing them. If someone proposes a change justified purely as "saves Serper credits," that is not currently a benefit; ask what it costs in the other three.
+
+**Raise it, don't just build it.** If a requested change adds a per-wine or per-request call to a metered API — or if you notice several such additions accumulating across a phase — say so before implementing, with the arithmetic, in a sentence or two. Then build it if the developer still wants it. This is a single-developer project paying retail for every call, and the failure mode to watch for is not one expensive feature but a series of individually reasonable ones. Gentle, specific, and early is the right register: flag the cost, propose the cheaper shape if there is one, and defer to the developer's call.
 
 ---
 
@@ -321,5 +380,3 @@ Serper is billed per request, and it is the one dependency whose cost scales wit
 - [ ] Burgundy Report: ToS permits note reproduction for active subscribers with attribution; evaluate as a future addition
 - [ ] Professional review APIs (Burghound, Vinous, Wine Advocate): confirmed no API for individual subscribers. Closed unless a viable path emerges.
 - [ ] GPT-4o Mini: evaluate against GPT-4o for label scanning once volume justifies it
-- [ ] Phase 9.2 WI-7: the 14-wine re-run and `reviewTier` calibration remains outstanding, gated on the developer's go-ahead to spend the budget
-- [ ] Whether a delete/discard endpoint for a wine is wanted (surfaced by Phase 9.3's review — no such endpoint exists today)

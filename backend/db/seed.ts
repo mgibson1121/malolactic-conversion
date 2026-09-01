@@ -11,13 +11,23 @@ config({ path: path.resolve(__dirname, '../../.env') })
 
 import { openDatabase } from './migrate'
 import { SQLiteAdapter } from '../modules/storage/sqlite-adapter'
+import type { CreateWineInput, WineEntry } from '@shared/types'
 
 async function seed() {
   const db = openDatabase()
   const adapter = new SQLiteAdapter(db)
 
+  // Phase 9.4 — every createWine call now starts as an unpromoted draft
+  // (promoted_at NULL), invisible to list views. This seed data simulates
+  // wines already in the collection, so promote each one immediately after
+  // creating it.
+  async function createPromotedWine(data: CreateWineInput): Promise<WineEntry> {
+    const wine = await adapter.createWine(data)
+    return adapter.updateWine(wine.id, { promoted_at: wine.date_added })
+  }
+
   // 1. Cellar-only: a long-term hold with quantity
-  const w1 = await adapter.createWine({
+  const w1 = await createPromotedWine({
     producer: 'Domaine Rousseau',
     vintage: 2019,
     region: 'Burgundy',
@@ -45,7 +55,7 @@ async function seed() {
   console.log(`Created: ${w1.producer} ${w1.denomination} ${w1.vintage} [cellar, ${w1.cellar_quantity} btl]`)
 
   // 2. Cellar + wishlist: Barolo to reorder
-  const w2 = await adapter.createWine({
+  const w2 = await createPromotedWine({
     producer: 'Giacomo Conterno',
     vintage: 2016,
     region: 'Piedmont',
@@ -73,7 +83,7 @@ async function seed() {
   console.log(`Created: ${w2.producer} ${w2.denomination} ${w2.vintage} [cellar + wishlist]`)
 
   // 3. Consumed with a tasting note
-  const w3 = await adapter.createWine({
+  const w3 = await createPromotedWine({
     producer: 'Georges Roumier',
     vintage: 2017,
     region: 'Burgundy',
@@ -124,7 +134,7 @@ async function seed() {
   console.log(`Created: ${w3.producer} ${w3.denomination} ${w3.vintage} [consumed + tasting note]`)
 
   // 4. Wishlist only: something to research before buying
-  const w4 = await adapter.createWine({
+  const w4 = await createPromotedWine({
     producer: 'Raveneau',
     vintage: 2021,
     region: 'Burgundy',
@@ -152,7 +162,7 @@ async function seed() {
   console.log(`Created: ${w4.producer} ${w4.denomination} ${w4.vintage} [wishlist]`)
 
   // 5. Discovered only: spotted in the wild, not yet decided
-  const w5 = await adapter.createWine({
+  const w5 = await createPromotedWine({
     producer: 'E. Guigal',
     vintage: 2018,
     region: 'Northern Rhône',

@@ -45,8 +45,10 @@ export const CreateWineSchema = z.object({
   cuvee: z.string().nullish().transform((v) => v ?? null),
   grape_varieties: z.array(z.string()).nullish().transform((v) => v ?? null),
   label_image_url: z.string().url().nullish().transform((v) => v ?? null),
-  // List tags — additive booleans
-  tag_discovered: z.boolean().default(true),
+  // List tags — additive booleans. tag_discovered no longer defaults to true
+  // (Phase 9.4) — every creation path lands on the discovery review screen,
+  // where the developer picks at least one tag and promotes explicitly.
+  tag_discovered: z.boolean().default(false),
   tag_wishlist: z.boolean().default(false),
   tag_cellar: z.boolean().default(false),
   tag_consumed: z.boolean().default(false),

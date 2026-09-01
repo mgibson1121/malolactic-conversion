@@ -76,8 +76,10 @@ interface WineRow {
   price_data: string | null
   retailer_links: string | null
   review_data: string | null
+  review_probe_log: string | null
   date_added: string
   date_first_consumed: string | null
+  promoted_at: string | null
 }
 
 interface TastingNoteRow {
@@ -156,8 +158,10 @@ function rowToWine(row: WineRow): WineEntry {
     price_data: fromJson(row.price_data, null),
     retailer_links: fromJson<Record<string, string> | null>(row.retailer_links, null),
     review_data: fromJson(row.review_data, null),
+    review_probe_log: fromJson(row.review_probe_log, null),
     date_added: row.date_added,
     date_first_consumed: row.date_first_consumed,
+    promoted_at: row.promoted_at,
   }
 }
 
@@ -219,7 +223,7 @@ export class SQLiteAdapter implements StorageAdapter {
     const wine: WineEntry = {
       ...data,
       id: randomUUID(),
-      tag_discovered: data.tag_discovered ?? true,
+      tag_discovered: data.tag_discovered ?? false,
       cellar_quantity: data.cellar_quantity ?? 0,
       drinking_window_source: data.drinking_window ? 'manual' : null,
       vintage_rating_source: data.vintage_rating ? 'manual' : null,
@@ -231,7 +235,12 @@ export class SQLiteAdapter implements StorageAdapter {
       price_data: null,
       retailer_links: null,
       review_data: null,
+      review_probe_log: null,
       date_added: new Date().toISOString(),
+      // Phase 9.4 — every creation path starts as a draft, unconditionally.
+      // Promotion happens only via updateWine (from POST /:id/promote),
+      // never at creation — see CLAUDE.md §3.
+      promoted_at: null,
     }
 
     this.db.prepare(`
@@ -245,7 +254,8 @@ export class SQLiteAdapter implements StorageAdapter {
         my_rating, my_tags, latest_tasting_note_id,
         wishlist_notes, price_paid, purchased_from,
         advice_linked, expert_reviews, community_sentiment, community_excerpts, price_data,
-        retailer_links, review_data, date_added, date_first_consumed
+        retailer_links, review_data, review_probe_log, date_added, date_first_consumed,
+        promoted_at
       ) VALUES (
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
@@ -256,7 +266,8 @@ export class SQLiteAdapter implements StorageAdapter {
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?, ?,
-        ?, ?, ?, ?
+        ?, ?, ?, ?, ?,
+        ?
       )
     `).run(
       wine.id, wine.producer, wine.denomination, wine.vintage, wine.region,
@@ -271,7 +282,9 @@ export class SQLiteAdapter implements StorageAdapter {
       wine.wishlist_notes, wine.price_paid, wine.purchased_from,
       toJson(wine.advice_linked), toJson(wine.expert_reviews),
       wine.community_sentiment, toJson(wine.community_excerpts), toJson(wine.price_data),
-      toJson(wine.retailer_links), toJson(wine.review_data), wine.date_added, wine.date_first_consumed
+      toJson(wine.retailer_links), toJson(wine.review_data), toJson(wine.review_probe_log),
+      wine.date_added, wine.date_first_consumed,
+      wine.promoted_at
     )
 
     return wine
@@ -313,6 +326,12 @@ export class SQLiteAdapter implements StorageAdapter {
       clauses.push('region = ?')
       params.push(filter.region)
     }
+    // Phase 9.4 — drafts (promoted_at IS NULL) are excluded from every list
+    // unless the caller explicitly opts in. Defaulting this way means every
+    // pre-9.4 caller stays correct without modification.
+    if (!filter?.include_drafts) {
+      clauses.push('promoted_at IS NOT NULL')
+    }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
     const rows = this.db.prepare(`SELECT * FROM wines ${where}`).all(...params) as WineRow[]
@@ -338,7 +357,8 @@ export class SQLiteAdapter implements StorageAdapter {
         wishlist_notes = ?, price_paid = ?, purchased_from = ?,
         advice_linked = ?, expert_reviews = ?,
         community_sentiment = ?, community_excerpts = ?, price_data = ?,
-        retailer_links = ?, review_data = ?, date_first_consumed = ?
+        retailer_links = ?, review_data = ?, review_probe_log = ?, date_first_consumed = ?,
+        promoted_at = ?
       WHERE id = ?
     `).run(
       updated.producer, updated.denomination, updated.vintage, updated.region,
@@ -353,11 +373,25 @@ export class SQLiteAdapter implements StorageAdapter {
       updated.wishlist_notes, updated.price_paid, updated.purchased_from,
       toJson(updated.advice_linked), toJson(updated.expert_reviews),
       updated.community_sentiment, toJson(updated.community_excerpts), toJson(updated.price_data),
-      toJson(updated.retailer_links), toJson(updated.review_data), updated.date_first_consumed,
+      toJson(updated.retailer_links), toJson(updated.review_data), toJson(updated.review_probe_log),
+      updated.date_first_consumed,
+      updated.promoted_at,
       id
     )
 
     return updated
+  }
+
+  // Phase 9.4 (WI-7)
+  async deleteWine(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM wines WHERE id = ?').run(id)
+  }
+
+  async sweepStaleDrafts(olderThan: Date): Promise<number> {
+    const result = this.db
+      .prepare('DELETE FROM wines WHERE promoted_at IS NULL AND date_added < ?')
+      .run(olderThan.toISOString())
+    return result.changes
   }
 
   // ── Tasting notes ──────────────────────────────────────────────────────────

@@ -1,24 +1,43 @@
 /**
  * LabelScanFlow.tsx
- * Full scan-to-save flow:
+ * Full scan-to-review flow (Phase 9.4 — scan-first enrichment):
  *   1. File upload (drag-and-drop or click)
  *   2. Scanning state (progress indicator)
- *   3. Scan result card — visual preview of detected fields
- *      → "Edit Details" expands inline form for any adjustments
- *   4. Enriching state — wine saved, Wine-Searcher price loading
- *   5. Done — user dismisses
+ *   3. Free duplicate check against the wines already in the collection
+ *      (WI-4) — a confident match skips straight to that wine's review
+ *      screen, spending nothing.
+ *   4. A new wine is a draft row from the moment parsing succeeds (WI-1) —
+ *      created here, immediately, before the user has confirmed anything.
+ *      Price and the primary review tier fire in the background the same
+ *      moment (WI-6), so the seconds spent verifying fields below double as
+ *      the seconds the search needs.
+ *   5. Scan result card — visual preview of detected fields, now a PATCH
+ *      form over the real row rather than a CreateWineInput builder.
+ *      "Edit Details" expands the full inline form for any adjustments.
+ *   6. Continue — hands off to the shared Discovery Review screen (see
+ *      App.tsx), which is where the developer actually decides whether the
+ *      wine joins the collection.
  */
 
-import { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react'
-import type { CellarCategory, CreateWineInput, WineEntry } from '@shared/types'
-import { fetchWinePrice, scanLabel } from '../api'
+import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import type { CreateWineInput, UpdateWineInput, WineEntry } from '@shared/types'
+import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
-import { PriceSection } from './PriceSection'
+import { findDuplicate } from '../utils/duplicateMatch'
 
 interface Props {
-  /** Called when the user confirms a wine. Returns the created WineEntry. */
-  onSave: (data: CreateWineInput) => Promise<WineEntry>
-  /** Called when the user is done (after save + enriching, or on cancel). */
+  /** Promoted wines already in the collection — used only for the free
+   * duplicate check (WI-4). Fetched fresh by App.tsx when this flow opens;
+   * no additional cost to load it here. */
+  wines: WineEntry[]
+  /** Called once there is a wine to review — either a newly created draft or
+   * an existing wine a duplicate check matched. autoFireReviews tells the
+   * Discovery Review screen whether to join the primary-tier reviews search
+   * already under way (true for a fresh scan) or stay click-gated (false
+   * for an existing wine the developer is just being shown again). */
+  onReview: (wine: WineEntry, autoFireReviews: boolean) => void
+  /** Called when the user cancels before reaching the review screen, or
+   * closes out of it. Any draft created along the way is discarded first. */
   onDone: () => void
 }
 
@@ -26,15 +45,68 @@ type FlowState =
   | { step: 'upload' }
   | { step: 'scanning' }
   | { step: 'unavailable'; reason: string }
-  | { step: 'review'; scan: LabelScanResult; preview: string; editing: boolean }
-  | { step: 'saving'; scan: LabelScanResult; preview: string; data: CreateWineInput }
-  | { step: 'enriching'; wine: WineEntry; preview: string }
+  | { step: 'duplicate'; existing: WineEntry; scan: LabelScanResult }
+  | { step: 'review'; wine: WineEntry; scan: LabelScanResult; editing: boolean; enrichmentFired: boolean; vintageNotice: string | null }
   | { step: 'error'; message: string }
 
-export function LabelScanFlow({ onSave, onDone }: Props) {
+/** The five fields a re-fire on Continue is judged against (WI-6, step 5).
+ * Region and Tier 2 fields other than cuvee/vineyard never re-fire — they
+ * don't change which wine the search is looking for. */
+const IDENTITY_FIELDS = ['producer', 'denomination', 'vintage', 'cuvee', 'vineyard'] as const
+
+function hasTier1(fields: { producer: string | null; denomination: string | null; vintage: number | null }): boolean {
+  return !!(fields.producer && fields.denomination && fields.vintage)
+}
+
+function scanToDraftInput(scan: LabelScanResult): CreateWineInput {
+  return {
+    producer: scan.producer,
+    vintage: scan.vintage,
+    region: scan.region,
+    denomination: scan.denomination,
+    quality_classification: scan.quality_classification,
+    vineyard: scan.vineyard,
+    cuvee: scan.cuvee,
+    grape_varieties: scan.grape_varieties,
+    label_image_url: null,
+    // Phase 9.4 — every creation path starts as a draft with no list tag.
+    // The developer picks at least one on the Discovery Review screen.
+    tag_discovered: false,
+    tag_wishlist: false,
+    tag_cellar: false,
+    tag_consumed: false,
+    cellar_quantity: 0,
+    cellar_category: null,
+    drinking_window: null,
+    vintage_rating: null,
+    my_rating: null,
+    my_tags: [],
+    wishlist_notes: null,
+    price_paid: null,
+    purchased_from: null,
+    date_first_consumed: null,
+  }
+}
+
+export function LabelScanFlow({ wines, onReview, onDone }: Props) {
   const [flow, setFlow] = useState<FlowState>({ step: 'upload' })
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fire-and-forget — errors surface later, via the Discovery Review
+  // screen's own busy/error state when it joins the same (coalesced) run.
+  // This call exists purely to start the clock early (WI-6, §1).
+  function fireEnrichment(wine: { id: string; producer: string | null; denomination: string | null; vintage: number | null }, opts?: { force?: boolean }) {
+    if (!hasTier1(wine)) return
+    fetchWinePrice(wine.id, opts).catch(() => {})
+    fetchWineReviews(wine.id, { tier: 'primary', ...opts }).catch(() => {})
+  }
+
+  async function discardDraft() {
+    if (flow.step === 'review') {
+      await deleteWine(flow.wine.id).catch(() => {})
+    }
+  }
 
   async function handleFile(file: File) {
     if (!file.type.startsWith('image/')) {
@@ -42,12 +114,20 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
       return
     }
 
-    const preview = URL.createObjectURL(file)
     setFlow({ step: 'scanning' })
 
     try {
-      const result = await scanLabel(file)
-      setFlow({ step: 'review', scan: result, preview, editing: false })
+      const scan = await scanLabel(file)
+
+      // WI-4 — free duplicate check, before any row is created or any
+      // enrichment call fired.
+      const dup = findDuplicate(scan, wines)
+      if (dup.kind === 'duplicate') {
+        setFlow({ step: 'duplicate', existing: dup.wine, scan })
+        return
+      }
+
+      await createDraftAndReview(scan, dup.kind === 'vintage_mismatch' ? dup.wine : null)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.toLowerCase().includes('openai_api_key') || msg.toLowerCase().includes('unavailable')) {
@@ -66,6 +146,22 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
     }
   }
 
+  async function createDraftAndReview(scan: LabelScanResult, distinctFrom: WineEntry | null) {
+    const wine = await createWine(scanToDraftInput(scan))
+    const fired = hasTier1(wine)
+    if (fired) fireEnrichment(wine)
+    setFlow({
+      step: 'review',
+      wine,
+      scan,
+      editing: false,
+      enrichmentFired: fired,
+      vintageNotice: distinctFrom
+        ? `You already have the ${distinctFrom.vintage ?? 'NV'} — this looks like the ${scan.vintage ?? 'NV'}.`
+        : null,
+    })
+  }
+
   function onFileInput(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) handleFile(file)
@@ -76,6 +172,16 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
     setDragOver(false)
     const file = e.dataTransfer.files?.[0]
     if (file) handleFile(file)
+  }
+
+  async function handleCancel() {
+    await discardDraft()
+    onDone()
+  }
+
+  async function handleRetry() {
+    await discardDraft()
+    setFlow({ step: 'upload' })
   }
 
   // ── Upload step ──────────────────────────────────────────────────────────────
@@ -161,79 +267,101 @@ export function LabelScanFlow({ onSave, onDone }: Props) {
     )
   }
 
-  // ── Saving step (brief transition) ───────────────────────────────────────────
-  if (flow.step === 'saving') {
+  // ── Duplicate step (WI-4) ────────────────────────────────────────────────────
+  if (flow.step === 'duplicate') {
+    const { existing, scan } = flow
+    const line = [existing.producer, existing.denomination].filter(Boolean).join(' · ')
+
+    async function addAnyway() {
+      if (flow.step !== 'duplicate') return
+      setFlow({ step: 'scanning' })
+      await createDraftAndReview(flow.scan, null)
+    }
+
     return (
       <div className="form-overlay">
-        <div className="scan-flow scan-flow--scanning">
-          <span className="scan-spinner" aria-hidden="true">💾</span>
-          <h2>Saving…</h2>
+        <div className="scan-flow">
+          <h2>Already in Your Collection</h2>
+          <p className="scan-subtitle">
+            {line} {existing.vintage ?? 'NV'} looks like a wine you already have — no search has been run.
+          </p>
+          <div className="form-actions">
+            <button className="btn-save btn-save--primary" onClick={() => onReview(existing, false)}>
+              View Existing Wine
+            </button>
+            <button className="btn-text" onClick={addAnyway}>This is a different bottle — add anyway</button>
+            <button className="btn-cancel" onClick={onDone}>Cancel</button>
+          </div>
         </div>
       </div>
     )
   }
 
-  // ── Enriching step ───────────────────────────────────────────────────────────
-  if (flow.step === 'enriching') {
-    return (
-      <EnrichingCard
-        wine={flow.wine}
-        preview={flow.preview}
-        onDone={onDone}
-      />
-    )
-  }
-
   // ── Review step ──────────────────────────────────────────────────────────────
-  const { scan, preview, editing } = flow
+  const { wine, scan, editing, enrichmentFired, vintageNotice } = flow
 
-  async function handleConfirm(data: CreateWineInput) {
-    setFlow({ step: 'saving', scan, preview, data })
-    try {
-      const wine = await onSave(data)
-      setFlow({ step: 'enriching', wine, preview })
-    } catch {
-      setFlow({ step: 'error', message: 'Failed to save. Is the backend running?' })
+  async function handleContinue(edits: UpdateWineInput) {
+    if (flow.step !== 'review') return
+    const base = flow.wine
+    const updated = Object.keys(edits).length > 0 ? await updateWine(base.id, edits) : base
+
+    const identityChanged = IDENTITY_FIELDS.some((f) => {
+      const key = f as keyof UpdateWineInput
+      return edits[key] !== undefined && edits[key] !== base[f]
+    })
+
+    // WI-6, steps 4/5 — fire for the first time once Tier 1 is complete
+    // (held earlier if it wasn't), or re-fire when an identity field
+    // changed from what was already searched. Otherwise the in-flight or
+    // already-stored result from creation-time still applies unchanged.
+    if (hasTier1(updated) && (!enrichmentFired || identityChanged)) {
+      fireEnrichment(updated, { force: enrichmentFired })
     }
+
+    onReview(updated, true)
   }
 
   if (editing) {
     return (
       <ScanEditForm
+        wine={wine}
         scan={scan}
-        preview={preview}
-        onSave={handleConfirm}
-        onBack={() => setFlow({ step: 'review', scan, preview, editing: false })}
-        onCancel={onDone}
+        vintageNotice={vintageNotice}
+        onContinue={handleContinue}
+        onBack={() => setFlow({ ...flow, editing: false })}
+        onCancel={handleCancel}
       />
     )
   }
 
   return (
     <ScanResultCard
+      wine={wine}
       scan={scan}
-      preview={preview}
-      onConfirm={handleConfirm}
-      onEdit={() => setFlow({ step: 'review', scan, preview, editing: true })}
-      onRetry={() => setFlow({ step: 'upload' })}
-      onCancel={onDone}
+      vintageNotice={vintageNotice}
+      onContinue={handleContinue}
+      onEdit={() => setFlow({ ...flow, editing: true })}
+      onRetry={handleRetry}
+      onCancel={handleCancel}
     />
   )
 }
 
 // ── ScanResultCard ─────────────────────────────────────────────────────────────
-// Visual card showing scan results. Missing Tier 1 fields get inline inputs.
+// Visual card showing scan results, bound to the already-created draft row.
+// Missing Tier 1 fields get inline inputs; everything else needs Edit Details.
 
 interface ResultCardProps {
+  wine: WineEntry
   scan: LabelScanResult
-  preview: string
-  onConfirm: (data: CreateWineInput) => Promise<void>
+  vintageNotice: string | null
+  onContinue: (edits: UpdateWineInput) => Promise<void>
   onEdit: () => void
   onRetry: () => void
   onCancel: () => void
 }
 
-function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }: ResultCardProps) {
+function ScanResultCard({ wine, scan, vintageNotice, onContinue, onEdit, onRetry, onCancel }: ResultCardProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
   // Only collect inline inputs for missing Tier 1 fields
@@ -241,7 +369,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
   const [vintage, setVintage] = useState(scan.vintage ? String(scan.vintage) : '')
   const [region, setRegion] = useState(scan.region ?? '')
   const [denomination, setDenomination] = useState(scan.denomination ?? '')
-  const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
 
   const hasMissing = missing.size > 0
@@ -258,34 +385,14 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
   const canSave = (displayProducer.trim() || displayDenomination.trim()).length > 0
 
   async function handleSave() {
-    const grapes = scan.grape_varieties ?? null
-    const data: CreateWineInput = {
-      producer: displayProducer.trim() || null,
-      vintage: displayVintage ? parseInt(displayVintage, 10) : null,
-      region: displayRegion.trim() || null,
-      denomination: displayDenomination.trim() || null,
-      quality_classification: scan.quality_classification ?? null,
-      vineyard: scan.vineyard ?? null,
-      cuvee: scan.cuvee ?? null,
-      grape_varieties: grapes,
-      label_image_url: null,
-      tag_discovered: true,
-      tag_wishlist: false,
-      tag_cellar: false,
-      tag_consumed: false,
-      cellar_quantity: 0,
-      cellar_category: cellarCategory || null,
-      drinking_window: null,
-      vintage_rating: null,
-      my_rating: null,
-      my_tags: [],
-      wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_first_consumed: null,
-    }
+    const edits: UpdateWineInput = {}
+    if (missing.has('producer')) edits.producer = producer.trim() || null
+    if (missing.has('denomination')) edits.denomination = denomination.trim() || null
+    if (missing.has('vintage')) edits.vintage = vintage ? parseInt(vintage, 10) : null
+    if (missing.has('region')) edits.region = region.trim() || null
+
     setSubmitting(true)
-    await onConfirm(data)
+    await onContinue(edits)
     setSubmitting(false)
   }
 
@@ -302,11 +409,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
           </div>
         </div>
 
-        {/* Label image */}
-        <div className="scan-result-image-wrap">
-          <img src={preview} alt="Scanned label" className="scan-result-image" />
-        </div>
-
         {/* Wine identity */}
         <div className="scan-result-identity">
           {primaryLine ? (
@@ -321,6 +423,8 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
             <p key={i} className="scan-result-tier2">{v}</p>
           ))}
         </div>
+
+        {vintageNotice && <p className="scan-missing-notice">{vintageNotice}</p>}
 
         {/* Inline inputs for missing Tier 1 fields */}
         {hasMissing && (
@@ -376,21 +480,6 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
           </div>
         )}
 
-        {/* Cellar category */}
-        <div className="scan-result-cellar">
-          <label htmlFor="src-cellar">Cellar category</label>
-          <select
-            id="src-cellar"
-            value={cellarCategory}
-            onChange={e => setCellarCategory(e.target.value as CellarCategory | '')}
-          >
-            <option value="">None</option>
-            <option value="table">Table</option>
-            <option value="near_term">Near Term</option>
-            <option value="long_term">Long Term</option>
-          </select>
-        </div>
-
         {/* Actions */}
         <div className="scan-result-actions">
           <button className="btn-text" onClick={onEdit}>Edit Details</button>
@@ -399,93 +488,7 @@ function ScanResultCard({ scan, preview, onConfirm, onEdit, onRetry, onCancel }:
             onClick={handleSave}
             disabled={submitting || !canSave}
           >
-            {submitting ? 'Saving…' : 'Save to Collection'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── EnrichingCard ──────────────────────────────────────────────────────────────
-// Shown after save. Triggers price fetch and shows result as it loads.
-
-interface EnrichingProps {
-  wine: WineEntry
-  preview: string
-  onDone: () => void
-}
-
-function EnrichingCard({ wine: initialWine, preview, onDone }: EnrichingProps) {
-  const [wine, setWine] = useState(initialWine)
-  const [priceState, setPriceState] = useState<'loading' | 'loaded' | 'unavailable'>('loading')
-
-  useEffect(() => {
-    fetchWinePrice(wine.id)
-      .then(updated => {
-        setWine(updated)
-        setPriceState('loaded')
-      })
-      .catch(() => setPriceState('unavailable'))
-  }, [wine.id])
-
-  const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
-  const metaParts = [wine.vintage ? String(wine.vintage) : null, wine.region, wine.quality_classification].filter(Boolean)
-
-  return (
-    <div className="form-overlay">
-      <div className="scan-result-card scan-enriching-card">
-
-        {/* Header */}
-        <div className="scan-result-header scan-result-header--saved">
-          <div className="scan-saved-badge">✓ Saved to Collection</div>
-        </div>
-
-        {/* Label image */}
-        <div className="scan-result-image-wrap">
-          <img src={preview} alt="Wine label" className="scan-result-image" />
-        </div>
-
-        {/* Wine identity */}
-        <div className="scan-result-identity">
-          <h2 className="scan-result-name">{primaryLine || 'Wine'}</h2>
-          {metaParts.length > 0 && <p className="scan-result-meta">{metaParts.join(' · ')}</p>}
-          {wine.grape_varieties && wine.grape_varieties.length > 0 && (
-            <p className="scan-result-tier2">{wine.grape_varieties.join(', ')}</p>
-          )}
-        </div>
-
-        {/* Price enrichment */}
-        <div className="scan-enrichment-section">
-          {priceState === 'loading' && (
-            <div className="scan-price-loading">
-              <span className="scan-price-loading-icon">🔎</span>
-              <span>Fetching prices from Wine-Searcher…</span>
-            </div>
-          )}
-
-          {priceState === 'loaded' && wine.price_data && (
-            <PriceSection priceData={wine.price_data} />
-          )}
-
-          {priceState === 'unavailable' && (
-            <p className="scan-price-unavailable">
-              Price data unavailable — check your Wine-Searcher API key or try again from the wine card.
-            </p>
-          )}
-
-          {/* Drinking window from Wine-Searcher */}
-          {wine.drinking_window && (
-            <div className="drinking-window scan-drinking-window">
-              Drink {wine.drinking_window.start} – {wine.drinking_window.end}
-            </div>
-          )}
-        </div>
-
-        {/* Done */}
-        <div className="scan-result-actions">
-          <button className="btn-save btn-save--primary" onClick={onDone}>
-            Done
+            {submitting ? 'Continuing…' : 'Continue'}
           </button>
         </div>
       </div>
@@ -497,14 +500,15 @@ function EnrichingCard({ wine: initialWine, preview, onDone }: EnrichingProps) {
 // Full field-by-field edit form reached via "Edit Details".
 
 interface EditFormProps {
+  wine: WineEntry
   scan: LabelScanResult
-  preview: string
-  onSave: (data: CreateWineInput) => Promise<void>
+  vintageNotice: string | null
+  onContinue: (edits: UpdateWineInput) => Promise<void>
   onBack: () => void
   onCancel: () => void
 }
 
-function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps) {
+function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel }: EditFormProps) {
   const missing = new Set(scan.missing_tier1_fields)
 
   const [producer, setProducer] = useState(scan.producer ?? '')
@@ -515,7 +519,6 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
   const [vineyard, setVineyard] = useState(scan.vineyard ?? '')
   const [cuvee, setCuvee] = useState(scan.cuvee ?? '')
   const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties?.join(', ') ?? '')
-  const [cellarCategory, setCellarCategory] = useState<CellarCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -527,35 +530,30 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
     e.preventDefault()
     if (!producer.trim() && !denomination.trim()) return
     const grapes = grapeVarieties.split(',').map(s => s.trim()).filter(Boolean)
-    const data: CreateWineInput = {
-      producer: producer.trim() || null,
-      vintage: vintage ? parseInt(vintage, 10) : null,
-      region: region.trim() || null,
-      denomination: denomination.trim() || null,
-      quality_classification: qualityClassification.trim() || null,
-      vineyard: vineyard.trim() || null,
-      cuvee: cuvee.trim() || null,
-      grape_varieties: grapes.length > 0 ? grapes : null,
-      label_image_url: null,
-      tag_discovered: true,
-      tag_wishlist: false,
-      tag_cellar: false,
-      tag_consumed: false,
-      cellar_quantity: 0,
-      cellar_category: cellarCategory || null,
-      drinking_window: null,
-      vintage_rating: null,
-      my_rating: null,
-      my_tags: [],
-      wishlist_notes: null,
-      price_paid: null,
-      purchased_from: null,
-      date_first_consumed: null,
-    }
+
+    const edits: UpdateWineInput = {}
+    const producerVal = producer.trim() || null
+    const vintageVal = vintage ? parseInt(vintage, 10) : null
+    const regionVal = region.trim() || null
+    const denominationVal = denomination.trim() || null
+    const qcVal = qualityClassification.trim() || null
+    const vineyardVal = vineyard.trim() || null
+    const cuveeVal = cuvee.trim() || null
+    const grapesVal = grapes.length > 0 ? grapes : null
+
+    if (producerVal !== wine.producer) edits.producer = producerVal
+    if (vintageVal !== wine.vintage) edits.vintage = vintageVal
+    if (regionVal !== wine.region) edits.region = regionVal
+    if (denominationVal !== wine.denomination) edits.denomination = denominationVal
+    if (qcVal !== wine.quality_classification) edits.quality_classification = qcVal
+    if (vineyardVal !== wine.vineyard) edits.vineyard = vineyardVal
+    if (cuveeVal !== wine.cuvee) edits.cuvee = cuveeVal
+    if (JSON.stringify(grapesVal) !== JSON.stringify(wine.grape_varieties)) edits.grape_varieties = grapesVal
+
     setSubmitting(true)
     setError(null)
     try {
-      await onSave(data)
+      await onContinue(edits)
     } catch {
       setError('Failed to save. Is the backend running?')
       setSubmitting(false)
@@ -566,16 +564,14 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
     <div className="form-overlay">
       <form className="add-wine-form scan-review-form" onSubmit={handleSubmit}>
         <div className="scan-review-header">
-          <div>
-            <button type="button" className="btn-text" onClick={onBack}>← Back</button>
-            <h2>Edit Details</h2>
-            {missing.size > 0 && (
-              <p className="scan-missing-notice">
-                ⚠️ Highlighted fields couldn't be read — please fill them in.
-              </p>
-            )}
-          </div>
-          <img src={preview} alt="Label preview" className="scan-label-preview" />
+          <button type="button" className="btn-text" onClick={onBack}>← Back</button>
+          <h2>Edit Details</h2>
+          {missing.size > 0 && (
+            <p className="scan-missing-notice">
+              ⚠️ Highlighted fields couldn't be read — please fill them in.
+            </p>
+          )}
+          {vintageNotice && <p className="scan-missing-notice">{vintageNotice}</p>}
         </div>
 
         <label htmlFor="se-producer" className={fieldClass('producer')}>
@@ -618,22 +614,13 @@ function ScanEditForm({ scan, preview, onSave, onBack, onCancel }: EditFormProps
         <input id="se-cuvee" value={cuvee}
           onChange={e => setCuvee(e.target.value)} placeholder="e.g. Cristal, Opus One" />
 
-        <label htmlFor="se-cellar">Cellar Category</label>
-        <select id="se-cellar" value={cellarCategory}
-          onChange={e => setCellarCategory(e.target.value as CellarCategory | '')}>
-          <option value="">None</option>
-          <option value="table">Table</option>
-          <option value="near_term">Near Term</option>
-          <option value="long_term">Long Term</option>
-        </select>
-
         {error && <p className="error-msg">{error}</p>}
 
         <div className="form-actions">
           <button type="button" className="btn-cancel" onClick={onBack} disabled={submitting}>Back</button>
           <button type="button" className="btn-cancel" onClick={onCancel} disabled={submitting}>Cancel</button>
           <button type="submit" className="btn-save" disabled={submitting || (!producer.trim() && !denomination.trim())}>
-            {submitting ? 'Saving…' : 'Save Wine'}
+            {submitting ? 'Continuing…' : 'Continue'}
           </button>
         </div>
       </form>
