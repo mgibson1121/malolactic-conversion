@@ -28,11 +28,21 @@ forward-looking reimagining, not a description of the shipped app — worth keep
 for Phase 11 as a bigger structural jump than an incremental evolution of the current
 4-tab/modal shape, not a decision to make now.
 
-**Branch gap, re-confirmed:** `main` is now **42** commits behind
-`feature/discovery-review-ui` (was 39 on 2026-08-25) — still missing Phase 9.3 and all of
-Phase 9.4. `gh` is not installed on this device, so PR numbers are inferred from commit
-message `(#N)` suffixes only, not queried directly. This remains a decision point for the
-developer, not something to merge unilaterally.
+**Branch gap — correction (2026-09-03):** the "`main` is 42 commits behind" claim below was
+wrong. This session didn't have `gh` installed and inferred branch state from local commit
+graph shape rather than querying GitHub directly, which is unreliable across a squash merge.
+[PR #28](https://github.com/mgibson1121/malolactic-conversion/pull/28) squash-merged all of
+`feature/discovery-review-ui` (including Phase 9.3 and 9.4) into `main` on 2026-08-31 —
+confirmed via `gh pr list` and `main`'s HEAD commit. `main` is content-current; the
+"42 commits ahead" `git log` reads is squash-merge history divergence (one squashed commit
+on `main` vs. the original 42 on the feature branch), not real unmerged work. Original
+(incorrect) note preserved below for the record:
+
+> **Branch gap, re-confirmed:** `main` is now **42** commits behind
+> `feature/discovery-review-ui` (was 39 on 2026-08-25) — still missing Phase 9.3 and all of
+> Phase 9.4. `gh` is not installed on this device, so PR numbers are inferred from commit
+> message `(#N)` suffixes only, not queried directly. This remains a decision point for the
+> developer, not something to merge unilaterally.
 
 **Comments, re-read directly from the published Artifact (still all open, none activated
 for Claude — left untouched):**
