@@ -32,6 +32,7 @@ function makeScan(overrides: Partial<LabelScanResult> = {}): LabelScanResult {
     vineyard: null,
     cuvee: null,
     grape_varieties: ['Pinot Noir'],
+    wine_color: null,
     missing_tier1_fields: [],
     raw_response: '',
     ...overrides,

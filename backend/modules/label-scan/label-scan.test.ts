@@ -177,6 +177,34 @@ describe('scanLabel', () => {
       expect(response.result.cuvee).toBeNull()
     })
 
+    // Phase 10.5
+    it('extracts wine_color when the label states it explicitly', async () => {
+      mockSharp()
+      const withColor = JSON.stringify({
+        producer: 'Domaine Tempier', vintage: 2021, region: 'Provence', denomination: 'Bandol',
+        quality_classification: null, vineyard: null, cuvee: null,
+        grape_varieties: ['Mourvèdre'], wine_color: 'rosé',
+      })
+      mockOpenAI(withColor)
+
+      const response = await scanLabel(mockInput)
+
+      expect(response.available).toBe(true)
+      if (!response.available) return
+      expect(response.result.wine_color).toBe('rosé')
+    })
+
+    it('defaults wine_color to null when absent from the model response', async () => {
+      mockSharp()
+      mockOpenAI(fullScanJson)
+
+      const response = await scanLabel(mockInput)
+
+      expect(response.available).toBe(true)
+      if (!response.available) return
+      expect(response.result.wine_color).toBeNull()
+    })
+
     it('handles JSON wrapped in markdown fences', async () => {
       mockSharp()
       const withFences = '```json\n' + fullScanJson + '\n```'

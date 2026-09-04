@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
-import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, promoteWine, deleteWine } from './api'
+import type { AppSettings, MyRating, WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
+import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, promoteWine, deleteWine, getSettings, updateSettings } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
@@ -8,7 +8,10 @@ import { DiscoveryReview } from './components/DiscoveryReview'
 import { EvaluateForm } from './components/EvaluateForm'
 import { TastingNoteHistory } from './components/TastingNoteHistory'
 import { WineDetailModal } from './components/WineDetailModal'
+import { CellarStats } from './components/CellarStats'
 import type { CreateWineInput, TastingNote } from '@shared/types'
+
+const RATING_OPTIONS: MyRating[] = ['poor', 'acceptable', 'good', 'very_good', 'outstanding']
 
 type TabId = 'discovered' | 'wishlist' | 'cellar' | 'tasting_notes'
 
@@ -38,27 +41,55 @@ export default function App() {
   // of staleness costs nothing here (worst case a very recent duplicate
   // slips through as "new"), and it avoids a second list subscription.
   const [existingWines, setExistingWines] = useState<WineEntry[]>([])
+  // Phase 10.5 — search box (thread 76dbe89f), scoped to whatever tab is
+  // active, combined with that tab's own filter (AND, not OR). Debounced so
+  // every keystroke doesn't fire a request.
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+  // Phase 10.5 — rating filter, Tasting Notes tab only. WineFilter.my_rating
+  // and its route/storage wiring already existed; this is the UI control.
+  const [ratingFilter, setRatingFilter] = useState<MyRating | ''>('')
+  // Phase 10.5 — cellar_capacity, fetched once; the Cellar tab's stat tile
+  // reads it and can update it inline.
+  const [settings, setSettings] = useState<AppSettings>({ cellar_capacity: null })
 
-  const fetchWines = useCallback(async (tab: TabId) => {
+  useEffect(() => {
+    getSettings().then(setSettings).catch(() => {})
+  }, [])
+
+  const fetchWines = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const filter =
-        tab === 'tasting_notes'
-          ? { has_tasting_note: true }
-          : { [`tag_${tab}`]: true }
+      const baseFilter =
+        activeTab === 'tasting_notes'
+          ? { has_tasting_note: true, ...(ratingFilter ? { my_rating: ratingFilter } : {}) }
+          : { [`tag_${activeTab}`]: true }
+      const filter = debouncedQuery ? { ...baseFilter, q: debouncedQuery } : baseFilter
       const data = await listWines(filter)
       setWines(data)
-    } catch {
-      setError('Could not load wines — is the backend running on port 3000?')
+    } catch (err) {
+      // A response that reached the server (a non-2xx status) carries a real
+      // message from handleResponse; a fetch that never got a response at
+      // all throws a TypeError — that's the only case "is the backend
+      // running" actually answers (gap-doc §3).
+      setError(
+        err instanceof TypeError || !(err instanceof Error)
+          ? 'Could not load wines — is the backend running on port 3000?'
+          : err.message
+      )
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [activeTab, debouncedQuery, ratingFilter])
 
   useEffect(() => {
-    fetchWines(activeTab)
-  }, [activeTab, fetchWines])
+    fetchWines()
+  }, [fetchWines])
 
   // Phase 9.4, WI-4 — load the duplicate-check candidate list fresh each
   // time the scan flow opens. listWines() with no filter already excludes
@@ -92,7 +123,7 @@ export default function App() {
 
   const handleReviewDone = () => {
     setReviewingWine(null)
-    fetchWines(activeTab)   // Ensure list reflects any changes
+    fetchWines()   // Ensure list reflects any changes
   }
 
   // Phase 9.4, WI-2/WI-7 — promote or discard the draft currently under
@@ -103,7 +134,7 @@ export default function App() {
   ) => {
     await promoteWine(id, tags)
     setReviewingWine(null)
-    fetchWines(activeTab)
+    fetchWines()
   }
 
   const handleDiscard = async (id: string) => {
@@ -115,13 +146,13 @@ export default function App() {
   const handleEvaluateSave = async (data: CreateTastingNoteInput) => {
     await createTastingNote(data)
     setEvaluatingWine(null)
-    fetchWines(activeTab)
+    fetchWines()
   }
 
   // ── Tag + quantity ────────────────────────────────────────────────────────────
   const handleTagUpdate = async (id: string, tags: UpdateWineInput) => {
     await updateWine(id, tags)
-    fetchWines(activeTab)
+    fetchWines()
   }
 
   const handleQuantityChange = async (id: string, delta: number) => {
@@ -129,7 +160,7 @@ export default function App() {
     if (!wine) return
     const newQty = Math.max(0, wine.cellar_quantity + delta)
     await updateWine(id, { cellar_quantity: newQty })
-    fetchWines(activeTab)
+    fetchWines()
   }
 
   // ── History (legacy review history; still available from tasting notes tab) ─
@@ -179,7 +210,41 @@ export default function App() {
         ))}
       </nav>
 
+      <div className="filter-bar">
+        <input
+          type="search"
+          className="search-input"
+          placeholder={`Search ${TABS.find((t) => t.id === activeTab)?.label.toLowerCase()}…`}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Search wines"
+        />
+        {activeTab === 'tasting_notes' && (
+          <select
+            className="rating-filter"
+            value={ratingFilter}
+            onChange={(e) => setRatingFilter(e.target.value as MyRating | '')}
+            aria-label="Filter by rating"
+          >
+            <option value="">All ratings</option>
+            {RATING_OPTIONS.map((r) => (
+              <option key={r} value={r}>{r.replace('_', ' ')}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
       {error && <p className="error-msg">{error}</p>}
+
+      {activeTab === 'cellar' && !loading && (
+        <CellarStats
+          wines={wines}
+          settings={settings}
+          onCapacityChange={async (cellar_capacity) => {
+            setSettings(await updateSettings({ cellar_capacity }))
+          }}
+        />
+      )}
 
       {/* Scan flow */}
       {showScan && (

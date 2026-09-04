@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
 import type { RetailerPrice, WineEntry } from '@shared/types'
 import { resolveRetailerUrl } from '../api'
 
@@ -63,6 +63,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * protection `noopener` would have provided, without losing the reference.
  */
 export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }: Props) {
+  // Phase 10.5 (gap doc §2.7) — three states, not one: a resolved product
+  // link needs no visual flag; an unresolved search link should read as a
+  // search rather than a direct product page; and the moment between a
+  // click and resolution finishing gets its own state rather than sitting
+  // silently on the still-clickable link.
+  const [resolving, setResolving] = useState(false)
   const needsResolution = retailer.is_search_results_page
 
   if (!needsResolution) {
@@ -75,11 +81,13 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
 
   async function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     e.preventDefault()
+    if (resolving) return
     const tab = window.open('about:blank', '_blank')
     // Popup blocked — nothing more to do; the same outcome an ordinary
     // blocked link click would have had.
     if (!tab) return
     tab.opener = null
+    setResolving(true)
 
     const fallbackUrl = retailer.url
     try {
@@ -89,6 +97,8 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
       tab.location.href = resolved?.url ?? fallbackUrl
     } catch {
       tab.location.href = fallbackUrl
+    } finally {
+      setResolving(false)
     }
   }
 
@@ -97,10 +107,16 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
       href={retailer.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={className}
+      className={[className, 'retailer-link--search', resolving && 'retailer-link--resolving'].filter(Boolean).join(' ')}
+      title={resolving ? undefined : `Opens a search at ${retailer.name} — not a direct product page`}
+      aria-busy={resolving}
       onClick={handleClick}
     >
-      View
+      {resolving ? 'Resolving…' : (
+        <>
+          <span aria-hidden="true">🔍 </span>View
+        </>
+      )}
     </a>
   )
 }

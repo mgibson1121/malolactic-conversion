@@ -65,6 +65,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     expect(wine.id).toBeTruthy()
@@ -125,6 +126,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const note = await adapter.createTastingNote({
@@ -190,6 +192,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -233,6 +236,7 @@ maybeDescribe('SheetsAdapter (integration)', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     expect(wine.cellar_quantity).toBe(6)

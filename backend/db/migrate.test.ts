@@ -14,6 +14,23 @@ describe('runMigration', () => {
     expect(names).toContain('wines')
     expect(names).toContain('tasting_notes')
     expect(names).toContain('advice')
+    expect(names).toContain('app_settings')
+
+    db.close()
+  })
+
+  it('seeds a single app_settings row with cellar_capacity unset', () => {
+    const db = new Database(':memory:')
+    runMigration(db)
+
+    const rows = db.prepare('SELECT * FROM app_settings').all() as {
+      id: number
+      cellar_capacity: number | null
+    }[]
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe(1)
+    expect(rows[0].cellar_capacity).toBeNull()
 
     db.close()
   })
@@ -40,7 +57,7 @@ describe('runMigration', () => {
     const required = [
       'id', 'producer', 'denomination', 'vintage', 'region',
       'tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed',
-      'cellar_quantity', 'latest_tasting_note_id', 'date_added',
+      'cellar_quantity', 'latest_tasting_note_id', 'date_added', 'wine_color',
     ]
     for (const col of required) {
       expect(colNames).toContain(col)

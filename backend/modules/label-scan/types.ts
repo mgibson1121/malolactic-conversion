@@ -17,6 +17,7 @@ export interface LabelScanResult {
   vineyard: string | null                // Specific lieu-dit within the denomination
   cuvee: string | null                   // Prestige/commercial name; overflow for unclassified text
   grape_varieties: string[] | null       // Extracted or inferred from denomination; null if ambiguous
+  wine_color: 'red' | 'white' | 'rosé' | null  // Phase 10.5 — extracted from explicit label cues only
 
   // ── Metadata ──────────────────────────────────────────────────────────────────
   /** Tier 1 fields the scan could not confidently populate — UI should prompt user */

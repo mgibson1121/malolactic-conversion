@@ -20,7 +20,7 @@
  */
 
 import { useState, useRef, DragEvent, ChangeEvent } from 'react'
-import type { CreateWineInput, UpdateWineInput, WineEntry } from '@shared/types'
+import type { CreateWineInput, UpdateWineInput, WineColor, WineEntry } from '@shared/types'
 import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
 import { findDuplicate } from '../utils/duplicateMatch'
@@ -68,6 +68,7 @@ function scanToDraftInput(scan: LabelScanResult): CreateWineInput {
     vineyard: scan.vineyard,
     cuvee: scan.cuvee,
     grape_varieties: scan.grape_varieties,
+    wine_color: scan.wine_color,
     label_image_url: null,
     // Phase 9.4 — every creation path starts as a draft with no list tag.
     // The developer picks at least one on the Discovery Review screen.
@@ -519,6 +520,7 @@ function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel 
   const [vineyard, setVineyard] = useState(scan.vineyard ?? '')
   const [cuvee, setCuvee] = useState(scan.cuvee ?? '')
   const [grapeVarieties, setGrapeVarieties] = useState(scan.grape_varieties?.join(', ') ?? '')
+  const [wineColor, setWineColor] = useState<WineColor | ''>(scan.wine_color ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -540,6 +542,7 @@ function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel 
     const vineyardVal = vineyard.trim() || null
     const cuveeVal = cuvee.trim() || null
     const grapesVal = grapes.length > 0 ? grapes : null
+    const wineColorVal = wineColor || null
 
     if (producerVal !== wine.producer) edits.producer = producerVal
     if (vintageVal !== wine.vintage) edits.vintage = vintageVal
@@ -549,6 +552,7 @@ function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel 
     if (vineyardVal !== wine.vineyard) edits.vineyard = vineyardVal
     if (cuveeVal !== wine.cuvee) edits.cuvee = cuveeVal
     if (JSON.stringify(grapesVal) !== JSON.stringify(wine.grape_varieties)) edits.grape_varieties = grapesVal
+    if (wineColorVal !== wine.wine_color) edits.wine_color = wineColorVal
 
     setSubmitting(true)
     setError(null)
@@ -613,6 +617,15 @@ function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel 
         <label htmlFor="se-cuvee">Cuvée <span className="scan-field-tier2">(Tier 2)</span></label>
         <input id="se-cuvee" value={cuvee}
           onChange={e => setCuvee(e.target.value)} placeholder="e.g. Cristal, Opus One" />
+
+        <label htmlFor="se-color">Color <span className="scan-field-tier2">(Tier 2)</span></label>
+        <select id="se-color" value={wineColor}
+          onChange={e => setWineColor(e.target.value as WineColor | '')}>
+          <option value="">Unspecified</option>
+          <option value="red">Red</option>
+          <option value="white">White</option>
+          <option value="rosé">Rosé</option>
+        </select>
 
         {error && <p className="error-msg">{error}</p>}
 

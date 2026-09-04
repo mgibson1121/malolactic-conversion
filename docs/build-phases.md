@@ -1250,6 +1250,119 @@ without an explicit Save to Collection; an abandoned draft is gone within 24 hou
 
 ---
 
+## Phase 10.5 — Close UI/backend gaps
+
+**Goal:** The real backend and the real `web/src` frontend were both built incrementally
+since Phase 6.5, ahead of any formal design pass — and by the time Phase 10's design
+canvas was finalized, a follow-up audit
+(`docs/specs/2026-09-03-phase-10-v2-backend-gap-analysis.md`) found the two had drifted
+from what that design assumed. This phase closes those gaps on both ends, following the
+gap-analysis doc's "recommended order of work" section item by item.
+
+**Context — what the gap analysis found:**
+- **§2.1, a route bug, not a missing feature.** `WineFilter.include_drafts` and its
+  storage-layer implementation (`sqlite-adapter.ts`) already existed and were already
+  tested — but `GET /api/wines` never read `req.query.include_drafts`, so there was no
+  way to call the API and get drafts back at all.
+- **§2.2, no `wine_color` field** — blocked the Cellar tab's red/white split.
+- **§2.3, no `cellar_capacity` field** — the "Capacity used: %" stat had nothing to
+  compute from.
+- **§2.4, no search endpoint** — every tab's design assumed a search box scoped to that
+  tab's contents; `GET /wines` supported only exact-match filters.
+- **§2.7, retailer-link resolution states** — click-triggered resolution
+  (`resolveOneRetailerUrl`, Phase 9.2 WI-6) already worked, but the link gave no visual
+  cue while a click was resolving, and an unresolved search link looked identical to a
+  resolved product link.
+- Several other items (quick add/remove tagging, a rating filter, per-critic drinking
+  windows, preferred-retailer distinction) were already fully supported end-to-end and
+  only needed a UI control — see the gap doc §1 for the full "already supported" list.
+
+**Decisions made this phase (developer, 2026-09-03):**
+- Add `wine_color: 'red' | 'white' | 'rosé' | null` as a new Tier 2 column, rather than
+  dropping the Cellar tab's red/white split. Same nullable-by-design treatment as
+  `quality_classification` — no provenance/`*_source` tracking, since nothing
+  auto-derives it beyond a one-time label-scan extraction and a manual `PATCH` is
+  expected to simply overwrite it.
+- Add a `cellar_capacity` app-level setting, rather than dropping the capacity stat. New
+  singleton `app_settings` table (one row, `id = 1` via `CHECK`) — no per-wine field, and
+  no existing KV/settings pattern in this codebase to extend, so this is a genuinely new
+  table, exposed via new `GET`/`PUT /api/settings` (`backend/routes/settings.ts`).
+- Scope is backend **and** frontend, not backend-only — the real `web/src` app gets wired
+  to actually use every fix, not just the API surface.
+
+**Deliverables:**
+- `backend/db/migrations/006_phase10_5_wine_color.sql`,
+  `007_phase10_5_app_settings.sql` — new column + new table, following the existing
+  numbered-migration convention exactly (see `003_phase8_provenance.sql` and
+  `005_phase9_4_draft_promotion.sql` as the two closest precedents).
+- `shared/types.ts`/`shared/validation.ts`: `WineColor`, `AppSettings`, `WineFilter.q`,
+  `SettingsSchema`.
+- `sqlite-adapter.ts`: `wine_color` threaded through `rowToWine`/`createWine`/`updateWine`
+  exactly where `quality_classification` already is; `q` added to `listWines`'s existing
+  `clauses`/`params` accumulation pattern as an `OR`-grouped `LIKE` across
+  `producer`/`denomination`/`vineyard`/`cuvee`; new `getSettings`/`updateSettings`
+  methods. The Phase 1-4 reference-only `SheetsAdapter` was also kept compiling —
+  `wine_color` appended as `sheets/columns.ts`'s 33rd wine column per that file's own
+  "append-only" rule, `app_settings` given `getSettings`/no-op-throwing `updateSettings`
+  stubs, matching `deleteWine`'s existing "not supported on this adapter" precedent.
+- `backend/routes/wines.ts`: `include_drafts` and `q` wired into `GET /`'s filter
+  (2 lines — everything else already worked). New `backend/routes/settings.ts`, mounted
+  in `server.ts`.
+- `backend/modules/label-scan/`: `wine_color` added as a Tier 2 extraction field
+  (`SYSTEM_PROMPT`, `LabelScanResult`), same "omit rather than guess" discipline as the
+  other Tier 2 fields — never inferred from `grape_varieties`, since many grapes can be
+  vinified more than one way.
+- `web/src/App.tsx`: a debounced search box (300ms) scoped to the active tab's own filter
+  (`AND`, not `OR`, per the design doc's thread `76dbe89f`); a rating-select for the
+  Tasting Notes tab; `cellar_capacity` fetched once and passed to the new stat tile;
+  differentiated the top-level list-fetch error (a response that reached the server now
+  shows its real message; the generic "is the backend running" copy is reserved for an
+  actual network-level failure).
+- New `web/src/components/CellarStats.tsx` (+ test) — capacity-used stat tile with an
+  inline edit affordance, and region allocation bars (grouped by `region`, **not**
+  `appellation` — `appellation` is a dead schema column nothing populates; `region` is
+  `NOT NULL` and always real, a deliberate correction of the design mockup's language to
+  match actual data) split red/white/rosé/unknown by `wine_color`, summed by
+  `cellar_quantity`. Neither existed in the shipped app before this phase — only the
+  design-canvas mockup had them.
+- `web/src/components/WineCard.tsx`: the Discovered tab now shows a lighter 2-3-chip quick
+  add/remove row (Wishlist / Cellar / ✕ Remove) instead of the full 4-way tag toggle,
+  reusing the existing `toggleTag`/`onTagUpdate` wiring — design doc §3.3. Every other tab
+  keeps the full toggle row. `wine_color` renders as a badge alongside the other
+  identity/Tier 2 fields on both `WineCard` and `WineDetailModal`.
+- `web/src/components/AddWineForm.tsx` and `LabelScanFlow.tsx`'s edit step: a `wine_color`
+  select next to the other Tier 2 field inputs.
+- `web/src/components/RetailerViewLink.tsx`: three link states, not one — a resolved
+  product link (unchanged), an unresolved search link (now visibly dashed, with a title
+  attribute naming it as a search), and a "Resolving…" state while the click-triggered
+  fetch is in flight (previously silent — the link just sat on "View" with no visual cue).
+- `backend/jest.config.ts`: fixed `testMatch` to include `db/**` — found while adding the
+  new migration tests, since `backend/db/migrate.test.ts` matched none of the three
+  existing patterns (`__tests__/`, `tests/`, `modules/**`) and had therefore never
+  actually run under `npm test` or CI, silently, since it was written.
+
+**Explicitly out of scope:** allocation-drift-vs-target (needs a target-allocation field
+that doesn't exist and is Phase 11/13 scope, not in the gap doc); the SensorPush
+environment widget (§2.6, no integration exists — already flagged elsewhere); the
+six-hotspot sidebar nav from the original Phase 10 canvas; a new route-level test harness
+(no `supertest`/route tests exist anywhere in this codebase — not introduced here, stayed
+inside the existing storage-adapter-level test pattern).
+
+**Verification:** All backend (`jest`) and frontend (`vitest`) tests pass; `tsc --noEmit`
+clean on both. Manually verified end-to-end in the browser against the real dev database:
+search (producer/denomination match, region correctly excluded per spec), cellar capacity
+set/edit/persist across reload, region allocation bars, Discovered-tab quick chips
+(add/remove round-tripped through the real API and reflected correctly on the Wishlist/
+Cellar tabs), Tasting Notes rating filter, `wine_color` entered via Add Wine → promoted
+through Discovery Review → displayed as a badge on the Cellar tab, and the retailer
+link's unresolved-search title/styling. Test data added during manual verification was
+removed from the dev database afterward.
+
+**Milestone:** The gap-analysis doc's "recommended order of work" is closed item by item.
+Real backend and real frontend match what the finalized Phase 10 design assumed.
+
+---
+
 ## Phase 11 — Frontend build
 
 **Goal:** Build the full application UI on top of the validated data model and scan pipeline.

@@ -1,4 +1,4 @@
-import type { CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
+import type { AppSettings, CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
 
 const BASE = '/api'
 
@@ -15,6 +15,7 @@ export interface LabelScanResult {
   vineyard: string | null
   cuvee: string | null
   grape_varieties: string[] | null
+  wine_color: 'red' | 'white' | 'rosé' | null
   missing_tier1_fields: string[]
   raw_response: string
 }
@@ -48,6 +49,7 @@ export async function listWines(filter?: WineFilter): Promise<WineEntry[]> {
   if (filter?.has_tasting_note) params.set('has_tasting_note', 'true')
   if (filter?.my_rating) params.set('my_rating', filter.my_rating)
   if (filter?.region) params.set('region', filter.region)
+  if (filter?.q) params.set('q', filter.q)
   const qs = params.toString()
   return handleResponse(await fetch(qs ? `${BASE}/wines?${qs}` : `${BASE}/wines`))
 }
@@ -189,6 +191,22 @@ export async function confirmRetailerLink(wineId: string, slug: string, url: str
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug, url }),
+    })
+  )
+}
+
+// ── Settings (Phase 10.5) ────────────────────────────────────────────────────
+
+export async function getSettings(): Promise<AppSettings> {
+  return handleResponse(await fetch(`${BASE}/settings`))
+}
+
+export async function updateSettings(data: Partial<AppSettings>): Promise<AppSettings> {
+  return handleResponse(
+    await fetch(`${BASE}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     })
   )
 }

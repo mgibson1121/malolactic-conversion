@@ -126,6 +126,7 @@ export function WineDetailModal({
   const identityMeta = [
     wine.vintage ? String(wine.vintage) : null,
     wine.region,
+    wine.wine_color ? wine.wine_color[0].toUpperCase() + wine.wine_color.slice(1) : null,
     wine.quality_classification,
   ].filter(Boolean).join(' · ')
 

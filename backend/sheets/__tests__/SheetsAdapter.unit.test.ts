@@ -103,6 +103,7 @@ describe('createWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
     expect(wine.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -136,6 +137,7 @@ describe('createWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     expect(wine.producer).toBe("Domaine de la Pousse d'Or")
@@ -178,6 +180,7 @@ describe('createWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
     expect(wine.vintage).toBeNull()
   })
@@ -207,6 +210,7 @@ describe('createWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
     expect(wine.tag_discovered).toBe(true)
     expect(wine.cellar_quantity).toBe(0)
@@ -240,6 +244,7 @@ describe('getWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(created.id)
@@ -282,6 +287,7 @@ describe('listWines', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
     await adapter.createWine({
       producer: 'Raveneau',
@@ -307,6 +313,7 @@ describe('listWines', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
   })
 
@@ -392,6 +399,7 @@ describe('updateWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -429,6 +437,7 @@ describe('updateWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -467,6 +476,7 @@ describe('updateWine', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, { cellar_quantity: 6 })
@@ -513,6 +523,7 @@ describe('tasting notes', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
     wineId = wine.id
   })
@@ -784,6 +795,7 @@ describe('tasting notes', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     await adapter.createTastingNote({
@@ -862,6 +874,7 @@ describe('advice', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -905,6 +918,7 @@ describe('advice', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const a1 = await adapter.createAdvice({
@@ -997,6 +1011,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1029,6 +1044,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1076,6 +1092,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1112,6 +1129,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const reviews = [
@@ -1157,6 +1175,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const priceData = {
@@ -1220,6 +1239,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const excerpts = ['Stunning 2017. Hold until 2030+.', 'Opened young — big mistake.']
@@ -1260,6 +1280,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1308,6 +1329,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -1339,6 +1361,7 @@ describe('serialization round-trips', () => {
       quality_classification: null,
       vineyard: null,
       cuvee: null,
+      wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)

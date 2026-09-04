@@ -53,6 +53,9 @@ Phases 1–4.5 are complete. The wine entry schema was validated against real da
 - `my_tags` must stay in sync with tags extracted from `tasting_notes`; GPT-4o writes back to the wine entry when a note is saved.
 - The wine entry uses a Tier 1 / Tier 2 field split. Tier 1 fields are canonical and expected on every entry. Tier 2 fields (`quality_classification`, `vineyard`, `cuvee`, `grape_varieties`) are nullable. See `wine-app-product-context.md` Section 3 for full definitions before building the label scan module.
 - `cellar_category` (`table` / `near_term` / `long_term`) is a reserved field, same treatment as `expert_reviews` and `community_sentiment` below — see the Phase 9.3 note. It is not read or displayed anywhere in the shipped UI, and as of Phase 9.3 is no longer collected at wine creation either. Leave the column and type in place; do not remove without a separate decision.
+- `wine_color` (Phase 10.5, `'red' | 'white' | 'rosé' | null`) is a Tier 2 field on the wine entry — same nullable-by-design treatment as `quality_classification`, no provenance/`*_source` column. Populated by label-scan extraction from explicit label cues only (never inferred from `grape_varieties`, which is unreliable for this — many grapes can be vinified more than one way) and overridable via `PATCH`.
+- `app_settings` (Phase 10.5) is a new singleton table — one row, `id = 1` enforced by a CHECK constraint — holding app-level (not per-wine) config. Currently just `cellar_capacity: number | null`, a user-set total bottle-slot count the Cellar tab's capacity stat divides into. Exposed via `GET`/`PUT /api/settings` (`backend/routes/settings.ts`), not `wines.ts` — it isn't a per-wine resource.
+- `GET /api/wines` accepts a `q` query param (Phase 10.5) — a plain `LIKE '%...%'` substring match across `producer`/`denomination`/`vineyard`/`cuvee`, combined with whatever tag/rating filter is already active. `WineFilter.include_drafts` — which already existed in `shared/types.ts` and the storage layer — is now actually wired into this route; it previously wasn't, so there was no way to call the API and get drafts back at all.
 
 ### Phase 5 — SQLite migration
 Schema is validated. Replace the Google Sheets adapter with SQLite. No feature behaviour changes.
@@ -87,7 +90,13 @@ The post-scan / post-add screen the developer actually sees first had not been t
 ### Phase 9.4 — Scan-first enrichment and the draft/promote decision (current)
 Phase 9.3 put reviews at the top of the post-save screen but left them click-gated, so the signal that decides whether a wine is worth keeping still arrived *after* the wine was in the collection. Two changes, together: the fetch moves earlier — price and the `primary` review tier fire automatically the moment GPT-4o label parsing returns, so verifying the parsed fields and waiting for the search are the same seconds — and the commitment moves later. A scanned wine is persisted immediately (enrichment needs an id) but is a **draft** until the user selects at least one list tag and presses **Save to Collection**; `tag_discovered` stops being automatic, drafts are invisible to every list and swept after 24 hours, and `DELETE /api/wines/:id` gives an explicit discard. Escalation beyond the primary tier (`extended`, merchant probes, open-web fallback) stays behind a click — the argument is latency and GPT-4o spend, not Serper credits (see §15's billing note). Adds a `tier` parameter to the existing `fetch-reviews` route; no new Serper call site. Full spec: `docs/specs/2026-08-19-phase-9.4-scan-first-enrichment.md`. Full detail in `docs/build-phases.md`.
 
-### Phase 10 and beyond
+### Phase 10 — UX design and prototyping
+Design canvas pass (Claude Design skill, published as a Claude.ai Artifact) — not application code. Full detail in `docs/build-phases.md`.
+
+### Phase 10.5 — Close UI/backend gaps (current)
+A follow-up audit (`docs/specs/2026-09-03-phase-10-v2-backend-gap-analysis.md`) found the real backend and the real `web/src` frontend — both built incrementally since Phase 6.5, ahead of any formal design pass — had drifted from what the finalized Phase 10 design assumed: a route bug that silently broke a documented capability (`include_drafts` never read from `GET /wines`'s query params, see §5's note below), two schema fields the design depended on that didn't exist (`wine_color`, `cellar_capacity`), a missing search endpoint, and several UI affordances the backend already supported but no screen exposed (Discovered-tab quick tag chips, a Tasting Notes rating filter, a 3-state retailer link). This phase closes those gaps on both ends — new `wine_color`/`app_settings` schema (migrations `006`/`007`), the `q` search param, and the corresponding frontend wiring (search box, Cellar tab stat tile + region allocation bars via a new `CellarStats` component, Discovered-tab quick chips on `WineCard`, `RetailerViewLink`'s three link states). Also fixed in passing: `backend/jest.config.ts`'s `testMatch` excluded `db/` entirely, so `backend/db/migrate.test.ts` was never actually run by `npm test` or CI. Full detail in `docs/build-phases.md`.
+
+### Phase 11 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -224,6 +233,7 @@ Offline mode is out of scope for v1.
 - Integration tests live in `backend/tests/integration/`
 - Use Jest for the backend, Vitest for web; XCTest for iOS
 - All tests must pass before merging to `main`
+- Backend `testMatch` (`backend/jest.config.ts`) covers `__tests__/`, `tests/`, and `modules/**` — a test file placed outside all three (e.g. directly in `backend/db/`) will not run under `npm test` or CI without an explicit pattern added for it (found 2026-09-03: `backend/db/migrate.test.ts` had silently never run since it was written; fixed by adding a `db/**` pattern rather than moving the file). Both web (`tsconfig.json`, no `exclude`) and backend (`tsconfig.json`, `exclude: ["**/*.test.ts", ...]`) type-check differently — web's CI `tsc --noEmit` step does check test files, backend's does not; a type-only-caught bug in a backend test file will surface only when `jest`/`ts-jest` runs it, not from `tsc` alone.
 
 ### GitHub Actions (CI)
 

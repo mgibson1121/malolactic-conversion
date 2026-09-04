@@ -96,6 +96,7 @@ TIER 2 FIELDS (LLM-enriched — nullable by design, never hallucinate):
 - vineyard: A specific vineyard or lieu-dit name within the denomination. Extract if: (a) text appears in quotation marks on the front label and is not the producer or denomination, OR (b) text is preceded by a known vineyard prefix: Viña, Vina, Vigna, Vigneto, Clos, Les. If label text remains unclassified after all other fields are assigned and vineyard confidence is low, put it in 'cuvee' instead. Return null if no rule is triggered. Do not guess.
 - cuvee: A proper commercial name for the wine that is distinct from the denomination, vineyard, or producer. Typically used by Champagne houses, prestige cuvées, and some New World producers (e.g. Cristal, Belle Époque, Opus One). Also use as the overflow field for any label text that cannot be confidently assigned to vineyard. Return null if no distinct cuvee name is present. Do not populate with the denomination or producer name.
 - grape_varieties: Array of grape variety strings. Extract directly from the label if listed. If not listed, infer from the denomination using established regional conventions. Examples of required inferences: Volnay → ["Pinot Noir"], Gevrey-Chambertin → ["Pinot Noir"], Chambolle-Musigny → ["Pinot Noir"], Meursault → ["Chardonnay"], Chablis → ["Chardonnay"], Bouzeron → ["Aligoté"], Mâcon → ["Chardonnay"], Barolo → ["Nebbiolo"], Barbaresco → ["Nebbiolo"], Brunello di Montalcino → ["Sangiovese"], Rioja Tinto → ["Tempranillo"], Châteauneuf-du-Pape → ["Grenache"], Hermitage Rouge → ["Syrah"], Sancerre → ["Sauvignon Blanc"], Pouilly-Fumé → ["Sauvignon Blanc"], Muscadet → ["Melon de Bourgogne"]. NEVER return an empty array []. Either return a populated array or null — an empty array is always wrong.
+- wine_color: One of "red", "white", "rosé", or null. Extract ONLY from explicit label cues — the label states the color directly, or a term unambiguously implies it (e.g. "Blanc de Blancs" → white, "Rosé" → rosé, a red grape variety printed with no other qualifier on a still wine → red). Never infer from grape_varieties alone when the variety can produce more than one style (many can, via rosé vinification). Return null rather than guess.
 
 CRITICAL RULES:
 - Return ONLY valid JSON. No markdown fences, no explanation text.
@@ -113,7 +114,8 @@ Return this exact JSON structure:
   "quality_classification": string | null,
   "vineyard": string | null,
   "cuvee": string | null,
-  "grape_varieties": string[] | null
+  "grape_varieties": string[] | null,
+  "wine_color": "red" | "white" | "rosé" | null
 }`
 
 // ── Scan function ─────────────────────────────────────────────────────────────
@@ -182,6 +184,7 @@ export async function scanLabel(input: LabelScanInput): Promise<LabelScanRespons
         vineyard: null,
         cuvee: null,
         grape_varieties: null,
+        wine_color: null,
         missing_tier1_fields: ['producer', 'vintage', 'region', 'denomination'],
         raw_response: rawText,
       },
@@ -200,6 +203,7 @@ export async function scanLabel(input: LabelScanInput): Promise<LabelScanRespons
     grape_varieties: Array.isArray(parsed.grape_varieties) && parsed.grape_varieties.length > 0
       ? parsed.grape_varieties
       : null,
+    wine_color: parsed.wine_color ?? null,
     missing_tier1_fields: [],
     raw_response: rawText,
   }
