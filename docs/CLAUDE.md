@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-08-16
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-09-04
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -275,6 +275,8 @@ chore/<short-description>       # Refactoring, dependency updates, config change
 
 All work happens on a branch. Merge to `main` only when CI is green.
 
+**Exception: documentation-only commits.** `CLAUDE.md`, `build-phases.md`, `wine-app-product-context.md`, and files under `docs/specs/` and `docs/sessions/` may be committed directly to `main`, no branch or PR required — this is the mechanism §14's "Planning document commits" section depends on. The branch/PR/CI flow above is for code. A commit that touches both code and docs still goes through the normal branch/PR flow; only doc-only commits skip it.
+
 ### Pull requests
 Every phase or discrete unit of work is delivered as a pull request. Title follows `<type>: <description>`. Description covers what changed, why, and decisions made. Link the relevant `docs/build-phases.md` phase. All CI checks must pass before merge. Squash merge. Claude Code opens the PR but does not merge it.
 
@@ -322,7 +324,17 @@ Commit frequently with meaningful messages. Every phase produces at least one PR
 
 ### Planning document commits
 
-`CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents — the canonical source of truth, not the copies held in Claude.ai project context. At the end of every session, check whether these three files differ from the repo and, if so, commit the update with a `docs:` message on the current working branch. The Claude.ai project context copy may lag behind — the repo is always authoritative. (**Note, 2026-08-16:** the Claude.ai project copies of this file and `wine-app-product-context.md` had drifted significantly — describing Phase 1/2-era Google Sheets/Wine-Searcher/Reddit/status-enum design well after the repo had moved through Phase 9.2. Synced back up as part of Phase 9.3's documentation work; keep them current going forward rather than letting another multi-phase gap reopen.)
+`CLAUDE.md`, `build-phases.md`, and `wine-app-product-context.md` are committed to the repo and treated as living documents — the canonical source of truth, not the copies held in Claude.ai project context. The repo is always authoritative.
+
+**Roles (added 2026-09-04).** Project planning and strategy — build-phase design, requirements refinement, product-context decisions — happens in Claude AI (the Cowork session attached to this project's Claude.ai Project). Claude Code is execution-focused: it implements against the docs as written and should not need to re-derive or re-confirm decisions already recorded in `CLAUDE.md`, `wine-app-product-context.md`, or `docs/build-phases.md`. If a question Claude Code would otherwise ask the developer is already answered in one of those three files, read the file rather than asking again.
+
+Both Claude AI and Claude Code have git write access to this repo and both commit documentation directly to `main` (see §13's documentation-only exception to the branch/PR flow). Claude AI is the primary source of new planning documentation and pushes doc updates directly to `main` as part of the same session that produces them, rather than holding them only in Claude.ai project context. Claude Code may still discover things mid-build worth documenting — a rejected approach, a measured number, a constraint hit — and should commit those directly too, per the Documentation delta and Conversational drift rules above; it is not required to route doc updates through Claude AI first.
+
+Because the repo is authoritative, the Claude.ai project context copies exist only for convenience — so a Claude AI session doesn't have to open the repo to answer a question — and are synced *from* the repo, never the other way around. A Claude AI session doing planning work checks for drift against the repo at the start of the session, and re-syncs its project-context copies immediately after any doc commit it makes.
+
+(**Note, 2026-08-16:** the Claude.ai project copies of this file and `wine-app-product-context.md` had drifted significantly — describing Phase 1/2-era Google Sheets/Wine-Searcher/Reddit/status-enum design well after the repo had moved through Phase 9.2. Synced back up as part of Phase 9.3's documentation work.)
+
+(**Note, 2026-09-04:** the gap above recurred in a sharper form. A Claude AI session drafted Phase 10.5 as backend-only and held it in Claude.ai project context without pushing it to the repo, while a separate Claude Code session — working from the same original requirements but unable to see that draft — built a materially different (backend + frontend) implementation directly against the repo and merged it as PR #30. Neither side knew about the other's version until the developer's review surfaced the discrepancy. Reviewed and reconciled as Phase 10.6. The Roles section and direct-push workflow above exist specifically to prevent this recurring — the fix is Claude AI publishing to the same repo Claude Code reads, on the same cadence, not a better manual sync habit.)
 
 ### Conversational drift — write decisions back to the docs (added 2026-08-19)
 
