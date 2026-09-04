@@ -127,6 +127,8 @@ router.get(
     if (req.query.has_tasting_note === 'true') filter.has_tasting_note = true
     if (req.query.my_rating) filter.my_rating = req.query.my_rating as WineFilter['my_rating']
     if (req.query.region) filter.region = String(req.query.region)
+    if (req.query.include_drafts === 'true') filter.include_drafts = true
+    if (req.query.q) filter.q = String(req.query.q)
     const wines = await getStorage().listWines(filter)
     res.json(wines)
   })

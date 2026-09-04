@@ -8,6 +8,7 @@ import tastingNotesRouter from './routes/tasting-notes'
 import adviceRouter from './routes/advice'
 import labelScanRouter from './routes/label-scan'
 import debugRouter from './routes/debug'
+import settingsRouter from './routes/settings'
 import { getStorage } from './modules/storage'
 
 const app = express()
@@ -19,6 +20,7 @@ app.use('/api/tasting-notes', tastingNotesRouter)
 app.use('/api/advice', adviceRouter)
 app.use('/api/label-scan', labelScanRouter)
 app.use('/api/debug', debugRouter)
+app.use('/api/settings', settingsRouter)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
