@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 export const CellarCategorySchema = z.enum(['table', 'near_term', 'long_term'])
 export const VintageRatingSchema = z.enum(['below_avg', 'avg', 'good', 'very_good'])
+export const WineColorSchema = z.enum(['red', 'white', 'rosé'])
 export const MyRatingSchema = z.enum(['poor', 'acceptable', 'good', 'very_good', 'outstanding'])
 export const AdviceSourceRoleSchema = z.enum([
   'sommelier',
@@ -44,6 +45,7 @@ export const CreateWineSchema = z.object({
   vineyard: z.string().nullish().transform((v) => v ?? null),
   cuvee: z.string().nullish().transform((v) => v ?? null),
   grape_varieties: z.array(z.string()).nullish().transform((v) => v ?? null),
+  wine_color: WineColorSchema.nullish().transform((v) => v ?? null),
   label_image_url: z.string().url().nullish().transform((v) => v ?? null),
   // List tags — additive booleans. tag_discovered no longer defaults to true
   // (Phase 9.4) — every creation path lands on the discovery review screen,
@@ -68,6 +70,12 @@ export const CreateWineSchema = z.object({
 })
 
 export const UpdateWineSchema = CreateWineSchema.partial()
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+export const SettingsSchema = z.object({
+  cellar_capacity: z.number().int().min(0).nullish().transform((v) => v ?? null),
+})
 
 // ─── Tasting note ─────────────────────────────────────────────────────────────
 

@@ -202,6 +202,10 @@ export interface PriceData {
 
 export type CellarCategory = 'table' | 'near_term' | 'long_term'
 export type VintageRating = 'below_avg' | 'avg' | 'good' | 'very_good'
+// Phase 10.5 — Tier 2, same nullable-by-design treatment as quality_classification.
+// Populated by label-scan extraction when the label states it explicitly, or set
+// by hand via PATCH; never inferred from grape_varieties (free-text, unreliable).
+export type WineColor = 'red' | 'white' | 'rosé'
 // Phase 8 — tracks whether drinking_window/vintage_rating on a WineEntry was
 // set by hand or derived from review extraction; see WineEntry fields below.
 export type FieldProvenance = 'manual' | 'derived' | null
@@ -253,6 +257,7 @@ export interface WineEntry {
   vineyard: string | null
   cuvee: string | null          // prestige/commercial name; also overflow for unclassified label text
   grape_varieties: string[] | null  // extracted or inferred from denomination; null if ambiguous
+  wine_color: WineColor | null  // Phase 10.5 — see WineColor above
   label_image_url: string | null
   // List tags — additive booleans; a wine can carry any combination simultaneously
   tag_discovered: boolean   // set automatically on creation
@@ -365,9 +370,17 @@ export interface WineFilter {
   // Phase 9.4 — false by default, so every existing caller keeps excluding
   // drafts without modification. True includes wines with promoted_at NULL.
   include_drafts?: boolean
+  // Phase 10.5 — substring match across producer/denomination/vineyard/cuvee.
+  q?: string
 }
 
 export interface AdviceFilter {
   category?: AdviceCategory
   wine_id?: string
+}
+
+// Phase 10.5 — a single app-level row, not per-wine. cellar_capacity is a
+// user-set total bottle-slot count; null means unset (no stat computed yet).
+export interface AppSettings {
+  cellar_capacity: number | null
 }

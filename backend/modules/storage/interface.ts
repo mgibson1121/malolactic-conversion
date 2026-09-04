@@ -1,6 +1,7 @@
 import type {
   AdviceEntry,
   AdviceFilter,
+  AppSettings,
   CreateAdviceInput,
   CreateTastingNoteInput,
   CreateWineInput,
@@ -41,6 +42,12 @@ export interface StorageAdapter {
   createAdvice(data: CreateAdviceInput): Promise<AdviceEntry>
   getAdvice(id: string): Promise<AdviceEntry | null>
   listAdvice(filter?: AdviceFilter): Promise<AdviceEntry[]>
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  /** Phase 10.5. Single app-level settings row — not per-wine. */
+  getSettings(): Promise<AppSettings>
+  updateSettings(data: Partial<AppSettings>): Promise<AppSettings>
 
   // ── Setup ──────────────────────────────────────────────────────────────────
 

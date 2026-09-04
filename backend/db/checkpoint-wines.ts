@@ -51,6 +51,7 @@ async function checkpoint() {
       vineyard: null,
       cuvee: null,
       grape_varieties: null,
+      wine_color: null,
       label_image_url: null,
       tag_discovered: true,
       tag_wishlist: false,

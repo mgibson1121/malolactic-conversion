@@ -5,9 +5,9 @@
  *
  * SHEET_COL_RANGE: upper-bound column letter used in all A:X range strings.
  * Must be updated whenever the widest tab exceeds the current value.
- * Current widest tab: wines (32 cols = A–AF).
+ * Current widest tab: wines (33 cols = A–AG).
  */
-export const SHEET_COL_RANGE = 'AF'
+export const SHEET_COL_RANGE = 'AG'
 
 export const WINE_COLS = {
   id: 0,
@@ -42,6 +42,7 @@ export const WINE_COLS = {
   advice_linked: 29,              // JSON array of advice UUIDs
   quality_classification: 30,    // Tier 2
   vineyard: 31,                   // Tier 2
+  wine_color: 32,                 // Tier 2 — Phase 10.5, appended per the rule above
 } as const
 
 export const WINE_HEADERS = [
@@ -53,7 +54,7 @@ export const WINE_HEADERS = [
   'my_rating', 'my_tags', 'date_added', 'date_first_consumed', 'latest_tasting_note_id',
   'expert_reviews', 'community_sentiment', 'community_excerpts', 'price_data',
   'wishlist_notes', 'price_paid', 'purchased_from', 'advice_linked',
-  'quality_classification', 'vineyard',
+  'quality_classification', 'vineyard', 'wine_color',
 ]
 
 export const TASTING_NOTE_COLS = {

@@ -3,6 +3,7 @@ import type {
   AdviceCategory,
   AdviceEntry,
   AdviceFilter,
+  AppSettings,
   CellarCategory,
   CreateAdviceInput,
   CreateTastingNoteInput,
@@ -14,6 +15,7 @@ import type {
   TastingNote,
   UpdateWineInput,
   VintageRating,
+  WineColor,
   WineEntry,
   WineFilter,
   AdviceSourceRole,
@@ -179,6 +181,7 @@ export class SheetsAdapter implements StorageAdapter {
       w.advice_linked != null ? JSON.stringify(w.advice_linked) : '',
       w.quality_classification ?? '',
       w.vineyard ?? '',
+      w.wine_color ?? '',
     ]
   }
 
@@ -199,6 +202,7 @@ export class SheetsAdapter implements StorageAdapter {
       grape_varieties: safeParseJSON<string[] | null>(c(WINE_COLS.grape_varieties), null),
       quality_classification: orNull(c(WINE_COLS.quality_classification)),
       vineyard: orNull(c(WINE_COLS.vineyard)),
+      wine_color: orNull<WineColor>(c(WINE_COLS.wine_color)),
       label_image_url: orNull(c(WINE_COLS.label_image_url)),
       tag_discovered: boolCell(c(WINE_COLS.tag_discovered)),
       tag_wishlist: boolCell(c(WINE_COLS.tag_wishlist)),
@@ -394,6 +398,18 @@ export class SheetsAdapter implements StorageAdapter {
 
   async sweepStaleDrafts(_olderThan: Date): Promise<number> {
     return 0
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  // Phase 10.5 — reference-only adapter, not in the active code path; no
+  // settings sheet/tab exists for the Sheets backend.
+
+  async getSettings(): Promise<AppSettings> {
+    return { cellar_capacity: null }
+  }
+
+  async updateSettings(_data: Partial<AppSettings>): Promise<AppSettings> {
+    throw new Error('SheetsAdapter (Phase 1-4, reference only) does not support settings.')
   }
 
   // ── Tasting notes ──────────────────────────────────────────────────────────

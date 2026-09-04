@@ -74,6 +74,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     quality_classification: null,
     vineyard: null,
     cuvee: null,
+    wine_color: null,
     label_image_url: null,
     tag_discovered: true,
     tag_wishlist: false,

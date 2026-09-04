@@ -4,6 +4,7 @@ import { runMigration } from '../../db/migrate'
 import type {
   AdviceEntry,
   AdviceFilter,
+  AppSettings,
   CreateAdviceInput,
   CreateTastingNoteInput,
   CreateWineInput,
@@ -51,6 +52,7 @@ interface WineRow {
   vineyard: string | null
   cuvee: string | null
   grape_varieties: string | null
+  wine_color: string | null
   label_image_url: string | null
   tag_discovered: number
   tag_wishlist: number
@@ -106,6 +108,11 @@ interface TastingNoteRow {
   extracted_tags: string | null
 }
 
+interface AppSettingsRow {
+  id: number
+  cellar_capacity: number | null
+}
+
 interface AdviceRow {
   id: string
   tip: string
@@ -134,6 +141,7 @@ function rowToWine(row: WineRow): WineEntry {
     vineyard: row.vineyard,
     cuvee: row.cuvee,
     grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
+    wine_color: (row.wine_color as WineEntry['wine_color']) ?? null,
     label_image_url: row.label_image_url,
     tag_discovered: fromBool(row.tag_discovered),
     tag_wishlist: fromBool(row.tag_wishlist),
@@ -246,7 +254,7 @@ export class SQLiteAdapter implements StorageAdapter {
     this.db.prepare(`
       INSERT INTO wines (
         id, producer, denomination, vintage, region,
-        quality_classification, vineyard, cuvee, grape_varieties, label_image_url,
+        quality_classification, vineyard, cuvee, grape_varieties, wine_color, label_image_url,
         tag_discovered, tag_wishlist, tag_cellar, tag_consumed,
         cellar_category, cellar_quantity,
         drinking_window_start, drinking_window_end, drinking_window_source,
@@ -258,7 +266,7 @@ export class SQLiteAdapter implements StorageAdapter {
         promoted_at
       ) VALUES (
         ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?,
         ?, ?, ?,
@@ -272,7 +280,7 @@ export class SQLiteAdapter implements StorageAdapter {
     `).run(
       wine.id, wine.producer, wine.denomination, wine.vintage, wine.region,
       wine.quality_classification, wine.vineyard, wine.cuvee,
-      toJson(wine.grape_varieties), wine.label_image_url,
+      toJson(wine.grape_varieties), wine.wine_color, wine.label_image_url,
       toBool(wine.tag_discovered), toBool(wine.tag_wishlist),
       toBool(wine.tag_cellar), toBool(wine.tag_consumed),
       wine.cellar_category, wine.cellar_quantity,
@@ -326,6 +334,13 @@ export class SQLiteAdapter implements StorageAdapter {
       clauses.push('region = ?')
       params.push(filter.region)
     }
+    // Phase 10.5 — plain substring match; a personal-collection data volume
+    // doesn't warrant FTS5.
+    if (filter?.q) {
+      clauses.push('(producer LIKE ? OR denomination LIKE ? OR vineyard LIKE ? OR cuvee LIKE ?)')
+      const like = `%${filter.q}%`
+      params.push(like, like, like, like)
+    }
     // Phase 9.4 — drafts (promoted_at IS NULL) are excluded from every list
     // unless the caller explicitly opts in. Defaulting this way means every
     // pre-9.4 caller stays correct without modification.
@@ -348,7 +363,7 @@ export class SQLiteAdapter implements StorageAdapter {
       UPDATE wines SET
         producer = ?, denomination = ?, vintage = ?, region = ?,
         quality_classification = ?, vineyard = ?, cuvee = ?,
-        grape_varieties = ?, label_image_url = ?,
+        grape_varieties = ?, wine_color = ?, label_image_url = ?,
         tag_discovered = ?, tag_wishlist = ?, tag_cellar = ?, tag_consumed = ?,
         cellar_category = ?, cellar_quantity = ?,
         drinking_window_start = ?, drinking_window_end = ?, drinking_window_source = ?,
@@ -363,7 +378,7 @@ export class SQLiteAdapter implements StorageAdapter {
     `).run(
       updated.producer, updated.denomination, updated.vintage, updated.region,
       updated.quality_classification, updated.vineyard, updated.cuvee,
-      toJson(updated.grape_varieties), updated.label_image_url,
+      toJson(updated.grape_varieties), updated.wine_color, updated.label_image_url,
       toBool(updated.tag_discovered), toBool(updated.tag_wishlist),
       toBool(updated.tag_cellar), toBool(updated.tag_consumed),
       updated.cellar_category, updated.cellar_quantity,
@@ -455,6 +470,24 @@ export class SQLiteAdapter implements StorageAdapter {
       .prepare('SELECT * FROM tasting_notes WHERE wine_id = ? ORDER BY date DESC')
       .all(wineId) as TastingNoteRow[]
     return rows.map(rowToTastingNote)
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  async getSettings(): Promise<AppSettings> {
+    const row = this.db
+      .prepare('SELECT * FROM app_settings WHERE id = 1')
+      .get() as AppSettingsRow
+    return { cellar_capacity: row.cellar_capacity }
+  }
+
+  async updateSettings(data: Partial<AppSettings>): Promise<AppSettings> {
+    const existing = await this.getSettings()
+    const updated: AppSettings = { ...existing, ...data }
+    this.db
+      .prepare('UPDATE app_settings SET cellar_capacity = ? WHERE id = 1')
+      .run(updated.cellar_capacity)
+    return updated
   }
 
   // ── Advice ─────────────────────────────────────────────────────────────────

@@ -74,6 +74,7 @@ const baseWine: WineEntry = {
   quality_classification: null,
   vineyard: null,
   cuvee: null,
+  wine_color: null,
   grape_varieties: ['Pinot Noir'],
   label_image_url: null,
   tag_discovered: true,

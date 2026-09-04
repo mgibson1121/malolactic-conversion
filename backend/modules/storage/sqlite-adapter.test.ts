@@ -40,7 +40,7 @@ describe('createWine', () => {
       date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
-      cuvee: null,
+      cuvee: null, wine_color: null,
     })
     expect(wine.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     expect(wine.date_added).toBeTruthy()
@@ -72,7 +72,7 @@ describe('createWine', () => {
       date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
-      cuvee: null,
+      cuvee: null, wine_color: null,
     })
 
     expect(wine.producer).toBe("Domaine de la Pousse d'Or")
@@ -115,7 +115,7 @@ describe('createWine', () => {
       date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
-      cuvee: null,
+      cuvee: null, wine_color: null,
     })
     expect(wine.vintage).toBeNull()
   })
@@ -145,7 +145,7 @@ describe('createWine', () => {
       date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
-      cuvee: null,
+      cuvee: null, wine_color: null,
     })
     expect(wine.tag_discovered).toBe(true)
     expect(wine.cellar_quantity).toBe(0)
@@ -179,7 +179,7 @@ describe('getWine', () => {
       date_first_consumed: null,
       quality_classification: null,
       vineyard: null,
-      cuvee: null,
+      cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(created.id)
@@ -215,7 +215,7 @@ describe('listWines', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: 'acceptable', my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
     const w2 = await adapter.createWine({
       producer: 'Raveneau', vintage: 2020, region: 'Burgundy', denomination: 'Chablis',
@@ -224,7 +224,7 @@ describe('listWines', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: 'good',
       my_rating: null, my_tags: ['minerally'], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
     await promote(adapter, w1.id)
     await promote(adapter, w2.id)
@@ -276,6 +276,31 @@ describe('listWines', () => {
     expect(burgundy[0].denomination).toBe('Chablis')
   })
 
+  // Phase 10.5 — q is a substring match across producer/denomination/
+  // vineyard/cuvee.
+  it('filters by q, matching on producer', async () => {
+    const adapter = makeAdapter()
+    await makeTwoWines(adapter)
+    const results = await adapter.listWines({ q: 'Ravene' })
+    expect(results).toHaveLength(1)
+    expect(results[0].denomination).toBe('Chablis')
+  })
+
+  it('filters by q, matching on denomination', async () => {
+    const adapter = makeAdapter()
+    await makeTwoWines(adapter)
+    const results = await adapter.listWines({ q: 'muscadet' })
+    expect(results).toHaveLength(1)
+    expect(results[0].denomination).toBe('Muscadet')
+  })
+
+  it('returns no results when q matches nothing', async () => {
+    const adapter = makeAdapter()
+    await makeTwoWines(adapter)
+    const results = await adapter.listWines({ q: 'Sauternes' })
+    expect(results).toHaveLength(0)
+  })
+
   it('filters by has_tasting_note', async () => {
     const adapter = makeAdapter()
     await makeTwoWines(adapter)
@@ -310,7 +335,7 @@ describe('draft/promotion (Phase 9.4)', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
       ...overrides,
     }
   }
@@ -389,7 +414,7 @@ describe('updateWine', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -411,7 +436,7 @@ describe('updateWine', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, {
@@ -434,7 +459,7 @@ describe('updateWine', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const updated = await adapter.updateWine(wine.id, { cellar_quantity: 6 })
@@ -463,7 +488,7 @@ describe('tasting notes', () => {
       cellar_quantity: 3, cellar_category: 'long_term', drinking_window: null,
       vintage_rating: 'very_good', my_rating: null, my_tags: [], wishlist_notes: null,
       price_paid: null, purchased_from: null, date_first_consumed: null,
-      quality_classification: null, vineyard: null, cuvee: null,
+      quality_classification: null, vineyard: null, cuvee: null, wine_color: null,
     })
   }
 
@@ -655,7 +680,7 @@ describe('tasting notes', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     await adapter.createTastingNote({
@@ -706,7 +731,7 @@ describe('advice', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const advice = await adapter.createAdvice({
@@ -734,7 +759,7 @@ describe('advice', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const a1 = await adapter.createAdvice({
@@ -798,7 +823,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: ['powerful', 'age-worthy', 'southern-rhône'],
       wishlist_notes: null, price_paid: null, purchased_from: null, date_first_consumed: null,
-      quality_classification: null, vineyard: null, cuvee: null,
+      quality_classification: null, vineyard: null, cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -819,7 +844,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     // Benchmark's only Charles Audoin page is the 2020 — stored and labelled,
@@ -870,7 +895,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const review_probe_log = [
@@ -893,7 +918,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -926,7 +951,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 3, cellar_category: 'near_term', drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
       purchased_from: null, date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -948,11 +973,31 @@ describe('serialization round-trips', () => {
       drinking_window: { start: '2025-01-01', end: '2045-12-31' },
       vintage_rating: 'very_good', my_rating: null, my_tags: [], wishlist_notes: null,
       price_paid: null, purchased_from: null, date_first_consumed: null,
-      quality_classification: null, vineyard: null, cuvee: null,
+      quality_classification: null, vineyard: null, cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
     expect(fetched!.drinking_window).toEqual({ start: '2025-01-01', end: '2045-12-31' })
+  })
+
+  it('round-trips wine_color', async () => {
+    const adapter = makeAdapter()
+    const wine = await adapter.createWine({
+      producer: 'Domaine Tempier', vintage: 2021, region: 'Provence', denomination: 'Bandol',
+      grape_varieties: ['Mourvèdre'], label_image_url: null,
+      tag_discovered: true, tag_wishlist: false, tag_cellar: false, tag_consumed: false,
+      cellar_quantity: 0, cellar_category: null, drinking_window: null, vintage_rating: null,
+      my_rating: null, my_tags: [], wishlist_notes: null, price_paid: null,
+      purchased_from: null, date_first_consumed: null, quality_classification: null,
+      vineyard: null, cuvee: null, wine_color: 'rosé',
+    })
+
+    const fetched = await adapter.getWine(wine.id)
+    expect(fetched!.wine_color).toBe('rosé')
+
+    const updated = await adapter.updateWine(wine.id, { wine_color: 'red' })
+    expect(updated.wine_color).toBe('red')
+    expect((await adapter.getWine(wine.id))!.wine_color).toBe('red')
   })
 
   it('preserves numeric fields (vintage, cellar_quantity, price_paid)', async () => {
@@ -964,7 +1009,7 @@ describe('serialization round-trips', () => {
       cellar_quantity: 12, cellar_category: 'long_term', drinking_window: null, vintage_rating: null,
       my_rating: null, my_tags: [], wishlist_notes: null, price_paid: 189.99,
       purchased_from: 'Flatiron Wines', date_first_consumed: null, quality_classification: null,
-      vineyard: null, cuvee: null,
+      vineyard: null, cuvee: null, wine_color: null,
     })
 
     const fetched = await adapter.getWine(wine.id)
@@ -974,5 +1019,21 @@ describe('serialization round-trips', () => {
     expect(typeof fetched!.vintage).toBe('number')
     expect(typeof fetched!.cellar_quantity).toBe('number')
     expect(typeof fetched!.price_paid).toBe('number')
+  })
+})
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+describe('settings', () => {
+  it('starts with cellar_capacity unset', async () => {
+    const adapter = makeAdapter()
+    expect(await adapter.getSettings()).toEqual({ cellar_capacity: null })
+  })
+
+  it('updates and persists cellar_capacity', async () => {
+    const adapter = makeAdapter()
+    const updated = await adapter.updateSettings({ cellar_capacity: 240 })
+    expect(updated.cellar_capacity).toBe(240)
+    expect(await adapter.getSettings()).toEqual({ cellar_capacity: 240 })
   })
 })
