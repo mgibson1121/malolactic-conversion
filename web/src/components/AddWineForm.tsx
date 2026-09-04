@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CreateWineInput, WineEntry } from '@shared/types'
+import type { CreateWineInput, WineColor, WineEntry } from '@shared/types'
 
 interface Props {
   onSubmit: (data: CreateWineInput) => Promise<WineEntry>
@@ -15,6 +15,7 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
   const [vineyard, setVineyard] = useState('')
   const [cuvee, setCuvee] = useState('')
   const [grapeVarieties, setGrapeVarieties] = useState('')
+  const [wineColor, setWineColor] = useState<WineColor | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,6 +33,7 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
       vineyard: vineyard.trim() || null,
       cuvee: cuvee.trim() || null,
       grape_varieties: grapes.length > 0 ? grapes : null,
+      wine_color: wineColor || null,
       label_image_url: null,
       // Phase 9.4 — every creation path starts as a draft with no list tag;
       // the developer picks at least one on the Discovery Review screen.
@@ -133,6 +135,18 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
           onChange={(e) => setGrapeVarieties(e.target.value)}
           placeholder="e.g. Pinot Noir"
         />
+
+        <label htmlFor="wf-color">Color <span className="scan-field-tier2">(Tier 2)</span></label>
+        <select
+          id="wf-color"
+          value={wineColor}
+          onChange={(e) => setWineColor(e.target.value as WineColor | '')}
+        >
+          <option value="">Unspecified</option>
+          <option value="red">Red</option>
+          <option value="white">White</option>
+          <option value="rosé">Rosé</option>
+        </select>
 
         {error && <p className="error-msg">{error}</p>}
 
