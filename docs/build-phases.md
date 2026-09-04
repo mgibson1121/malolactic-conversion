@@ -1363,6 +1363,83 @@ Real backend and real frontend match what the finalized Phase 10 design assumed.
 
 ---
 
+## Phase 10.6 — Documentation catch-up after Phase 10.5
+
+**Status:** Documentation only. No code changes.
+
+**Goal:** Phase 10.5 (PR #30, merged 2026-09-03) shipped all four backend/schema gaps the
+2026-09-03 gap analysis identified — exactly as scoped, verified by direct code review
+against the actual diff, not just against commit messages — and, per a scope decision made
+directly with the developer during that build, also shipped the corresponding frontend
+(search box, `CellarStats.tsx`, Discovered-tab quick tag chips, three-state retailer
+links), which the original plan had left for Phase 11. What Phase 10.5 did **not** do was
+apply its own fifth deliverable: corrections to `wine-app-product-context.md` and to the
+design-requirements doc's advice-capture reasoning. This phase closes that gap.
+
+**Context:** Two independent things were happening in parallel on 2026-09-03 — a
+Claude.ai/Cowork session drafting Phase 10.5 against the same gap-analysis doc, and the
+Claude Code session that actually built and merged it — without the first's draft ever
+reaching the second (see the session note on doc-sync drift, `docs/sessions/
+2026-09-03-phase-10.5-gap-closure.md` and its counterpart in Claude.ai project context).
+The Claude Code session's version is what's real: it's merged, and its scope decision
+(backend + frontend, confirmed with the developer directly) supersedes the original
+backend-only plan. Reviewing the merged PR against that original plan found:
+
+- All four technical deliverables match precisely: the `include_drafts`/`q` route fix,
+  `wine_color` (vision-only extraction, never inferred from `grape_varieties` or
+  denomination convention, null on ambiguity), `cellar_capacity` via a new `app_settings`
+  singleton table, and the `q` search param (`LIKE` across
+  producer/denomination/vineyard/cuvee). Migrations `006`/`007` match the original spec
+  almost verbatim.
+- One naming deviation, not being changed: the settings route shipped as `GET`/`PUT
+  /api/settings`, not `GET`/`PATCH` as originally specified. The `PUT` handler accepts a
+  partial body via `SettingsSchema.partial()`, so it behaves like a PATCH despite the
+  verb — not a REST purity issue worth an API break on a single-developer local app, but
+  worth having on record so nobody "fixes" it expecting a `PATCH` route to already exist.
+- The doc-correction deliverable did not land: `docs/wine-app-product-context.md` had no
+  `wine_color` field-table entry, no note on the new settings mechanism, and its
+  `cellar_category` and community-sentiment entries still read as open/unresolved even
+  though both were decided 2026-09-03. The design-requirements doc's advice-capture line
+  ("no backing code exists yet (Phase 12)") was still uncorrected.
+
+**Deliverables:**
+
+1. **`docs/wine-app-product-context.md`:**
+   - Added `wine_color` to the Tier 2 field table (Section 3), matching the shipped rule
+     exactly — extracted from explicit label cues only, no provenance tracking (same
+     precedent as `quality_classification`).
+   - Updated the Cellar tab's (Section 4.4) "Collection visualisation" and "Capacity
+     indicator" gain-creator bullets from aspirational to shipped, crediting Phase 10.5
+     and noting what's still Phase 11 work (the drinking-window flat-list view).
+   - Updated `community_sentiment`/`community_excerpts` field notes (Section 3) from
+     "reserved for an optional PoC" to "descoped, not merely paused."
+   - Marked `price_paid`, `purchased_from`, and `wishlist_notes` as captured-but-deferred
+     in their own field-table rows, so their absence from any card/detail view doesn't
+     read as an oversight to a future session.
+   - Section 8: moved the `cellar_category` question and the YouTube community-sentiment
+     question from "Remaining" to "Resolved," with the actual 2026-09-03 decisions, and
+     added a Resolved entry recording Phase 10.5's gap closure itself.
+2. **`docs/specs/2026-09-01-phase-10-v2-web-ui-design-requirements.md` §4:** corrected the
+   advice-capture bullet's stated reason — the backend exists and is wired; the UI is
+   deferred by product choice, not by a missing backend. The scoping decision (don't
+   design that screen now) is unchanged.
+3. **This entry** — recording the reconciliation itself, so a future session reading
+   Phase 10.5 isn't left wondering why its own deliverable 5 doesn't match reality.
+4. **Phase 11 note (below):** what Phase 10.5 already shipped, so Phase 11 doesn't
+   re-implement it.
+
+**Explicitly not changed:** no code. The `PUT`-vs-`PATCH` naming on `/api/settings` is
+documented above, not fixed. The Cellar tab's drinking-window flat-list view
+(ready to drink / needs more time / no window identified) — the thing that actually
+resolves the `cellar_category` question in the UI, not just in documentation — is still
+Phase 11 work.
+
+**Milestone:** `wine-app-product-context.md` and the design-requirements doc agree with
+what Phase 10.5 actually shipped. No open question or field note in either doc
+contradicts merged code.
+
+---
+
 ## Phase 11 — Frontend build
 
 **Goal:** Build the full application UI on top of the validated data model and scan pipeline.
@@ -1380,6 +1457,7 @@ Real backend and real frontend match what the finalized Phase 10 design assumed.
 - iOS is primary surface; web parity follows
 - SensorPush environment monitoring module (`backend/modules/environment/`) is included in this phase alongside the Cellar UI
 - Allocation drift view (target distribution vs. actual) is included in the Cellar UI
+- **Already shipped ahead of schedule, Phase 10.5 (2026-09-03) — do not re-implement:** the per-tab search box, the Cellar tab's capacity-used stat and region/color allocation bars (`CellarStats.tsx`), Discovered-tab quick add/remove tag chips, the Tasting Notes rating filter, three-state retailer links, and `wine_color` display on cards/detail. What's still open for this phase: the Cellar drinking-window flat-list view (ready to drink / needs more time / no window identified — see `wine-app-product-context.md` §8's resolved `cellar_category` question), the six-hotspot navigation, and everything iOS.
 
 **Milestone — GA for personal use:** App is fully functional across all core hotspots. Native iOS camera capture is live. Stable enough for daily personal use.
 

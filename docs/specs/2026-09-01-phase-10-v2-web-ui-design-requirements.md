@@ -177,8 +177,11 @@ weight as 3.1–3.6, which are all grounded in real, currently-running code and 
 - Resolving the "one prioritized review vs. every source shown" question raised in the
   2026-09-01 follow-up note — design 3.5/3.6 per the still-standing "never blend"
   principle; don't pre-empt a product decision that hasn't been made.
-- Advice-capture UI (the "log a tip from a sommelier" feature) — no backing code exists
-  yet (Phase 12); don't invent a screen for it.
+- Advice-capture UI (the "log a tip from a sommelier" feature) — deferred by product
+  choice, not by a missing backend (corrected 2026-09-03, Phase 10.6): `backend/routes/
+  advice.ts`, `AdviceEntry`, and `CreateAdviceInput` are fully built and wired. The
+  original "no backing code exists yet (Phase 12)" reason was factually wrong; the
+  scoping decision itself (don't design this UI now) still stands.
 
 ## 5. Acceptance check for whoever builds this
 
