@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import type { RetailerPrice, WineEntry } from '@shared/types'
@@ -155,9 +155,31 @@ describe('RetailerViewLink — an unresolved fallback link', () => {
     render(<RetailerViewLink wineId="wine-1" retailer={retailer} onWineUpdated={() => {}} />)
     await userEvent.setup({ delay: null }).click(screen.getByRole('link', { name: 'View' }))
 
-    await vi.advanceTimersByTimeAsync(3000)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
 
     expect(tab.location.href).toBe(retailer.url)
+  })
+
+  // Phase 10.5 (gap doc §2.7) — the link visibly shows a pending state
+  // between click and resolution rather than sitting silently on "View".
+  it('shows a resolving state while the click-triggered fetch is in flight', async () => {
+    const tab = fakeTab()
+    vi.spyOn(window, 'open').mockReturnValue(tab)
+    const retailer = makeRetailer()
+    let resolvePromise: (value: WineEntry) => void = () => {}
+    mockResolve.mockReturnValue(new Promise<WineEntry>((resolve) => { resolvePromise = resolve }))
+
+    render(<RetailerViewLink wineId="wine-1" retailer={retailer} onWineUpdated={() => {}} />)
+    await userEvent.click(screen.getByRole('link', { name: 'View' }))
+
+    expect(await screen.findByRole('link', { name: 'Resolving…' })).toBeInTheDocument()
+
+    await act(async () => {
+      resolvePromise({ price_data: { retailers: [retailer] } } as unknown as WineEntry)
+    })
+    expect(await screen.findByRole('link', { name: 'View' })).toBeInTheDocument()
   })
 
   it('does nothing further when the popup is blocked, rather than throwing', async () => {

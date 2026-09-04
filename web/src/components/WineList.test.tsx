@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { WineList } from './WineList'
 import type { WineEntry } from '@shared/types'
 import { MATCHED_IDENTITY } from '../test-fixtures'
@@ -436,6 +437,84 @@ describe('WineList', () => {
     )
     expect(screen.getByText('Discovered')).toBeInTheDocument()
     expect(screen.getByText('Cellar')).toBeInTheDocument()
+  })
+
+  // Phase 10.5 (design doc §3.3) — Discovered tab gets a lighter quick add/
+  // remove chip row instead of the full 4-way tag toggle.
+  describe('Discovered tab quick tag chips', () => {
+    it('shows Wishlist/Cellar/Remove chips instead of the full toggle row', () => {
+      render(
+        <WineList
+          wines={[makeWine()]}
+          activeTab="discovered"
+          onEvaluate={noop}
+          onTagUpdate={noop}
+          onQuantityChange={noop}
+          onViewHistory={noop}
+          onWineUpdated={noop}
+          onViewDetail={noop}
+        />
+      )
+      expect(screen.getByRole('button', { name: /Wishlist/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Cellar/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '✕ Remove' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Consumed/ })).not.toBeInTheDocument()
+    })
+
+    it('still shows the full 4-way toggle row on other tabs', () => {
+      render(
+        <WineList
+          wines={[makeWine({ tag_wishlist: true })]}
+          activeTab="wishlist"
+          onEvaluate={noop}
+          onTagUpdate={noop}
+          onQuantityChange={noop}
+          onViewHistory={noop}
+          onWineUpdated={noop}
+          onViewDetail={noop}
+        />
+      )
+      expect(screen.getByRole('button', { name: /Consumed/ })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '✕ Remove' })).not.toBeInTheDocument()
+    })
+
+    it('Remove chip toggles tag_discovered off via onTagUpdate', async () => {
+      const onTagUpdate = vi.fn()
+      const wine = makeWine({ id: 'abc' })
+      render(
+        <WineList
+          wines={[wine]}
+          activeTab="discovered"
+          onEvaluate={noop}
+          onTagUpdate={onTagUpdate}
+          onQuantityChange={noop}
+          onViewHistory={noop}
+          onWineUpdated={noop}
+          onViewDetail={noop}
+        />
+      )
+      await userEvent.click(screen.getByRole('button', { name: '✕ Remove' }))
+      expect(onTagUpdate).toHaveBeenCalledWith('abc', { tag_discovered: false })
+    })
+
+    it('Wishlist chip toggles tag_wishlist on via onTagUpdate', async () => {
+      const onTagUpdate = vi.fn()
+      const wine = makeWine({ id: 'abc', tag_wishlist: false })
+      render(
+        <WineList
+          wines={[wine]}
+          activeTab="discovered"
+          onEvaluate={noop}
+          onTagUpdate={onTagUpdate}
+          onQuantityChange={noop}
+          onViewHistory={noop}
+          onWineUpdated={noop}
+          onViewDetail={noop}
+        />
+      )
+      await userEvent.click(screen.getByRole('button', { name: /Wishlist/ }))
+      expect(onTagUpdate).toHaveBeenCalledWith('abc', { tag_wishlist: true })
+    })
   })
 
   it('calls onEvaluate when Evaluate button is clicked', () => {

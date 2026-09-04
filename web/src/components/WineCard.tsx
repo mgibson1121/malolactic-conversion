@@ -54,6 +54,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
   const secondaryParts = [
     wine.vintage ? String(wine.vintage) : null,
     wine.region,
+    wine.wine_color ? wine.wine_color[0].toUpperCase() + wine.wine_color.slice(1) : null,
     wine.cuvee,
     wine.quality_classification,
     wine.grape_varieties && wine.grape_varieties.length > 0 ? wine.grape_varieties.join(', ') : null,
@@ -140,18 +141,45 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         </button>
       </div>
 
-      {/* Tag management — toggle any tag */}
-      <div className="wine-tag-controls">
-        {(['tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed'] as const).map((tag) => (
+      {/* Tag management. Discovered tab gets a lighter-weight quick add/
+          remove row (design doc §3.3) rather than the full 4-way toggle —
+          a Discovered wine's next move is usually just "wishlist it",
+          "cellar it", or "not interested", not a trip into the detail
+          modal. Every other tab keeps the full toggle row. */}
+      {activeTab === 'discovered' ? (
+        <div className="wine-tag-controls wine-tag-controls--quick">
           <button
-            key={tag}
-            className={`btn-tag-toggle ${wine[tag] ? 'active' : ''}`}
-            onClick={() => toggleTag(tag)}
+            className={`btn-tag-toggle ${wine.tag_wishlist ? 'active' : ''}`}
+            onClick={() => toggleTag('tag_wishlist')}
           >
-            {wine[tag] ? '✓ ' : '+ '}{TAG_LABELS[tag]}
+            {wine.tag_wishlist ? '✓ ' : '+ '}Wishlist
           </button>
-        ))}
-      </div>
+          <button
+            className={`btn-tag-toggle ${wine.tag_cellar ? 'active' : ''}`}
+            onClick={() => toggleTag('tag_cellar')}
+          >
+            {wine.tag_cellar ? '✓ ' : '+ '}Cellar
+          </button>
+          <button
+            className="btn-tag-toggle btn-tag-toggle--remove"
+            onClick={() => toggleTag('tag_discovered')}
+          >
+            ✕ Remove
+          </button>
+        </div>
+      ) : (
+        <div className="wine-tag-controls">
+          {(['tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed'] as const).map((tag) => (
+            <button
+              key={tag}
+              className={`btn-tag-toggle ${wine[tag] ? 'active' : ''}`}
+              onClick={() => toggleTag(tag)}
+            >
+              {wine[tag] ? '✓ ' : '+ '}{TAG_LABELS[tag]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Drinking window — the agreed wine-level value when critics agree,
           otherwise the per-critic windows attributed to their sources. The

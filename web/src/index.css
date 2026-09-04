@@ -782,6 +782,19 @@ input.scan-field-missing {
   border-color: #7b3f00;
 }
 
+/* Phase 10.5 — Discovered tab's quick "not interested" chip. Distinct
+   register from add/toggle chips since it removes the wine from the tab
+   the card is currently sitting in. */
+.btn-tag-toggle--remove {
+  color: #b00020;
+  border-color: #e0b0b8;
+}
+.btn-tag-toggle--remove:hover {
+  background: #fdecee;
+  border-color: #b00020;
+  color: #b00020;
+}
+
 /* ── Cellar quantity controls ────────────────────────────────────────────── */
 
 .quantity-controls {
@@ -1111,6 +1124,16 @@ input.scan-field-missing {
 }
 
 .retailer-link:hover { background: #f5ebe0; }
+
+/* Phase 10.5 — unresolved search vs. resolving state (gap doc §2.7) */
+.retailer-link--search {
+  border-style: dashed;
+}
+
+.retailer-link--resolving {
+  opacity: 0.6;
+  pointer-events: none;
+}
 
 .price-fetched-at {
   font-size: 10px;
