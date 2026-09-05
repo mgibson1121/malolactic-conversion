@@ -93,13 +93,16 @@ Phase 9.3 put reviews at the top of the post-save screen but left them click-gat
 ### Phase 10 — UX design and prototyping
 Design canvas pass (Claude Design skill, published as a Claude.ai Artifact) — not application code. Full detail in `docs/build-phases.md`.
 
-### Phase 10.5 — Close UI/backend gaps (current)
+### Phase 10.5 — Close UI/backend gaps
 A follow-up audit (`docs/specs/2026-09-03-phase-10-v2-backend-gap-analysis.md`) found the real backend and the real `web/src` frontend — both built incrementally since Phase 6.5, ahead of any formal design pass — had drifted from what the finalized Phase 10 design assumed: a route bug that silently broke a documented capability (`include_drafts` never read from `GET /wines`'s query params, see §5's note below), two schema fields the design depended on that didn't exist (`wine_color`, `cellar_capacity`), a missing search endpoint, and several UI affordances the backend already supported but no screen exposed (Discovered-tab quick tag chips, a Tasting Notes rating filter, a 3-state retailer link). This phase closes those gaps on both ends — new `wine_color`/`app_settings` schema (migrations `006`/`007`), the `q` search param, and the corresponding frontend wiring (search box, Cellar tab stat tile + region allocation bars via a new `CellarStats` component, Discovered-tab quick chips on `WineCard`, `RetailerViewLink`'s three link states). Also fixed in passing: `backend/jest.config.ts`'s `testMatch` excluded `db/` entirely, so `backend/db/migrate.test.ts` was never actually run by `npm test` or CI. Full detail in `docs/build-phases.md`.
 
 ### Phase 10.6 — Documentation catch-up after Phase 10.5
 Documentation-only: Phase 10.5's own fifth deliverable (corrections to `wine-app-product-context.md` and the design-requirements doc's advice-capture reasoning) hadn't landed. Applied now — `wine_color` and the new settings mechanism are documented, `cellar_category` and community-sentiment read as resolved rather than open, and the advice-capture reasoning is corrected. No code changed. Full detail in `docs/build-phases.md`.
 
-### Phase 11 and beyond
+### Phase 11 — Apply UI to backend & local integration testing (current)
+Verification pass, not a rebuild: run the full stack locally and confirm every feature shipped through Phase 10.5 is correctly wired to the real backend, applying the finalized Phase 10 design to `web/src` wherever the running app still diverges from it. Full detail in `docs/build-phases.md`.
+
+### Phase 12 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -200,7 +203,7 @@ The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty fro
 - Images must be resized to max 1024px on the longest side before the API call
 - Output: structured JSON covering all Tier 1 and Tier 2 wine entry fields. `name` is not in the schema — do not include it in scan output.
 - **Phase 3 capture surface:** web file upload (HTML file input, image/*).
-- **Phase 11 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change.
+- **Phase 12 capture surface:** native iOS SwiftUI camera (AVFoundation). The backend module does not change.
 - Estimated cost: ~$0.004 per scan at 1024×1024
 - Key: `OPENAI_API_KEY` from `.env` (web/backend) or iOS Keychain (iOS)
 - **Note (Phase 9.3):** the scanned image itself is never persisted — `label_image_url` is hardcoded `null` in every `CreateWineInput` built by the web frontend as of this writing. The on-screen preview during scan review is a same-session `URL.createObjectURL`, not a stored asset. If persisting the image becomes a goal, that's a separate decision — don't assume it already happens.

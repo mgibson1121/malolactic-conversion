@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-08-02
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-09-04
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -55,7 +55,7 @@
 
 ## Phase 3 — Label scanning ✅
 
-**Goal:** Validate the full label scan pipeline — image intake, GPT-4o vision extraction, Tier 1/2 field population, and entry card review — without requiring a native iOS app. The intended production capture surface is the iOS camera (Phase 11); this phase proves the backend pipeline using a web file upload as a pragmatic stand-in.
+**Goal:** Validate the full label scan pipeline — image intake, GPT-4o vision extraction, Tier 1/2 field population, and entry card review — without requiring a native iOS app. The intended production capture surface is the iOS camera (Phase 12); this phase proves the backend pipeline using a web file upload as a pragmatic stand-in.
 
 **Deliverables:**
 - GPT-4o vision label scan module in `backend/modules/label-scan/`
@@ -67,13 +67,13 @@
 
 **Notes:**
 - The capture surface in this phase is a web file upload (HTML file input accepting image/*), not a native camera. This is intentional — the goal is to validate the scan pipeline, not the capture UX.
-- The native iOS camera flow (SwiftUI, AVFoundation) is built in Phase 11. The backend label scan module does not change at that point — only the capture surface is swapped.
+- The native iOS camera flow (SwiftUI, AVFoundation) is built in Phase 12. The backend label scan module does not change at that point — only the capture surface is swapped.
 - Raw image input must always be resized to max 1024px before the API call — enforce this in the module regardless of how the image arrives (file upload now, camera later)
 - Tier 1 fields that the scan cannot populate must surface a manual entry prompt in the UI — never silently omit
 - Tier 2 fields that the scan cannot populate are left null — do not prompt the user unless they choose to edit
 - If the OpenAI key is not configured, label scan is unavailable with a clear UI message; manual entry remains available
 
-**Milestone:** A wine label photo uploaded via the web UI produces a populated entry card — with Tier 2 fields extracted where present — in under 30 seconds. The scan pipeline is validated and ready. iOS camera integration is deferred to Phase 11.
+**Milestone:** A wine label photo uploaded via the web UI produces a populated entry card — with Tier 2 fields extracted where present — in under 30 seconds. The scan pipeline is validated and ready. iOS camera integration is deferred to Phase 12.
 
 ---
 
@@ -97,7 +97,7 @@
 - Multiple tasting notes per wine entry are supported. All notes retained. Most recent rating displayed in list views.
 
 **UI notes:**
-- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 11
+- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 12
 - The `flawed` WSET conclusion indicates a technical wine fault and should trigger a distinct fault indicator — not treated as the lowest point on the `my_rating` scale
 
 **Notes:**
@@ -128,7 +128,7 @@
 - Wine identity is `producer` + `denomination` + `vintage`. `name` has been removed permanently.
 
 **Notes:**
-- HTML UI is sufficient — polish deferred to Phase 11
+- HTML UI is sufficient — polish deferred to Phase 12
 - The Tasting Notes list is read-only in this phase — it surfaces existing notes, does not initiate new ones (Evaluate CTA handles that)
 - Bottle quantity and tag management are the two interactions most likely to surface schema edge cases — if any gaps are found, fix before proceeding to Phase 5
 
@@ -886,7 +886,7 @@ Reassessing the actual goal behind the community layer — balancing professiona
    - If exactly one critic in `review_data` provides a drinking window (or vintage character), populate the wine-level field from it.
    - If more than one critic provides a window (or character) and they disagree, leave the wine-level field `null` — do not average, blend, or pick one silently. The UI (once built) is expected to show each critic's window/character distinctly, the same way `critic_scores` already shows each publication's score distinctly, rather than collapsing them into one number.
    - **The wine-level field is user-editable at any time — manually creating or overriding it is always preserved.** This reverses the field's original "cached/derived, never manually set" documentation (see schema section above) — the developer specifically wants to set or correct a drinking window by hand, whether at manual wine-entry creation or later research, and an automated run must never silently overwrite a value the user has set. The adapter must track whether a value was set manually vs. derived (e.g. a provenance marker — implementation detail for whoever builds this) so a later automated extraction pass doesn't clobber it.
-4. **UI label note (for whichever phase builds the frontend — Phase 10/11):** `vintage_rating` should be labeled "Year" in the UI, not "Vintage Rating" — developer preference, for clarity. No functional change, just the display label to carry forward into Phase 10's prototypes.
+4. **UI label note (for whichever phase builds the frontend — Phase 10/12):** `vintage_rating` should be labeled "Year" in the UI, not "Vintage Rating" — developer preference, for clarity. No functional change, just the display label to carry forward into Phase 10's prototypes.
 5. **Product page URLs, already captured in `review_data.product_url` since Phase 7, are the durable manual-reference mechanism** — no change needed here, just confirming the existing field already satisfies "let me click through and read the real review myself." Never used to re-fetch or re-render beyond this module's own refresh cycle.
 
 **Explicitly tabled — do not build without revisiting:** A "why" field explaining the reasoning behind a drinking window (e.g. "high tannin, needs time to resolve" vs. "already balanced, no rush") was considered and set aside 2026-07-28. It's less cleanly fact-based than the three fields above — a short reasoning phrase risks drifting into paraphrased or lightly-reworded source prose, a harder line to hold consistently than a date range, an enum value, or a boolean. Revisit only if a reliably structured (non-prose) way to capture it is found — e.g. a fixed set of reasoning categories (tannin-driven, acid-driven, already-balanced) rather than freeform text.
@@ -1235,7 +1235,7 @@ without an explicit Save to Collection; an abandoned draft is gone within 24 hou
 **What changed and why:**
 - **No Magic Patterns, no Cursor.** The toolchain is deliberately all-Claude — Claude.ai/Cowork for planning and design, Claude Code for execution — both because a single-tool chain is simpler than a multi-tool handoff and because part of this project's purpose is learning to use Claude well end-to-end, not only shipping the app. The original plan named Magic Patterns before any UI design work had started; it was dropped without ever being tried. See `docs/CLAUDE.md` §12.
 - **Design happens as a multi-artboard canvas** built with Claude's Design skill and published as a Claude.ai Artifact, not as static diagrams handed to a separate prototyping tool. The developer reviews it in place and leaves comments directly on the design; a later session re-reads the artifact, addresses the comments, and republishes a new version — no export/handoff step.
-- **This pass started web-first, not mobile-first**, reversing the note below — the developer's stated reasoning: easier to design the whole picture at desktop scale and adapt down to mobile than the reverse. This is a statement about how this design pass sequences itself, not a reversal of iOS-as-primary-surface as a product decision (Phase 11 below still holds).
+- **This pass started web-first, not mobile-first**, reversing the note below — the developer's stated reasoning: easier to design the whole picture at desktop scale and adapt down to mobile than the reverse. This is a statement about how this design pass sequences itself, not a reversal of iOS-as-primary-surface as a product decision (Phase 12 below still holds).
 - **First pass covered all six hotspots** (Capture, Research, Evaluate, Cellar, Wishlist + Purchasing, Learn) in one canvas, built from real rows in the live `wine.db` rather than placeholder content — so the design surfaces real gaps (a thin Cellar and Wishlist, an empty Advice archive, only two saved tasting notes) instead of hiding them behind sample data.
 - **First round of developer feedback (2026-08-25, 5 comments on the canvas):** the data presentation needs more visual presence generally; add quick add/remove list-tagging directly from the Discovered list rather than only from a detail panel; critic-score display needs to pick one prioritized review from a definable preferred-source list rather than showing every score found; cut "each source in its own voice" as UI copy — it doesn't add anything; and figure out how to visually distinguish GPT-inferred conclusions (vintage character, "Deal" badges) from raw sourced facts. To be addressed in the next design iteration.
 
@@ -1342,7 +1342,7 @@ gap-analysis doc's "recommended order of work" section item by item.
   actually run under `npm test` or CI, silently, since it was written.
 
 **Explicitly out of scope:** allocation-drift-vs-target (needs a target-allocation field
-that doesn't exist and is Phase 11/13 scope, not in the gap doc); the SensorPush
+that doesn't exist and is Phase 12/14 scope, not in the gap doc); the SensorPush
 environment widget (§2.6, no integration exists — already flagged elsewhere); the
 six-hotspot sidebar nav from the original Phase 10 canvas; a new route-level test harness
 (no `supertest`/route tests exist anywhere in this codebase — not introduced here, stayed
@@ -1372,7 +1372,7 @@ Real backend and real frontend match what the finalized Phase 10 design assumed.
 against the actual diff, not just against commit messages — and, per a scope decision made
 directly with the developer during that build, also shipped the corresponding frontend
 (search box, `CellarStats.tsx`, Discovered-tab quick tag chips, three-state retailer
-links), which the original plan had left for Phase 11. What Phase 10.5 did **not** do was
+links), which the original plan had left for Phase 12. What Phase 10.5 did **not** do was
 apply its own fifth deliverable: corrections to `wine-app-product-context.md` and to the
 design-requirements doc's advice-capture reasoning. This phase closes that gap.
 
@@ -1410,7 +1410,7 @@ backend-only plan. Reviewing the merged PR against that original plan found:
      precedent as `quality_classification`).
    - Updated the Cellar tab's (Section 4.4) "Collection visualisation" and "Capacity
      indicator" gain-creator bullets from aspirational to shipped, crediting Phase 10.5
-     and noting what's still Phase 11 work (the drinking-window flat-list view).
+     and noting what's still Phase 12 work (the drinking-window flat-list view).
    - Updated `community_sentiment`/`community_excerpts` field notes (Section 3) from
      "reserved for an optional PoC" to "descoped, not merely paused."
    - Marked `price_paid`, `purchased_from`, and `wishlist_notes` as captured-but-deferred
@@ -1425,14 +1425,14 @@ backend-only plan. Reviewing the merged PR against that original plan found:
    design that screen now) is unchanged.
 3. **This entry** — recording the reconciliation itself, so a future session reading
    Phase 10.5 isn't left wondering why its own deliverable 5 doesn't match reality.
-4. **Phase 11 note (below):** what Phase 10.5 already shipped, so Phase 11 doesn't
+4. **Phase 12 note (below):** what Phase 10.5 already shipped, so Phase 12 doesn't
    re-implement it.
 
 **Explicitly not changed:** no code. The `PUT`-vs-`PATCH` naming on `/api/settings` is
 documented above, not fixed. The Cellar tab's drinking-window flat-list view
 (ready to drink / needs more time / no window identified) — the thing that actually
 resolves the `cellar_category` question in the UI, not just in documentation — is still
-Phase 11 work.
+Phase 12 work.
 
 **Milestone:** `wine-app-product-context.md` and the design-requirements doc agree with
 what Phase 10.5 actually shipped. No open question or field note in either doc
@@ -1440,7 +1440,26 @@ contradicts merged code.
 
 ---
 
-## Phase 11 — Frontend build
+## Phase 11 — Apply UI to backend & local integration testing
+
+**Goal:** Take the app as it stands after Phase 10.5/10.6 — a real backend and a real `web/src` frontend, built incrementally since Phase 6.5 and reconciled against the finalized Phase 10 design — and verify, feature by feature, that the UI is fully wired to the backend and behaves correctly running locally. This is an integration and verification pass, not a rebuild: where the running app still diverges visually from the Phase 10 design canvas, apply that correction to the existing components rather than starting over.
+
+**Deliverables:**
+- Run the full stack locally (`backend` + `web`, via `npm run dev` or equivalent) and manually exercise every shipped feature against the real `wine.db`: the four-tab navigation, Scan Label and + Add Wine flows, the Discovery Review screen (draft and promoted modes), tag management from every list, tasting notes, price and review enrichment (including the guided retailer-search confirmation flow), retailer links, `CellarStats`, search, and settings.
+- Apply the finalized Phase 10 design (colors, typography, spacing, component layout from the published Claude Design canvas) to `web/src` wherever the currently-running app still diverges from it — visual/layout correction only, not new functionality.
+- Carry forward the still-open items from Phase 10's first round of developer feedback (2026-08-25) that Phase 10.5 didn't already cover: critic-score display prioritized from a definable preferred-source list rather than showing every score found, and a visual distinction between GPT-inferred conclusions (vintage character, "Deal" badges) and raw sourced facts.
+- Produce and work through a punch list of anything found broken or unwired during local testing — a button that doesn't call its route, a field that doesn't render, a stale copy reference — fixing it in this phase rather than deferring it.
+- Reconcile branch state: Phase 10's "context found" note flagged `main` as 39 commits behind `feature/discovery-review-ui` and missing Phase 9.3/9.4 entirely. Confirm `main` reflects the actually-running app (merge if it still doesn't) so "what's on `main`" and "what's running locally" stop being two different answers.
+
+**Notes:**
+- This phase is verification and integration against what already exists, not new feature construction — the six-hotspot navigation restructure, native iOS app, SensorPush environment module, and allocation-drift view remain Phase 12 (Frontend build) scope.
+- Any gap found here that needs net-new backend capability (not just wiring or display) belongs in a later phase, not squeezed into this one.
+
+**Milestone:** Every feature shipped through Phase 10.5 runs correctly end-to-end against the real backend on localhost, the running app matches the finalized Phase 10 design wherever they'd diverged, and `main` reflects the app that was actually tested.
+
+---
+
+## Phase 12 — Frontend build
 
 **Goal:** Build the full application UI on top of the validated data model and scan pipeline.
 
@@ -1450,7 +1469,7 @@ contradicts merged code.
 - Native iOS camera flow: SwiftUI camera view (AVFoundation) replaces the Phase 3 web file upload as the label scan capture surface. The backend label scan module does not change — only the input path does.
 - iOS share sheet trigger: scan a bottle encountered online by sharing a photo or URL from another app
 - Both frontends consuming the shared backend API
-- All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 12)
+- All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 13)
 
 **Notes:**
 - Implement from the Phase 10 Claude Design canvas as visual reference — do not import prototype code
@@ -1463,7 +1482,7 @@ contradicts merged code.
 
 ---
 
-## Phase 12 — Learning features
+## Phase 13 — Learning features
 
 **Goal:** Build the compounding knowledge layer. Requires sufficient data in the system to make quizzes and pattern surfaces meaningful.
 
@@ -1482,7 +1501,7 @@ contradicts merged code.
 
 ---
 
-## Phase 13 — Open source release
+## Phase 14 — Open source release
 
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
@@ -1519,4 +1538,4 @@ contradicts merged code.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
 - [x] Reddit community-sentiment layer: closed off 2026-07-28. Self-service Data API registration ended under Reddit's Responsible Builder Policy; the unofficial `.json` fallback was itself shut down 2026-05-28; the official commercial tier requires a contract at a four-to-five-figure annual minimum; third-party resellers are unlicensed scraping, inconsistent with the project's own CellarTracker/WineBerserkers principle (`CLAUDE.md` §15). Superseded by Phase 8's professional-review-extraction approach; a YouTube-based alternative is a separate, optional PoC — see Phase 8.5.
 - [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 — less cleanly fact-based than a date range, enum, or boolean; risks drifting into stored prose. Revisit only if a reliably structured (non-prose) capture method is found.
-- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 12's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 13's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.

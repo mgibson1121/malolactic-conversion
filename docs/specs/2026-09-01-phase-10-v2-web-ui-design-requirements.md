@@ -162,9 +162,9 @@ Discovery Review. A plain, mostly-form screen; less design-novel than 3.5.
 Manual-entry equivalent of 3.7, no photo. Straightforward form design.
 
 **3.9 Learn tab — aspirational, flag it as such**
-Nothing behind this tab exists in the shipped app at all (Phase 12, not started — no
+Nothing behind this tab exists in the shipped app at all (Phase 13, not started — no
 vintage-index aggregation, no quiz mechanism, no advice archive). If this pass designs a
-Learn tab, **label it visibly as a forward-looking reference for Phase 12**, not a
+Learn tab, **label it visibly as a forward-looking reference for Phase 13**, not a
 description of anything buildable today — don't let it read with the same evidentiary
 weight as 3.1–3.6, which are all grounded in real, currently-running code and data.
 
