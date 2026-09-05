@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
+import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
 import { EnrichmentFreshness } from './EnrichmentFreshness'
@@ -50,12 +51,12 @@ const VINTAGE_RATING_LABELS: Record<string, string> = {
   very_good: 'Very Good',
 }
 
-const RETAILER_LABELS: Record<string, string> = {
-  kl: 'K&L',
-  zachys: 'Zachys',
-  woodland: 'Woodland Hills',
-  benchmark: 'Benchmark',
-}
+// Sourced from the shared retailer config (12 retailers as of Phase 7.3) rather
+// than a hand-maintained map — a hardcoded 4-entry map previously fell back to
+// a raw slug for every retailer added since (see build-phases.md Phase 11).
+const RETAILER_LABELS: Record<string, string> = Object.fromEntries(
+  RETAILER_CONFIG.map((r) => [r.slug, r.name])
+)
 
 const QUALITY_LABELS: Record<string, string> = {
   flawed: 'Flawed',
@@ -184,6 +185,9 @@ export function WineDetailModal({
                   title="Vintage character, from professional review extraction — never blended across disagreeing critics"
                 >
                   Year: {VINTAGE_RATING_LABELS[wine.vintage_rating]}
+                  {wine.vintage_rating_source === 'derived' && (
+                    <span className="badge-tier badge-tier--derived" title="From automated review extraction, not manually entered">Sourced</span>
+                  )}
                 </span>
               )}
             </div>
@@ -268,6 +272,9 @@ export function WineDetailModal({
               <h3 className="detail-section-title">Drinking Window</h3>
               <p className="detail-drinking-window">
                 {wine.drinking_window.start} – {wine.drinking_window.end}
+                {wine.drinking_window_source === 'derived' && (
+                  <span className="badge-tier badge-tier--derived" title="From automated review extraction, not manually entered">Sourced</span>
+                )}
               </p>
             </section>
           ) : (
