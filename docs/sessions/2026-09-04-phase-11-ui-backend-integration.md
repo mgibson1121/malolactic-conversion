@@ -1,8 +1,8 @@
 # 2026-09-04 — Phase 11: apply UI to backend & local integration testing
 
 **Branch:** `feature/phase-11-ui-backend-integration`
-**Status:** Code complete, manually verified locally. PR not yet opened (opens immediately
-after this commit).
+**Status:** Code complete, manually verified locally.
+**PR:** [#31](https://github.com/mgibson1121/malolactic-conversion/pull/31) — open for developer review, not merged.
 
 ## What was done
 
