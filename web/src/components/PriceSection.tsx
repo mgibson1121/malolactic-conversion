@@ -10,6 +10,20 @@ interface Props {
 const fmt = (n: number | null | undefined) =>
   n != null ? `$${n.toFixed(0)}` : '—'
 
+// Phase 11 — RetailerPrice.verification was computed backend-side (Phase 6's
+// verify-listing.ts) but never surfaced anywhere in the UI. 'unchecked'
+// renders nothing — the pill's absence IS that state, same convention the
+// app already uses for other never-attempted signals.
+function VerificationPill({ verification }: { verification: PriceData['retailers'][number]['verification'] }) {
+  if (verification === 'verified') {
+    return <span className="pill pill-green verification-pill" title="Live-confirmed at the retailer's page">Verified</span>
+  }
+  if (verification === 'unverified') {
+    return <span className="pill pill-red verification-pill" title="Could not confirm this listing is still live">Unverified</span>
+  }
+  return null
+}
+
 export function PriceSection({ priceData, wineId, onWineUpdated }: Props) {
   // Fetched successfully but no relevant listing was found — do not fall
   // through to the price range/retailer list below, which would otherwise
@@ -82,6 +96,7 @@ export function PriceSection({ priceData, wineId, onWineUpdated }: Props) {
             </span>
           )}
           <span className="nearest-distance">{priceData.nearest_retailer.distance_miles} mi</span>
+          <VerificationPill verification={priceData.nearest_retailer.verification} />
           <RetailerViewLink
             wineId={wineId}
             retailer={priceData.nearest_retailer}
@@ -125,6 +140,7 @@ export function PriceSection({ priceData, wineId, onWineUpdated }: Props) {
                   {r.format_label}
                 </span>
               )}
+              <VerificationPill verification={r.verification} />
               <RetailerViewLink
                 wineId={wineId}
                 retailer={r}
