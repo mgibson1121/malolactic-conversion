@@ -356,6 +356,16 @@ The section above catches a doc file that changed and was not committed. It does
 
 **Where the doubt should fall.** Doc churn is cheap and a stale doc is expensive — this project has already paid for one multi-phase drift (§14 above) and one wrong external fact. When unsure whether something is worth writing down, write it down. When unsure *where*, write it in the most binding place (`CLAUDE.md`) and cross-reference from the others.
 
+### Self-review — verify before reporting done (added 2026-09-05)
+
+A multi-file edit — renumbering, a rename, a find/replace applied across several docs or files — is not done when the edits are made; it's done when a second pass has checked the edit against itself. This applies to code and docs alike, but doc-only commits need it most, because §13's documentation-only exception means they skip the branch/PR/CI flow entirely and get no other review checkpoint. Do this before reporting the work as finished, not when asked to check it:
+
+- **Re-search with a broader net than the edit used.** If the edit was driven by a specific pattern (e.g. `Phase 1[123]` to catch header-style references), re-search for the same concept with looser patterns afterward — slash- or range-style references (`Phase 10/11`, `Phase 9–11`), prose mentions without the exact spacing or punctuation the first pattern assumed. A pattern narrow enough to make the edit is narrow enough to have missed part of it; the fix is a second, deliberately looser search, not more care on the first one.
+- **Confirm the change actually landed**, not just that it exists in a working-tree diff or a scratch file. `git status` should be clean and the commit should be visible on `origin/main` (`git log`, `git push`) before the task counts as finished — an edit that's correct but uncommitted, or committed but unpushed, is not done per §13 ("All work is pushed to the remote").
+- **Distinguish a live cross-reference from a historical quote or fixture value** before changing it — a phase number, file path, or config value embedded in quoted text describing what something *used to* say, or in a regression fixture capturing a past run, should not be edited just because the search pattern matches it.
+
+Treat this as a required last step, not optional diligence — a search-and-replace across multiple files that skips it is exactly how a doc drift (§14) or an unpushed correction gets discovered by the developer instead of by the agent that made the edit.
+
 ### Session summaries
 
 Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every coding session: what was done, key decisions, bugs found/fixed, PR link, what's next. Committed with a `docs:` commit as the final commit before opening the PR. Write it **after** the drift pass above, and have each key decision point at the doc that now holds it — a decision that lives only here has not actually been recorded.
