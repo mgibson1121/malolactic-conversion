@@ -1,50 +1,45 @@
-/* ── Design tokens (Phase 11) ────────────────────────────────────────────────
-   Pulled directly from the finalized Phase 10 design canvas ("Wine App UX
-   Design v2", https://claude.ai/code/artifact/88775682-0088-476b-9b4b-75b7cff61fa5)
-   — a single dark theme, no light/dark toggle. `--error*`/`--error-bg`/
-   `--error-text` are this file's own addition: the canvas never needed a
-   destructive/validation-error color distinct from `--burgundy` (reserved
-   there for the Cellar tab's red-wine allocation segment), so this reuses
-   burgundy for that role rather than inventing an off-palette color. */
+/* ── Design tokens (Phase 11.1) ──────────────────────────────────────────────
+   Pulled directly from the developer-approved warm-restyle canvas ("Wine App
+   — Design (Independent Pass)", second, codebase-grounded pass,
+   https://claude.ai/code/artifact/d73f172b-578c-4757-b44d-5c8e43a840c2) — read
+   node-for-node from its own artboards' `:root` blocks (identical across all
+   seven), not re-derived from the prose spec. Replaces Phase 11's dark theme.
+   Two roles the old dark theme had that this canvas doesn't (a distinct
+   "warn" amber and a four-tier text hierarchy) are deliberately collapsed —
+   see `docs/specs/2026-09-16-phase-11.1-warm-restyle-design-requirements.md`
+   and the Phase 11.1 build-phases.md entry for what changed and why. */
 :root {
-  --bg: #121212;
-  --surface: #181818;
-  --surface-sunken: #0A0A0A;
-  --surface-raised: #1E1E1E;
-  --border: #2A2A2A;
-  --border-soft: #202020;
+  --bg: #FBF7F1;
+  --surface: #FFFFFF;
+  --surface-2: #F4ECE2;
+  --line: #E6DACB;
 
-  --text: #FFFFFF;
-  --text-dim: rgba(255,255,255,0.72);
-  --text-secondary: #8A8F98;
-  --text-tertiary: #5C6169;
+  --text: #241C1A;
+  --text-muted: #6E6059;
 
-  --blue: #1D6AE5;
-  --blue-hover: #3B82F0;
-  --blue-bg: rgba(29,106,229,0.18);
-  --blue-text: #7EB2F5;
+  --accent: #7A2333;
+  --accent-hover: #5C1A26;
+  --accent-soft: #F3DFE2;
 
-  --yellow: #FFC729;
-  --yellow-bg: rgba(255,199,41,0.16);
-  --yellow-text: #FFDB70;
+  --accent-2: #B08A3E;
+  --accent-2-hover: #8F6F30;
+  --accent-2-soft: #F1E7D2;
 
-  --burgundy: #C6414C;
-  --gold: #E8C24A;
+  --red-wine: #7A2333;
+  --white-wine: #C9A227;
+  --rosé-wine: #B5687F;
 
-  --positive: #7CB88A;
-  --positive-bg: rgba(124,184,138,0.16);
-  --positive-text: #9ED1A8;
+  --green: #3F6B4C;
+  --green-soft: #E1EBE3;
 
-  --warn: #D68A4A;
-  --warn-bg: rgba(214,138,74,0.16);
-  --warn-text: #E8A96E;
+  --red-pill: #B3261E;
+  --red-soft: #FBE5E3;
 
-  --error: #C6414C;
-  --error-bg: rgba(198,65,76,0.16);
-  --error-text: #EE8792;
+  --scrim: rgba(36,28,26,0.55);
+  --shadow: rgba(36,28,26,0.25);
 
-  --font-display: 'Newsreader', Georgia, serif;
-  --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Domine', Georgia, serif;
+  --font-body: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -67,20 +62,97 @@ body {
   font-weight: 600;
   padding: 2px 9px;
   border-radius: 20px;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
   white-space: nowrap;
 }
-.pill-green { background: var(--positive-bg); color: var(--positive-text); border-color: transparent; }
-.pill-red { background: var(--warn-bg); color: var(--warn-text); border-color: transparent; }
-.pill-neutral { background: var(--surface-sunken); }
+.pill-green { background: var(--green-soft); color: var(--green); border-color: transparent; }
+.pill-red { background: var(--red-soft); color: var(--red-pill); border-color: transparent; }
+.pill-neutral { background: var(--surface-2); }
 
-/* ── Layout ──────────────────────────────────────────────────────────────── */
+/* ── Layout — sidebar shell (Phase 11.1, reverses Phase 10 v2's top tab bar
+   decision; see docs/specs/2026-09-16-phase-11.1-warm-restyle-design-
+   requirements.md and the CLAUDE.md §12 toolchain note) ───────────────────── */
 
-.app {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 24px 16px;
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 26px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.sidebar-brand {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-nav-item svg { flex-shrink: 0; }
+.sidebar-nav-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.main-content {
+  flex-grow: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 26px 36px 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@media (max-width: 860px) {
+  /* Not in the (desktop-only, 1280px) canvas — added so the app stays usable
+     on a phone, which the shipped app supported before this restyle. */
+  .app-shell { flex-direction: column; min-height: 0; }
+  .sidebar {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+  .sidebar-brand { display: none; }
+  .sidebar-nav { flex-direction: row; gap: 4px; }
+  .sidebar-nav-item { white-space: nowrap; }
+  .main-content { padding: 18px 16px 32px; }
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -89,93 +161,88 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.app-header h1 {
+.app-header h2 {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .btn-scan {
-  padding: 8px 16px;
-  background: transparent;
-  color: var(--blue-text);
-  border: 1px solid var(--blue);
-  border-radius: 7px;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
-.btn-scan:hover { background: var(--blue-bg); }
+.btn-scan:hover { background: var(--surface-2); }
 
 .btn-add {
-  padding: 8px 16px;
-  background: var(--blue);
+  padding: 9px 16px;
+  background: var(--accent);
   color: #fff;
-  border: 1px solid var(--blue);
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-add:hover { background: var(--blue-hover); }
-
-/* ── Tab nav ─────────────────────────────────────────────────────────────── */
-
-.tab-nav {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border-soft);
-  margin-bottom: 20px;
-}
-
-.tab-nav button {
-  padding: 10px 14px;
-  background: none;
   border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
-.tab-nav button.active {
-  color: var(--text);
-  border-bottom-color: var(--blue);
-  font-weight: 600;
-}
+.btn-add:hover { background: var(--accent-hover); }
 
 /* ── Filter bar (Phase 10.5 — search + rating filter) ───────────────────── */
 
 .filter-bar {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
+
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  max-width: 100%;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.search-input-wrap svg { flex-shrink: 0; color: var(--text-muted); }
 
 .search-input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-sunken);
+  min-width: 0;
+  border: none;
+  background: none;
   color: var(--text);
   font-size: 13px;
 }
-.search-input::placeholder { color: var(--text-tertiary); }
-.search-input:focus {
-  outline: 2px solid var(--blue);
-  border-color: transparent;
+.search-input::placeholder { color: var(--text-muted); }
+.search-input:focus { outline: none; }
+.search-input-wrap:focus-within {
+  border-color: var(--accent);
 }
 
 .rating-filter {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   font-size: 13px;
   background: var(--surface);
   color: var(--text);
@@ -193,9 +260,9 @@ body {
 
 .cellar-stat-tile {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -219,7 +286,7 @@ body {
 
 .cellar-stat-label {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .cellar-capacity-display {
@@ -235,18 +302,18 @@ body {
 .cellar-capacity-input {
   width: 90px;
   padding: 5px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
 }
 
 .cellar-allocation {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -257,7 +324,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .cellar-allocation-row {
@@ -268,7 +335,7 @@ body {
 
 .cellar-allocation-region {
   font-size: 12.5px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   width: 130px;
   flex-shrink: 0;
   overflow: hidden;
@@ -278,8 +345,8 @@ body {
 
 .cellar-allocation-bar {
   flex: 1;
-  height: 7px;
-  background: var(--surface-sunken);
+  height: 10px;
+  background: var(--surface-2);
   border-radius: 4px;
   overflow: hidden;
   display: flex;
@@ -290,16 +357,18 @@ body {
 }
 /* Canvas reserves burgundy/gold specifically for the real red/white wine-color
    split; rosé and unknown are this app's own extension beyond the mockup, so
-   they get adjacent but distinct tones rather than off-palette colors. */
-.cellar-allocation-segment--red { background: var(--burgundy); }
-.cellar-allocation-segment--white { background: var(--gold); }
-.cellar-allocation-segment--rosé { background: #C97A9A; }
-.cellar-allocation-segment--unknown { background: var(--text-tertiary); }
+   they get adjacent but distinct tones rather than off-palette colors.
+   --red-wine is the same value as --accent — the canvas's own choice, not an
+   accidental collision (confirmed reading Main.dc.html's :root directly). */
+.cellar-allocation-segment--red { background: var(--red-wine); }
+.cellar-allocation-segment--white { background: var(--white-wine); }
+.cellar-allocation-segment--rosé { background: var(--rosé-wine); }
+.cellar-allocation-segment--unknown { background: var(--text-muted); }
 
 .cellar-allocation-count {
   font-variant-numeric: tabular-nums;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   min-width: 24px;
   text-align: right;
 }
@@ -310,11 +379,11 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .empty-state {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   padding: 40px 20px;
   text-align: center;
 }
@@ -323,12 +392,12 @@ body {
 
 .wine-card {
   background: var(--surface);
-  border-radius: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .wine-name {
@@ -339,14 +408,14 @@ body {
 
 .wine-meta {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-.wine-meta .sep { color: var(--text-tertiary); }
+.wine-meta .sep { color: var(--text-muted); }
 
 .status-badge {
   font-size: 11px;
@@ -356,10 +425,15 @@ body {
   padding: 2px 7px;
   border-radius: 20px;
 }
-.status-badge.discovered { background: var(--blue-bg); color: var(--blue-text); }
-.status-badge.wishlist   { background: var(--warn-bg); color: var(--warn-text); }
-.status-badge.cellar     { background: var(--positive-bg); color: var(--positive-text); }
-.status-badge.consumed   { background: var(--surface-sunken); color: var(--text-dim); }
+/* Phase 11.1 — the canvas no longer color-codes tags by which list they are;
+   every active tag pill (Discovered/Wishlist/Cellar) reads as the same
+   accent-soft chip (confirmed identically across every artboard that shows
+   more than one active tag). Consumed keeps a muted treatment since it's the
+   one tag that's semantically past-tense, not a currently-active list. */
+.status-badge.discovered,
+.status-badge.wishlist,
+.status-badge.cellar    { background: var(--accent-soft); color: var(--accent); }
+.status-badge.consumed  { background: var(--surface-2); color: var(--text-muted); }
 
 .btn-promote {
   margin-top: 4px;
@@ -367,20 +441,20 @@ body {
   padding: 5px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--blue-text);
-  background: var(--blue-bg);
-  border: 1px solid var(--blue);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
   border-radius: 7px;
   cursor: pointer;
 }
-.btn-promote:hover { background: var(--blue-bg); filter: brightness(1.2); }
+.btn-promote:hover { background: var(--accent-soft); filter: brightness(1.2); }
 
 /* ── Form overlay ────────────────────────────────────────────────────────── */
 
 .form-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -389,9 +463,9 @@ body {
 }
 
 .add-wine-form {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
   padding: 24px;
   width: 100%;
   max-width: 480px;
@@ -400,7 +474,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+  box-shadow: 0 20px 50px var(--shadow);
 }
 
 .add-wine-form h2 {
@@ -413,23 +487,23 @@ body {
 .add-wine-form label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
 .add-wine-form input,
 .add-wine-form select {
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 14px;
   width: 100%;
 }
 .add-wine-form input:focus,
 .add-wine-form select:focus {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--accent);
   border-color: transparent;
 }
 
@@ -443,32 +517,32 @@ body {
 .btn-cancel {
   padding: 8px 16px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 7px;
   color: var(--text);
   font-size: 14px;
   cursor: pointer;
 }
-.btn-cancel:hover { background: var(--surface-sunken); }
+.btn-cancel:hover { background: var(--surface-2); }
 
 .btn-save {
   padding: 8px 20px;
-  background: var(--blue);
+  background: var(--accent);
   color: #fff;
-  border: 1px solid var(--blue);
+  border: 1px solid var(--accent);
   border-radius: 7px;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
-.btn-save:hover { background: var(--blue-hover); }
+.btn-save:hover { background: var(--accent-hover); }
 .btn-save:disabled, .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Scan flow ───────────────────────────────────────────────────────────── */
 
 .scan-flow {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 32px;
   width: 100%;
@@ -489,13 +563,13 @@ body {
 
 .scan-subtitle {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   max-width: 360px;
 }
 
 .scan-dropzone {
   width: 100%;
-  border: 2px dashed var(--border);
+  border: 2px dashed var(--line);
   border-radius: 10px;
   padding: 40px 24px;
   cursor: pointer;
@@ -507,8 +581,8 @@ body {
 }
 .scan-dropzone:hover,
 .scan-dropzone.drag-over {
-  border-color: var(--blue);
-  background: var(--blue-bg);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .scan-dropzone-icon {
@@ -519,13 +593,13 @@ body {
 .scan-dropzone p {
   font-size: 15px;
   font-weight: 500;
-  color: var(--text-dim);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .scan-dropzone-hint {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -562,15 +636,15 @@ body {
   height: 96px;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .scan-missing-notice {
   font-size: 13px;
-  color: var(--warn-text);
-  background: var(--warn-bg);
-  border: 1px solid var(--warn);
+  color: var(--accent-2);
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
   border-radius: 7px;
   padding: 8px 10px;
   margin-top: 6px;
@@ -579,16 +653,16 @@ body {
 /* Missing field highlight */
 .scan-field-missing,
 input.scan-field-missing {
-  border-color: var(--warn) !important;
-  background: var(--warn-bg);
+  border-color: var(--accent-2) !important;
+  background: var(--accent-2-soft);
 }
 
 .scan-field-tag {
   font-size: 11px;
   font-weight: 700;
-  background: var(--warn-bg);
-  color: var(--warn-text);
-  border: 1px solid var(--warn);
+  background: var(--accent-2-soft);
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
   border-radius: 4px;
   padding: 1px 5px;
   margin-left: 6px;
@@ -599,7 +673,7 @@ input.scan-field-missing {
 .scan-field-tier2 {
   font-size: 11px;
   font-weight: 400;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin-left: 4px;
 }
 
@@ -612,17 +686,20 @@ input.scan-field-missing {
   margin-top: 4px;
 }
 
+/* Phase 11.1 — Evaluate is the one primary action the canvas gives its own
+   color: accent-2 (gold), distinct from every other primary/accent button,
+   confirmed across Main.dc.html, Discovered.dc.html and WineDetailModal.dc.html. */
 .btn-evaluate {
   padding: 5px 12px;
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: var(--blue);
-  border: 1px solid var(--blue);
+  background: var(--accent-2);
+  border: none;
   border-radius: 7px;
   cursor: pointer;
 }
-.btn-evaluate:hover { background: var(--blue-hover); }
+.btn-evaluate:hover { background: var(--accent-2-hover); }
 
 /* Rating badge */
 .rating-badge {
@@ -633,11 +710,16 @@ input.scan-field-missing {
   padding: 2px 8px;
   border-radius: 20px;
 }
-.rating-badge.rating-poor        { background: var(--error-bg); color: var(--error-text); }
-.rating-badge.rating-acceptable  { background: var(--warn-bg); color: var(--warn-text); }
-.rating-badge.rating-good        { background: var(--positive-bg); color: var(--positive-text); }
-.rating-badge.rating-very_good   { background: var(--blue-bg); color: var(--blue-text); }
-.rating-badge.rating-outstanding { background: var(--yellow-bg); color: var(--yellow-text); }
+/* Phase 11.1 — the canvas's only shown example is a green "Very Good" pill
+   (Main.dc.html, WineDetailModal.dc.html); the other four levels aren't
+   demonstrated (design-requirements doc §4 flags the canvas data as
+   illustrative, not exhaustive). Extrapolated onto the new 4-hue palette,
+   ordinal low-to-high, confirmed live against the real app: */
+.rating-badge.rating-poor        { background: var(--red-soft); color: var(--red-pill); }
+.rating-badge.rating-acceptable  { background: var(--accent-2-soft); color: var(--accent-2); }
+.rating-badge.rating-good        { background: var(--green-soft); color: var(--green); }
+.rating-badge.rating-very_good   { background: var(--green-soft); color: var(--green); }
+.rating-badge.rating-outstanding { background: var(--accent-soft); color: var(--accent); }
 
 /* Vintage rating badge — "Year" (Phase 8). Own namespace, not .rating-badge:
    vintage_rating and my_rating are different axes that can share a value
@@ -653,10 +735,10 @@ input.scan-field-missing {
   padding: 2px 8px;
   border-radius: 20px;
 }
-.vintage-rating-badge.vintage-rating-below_avg { background: var(--error-bg); color: var(--error-text); }
-.vintage-rating-badge.vintage-rating-avg       { background: var(--warn-bg); color: var(--warn-text); }
-.vintage-rating-badge.vintage-rating-good      { background: var(--positive-bg); color: var(--positive-text); }
-.vintage-rating-badge.vintage-rating-very_good { background: var(--blue-bg); color: var(--blue-text); }
+.vintage-rating-badge.vintage-rating-below_avg { background: var(--red-soft); color: var(--red-pill); }
+.vintage-rating-badge.vintage-rating-avg       { background: var(--accent-2-soft); color: var(--accent-2); }
+.vintage-rating-badge.vintage-rating-good      { background: var(--green-soft); color: var(--green); }
+.vintage-rating-badge.vintage-rating-very_good { background: var(--accent-soft); color: var(--accent); }
 
 /* ── Provenance markers (Phase 11) ────────────────────────────────────────────
    Distinguishes a field derived from automated review extraction from one the
@@ -669,15 +751,18 @@ input.scan-field-missing {
 .badge-tier {
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-tertiary);
-  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1px 5px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   flex-shrink: 0;
 }
-.badge-tier--derived { color: var(--blue-text); border-color: var(--blue); }
+/* Phase 11.1 — dropped the blue accent border: 3 of 4 "Sourced" badges across
+   the canvas render as plain neutral (muted/line), only picking up accent-2
+   when nested inside an already-gold vintage-rating pill (contextual, not a
+   standalone "derived" brand color). .badge-tier alone now covers both. */
 
 /* ── Evaluate form ───────────────────────────────────────────────────────── */
 
@@ -687,13 +772,13 @@ input.scan-field-missing {
 
 .evaluate-wine-label {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin-top: -4px;
   margin-bottom: 4px;
 }
 
 .wset-section {
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--line);
   padding-top: 12px;
   display: flex;
   flex-direction: column;
@@ -705,13 +790,13 @@ input.scan-field-missing {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--blue-text);
+  color: var(--text-muted);
   margin-bottom: 2px;
 }
 
 .wset-hint {
   font-weight: 400;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
   margin-left: 4px;
 }
@@ -728,23 +813,29 @@ input.scan-field-missing {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 20px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   transition: background 0.1s, border-color 0.1s;
 }
 .radio-opt input[type="radio"] { display: none; }
+/* Phase 11.1 — soft-tint, not solid-fill: 7 of the 8 WSET fields shown in
+   Evaluate.dc.html select this way (background:accent-soft, color:accent);
+   only its bespoke 5-way acidity scale uses solid-fill, and this app's
+   single shared .radio-opt component renders every WSET field the same way
+   (confirmed in EvaluateForm.tsx — acidity reuses this exact component). */
 .radio-opt.selected {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  font-weight: 700;
 }
 .radio-opt:not(.selected):hover {
-  border-color: var(--blue);
-  background: var(--blue-bg);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 /* Aroma input */
@@ -765,8 +856,8 @@ input.scan-field-missing {
 
 .aroma-info-btn {
   padding: 0 10px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 7px;
   color: var(--text);
   font-size: 14px;
@@ -776,8 +867,8 @@ input.scan-field-missing {
 .aroma-info-btn:hover { background: var(--surface); }
 
 .aroma-descriptor-panel {
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
   display: flex;
@@ -788,12 +879,12 @@ input.scan-field-missing {
 .aroma-category {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .aroma-category-label {
   font-weight: 700;
-  color: var(--blue-text);
+  color: var(--accent);
   margin-right: 4px;
 }
 
@@ -802,36 +893,36 @@ input.scan-field-missing {
   margin: 1px 2px;
   padding: 1px 7px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 20px;
   font-size: 11px;
   cursor: pointer;
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 .aroma-chip:hover {
-  background: var(--blue);
+  background: var(--accent);
   color: #fff;
-  border-color: var(--blue);
+  border-color: var(--accent);
 }
 
 /* Validation states */
-.label--required { color: var(--error-text); }
-.req-mark { color: var(--error-text); font-weight: 700; margin-left: 1px; }
+.label--required { color: var(--red-pill); }
+.req-mark { color: var(--red-pill); font-weight: 700; margin-left: 1px; }
 
 .input--invalid {
-  border-color: var(--error) !important;
-  background: var(--error-bg);
+  border-color: var(--red-pill) !important;
+  background: var(--red-soft);
 }
 
 .radio-row--invalid .radio-opt:not(.selected) {
-  border-color: var(--error);
+  border-color: var(--red-pill);
 }
 
 .validation-summary {
   font-size: 13px;
-  color: var(--error-text);
-  background: var(--error-bg);
-  border: 1px solid var(--error);
+  color: var(--red-pill);
+  background: var(--red-soft);
+  border: 1px solid var(--red-pill);
   border-radius: 7px;
   padding: 8px 12px;
 }
@@ -839,9 +930,9 @@ input.scan-field-missing {
 /* Textarea */
 .evaluate-textarea {
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 14px;
   font-family: inherit;
@@ -849,7 +940,7 @@ input.scan-field-missing {
   width: 100%;
 }
 .evaluate-textarea:focus {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--accent);
   border-color: transparent;
 }
 
@@ -869,10 +960,12 @@ input.scan-field-missing {
   padding: 2px 7px;
   border-radius: 20px;
 }
-.tag-badge.tag-discovered { background: var(--blue-bg); color: var(--blue-text); }
-.tag-badge.tag-wishlist   { background: var(--warn-bg); color: var(--warn-text); }
-.tag-badge.tag-cellar     { background: var(--positive-bg); color: var(--positive-text); }
-.tag-badge.tag-consumed   { background: var(--surface-sunken); color: var(--text-dim); }
+/* Phase 11.1 — see the .status-badge note above: tags aren't color-coded by
+   type in the new design, only active vs. not (and consumed's past-tense). */
+.tag-badge.tag-discovered,
+.tag-badge.tag-wishlist,
+.tag-badge.tag-cellar   { background: var(--accent-soft); color: var(--accent); }
+.tag-badge.tag-consumed { background: var(--surface-2); color: var(--text-muted); }
 
 /* ── Tag toggle controls ─────────────────────────────────────────────────── */
 
@@ -887,18 +980,18 @@ input.scan-field-missing {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 20px;
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-.btn-tag-toggle:hover { border-color: var(--blue); color: var(--blue-text); }
+.btn-tag-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .btn-tag-toggle.active {
-  background: var(--blue);
+  background: var(--accent);
   color: #fff;
-  border-color: var(--blue);
+  border-color: var(--accent);
 }
 
 /* Phase 10.5 — Discovered tab's quick add/remove row (design doc §3.3):
@@ -915,23 +1008,26 @@ input.scan-field-missing {
   background: var(--surface);
 }
 .wine-tag-controls--quick .btn-tag-toggle.active {
-  background: var(--positive-bg);
-  color: var(--positive-text);
+  background: var(--accent-soft);
+  color: var(--accent);
   border-color: transparent;
 }
 .wine-tag-controls--quick .btn-tag-toggle--remove.active { background: var(--surface); }
 
 /* Phase 10.5 — Discovered tab's quick "not interested" chip. Distinct
    register from add/toggle chips since it removes the wine from the tab
-   the card is currently sitting in. */
+   the card is currently sitting in.
+   Phase 11.1 — the canvas's own "× Remove" chip (Discovered.dc.html) stays
+   in the accent family (soft border, accent text, no fill) rather than
+   reading as a destructive/red action. */
 .btn-tag-toggle--remove {
-  color: var(--error-text);
-  border-color: transparent;
+  color: var(--accent);
+  border-color: var(--accent-soft);
 }
 .btn-tag-toggle--remove:hover {
-  background: var(--error-bg);
-  border-color: var(--error);
-  color: var(--error-text);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* ── Cellar quantity controls ────────────────────────────────────────────── */
@@ -951,8 +1047,8 @@ input.scan-field-missing {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 6px;
   cursor: pointer;
   line-height: 1;
@@ -972,17 +1068,21 @@ input.scan-field-missing {
 
 /* ── Reviews history button ──────────────────────────────────────────────── */
 
+/* Phase 11.1 — canvas styles every secondary/utility action (Refresh Price,
+   Refresh Reviews, Search Retailers, Fetch Price/Reviews) as a plain neutral
+   button, never accent-outlined; only the handful of primary actions (Add
+   Wine, Save, an active list toggle, Evaluate) get color. */
 .btn-history {
   padding: 5px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--blue-text);
-  background: var(--blue-bg);
-  border: 1px solid var(--blue);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 7px;
   cursor: pointer;
 }
-.btn-history:hover { background: var(--blue-bg); filter: brightness(1.2); }
+.btn-history:hover { background: var(--surface-2); }
 
 /* ── Tag review step (EvaluateForm) ──────────────────────────────────────── */
 
@@ -1000,7 +1100,7 @@ input.scan-field-missing {
 
 .tag-review-form p {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* Phase 11 fix — previously used but undefined, so the tag-review step's
@@ -1033,7 +1133,7 @@ input.scan-field-missing {
 }
 
 .note-history-item {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1044,7 +1144,7 @@ input.scan-field-missing {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   border: none;
   color: var(--text);
   cursor: pointer;
@@ -1059,7 +1159,7 @@ input.scan-field-missing {
 }
 
 .note-expand-icon {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 12px;
   margin-left: auto;
 }
@@ -1067,9 +1167,9 @@ input.scan-field-missing {
 .fault-indicator {
   font-size: 12px;
   font-weight: 700;
-  color: var(--error-text);
-  background: var(--error-bg);
-  border: 1px solid var(--error);
+  color: var(--red-pill);
+  background: var(--red-soft);
+  border: 1px solid var(--red-pill);
   border-radius: 4px;
   padding: 2px 6px;
 }
@@ -1080,17 +1180,17 @@ input.scan-field-missing {
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-dim);
+  color: var(--text-muted);
   background: var(--surface);
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--line);
 }
 
 .note-detail p { line-height: 1.5; }
 
 .note-free-text {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
-  border-left: 3px solid var(--border);
+  border-left: 3px solid var(--line);
   padding-left: 10px;
   margin-top: 2px;
 }
@@ -1105,22 +1205,22 @@ input.scan-field-missing {
 .note-tag-chip {
   font-size: 11px;
   padding: 2px 8px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 20px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* ── Feedback ────────────────────────────────────────────────────────────── */
 
 .error-msg {
-  color: var(--error-text);
+  color: var(--red-pill);
   font-size: 13px;
   padding: 6px 0;
 }
 
 .loading-msg {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   padding: 32px 0;
   text-align: center;
 }
@@ -1130,8 +1230,8 @@ input.scan-field-missing {
 .price-section {
   margin-top: 10px;
   padding: 10px 12px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 13px;
 }
@@ -1148,12 +1248,12 @@ input.scan-field-missing {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .price-source-note {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 /* Phase 11 fix — used in PriceSection.tsx's "Nearest" retailer row but never
@@ -1172,13 +1272,13 @@ input.scan-field-missing {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .nearest-name {
   flex: 1;
   min-width: 0;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1189,7 +1289,7 @@ input.scan-field-missing {
 }
 
 .nearest-distance {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -1200,27 +1300,36 @@ input.scan-field-missing {
   margin-bottom: 8px;
 }
 
+/* Phase 11.1 — canvas's critic-score chips are neutral (background:
+   var(--surface-2), score number in plain var(--text)), not gold-washed —
+   confirmed in Main.dc.html and WineDetailModal.dc.html. Kept this app's
+   existing single-row/wrap layout (score, publication, then any per-citation
+   attribute chips) rather than the canvas's two-row grouping, since that's a
+   markup change, not a token one — CriticScoreBadges.tsx renders all of
+   these as flat siblings in one badge. */
 .critic-score-badge {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
   font-size: 12px;
-  background: var(--yellow-bg);
+  background: var(--surface-2);
   border: 1px solid transparent;
-  border-radius: 20px;
-  padding: 3px 9px;
+  border-radius: 8px;
+  padding: 5px 10px;
 }
 
 .critic-publication {
-  color: var(--text-dim);
-  font-weight: 500;
-  font-size: 10.5px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 11px;
 }
 
 .critic-score {
   font-variant-numeric: tabular-nums;
-  color: var(--yellow-text);
+  color: var(--text);
   font-weight: 700;
+  font-size: 14px;
 }
 
 /* Phase 8 per-citation attributes — drinking window, vintage character,
@@ -1230,17 +1339,17 @@ input.scan-field-missing {
    marker here; see the .badge-tier--derived note above for what does get one. */
 .critic-attribute {
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 1px 6px;
   white-space: nowrap;
 }
 
 .critic-attribute.critic-deal {
-  color: var(--positive-text);
-  background: var(--positive-bg);
+  color: var(--green);
+  background: var(--green-soft);
   border-color: transparent;
   font-weight: 600;
 }
@@ -1261,7 +1370,7 @@ input.scan-field-missing {
 .price-label {
   font-size: 10px;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   letter-spacing: 0.04em;
 }
 
@@ -1273,7 +1382,7 @@ input.scan-field-missing {
 }
 
 .price-divider {
-  color: var(--border);
+  color: var(--line);
   font-size: 16px;
 }
 
@@ -1293,12 +1402,12 @@ input.scan-field-missing {
 
 .retailer-name {
   flex: 1;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .retailer-location {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -1312,14 +1421,14 @@ input.scan-field-missing {
 
 .retailer-link {
   font-size: 11px;
-  color: var(--blue-text);
+  color: var(--accent);
   text-decoration: none;
-  border: 1px solid var(--blue);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   padding: 1px 6px;
 }
 
-.retailer-link:hover { background: var(--blue-bg); }
+.retailer-link:hover { background: var(--accent-soft); }
 
 /* Phase 10.5 — unresolved search vs. resolving state (gap doc §2.7) */
 .retailer-link--search {
@@ -1333,7 +1442,7 @@ input.scan-field-missing {
 
 .price-fetched-at {
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   text-align: right;
 }
 
@@ -1346,14 +1455,14 @@ input.scan-field-missing {
 .btn-find-reviews {
   font-size: 12px;
   padding: 4px 12px;
-  background: none;
-  border: 1px solid var(--blue);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  color: var(--blue-text);
+  color: var(--text);
   cursor: pointer;
 }
 
-.btn-find-reviews:hover { background: var(--blue-bg); }
+.btn-find-reviews:hover { background: var(--surface-2); }
 
 .retailer-links-body {
   margin-top: 8px;
@@ -1382,29 +1491,29 @@ input.scan-field-missing {
 .retailer-link-name {
   flex: 1;
   min-width: 100px;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .btn-retailer-search {
   font-size: 11px;
-  color: var(--blue-text);
+  color: var(--text);
   text-decoration: none;
-  border: 1px solid var(--blue);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1px 6px;
 }
 
-.btn-retailer-search:hover { background: var(--blue-bg); }
+.btn-retailer-search:hover { background: var(--surface-2); }
 
 .retailer-link-saved {
   font-size: 11px;
-  color: var(--positive-text);
+  color: var(--green);
   text-decoration: none;
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 1px 6px;
-  background: var(--positive-bg);
+  background: var(--green-soft);
 }
 
 .btn-retailer-link-edit,
@@ -1413,22 +1522,22 @@ input.scan-field-missing {
 .btn-retailer-link-cancel {
   font-size: 11px;
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1px 6px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
 }
 
 .btn-retailer-link-edit:hover,
 .btn-retailer-link-save:hover,
-.btn-retailer-link-cancel:hover { background: var(--surface-sunken); }
+.btn-retailer-link-cancel:hover { background: var(--surface-2); }
 
 .btn-retailer-link-clear {
-  color: var(--error-text);
+  color: var(--red-pill);
   border-color: transparent;
 }
-.btn-retailer-link-clear:hover { background: var(--error-bg); }
+.btn-retailer-link-clear:hover { background: var(--red-soft); }
 .btn-retailer-link-clear:disabled,
 .btn-retailer-link-save:disabled,
 .btn-retailer-link-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1443,9 +1552,9 @@ input.scan-field-missing {
   flex: 1;
   font-size: 12px;
   padding: 3px 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
 }
 
@@ -1459,8 +1568,8 @@ input.scan-field-missing {
 
 .retailer-scores-found {
   font-size: 10px;
-  color: var(--positive-text);
-  background: var(--positive-bg);
+  color: var(--green);
+  background: var(--green-soft);
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 1px 6px;
@@ -1474,8 +1583,8 @@ input.scan-field-missing {
 .retailer-confirm-row {
   margin-top: 4px;
   padding: 8px;
-  background: var(--blue-bg);
-  border: 1px solid var(--blue);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -1484,21 +1593,21 @@ input.scan-field-missing {
 
 .retailer-confirm-hint {
   font-size: 12px;
-  color: var(--blue-text);
+  color: var(--accent);
   margin: 0;
 }
 
 .price-not-found {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-style: italic;
   margin: 4px 0 8px;
 }
 
 .vintage-mismatch-badge {
   font-size: 10px;
-  color: var(--warn-text);
-  background: var(--warn-bg);
+  color: var(--accent-2);
+  background: var(--accent-2-soft);
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 1px 6px;
@@ -1507,29 +1616,23 @@ input.scan-field-missing {
 
 .vintage-match-badge {
   font-size: 10px;
-  color: var(--positive-text);
-  background: var(--positive-bg);
+  color: var(--green);
+  background: var(--green-soft);
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 1px 6px;
   white-space: nowrap;
 }
 
-.format-badge {
-  font-size: 10px;
-  color: var(--blue-text);
-  background: var(--blue-bg);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 1px 6px;
-  white-space: nowrap;
-}
-
+/* Phase 11.1 — format-badge and link-only-badge render identically now
+   (neutral, no fill) in WineDetailModal.dc.html — a single "informational,
+   non-actionable" treatment replacing the old blue/gray split. */
+.format-badge,
 .link-only-badge {
   font-size: 10px;
-  color: var(--text-tertiary);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 1px 6px;
   white-space: nowrap;
@@ -1546,14 +1649,14 @@ input.scan-field-missing {
   margin-top: 8px;
   font-size: 12px;
   padding: 4px 12px;
-  background: none;
-  border: 1px solid var(--blue);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  color: var(--blue-text);
+  color: var(--text);
   cursor: pointer;
 }
 
-.btn-fetch-price:hover { background: var(--blue-bg); }
+.btn-fetch-price:hover { background: var(--surface-2); }
 .btn-fetch-price:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Phase 9.2 — shown when an enrichment click returned stored data rather than
@@ -1562,7 +1665,7 @@ input.scan-field-missing {
 .enrichment-freshness {
   margin-left: 8px;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .btn-link-inline {
@@ -1570,7 +1673,7 @@ input.scan-field-missing {
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--blue-text);
+  color: var(--accent);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -1594,13 +1697,13 @@ input.scan-field-missing {
 
 .price-error {
   font-size: 12px;
-  color: var(--error-text);
+  color: var(--red-pill);
 }
 
 .drinking-window {
   margin-top: 6px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
 }
 .drinking-window .badge-tier { margin-left: 6px; }
@@ -1615,14 +1718,14 @@ input.scan-field-missing {
 
 .drinking-window-label {
   font-style: italic;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .attributed-drinking-windows-note {
   display: block;
   margin-top: 2px;
   font-size: 11px;
-  color: var(--warn-text);
+  color: var(--accent-2);
 }
 
 .attributed-drinking-window-list {
@@ -1640,12 +1743,12 @@ input.scan-field-missing {
 }
 
 .attributed-drinking-window-range {
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .attributed-drinking-window-critics {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -1668,7 +1771,7 @@ input.scan-field-missing {
 }
 
 .wine-name--clickable:hover {
-  color: var(--blue-text);
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -1677,7 +1780,7 @@ input.scan-field-missing {
 .detail-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--scrim);
   z-index: 200;
   display: flex;
   align-items: flex-end;
@@ -1691,8 +1794,8 @@ input.scan-field-missing {
 }
 
 .detail-modal {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--line);
   width: 100%;
   max-width: 600px;
   max-height: 92vh;
@@ -1700,7 +1803,7 @@ input.scan-field-missing {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 48px rgba(0,0,0,0.48), 0 8px 16px rgba(0,0,0,0.32);
+  box-shadow: 0 20px 50px var(--shadow);
 }
 
 @media (min-width: 640px) {
@@ -1716,8 +1819,8 @@ input.scan-field-missing {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -1740,21 +1843,21 @@ input.scan-field-missing {
 
 .detail-denomination {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .detail-close {
   background: none;
   border: none;
   font-size: 18px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
   flex-shrink: 0;
 }
 
-.detail-close:hover { background: var(--surface-sunken); color: var(--text); }
+.detail-close:hover { background: var(--surface-2); color: var(--text); }
 
 .detail-body {
   overflow-y: auto;
@@ -1764,7 +1867,7 @@ input.scan-field-missing {
 
 .detail-section {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--line);
 }
 
 .detail-section:last-child {
@@ -1776,7 +1879,7 @@ input.scan-field-missing {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin: 0 0 10px;
 }
 
@@ -1791,7 +1894,7 @@ input.scan-field-missing {
   height: 96px;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -1811,13 +1914,13 @@ input.scan-field-missing {
 
 .detail-identity-meta {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: 0 0 4px;
 }
 
 .detail-tier2-field {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin: 2px 0 0;
   font-style: italic;
 }
@@ -1850,7 +1953,7 @@ input.scan-field-missing {
 
 .detail-field-label {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .detail-drinking-window {
@@ -1863,13 +1966,13 @@ input.scan-field-missing {
 
 .detail-empty-hint {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin: 0;
 }
 
 .detail-loading {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .detail-latest-note {
@@ -1887,21 +1990,21 @@ input.scan-field-missing {
 
 .detail-note-quality {
   font-size: 12px;
-  color: var(--text-secondary);
-  background: var(--surface-sunken);
+  color: var(--text-muted);
+  background: var(--surface-2);
   padding: 2px 8px;
   border-radius: 12px;
 }
 
 .detail-note-date {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin-left: auto;
 }
 
 .detail-note-excerpt {
   font-size: 13px;
-  color: var(--text-dim);
+  color: var(--text-muted);
   line-height: 1.5;
   margin: 0;
 }
@@ -1914,13 +2017,13 @@ input.scan-field-missing {
 
 .detail-more-notes {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin: 0;
 }
 
 .detail-note-count {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
@@ -1942,14 +2045,14 @@ input.scan-field-missing {
 /* ── Scan Result Card ─────────────────────────────────────────────────────── */
 
 .scan-result-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--line);
   width: 100%;
   max-width: 480px;
   border-radius: 16px;
   overflow-y: auto;
   max-height: 92vh;
-  box-shadow: 0 24px 48px rgba(0,0,0,0.48);
+  box-shadow: 0 20px 50px var(--shadow);
   display: flex;
   flex-direction: column;
 }
@@ -1959,22 +2062,24 @@ input.scan-field-missing {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px 10px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--line);
 }
 
 .scan-result-header--saved {
   justify-content: center;
-  background: var(--positive-bg);
+  background: var(--green-soft);
   border-color: transparent;
 }
 
+/* Phase 11.1 — matches DiscoveryReview.dc.html's "Not yet saved" badge
+   (accent-2/gold, not accent/burgundy). */
 .scan-result-badge {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--blue-text);
-  background: var(--blue-bg);
+  color: var(--accent-2);
+  background: var(--accent-2-soft);
   padding: 3px 10px;
   border-radius: 12px;
 }
@@ -1982,14 +2087,14 @@ input.scan-field-missing {
 .scan-saved-badge {
   font-size: 14px;
   font-weight: 600;
-  color: var(--positive-text);
+  color: var(--green);
 }
 
 /* Phase 11 fix — this modifier previously had no rule, so a draft (not yet
    saved) wine read with the same green "saved" styling as an actually-saved
    one. Neutral/undecided framing per the design-requirements doc §3.5. */
 .scan-saved-badge--draft {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .scan-result-header-actions {
@@ -2002,13 +2107,13 @@ input.scan-field-missing {
   background: none;
   border: none;
   font-size: 13px;
-  color: var(--blue-text);
+  color: var(--accent);
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
 }
 
-.btn-text:hover { background: var(--blue-bg); }
+.btn-text:hover { background: var(--accent-soft); }
 
 .scan-result-image-wrap {
   display: flex;
@@ -2021,7 +2126,7 @@ input.scan-field-missing {
   height: 180px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 
@@ -2040,18 +2145,18 @@ input.scan-field-missing {
 }
 
 .scan-result-name--empty {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .scan-result-meta {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: 0 0 3px;
 }
 
 .scan-result-tier2 {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin: 2px 0 0;
   font-style: italic;
 }
@@ -2059,8 +2164,8 @@ input.scan-field-missing {
 .scan-result-missing {
   margin: 0 18px;
   padding: 12px 14px;
-  background: var(--warn-bg);
-  border: 1px solid var(--warn);
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
   border-radius: 8px;
 }
 
@@ -2076,14 +2181,14 @@ input.scan-field-missing {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .scan-inline-field input {
   padding: 7px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 14px;
 }
@@ -2097,15 +2202,15 @@ input.scan-field-missing {
 
 .scan-result-cellar label {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .scan-result-cellar select {
   flex: 1;
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--surface-sunken);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
 }
@@ -2116,7 +2221,7 @@ input.scan-field-missing {
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 20px 18px;
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--line);
 }
 
 .btn-save--primary {
@@ -2140,11 +2245,11 @@ input.scan-field-missing {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .scan-price-loading-icon {
@@ -2159,7 +2264,7 @@ input.scan-field-missing {
 
 .scan-price-unavailable {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   text-align: center;
   padding: 10px 0;
   margin: 0;
@@ -2172,11 +2277,11 @@ input.scan-field-missing {
 
 .preferred-retailer-summary p {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-align: center;
   margin: 0;
   padding: 8px 16px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }

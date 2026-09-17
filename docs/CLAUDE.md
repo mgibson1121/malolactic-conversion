@@ -253,6 +253,8 @@ CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to
 
 **Design method (updated 2026-08-25, Phase 10):** UI screens are designed as a multi-artboard canvas built with Claude's Design skill and published as a Claude.ai Artifact — not prototyped in Magic Patterns. The original Phase 10 plan named Magic Patterns before any UI design work had started; it was dropped without ever being used, and Phase 10 as originally written is superseded (see `docs/build-phases.md`). The canvas is iterated in place: the developer leaves comments directly on the published design, and a later session re-reads the artifact, addresses the comments, and republishes — no export/handoff step. Most UI before Phase 10 (since Phase 6.5) was built directly against product-context.md and iterative developer feedback with no prototyping step at all; Phase 10 is the first phase with a dedicated design pass.
 
+**Toolchain exception (2026-09-16, Phase 11.1):** Claude in Cowork's Design skill (the "Design (canvas)" artifact type) was used for a second, independent design pass — first as a blind cross-check of the Phase 10 visual system from a different Anthropic surface, then, after developer review, to apply a revised visual system to the app's real shipped screens. This was a one-time, developer-approved exception under this section, not a change to the default workflow: Claude.ai's Design skill + Artifact publishing (established in Phase 10) remains how UI design happens on this project going forward.
+
 ---
 
 ## 13. Git Workflow
