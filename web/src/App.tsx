@@ -143,9 +143,13 @@ export default function App() {
   }
 
   // ── Tasting notes ────────────────────────────────────────────────────────────
+  // Phase 11 fix — this previously called setEvaluatingWine(null) here, which
+  // unmounted EvaluateForm before its own post-save setStep('tag_review') could
+  // ever take effect: the tag-review prompt (Phase 4's spec) was unreachable in
+  // the shipped app. EvaluateForm now owns closing itself, via its existing
+  // handleTagDone → onCancel path once the tag-review step is dismissed.
   const handleEvaluateSave = async (data: CreateTastingNoteInput) => {
     await createTastingNote(data)
-    setEvaluatingWine(null)
     fetchWines()
   }
 

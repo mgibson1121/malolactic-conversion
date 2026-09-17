@@ -92,6 +92,9 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
             title="Vintage character, from professional review extraction — never blended across disagreeing critics"
           >
             Year: {VINTAGE_RATING_LABELS[wine.vintage_rating]}
+            {wine.vintage_rating_source === 'derived' && (
+              <span className="badge-tier badge-tier--derived" title="From automated review extraction, not manually entered">Sourced</span>
+            )}
           </span>
         )}
       </div>
@@ -188,6 +191,9 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
       {wine.drinking_window ? (
         <div className="drinking-window">
           Drink {wine.drinking_window.start}–{wine.drinking_window.end}
+          {wine.drinking_window_source === 'derived' && (
+            <span className="badge-tier badge-tier--derived" title="From automated review extraction, not manually entered">Sourced</span>
+          )}
         </div>
       ) : (
         attributedWindows.length > 0 && (

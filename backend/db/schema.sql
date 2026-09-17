@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS wines (
   cuvee                   TEXT,
   grape_varieties         TEXT,    -- JSON array string
   label_image_url         TEXT,
-  tag_discovered          INTEGER NOT NULL DEFAULT 1,
+  tag_discovered          INTEGER NOT NULL DEFAULT 0,  -- Phase 9.4: not auto-set; every insert supplies an explicit value
   tag_wishlist            INTEGER NOT NULL DEFAULT 0,
   tag_cellar              INTEGER NOT NULL DEFAULT 0,
   tag_consumed            INTEGER NOT NULL DEFAULT 0,

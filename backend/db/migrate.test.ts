@@ -99,7 +99,10 @@ describe('runMigration', () => {
       cellar_quantity: number
     }
 
-    expect(row.tag_discovered).toBe(1)
+    // Phase 9.4: not auto-set; every insert path supplies an explicit value.
+    // schema.sql's column DEFAULT was corrected from 1 to 0 in Phase 11 to
+    // match — this test previously asserted the stale default.
+    expect(row.tag_discovered).toBe(0)
     expect(row.tag_wishlist).toBe(0)
     expect(row.tag_cellar).toBe(0)
     expect(row.tag_consumed).toBe(0)
