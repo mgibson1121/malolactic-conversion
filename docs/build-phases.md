@@ -1461,7 +1461,7 @@ contradicts merged code.
 
 ## Phase 11.1 — Warm restyle from a second Claude Design canvas (states, edge cases & scale)
 
-**Status:** Design only. Not yet applied to `web/src` — see `docs/specs/2026-09-16-phase-11.1-warm-restyle-design-requirements.md` for the full spec; this entry is the phase-log summary.
+**Status:** Design complete and applied to `web/src` (2026-09-16) — see `docs/specs/2026-09-16-phase-11.1-warm-restyle-design-requirements.md` for the full spec; this entry is the phase-log summary.
 
 **Goal:** Independently re-derive the Phase 10 visual design using a different Claude product (Claude in Cowork's Design skill, not the Claude.ai Design skill used for Phase 10) as a deliberate cross-check — does the same brief converge on the same UI across different Anthropic surfaces — then, based on developer feedback on that independent pass, produce a revised canvas that applies a new visual system to the app's actual shipped surfaces (four tabs, their modals, and real data states) rather than an idealized information architecture.
 
@@ -1478,11 +1478,21 @@ contradicts merged code.
 - `docs/specs/2026-09-16-phase-11.1-warm-restyle-design-requirements.md` — the full spec: token mapping table, per-artboard provenance against real component files, what must be preserved exactly (Tier 1/2 collapse, additive tags, Sourced marker, non-blending critic scores, draft/promote, user-initiated metered enrichment), and open questions before implementation.
 
 **Notes:**
-- This phase produced design artifacts and documentation only. No `web/src` code changed.
 - The canvas was built by reading the real schema and components first, per the developer's explicit instruction after reviewing an initial blind/idealized pass — that blind pass's six-hotspot "in the wild vs. at home" split was explicitly rejected by the developer as not matching how the app is actually used (the two blend in practice, except for the scan-capture workflow).
-- Implementation against this design (updating `web/src/index.css` and the affected components) is a later phase, not this one.
 
-**Milestone:** A published, codebase-grounded Claude Design canvas covering all four real tabs, their three modals, and dedicated empty/error/edge-case/dense-data reference sheets exists and is linked from the spec doc; the sidebar-vs-tab-bar and toolchain decisions are recorded against the specs they revise.
+**Implementation (2026-09-16, same day):** Applied directly against the canvas's own artboards (read node-for-node — exact `:root` token blocks and per-screen markup — rather than re-derived from this doc's prose), not just the spec. `web/index.html`, `web/src/index.css`, and `web/src/App.tsx`'s nav markup changed; every other component file re-themes automatically since none has a hardcoded color (confirmed before starting). Judgment calls the canvas settled that this doc's prose spec didn't spell out, recorded in `index.css` inline where they land:
+- Tags (discovered/wishlist/cellar) are no longer color-coded by type — every artboard shows them as the same accent pill; consumed stays muted as the one past-tense tag.
+- The old 5-hue status system (positive/warn/error/blue/yellow) collapses to 4 (green/accent/accent-2/red-pill) — warn → accent-2, error → red-pill.
+- Secondary/utility buttons (Refresh Price, Search Retailers, Fetch Reviews, view tasting-note history, etc.) are neutral everywhere in the canvas, not accent-outlined — only a handful of primary actions (Add Wine, Save, an active list toggle, Evaluate) keep color, and Evaluate specifically gets its own accent-2 (gold) rather than the primary accent.
+- Rating-badge levels the canvas's illustrative sample data never exercised (`my_rating` poor/acceptable/outstanding; `vintage_rating` avg/below_avg/very_good) are extrapolated onto the 4-hue palette, ordinal low-to-high — worth a developer eyeball live, per this phase's own §4.
+- The four-tier text hierarchy (text/dim/secondary/tertiary) collapses to the canvas's two tiers (text/muted).
+- Added a `max-width: 860px` sidebar→top-bar collapse — not in the (desktop-only, 1280px) canvas, needed so the app stays usable on a phone, which it was before this restyle.
+
+Verified: full web test suite (131 tests, unchanged — no test depended on the old dark-theme classes or `.tab-nav` structure) and `tsc && vite build` pass; visually walked Cellar, Discovered (quick-tag row), Wine Detail modal (retailer verification/mismatch/format/link-only badges), and Evaluate (WSET radio-pill selection) against a live backend, plus a phone-width check of the sidebar collapse.
+
+Still open, per this phase's own §4 (not attempted here — need a developer decision or missing artboards first, not a visual guess): the `DenseData` compact list row, and dedicated artboards for `TastingNoteHistory`'s and the creation modals' (`LabelScanFlow`, `AddWineForm`) own internal steps — those components got the token/radius/font restyle but no new layout.
+
+**Milestone:** The warm restyle is live in `web/src` end to end — sidebar nav, every shipped tab, all three modals, and their real data states (verification/mismatch/link-only badges, disputed drinking windows, drafts) render in the new system with no regressions to the existing test suite or backend wiring.
 
 ---
 
