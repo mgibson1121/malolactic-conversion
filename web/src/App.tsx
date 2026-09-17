@@ -15,6 +15,23 @@ const RATING_OPTIONS: MyRating[] = ['poor', 'acceptable', 'good', 'very_good', '
 
 type TabId = 'discovered' | 'wishlist' | 'cellar' | 'tasting_notes'
 
+// Icon paths read directly from the approved canvas's sidebar
+// (Main.dc.html) — kept verbatim rather than re-drawn.
+const NAV_ICONS: Record<TabId, JSX.Element> = {
+  discovered: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M15 9l-2 5-5 2 2-5z" /></svg>
+  ),
+  wishlist: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3.5h10a1 1 0 0 1 1 1V21l-6-4.5-6 4.5V4.5a1 1 0 0 1 1-1z" /></svg>
+  ),
+  cellar: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+  ),
+  tasting_notes: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /><line x1="8" y1="10" x2="16" y2="10" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="18" x2="13" y2="18" /></svg>
+  ),
+}
+
 const TABS: { label: string; id: TabId }[] = [
   { label: 'Discovered', id: 'discovered' },
   { label: 'Wishlist', id: 'wishlist' },
@@ -191,140 +208,152 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>My Wine Collection</h1>
-        <button className="btn-scan" onClick={() => setShowScan(true)}>
-          📷 Scan Label
-        </button>
-        <button className="btn-add" onClick={() => setShowForm(true)}>
-          + Add Wine
-        </button>
-      </header>
-
-      <nav className="tab-nav">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            className={activeTab === tab.id ? 'active' : ''}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="app-shell">
+      <nav className="sidebar">
+        <h1 className="sidebar-brand">My Wine<br />Collection</h1>
+        <div className="sidebar-nav">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className={`sidebar-nav-item${activeTab === tab.id ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {NAV_ICONS[tab.id]}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </nav>
 
-      <div className="filter-bar">
-        <input
-          type="search"
-          className="search-input"
-          placeholder={`Search ${TABS.find((t) => t.id === activeTab)?.label.toLowerCase()}…`}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          aria-label="Search wines"
-        />
-        {activeTab === 'tasting_notes' && (
-          <select
-            className="rating-filter"
-            value={ratingFilter}
-            onChange={(e) => setRatingFilter(e.target.value as MyRating | '')}
-            aria-label="Filter by rating"
-          >
-            <option value="">All ratings</option>
-            {RATING_OPTIONS.map((r) => (
-              <option key={r} value={r}>{r.replace('_', ' ')}</option>
-            ))}
-          </select>
+      <div className="main-content">
+        <header className="app-header">
+          <h2>My Wine Collection</h2>
+          <div className="header-actions">
+            <button className="btn-scan" onClick={() => setShowScan(true)}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+              Scan Label
+            </button>
+            <button className="btn-add" onClick={() => setShowForm(true)}>
+              + Add Wine
+            </button>
+          </div>
+        </header>
+
+        <div className="filter-bar">
+          <div className="search-input-wrap">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="6.5" /><line x1="20" y1="20" x2="15.5" y2="15.5" /></svg>
+            <input
+              type="search"
+              className="search-input"
+              placeholder={`Search ${TABS.find((t) => t.id === activeTab)?.label.toLowerCase()}…`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search wines"
+            />
+          </div>
+          {activeTab === 'tasting_notes' && (
+            <select
+              className="rating-filter"
+              value={ratingFilter}
+              onChange={(e) => setRatingFilter(e.target.value as MyRating | '')}
+              aria-label="Filter by rating"
+            >
+              <option value="">All ratings</option>
+              {RATING_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r.replace('_', ' ')}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {error && <p className="error-msg">{error}</p>}
+
+        {activeTab === 'cellar' && !loading && (
+          <CellarStats
+            wines={wines}
+            settings={settings}
+            onCapacityChange={async (cellar_capacity) => {
+              setSettings(await updateSettings({ cellar_capacity }))
+            }}
+          />
+        )}
+
+        {/* Scan flow */}
+        {showScan && (
+          <LabelScanFlow
+            wines={existingWines}
+            onReview={handleScanReview}
+            onDone={() => setShowScan(false)}
+          />
+        )}
+
+        {/* Manual add form */}
+        {showForm && (
+          <AddWineForm
+            onSubmit={handleFormCreate}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
+
+        {/* Discovery Review — shared post-save screen for both creation paths */}
+        {reviewingWine && (
+          <DiscoveryReview
+            wine={reviewingWine}
+            autoFireReviews={reviewingAutoFireReviews}
+            onDone={handleReviewDone}
+            onTagUpdate={handleTagUpdate}
+            onWineUpdated={(updated) => setReviewingWine(updated)}
+            onPromote={handlePromote}
+            onDiscard={handleDiscard}
+          />
+        )}
+
+        {/* Evaluate form */}
+        {evaluatingWine && (
+          <EvaluateForm
+            wine={evaluatingWine}
+            onSave={handleEvaluateSave}
+            onTagUpdate={async (id, tags) => { await handleTagUpdate(id, tags) }}
+            onCancel={() => setEvaluatingWine(null)}
+          />
+        )}
+
+        {/* Tasting note history (legacy view) */}
+        {historyWine && (
+          <TastingNoteHistory
+            wine={historyWine}
+            notes={historyNotes}
+            onClose={() => setHistoryWine(null)}
+          />
+        )}
+
+        {/* Wine detail modal */}
+        {detailWine && (
+          <WineDetailModal
+            wine={detailWine}
+            onClose={() => setDetailWine(null)}
+            onTagUpdate={handleTagUpdate}
+            onQuantityChange={handleQuantityChange}
+            onEvaluate={(wine) => setEvaluatingWine(wine)}
+            onWineUpdated={handleWineUpdated}
+          />
+        )}
+
+        {loading ? (
+          <p className="loading-msg">Loading…</p>
+        ) : (
+          <WineList
+            wines={wines}
+            activeTab={activeTab}
+            onEvaluate={(wine) => setEvaluatingWine(wine)}
+            onTagUpdate={handleTagUpdate}
+            onQuantityChange={handleQuantityChange}
+            onViewHistory={handleViewHistory}
+            onWineUpdated={handleWineUpdated}
+            onViewDetail={handleViewDetail}
+          />
         )}
       </div>
-
-      {error && <p className="error-msg">{error}</p>}
-
-      {activeTab === 'cellar' && !loading && (
-        <CellarStats
-          wines={wines}
-          settings={settings}
-          onCapacityChange={async (cellar_capacity) => {
-            setSettings(await updateSettings({ cellar_capacity }))
-          }}
-        />
-      )}
-
-      {/* Scan flow */}
-      {showScan && (
-        <LabelScanFlow
-          wines={existingWines}
-          onReview={handleScanReview}
-          onDone={() => setShowScan(false)}
-        />
-      )}
-
-      {/* Manual add form */}
-      {showForm && (
-        <AddWineForm
-          onSubmit={handleFormCreate}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
-
-      {/* Discovery Review — shared post-save screen for both creation paths */}
-      {reviewingWine && (
-        <DiscoveryReview
-          wine={reviewingWine}
-          autoFireReviews={reviewingAutoFireReviews}
-          onDone={handleReviewDone}
-          onTagUpdate={handleTagUpdate}
-          onWineUpdated={(updated) => setReviewingWine(updated)}
-          onPromote={handlePromote}
-          onDiscard={handleDiscard}
-        />
-      )}
-
-      {/* Evaluate form */}
-      {evaluatingWine && (
-        <EvaluateForm
-          wine={evaluatingWine}
-          onSave={handleEvaluateSave}
-          onTagUpdate={async (id, tags) => { await handleTagUpdate(id, tags) }}
-          onCancel={() => setEvaluatingWine(null)}
-        />
-      )}
-
-      {/* Tasting note history (legacy view) */}
-      {historyWine && (
-        <TastingNoteHistory
-          wine={historyWine}
-          notes={historyNotes}
-          onClose={() => setHistoryWine(null)}
-        />
-      )}
-
-      {/* Wine detail modal */}
-      {detailWine && (
-        <WineDetailModal
-          wine={detailWine}
-          onClose={() => setDetailWine(null)}
-          onTagUpdate={handleTagUpdate}
-          onQuantityChange={handleQuantityChange}
-          onEvaluate={(wine) => setEvaluatingWine(wine)}
-          onWineUpdated={handleWineUpdated}
-        />
-      )}
-
-      {loading ? (
-        <p className="loading-msg">Loading…</p>
-      ) : (
-        <WineList
-          wines={wines}
-          activeTab={activeTab}
-          onEvaluate={(wine) => setEvaluatingWine(wine)}
-          onTagUpdate={handleTagUpdate}
-          onQuantityChange={handleQuantityChange}
-          onViewHistory={handleViewHistory}
-          onWineUpdated={handleWineUpdated}
-          onViewDetail={handleViewDetail}
-        />
-      )}
     </div>
   )
 }
