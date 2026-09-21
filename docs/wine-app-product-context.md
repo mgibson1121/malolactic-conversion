@@ -390,10 +390,10 @@ A fourth layer, **community opinion**, was originally planned around the Reddit 
 ### Label Scanning
 
 **Model:** GPT-4o vision (high detail mode)
-**Input:** Image file resized to max 1024px on longest side before API call. Never send raw input. In Phase 3 this arrives via web file upload; in Phase 12 it arrives from the native iOS SwiftUI camera. The module handles both identically.
+**Input:** Image file resized to max 1024px on longest side before API call. Never send raw input. In Phase 3 this arrives via web file upload; in Phase 12 it arrives from the native iOS system camera picker. The module handles both identically.
 **Output:** Structured JSON covering all Tier 1 and Tier 2 wine entry fields. Tier 1 fields (producer, vintage, region, denomination) are expected on every scan. Tier 2 fields (quality_classification, vineyard, cuvee, grape_varieties) are nullable — omit rather than hallucinate. See Section 3 for field-level extraction rules.
 **Phase 3 capture surface:** Web file upload (HTML file input, image/*) — validates the pipeline without requiring a native app.
-**Phase 12 capture surface:** Native iOS SwiftUI camera (AVFoundation) — replaces file upload as the production capture surface. Backend module unchanged.
+**Phase 12 capture surface:** Native iOS system camera picker (`UIImagePickerController`, decided 2026-09-21 — not a custom AVFoundation capture UI) — replaces file upload as the production capture surface. Backend module unchanged.
 **Cost:** ~$0.004 per scan at 1024×1024 (765 image tokens + prompt + output at $2.50/1M input, $10.00/1M output)
 **Key:** User-supplied OpenAI API key, stored in iOS Keychain
 **Future optimisation:** Test GPT-4o Mini ($0.60/1M input) once feature is stable — potential 75% cost saving for clean labels

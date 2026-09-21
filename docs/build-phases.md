@@ -1,5 +1,5 @@
 # Build Phases
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-09-04
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-09-21
 > This file defines the incremental build sequence for the project. Each phase delivers a discrete, testable increment of value. Phases should be completed in order — later phases depend on earlier ones being stable.
 > Read alongside `wine-app-product-context.md` (what to build) and `CLAUDE.md` (how to build it).
 
@@ -97,7 +97,7 @@
 - Multiple tasting notes per wine entry are supported. All notes retained. Most recent rating displayed in list views.
 
 **UI notes:**
-- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 12
+- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 12 (mobile) / Phase 13 (web)
 - The `flawed` WSET conclusion indicates a technical wine fault and should trigger a distinct fault indicator — not treated as the lowest point on the `my_rating` scale
 
 **Notes:**
@@ -1342,7 +1342,7 @@ gap-analysis doc's "recommended order of work" section item by item.
   actually run under `npm test` or CI, silently, since it was written.
 
 **Explicitly out of scope:** allocation-drift-vs-target (needs a target-allocation field
-that doesn't exist and is Phase 12/14 scope, not in the gap doc); the SensorPush
+that doesn't exist and is Phase 13/15 scope, not in the gap doc); the SensorPush
 environment widget (§2.6, no integration exists — already flagged elsewhere); the
 six-hotspot sidebar nav from the original Phase 10 canvas; a new route-level test harness
 (no `supertest`/route tests exist anywhere in this codebase — not introduced here, stayed
@@ -1425,7 +1425,7 @@ backend-only plan. Reviewing the merged PR against that original plan found:
    design that screen now) is unchanged.
 3. **This entry** — recording the reconciliation itself, so a future session reading
    Phase 10.5 isn't left wondering why its own deliverable 5 doesn't match reality.
-4. **Phase 12 note (below):** what Phase 10.5 already shipped, so Phase 12 doesn't
+4. **Phase 13 note (below):** what Phase 10.5 already shipped, so Phase 13 doesn't
    re-implement it.
 
 **Explicitly not changed:** no code. The `PUT`-vs-`PATCH` naming on `/api/settings` is
@@ -1452,7 +1452,7 @@ contradicts merged code.
 - Reconcile branch state: Phase 10's "context found" note flagged `main` as 39 commits behind `feature/discovery-review-ui` and missing Phase 9.3/9.4 entirely. Confirm `main` reflects the actually-running app (merge if it still doesn't) so "what's on `main`" and "what's running locally" stop being two different answers.
 
 **Notes:**
-- This phase is verification and integration against what already exists, not new feature construction — the six-hotspot navigation restructure, native iOS app, SensorPush environment module, and allocation-drift view remain Phase 12 (Frontend build) scope.
+- This phase is verification and integration against what already exists, not new feature construction — the six-hotspot navigation restructure is closed (see "Open questions affecting phases"), the native iOS app is Phase 12 (Mobile build), and the SensorPush environment module and allocation-drift view remain Phase 13 (Remaining frontend surfaces) scope.
 - Any gap found here that needs net-new backend capability (not just wiring or display) belongs in a later phase, not squeezed into this one.
 
 **Milestone:** Every feature shipped through Phase 10.5 runs correctly end-to-end against the real backend on localhost, the running app matches the finalized Phase 10 design wherever they'd diverged, and `main` reflects the app that was actually tested.
@@ -1496,30 +1496,140 @@ Still open, per this phase's own §4 (not attempted here — need a developer de
 
 ---
 
-## Phase 12 — Frontend build
+## Phase 12 — Mobile build (native iOS)
 
-**Goal:** Build the full application UI on top of the validated data model and scan pipeline.
+**Goal:** Ship a native iPhone app that is the primary daily surface for the
+collection — a dashboard landing, four browsable lists, a compressed wine card,
+and label capture from the phone's own camera — consuming the existing backend
+API unchanged. No new endpoints, no schema changes.
+
+**Full specs:**
+- `docs/specs/2026-09-20-phase-12-mobile-ios.md` — product scope, navigation,
+  screen inventory, open decisions
+- `docs/specs/2026-09-20-phase-12-mobile-implementation.md` — build contract:
+  state model, error/empty copy, truncation rules, disclosure behaviour, QA list
+- `docs/design/phase-12-mobile-mockups.html` — four iPhone 17 Pro artboards
+
+**Target device:** iPhone 17 Pro, 402 × 874 pt logical. Portrait only. Must
+survive 393 pt and 440 pt without redesign. No iPad, no landscape, no watch,
+no widgets, no offline mode, no push.
 
 **Deliverables:**
-- Web app in React + TypeScript: cellar management, wishlist, research, evaluate
-- iOS app in Swift + SwiftUI: capture, quick log, label scan, evaluate
-- Native iOS camera flow: SwiftUI camera view (AVFoundation) replaces the Phase 3 web file upload as the label scan capture surface. The backend label scan module does not change — only the input path does.
-- iOS share sheet trigger: scan a bottle encountered online by sharing a photo or URL from another app
-- Both frontends consuming the shared backend API
-- All six hotspots implemented: Capture, Research, Evaluate, Cellar, Wishlist + Purchasing (Learn deferred to Phase 13)
+- Swift + SwiftUI app, iOS 18 minimum, `URLSession` + `Codable` against the
+  existing Express API. Hand-written Swift models mirroring `shared/types.ts`.
+- Five-item bottom tab bar: Cellar (dashboard landing) · Discovered · Scan
+  (raised centre action, presents a modal) · Wishlist · Notes.
+- Cellar dashboard, one vertical scroll, full-width widget cards: capacity,
+  scan CTA, **ready to drink / needs time / no window** (this closes the
+  `cellar_category` question — see `wine-app-product-context.md` §8), region
+  allocation, colour split, recently added, then the cellar list itself. One
+  `GET /api/wines?tag_cellar=true` + one `GET /api/settings` feeds all of it.
+- Compressed wine card: three lines plus a right rail, 96–112 pt, no buttons.
+  Actions move to swipe (Evaluate / quantity / tag chips) and long-press.
+  At least three cards fully visible in portrait; five to six on a list screen.
+- Truncation contract: producer·denomination one line tail-truncated; the
+  badge run drops items right-to-left by priority rather than wrapping; critic
+  scores show highest + `+N`; the retailer table is collapsed by default and
+  shows nearest + 2 when open.
+- Label capture via the system camera picker (`UIImagePickerController`), not a
+  custom AVFoundation UI. Resize to max 1024 px **on device** before upload,
+  matching `backend/modules/label-scan`'s existing rule.
+- Scan → free client-side duplicate check → draft → Discovery Review, with the
+  `?tier=primary` auto-fire, exactly as Phase 9.4 built it.
+- A dark token set derived from the Phase 11.1 warm palette — the real usage
+  context is a dim cellar, restaurant or shop. Follows system appearance; no
+  in-app switch.
 
-**Notes:**
-- Implement from the Phase 10 Claude Design canvas as visual reference — do not import prototype code
-- iOS is primary surface; web parity follows
-- SensorPush environment monitoring module (`backend/modules/environment/`) is included in this phase alongside the Cellar UI
-- Allocation drift view (target distribution vs. actual) is included in the Cellar UI
-- **Already shipped ahead of schedule, Phase 10.5 (2026-09-03) — do not re-implement:** the per-tab search box, the Cellar tab's capacity-used stat and region/color allocation bars (`CellarStats.tsx`), Discovered-tab quick add/remove tag chips, the Tasting Notes rating filter, three-state retailer links, and `wine_color` display on cards/detail. What's still open for this phase: the Cellar drinking-window flat-list view (ready to drink / needs more time / no window identified — see `wine-app-product-context.md` §8's resolved `cellar_category` question), the six-hotspot navigation, and everything iOS.
+**Rules carried forward, not re-litigated:**
+- Metered enrichment stays user-initiated. No fetch-on-appear, no
+  fetch-on-pull-to-refresh, no automatic retry on a paid endpoint. Auto-fire
+  exists in exactly one place: the scan path, primary tier, once per wine,
+  after the free duplicate check.
+- Additive boolean tags, no `status` enum. `promoted_at == nil` means draft.
+- Critic scores are never blended; the card's highest-score display is
+  truncation with a `+N` affordance, **not** the source prioritization Phase 11
+  explicitly declined to build.
+- `*_source == 'derived'` keeps the Sourced marker. A null `drinking_window`
+  (critic disagreement) stays null and shows attributed per-critic windows on
+  detail only.
+- Tier 2 nulls collapse — no empty rows, no placeholder dashes.
 
-**Milestone — GA for personal use:** App is fully functional across all core hotspots. Native iOS camera capture is live. Stable enough for daily personal use.
+**Decisions confirmed 2026-09-21 (see the product spec §8):**
+- Label capture uses the system camera picker (`UIImagePickerController`), not
+  a custom AVFoundation UI — familiar, faster to build, and iOS's own camera
+  screen is already well-designed. Traded away: an in-app alignment guide/
+  auto-capture, which nothing here currently needs.
+- The web app goes **desktop-only** going forward. Phase 11.1's 860px
+  sidebar→top-bar mobile collapse is retired rather than maintained — the iOS
+  app is now the phone experience, and there's no longer a good reason to pay
+  the design/testing cost of two responsive targets. See Phase 13's own entry
+  for the follow-up work this implies.
+- Manual **+ Add Wine** lives behind a small "+" in the Cellar tab's nav bar,
+  plus an "Enter manually" link on the scan screen — available in two natural
+  places without needing its own tab or a dedicated button competing with Scan.
+- **LAN-only for v1.** The app only works on the same network as the backend.
+  A cloud-hosted backend that authorized devices could reach from anywhere is
+  deliberately **out of scope for this phase** and deferred to its own future
+  phase — see "Open questions affecting phases" below; that future phase would
+  need to explicitly revisit `CLAUDE.md` §15's no-hosted-backend constraint,
+  not just add to it.
+
+**Milestone:** A native iPhone app running on device against the local backend
+where the Cellar tab opens on a dashboard showing capacity, ready-to-drink
+counts and allocation; at least three wine cards are fully visible in portrait;
+the centre button captures a label and produces a populated draft in under 30
+seconds; and every list, tag toggle, quantity change, evaluation and enrichment
+action available on the web is reachable on the phone.
 
 ---
 
-## Phase 13 — Learning features
+## Phase 13 — Remaining frontend surfaces (web + iOS extras)
+
+**Goal:** Everything the validated data model and scan pipeline still need that
+isn't the core mobile app (Phase 12) or already shipped: web parity with what
+Phase 12 introduces, an iOS share-sheet extension as its own app target, the
+SensorPush environment module, and the allocation-drift view.
+
+**Deliverables:**
+- Web app parity with anything Phase 12 introduces (the web app is otherwise
+  complete through Phase 11.1)
+- iOS share-sheet extension: scan a bottle encountered online by sharing a
+  photo or URL from another app. A separate app target with its own
+  entitlements — deliberately not part of the Phase 12 main-app build.
+- SensorPush environment monitoring module (`backend/modules/environment/`)
+- Allocation drift view (target distribution vs. actual) — blocked on a
+  target-allocation field that does not exist yet
+- **Remove Phase 11.1's 860px sidebar→top-bar mobile collapse** (decided
+  2026-09-21, Phase 12 D2): the web app goes desktop-only now that the iOS app
+  is the phone experience. This is a deliberate removal of shipped, working
+  behavior for product reasons, not a bug fix — verify nothing else (e.g. a
+  narrow-window desktop use case) depended on the collapse before deleting it.
+
+**Removed from this phase:**
+- The React web frontend, the iOS app, the native camera flow, and the Cellar
+  drinking-window flat list all ship in Phase 12.
+- The six-hotspot navigation restructure is **closed, not deferred** — it was
+  rejected by the developer in Phase 11.1 (the blind pass's six-hotspot split
+  didn't match how the app is actually used in practice), and Phase 12's
+  five-tab bar is a second independent answer to the same question. Recorded
+  under "Open questions affecting phases" as resolved so a future session does
+  not re-propose it.
+
+**Notes:**
+- This phase's original scope (full web + iOS frontend build, all six
+  hotspots) has been distributed elsewhere: the core iOS app and its capture
+  surface are Phase 12; the web app itself was substantially completed across
+  Phase 10.5 and Phase 11.1 (search, `CellarStats`, quick tag chips, retailer
+  link states, warm restyle, sidebar nav) ahead of this phase ever starting.
+- Implement from the Phase 10 Claude Design canvas and Phase 11.1's warm
+  restyle as visual reference — do not import prototype code.
+
+**Milestone:** Web app has parity with everything Phase 12 introduced. The iOS
+share-sheet extension, SensorPush module, and allocation-drift view are live.
+
+---
+
+## Phase 14 — Learning features
 
 **Goal:** Build the compounding knowledge layer. Requires sufficient data in the system to make quizzes and pattern surfaces meaningful.
 
@@ -1538,7 +1648,7 @@ Still open, per this phase's own §4 (not attempted here — need a developer de
 
 ---
 
-## Phase 14 — Open source release
+## Phase 15 — Open source release
 
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
@@ -1575,4 +1685,4 @@ Still open, per this phase's own §4 (not attempted here — need a developer de
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
 - [x] Reddit community-sentiment layer: closed off 2026-07-28. Self-service Data API registration ended under Reddit's Responsible Builder Policy; the unofficial `.json` fallback was itself shut down 2026-05-28; the official commercial tier requires a contract at a four-to-five-figure annual minimum; third-party resellers are unlicensed scraping, inconsistent with the project's own CellarTracker/WineBerserkers principle (`CLAUDE.md` §15). Superseded by Phase 8's professional-review-extraction approach; a YouTube-based alternative is a separate, optional PoC — see Phase 8.5.
 - [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 — less cleanly fact-based than a date range, enum, or boolean; risks drifting into stored prose. Revisit only if a reliably structured (non-prose) capture method is found.
-- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 13's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 14's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.

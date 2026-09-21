@@ -102,7 +102,13 @@ Documentation-only: Phase 10.5's own fifth deliverable (corrections to `wine-app
 ### Phase 11 — Apply UI to backend & local integration testing (current)
 Verification pass, not a rebuild: run the full stack locally and confirm every feature shipped through Phase 10.5 is correctly wired to the real backend, applying the finalized Phase 10 design to `web/src` wherever the running app still diverges from it. Full detail in `docs/build-phases.md`.
 
-### Phase 12 and beyond
+### Phase 11.1 — Warm restyle from a second Claude Design canvas (states, edge cases & scale)
+A second, independent design pass (via the §12 toolchain exception below) re-derived the Phase 10 visual system as a cross-check, then, after developer review, applied a revised warm token set (burgundy/gold, Domine + Work Sans) and a left-nav sidebar to the app's real four-tab IA (Discovered / Wishlist / Cellar / Tasting Notes) — replacing the top tab-bar shell and reversing the 2026-09-01 decision against a sidebar for that specific question. The blind pass's six-hotspot "in the wild vs. at home" split was rejected as not matching real usage and is **not** part of this app's navigation. Full detail in `docs/build-phases.md` and `docs/specs/2026-09-16-phase-11.1-warm-restyle-design-requirements.md`.
+
+### Phase 12 — Mobile build (native iOS)
+Native iPhone app (SwiftUI), talking to the existing local backend over LAN. Key decisions (2026-09-21): label scanning uses the standard system camera picker (`UIImagePickerController`), not a custom capture UI; the Cellar tab is the dashboard, with no separate Home tab; manual "Add Wine" lives behind a Cellar-tab "+" and a scan-screen "Enter manually" link; the web app goes desktop-only (retiring Phase 11.1's 860px sidebar→top-bar collapse, moved to Phase 13); cloud hosting of the backend (for off-LAN access) is parked as its own future, unscoped phase rather than decided now. Full detail in `docs/build-phases.md`.
+
+### Phase 13 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -383,7 +389,7 @@ Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every 
 These are hard constraints. Do not violate them without explicit instruction.
 
 - Do not store API keys, credentials, or secrets in the database, in code, or in version control
-- Do not build a hosted backend or cloud database — everything runs locally
+- Do not build a hosted backend or cloud database — everything runs locally (flagged for a future reversal, 2026-09-21: Phase 12's D5 decision parks cloud-hosting the backend, for off-LAN mobile access, as its own future phase — this constraint will need to be revisited then, not before)
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
 - The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages.

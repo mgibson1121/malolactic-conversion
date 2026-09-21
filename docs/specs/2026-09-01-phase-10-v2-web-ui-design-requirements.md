@@ -21,6 +21,13 @@ from a higher floor.
 navigation (tabs + header actions + modals), not the six-hotspot sidebar. Evolve it,
 don't replace it.
 
+**Superseded in part, 2026-09-16 (Phase 11.1):** the sidebar-vs-tab-bar conclusion above
+was reversed — a left-nav sidebar now ships for the real four-tab IA (Discovered /
+Wishlist / Cellar / Tasting Notes), replacing the top tab-bar shell. The six-hotspot
+split itself (Capture/Research/Evaluate/Cellar/Wishlist/Learn) was not revived and stays
+rejected; only the "sidebar vs. tab-bar" shell question was reopened and decided the
+other way. See `docs/build-phases.md` Phase 11.1 for the full record.
+
 **Decision carried over from the developer, 2026-09-01:** the 5 comments left on the
 2026-08-25 canvas are archived (`docs/sessions/2026-09-01-phase-10-followup-review.md`)
 but are **not** inputs to this pass. They were feedback on a canvas that's being
@@ -162,9 +169,9 @@ Discovery Review. A plain, mostly-form screen; less design-novel than 3.5.
 Manual-entry equivalent of 3.7, no photo. Straightforward form design.
 
 **3.9 Learn tab — aspirational, flag it as such**
-Nothing behind this tab exists in the shipped app at all (Phase 13, not started — no
+Nothing behind this tab exists in the shipped app at all (Phase 14, not started — no
 vintage-index aggregation, no quiz mechanism, no advice archive). If this pass designs a
-Learn tab, **label it visibly as a forward-looking reference for Phase 13**, not a
+Learn tab, **label it visibly as a forward-looking reference for Phase 14**, not a
 description of anything buildable today — don't let it read with the same evidentiary
 weight as 3.1–3.6, which are all grounded in real, currently-running code and data.
 
@@ -180,7 +187,7 @@ weight as 3.1–3.6, which are all grounded in real, currently-running code and 
 - Advice-capture UI (the "log a tip from a sommelier" feature) — deferred by product
   choice, not by a missing backend (corrected 2026-09-03, Phase 10.6): `backend/routes/
   advice.ts`, `AdviceEntry`, and `CreateAdviceInput` are fully built and wired. The
-  original "no backing code exists yet (Phase 12)" reason was factually wrong; the
+  original "no backing code exists yet (Phase 13)" reason was factually wrong; the
   scoping decision itself (don't design this UI now) still stands.
 
 ## 5. Acceptance check for whoever builds this
