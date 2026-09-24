@@ -67,7 +67,7 @@
 
 **Notes:**
 - The capture surface in this phase is a web file upload (HTML file input accepting image/*), not a native camera. This is intentional — the goal is to validate the scan pipeline, not the capture UX.
-- The native iOS camera flow (SwiftUI, AVFoundation) is built in Phase 12. The backend label scan module does not change at that point — only the capture surface is swapped.
+- The native iOS camera flow (SwiftUI) is built in Phase 12 — via the system camera picker, not a custom AVFoundation UI (Phase 12 decision D1, 2026-09-21). The backend label scan module does not change at that point — only the capture surface is swapped.
 - Raw image input must always be resized to max 1024px before the API call — enforce this in the module regardless of how the image arrives (file upload now, camera later)
 - Tier 1 fields that the scan cannot populate must surface a manual entry prompt in the UI — never silently omit
 - Tier 2 fields that the scan cannot populate are left null — do not prompt the user unless they choose to edit
@@ -1181,8 +1181,9 @@ work items, cost arithmetic, commit sequence, acceptance criteria.
   escalation click for up to 30 days.
 - `LabelScanFlow.tsx` rebuilt around `createWine` firing immediately after `scanLabel`
   resolves (not at Continue) — the edit/confirm screen is now a PATCH form over the real
-  row. A free client-side duplicate check (`web/src/utils/duplicateMatch.ts`, reusing
-  `scoreMatch`) runs first against the promoted wines already in the collection; a
+  row. A free client-side duplicate check (`web/src/utils/duplicateMatch.ts` — moved
+  to `shared/utils/duplicate-match.ts` in Phase 12 so iOS can reach it via
+  `POST /api/wines/duplicate-check` — reusing `scoreMatch`) runs first against the promoted wines already in the collection; a
   confident match skips straight to that wine's Discovery Review screen at zero cost, a
   vintage mismatch surfaces a notice but still creates a new draft.
 - `DiscoveryReview.tsx` renders two modes off `wine.promoted_at`: draft (three-way
@@ -1501,7 +1502,8 @@ Still open, per this phase's own §4 (not attempted here — need a developer de
 **Goal:** Ship a native iPhone app that is the primary daily surface for the
 collection — a dashboard landing, four browsable lists, a compressed wine card,
 and label capture from the phone's own camera — consuming the existing backend
-API unchanged. No new endpoints, no schema changes.
+API. No schema changes. (Originally "no new endpoints" as well — amended
+2026-09-23, see "Backend changes" below.)
 
 **Full specs:**
 - `docs/specs/2026-09-20-phase-12-mobile-ios.md` — product scope, navigation,
@@ -1534,7 +1536,7 @@ no widgets, no offline mode, no push.
 - Label capture via the system camera picker (`UIImagePickerController`), not a
   custom AVFoundation UI. Resize to max 1024 px **on device** before upload,
   matching `backend/modules/label-scan`'s existing rule.
-- Scan → free client-side duplicate check → draft → Discovery Review, with the
+- Scan → free duplicate check (`POST /api/wines/duplicate-check`) → draft → Discovery Review, with the
   `?tier=primary` auto-fire, exactly as Phase 9.4 built it.
 - A dark token set derived from the Phase 11.1 warm palette — the real usage
   context is a dim cellar, restaurant or shop. Follows system appearance; no
@@ -1573,6 +1575,42 @@ no widgets, no offline mode, no push.
   phase — see "Open questions affecting phases" below; that future phase would
   need to explicitly revisit `CLAUDE.md` §15's no-hosted-backend constraint,
   not just add to it.
+
+**Backend changes (decided 2026-09-23, at build start):** the "no new
+endpoints" rule collided with two real needs once the spec was checked against
+the code. Both resolved in favour of a small, unmetered backend change rather
+than a phone-side workaround:
+- **`POST /api/wines/duplicate-check`** — the scan path's free duplicate check
+  is `scoreMatch`, which lives in TypeScript. The alternative was a Swift port
+  of wine identity, i.e. a second definition to keep in sync by hand — exactly
+  what `CLAUDE.md` §5's "one definition, one place" forbids. `findDuplicate`
+  moved from `web/src/utils/duplicateMatch.ts` to
+  `shared/utils/duplicate-match.ts`; the web still calls it in-process, iOS
+  calls it over HTTP. Local DB read only, no metered call, so the Phase 9.4
+  auto-fire exception is unchanged: it still fires only after this check.
+- **`latest_tasting_note_date` on every wine read** — the Notes tab sorts by
+  and shows the latest note's date, which `WineEntry` didn't carry (only the
+  note's id). Derived by a correlated subquery, not a column — no migration.
+  Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
+  and dropping the date from the spec.
+
+**Build status (2026-09-23):** backend changes above are built and tested, awaiting review.
+iOS foundation landed on `feature/phase-12-ios-app` — Xcode project (`ios/`),
+Swift models mirroring `shared/types.ts`, API client, six-state `LoadState`,
+theme tokens (light + dark), the five-tab shell, the Cellar dashboard widgets,
+the list screens and a first cut of the compressed card, plus XCTest suites
+decoding fixtures exported from the real storage adapter
+(`backend/scripts/export-ios-fixtures.ts`). **None of the Swift has been
+compiled yet** — the development Mac had only a broken Command Line Tools
+install and no Xcode; installing Xcode is the gate for the next slice. Not yet
+built: scan flow, detail view, draft review, Evaluate form, swipe/long-press
+actions, bundled Domine/Work Sans font files, iOS CI.
+
+A small product call made while building, recorded so it isn't re-derived: on
+the Ready-to-drink widget, a wine **past** the end of its window counts under
+**Ready now** (it's still the answer to "what should I open tonight"), and the
+three counts are **wines, not bottles**, because tapping a segment filters the
+list of wines.
 
 **Milestone:** A native iPhone app running on device against the local backend
 where the Cellar tab opens on a dashboard showing capacity, ready-to-drink

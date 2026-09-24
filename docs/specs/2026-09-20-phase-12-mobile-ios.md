@@ -54,7 +54,7 @@ remains in Phase 13:
 Ship a native iOS app for iPhone that is the primary daily surface for the
 collection: a dashboard landing, four browsable lists, a compressed wine card,
 and label capture from the phone's own camera. It consumes the existing backend
-API unchanged. No new backend endpoints, no schema changes.
+API. No schema changes. *(Amended 2026-09-23: "no new backend endpoints" gave way to two free additions — `POST /api/wines/duplicate-check` and a derived `latest_tasting_note_date` on wine reads. See `docs/build-phases.md` Phase 12, "Backend changes".)*
 
 **Target device:** iPhone 17 Pro — 402 × 874 pt logical (@3x), Dynamic Island,
 34 pt home indicator. Portrait only in v1. Layout must survive 393 pt (iPhone
@@ -99,7 +99,7 @@ break:
 
 Metered calls (`fetch-price`, `fetch-reviews`) keep the web app's rules exactly:
 explicit user action, TTL cache respected, `?tier=primary` auto-fire on the scan
-path only, once per wine, after the free client-side duplicate check. A phone in
+path only, once per wine, after the free duplicate check. A phone in
 someone's pocket must not become a new way to spend Serper credits — no
 pull-to-refresh-triggers-enrichment, no fetch-on-appear.
 
@@ -149,6 +149,8 @@ scoped to this tab, AND-ed with the tab filter — unchanged from web).
 3. **Ready to drink** — the Phase 10.6 drinking-window flat list, finally
    shipping. Three counts as tappable segments: **Ready now** /
    **Needs more time** / **No window**. Tapping filters the cellar list below.
+   *(Decided 2026-09-23 while building: counts are wines, not bottles; a wine
+   past the end of its window counts as Ready now.)*
    Derived client-side from `drinking_window` vs. today; wines with a null
    window (critic disagreement included) fall in "No window", never guessed at.
 4. **By region** — the existing `CellarStats` allocation bars, mobile-shaped:
@@ -254,10 +256,12 @@ Full-screen modal, four steps, mirroring `LabelScanFlow.tsx`'s real logic:
 
 1. **Capture** — system camera picker opens immediately on entry. "Choose from
    library" as a secondary option.
-2. **Scanning** — resize to 1024 px → `POST /api/scan-label` → pulsing state
+2. **Scanning** — resize to 1024 px → `POST /api/label-scan` (multipart, field `label`; corrected 2026-09-23 — the route was never `/api/scan-label`) → pulsing state
    with the captured thumbnail. Target < 30 s, same as Phase 3.
-3. **Duplicate check** — the free client-side `scoreMatch` against already-
-   promoted wines runs before any row is created. A confident match jumps
+3. **Duplicate check** — the free `scoreMatch`-based check against already-
+   promoted wines runs before any row is created. On iOS this is
+   `POST /api/wines/duplicate-check` (amended 2026-09-23) — the same
+   `shared/utils/duplicate-match.ts` the web runs in-process, not a Swift port. A confident match jumps
    straight to that wine's Discovery Review. A vintage mismatch shows the
    notice and still creates a draft.
 4. **Discovery Review** — draft mode: editable Tier 1/Tier 2 fields with

@@ -484,7 +484,8 @@ Hard rules, all inherited from `CLAUDE.md` §15 and Phase 9.4:
 
 - No fetch on view appear. No fetch on pull-to-refresh. No fetch on scroll.
 - Auto-fire exists in exactly one place: the scan path, `?tier=primary`, once
-  per wine, after the free client-side duplicate check.
+  per wine, after the free duplicate check (`POST /api/wines/duplicate-check` on
+  iOS — see the product spec §6).
 - Backgrounding the app cancels nothing already in flight but starts nothing.
 - A `force` refresh requires a deliberate second tap.
 
