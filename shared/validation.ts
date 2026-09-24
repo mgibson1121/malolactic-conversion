@@ -71,6 +71,14 @@ export const CreateWineSchema = z.object({
 
 export const UpdateWineSchema = CreateWineSchema.partial()
 
+// Phase 12 — POST /api/wines/duplicate-check. Only the three identity fields
+// findDuplicate reads; a full LabelScanResult is accepted and the rest stripped.
+export const DuplicateCheckSchema = z.object({
+  producer: z.string().nullish().transform((v) => v ?? null),
+  denomination: z.string().nullish().transform((v) => v ?? null),
+  vintage: z.number().int().nullish().transform((v) => v ?? null),
+})
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export const SettingsSchema = z.object({

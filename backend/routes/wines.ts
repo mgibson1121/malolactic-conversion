@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
-import { CreateWineSchema, UpdateWineSchema } from '@shared/validation'
+import { CreateWineSchema, DuplicateCheckSchema, UpdateWineSchema } from '@shared/validation'
 import type {
   RetailerPrice,
   RetailerReview,
@@ -13,6 +13,7 @@ import type {
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
 import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
+import { findDuplicate } from '@shared/utils/duplicate-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
 import { getRetailerLinks } from '../modules/retailer-links'
@@ -131,6 +132,24 @@ router.get(
     if (req.query.q) filter.q = String(req.query.q)
     const wines = await getStorage().listWines(filter)
     res.json(wines)
+  })
+)
+
+// POST /api/wines/duplicate-check — the Phase 9.4 free duplicate check, for
+// clients that can't run shared/utils/duplicate-match.ts themselves (Phase 12,
+// the iOS app). Same function the web app calls in-process, against the same
+// promoted-only list, so there is still one definition of wine identity.
+// Local DB read only — no metered call — so it is safe to run on every scan.
+router.post(
+  '/duplicate-check',
+  wrap(async (req, res) => {
+    const result = DuplicateCheckSchema.safeParse(req.body)
+    if (!result.success) {
+      res.status(400).json({ error: result.error.format() })
+      return
+    }
+    const wines = await getStorage().listWines()
+    res.json(findDuplicate(result.data, wines))
   })
 )
 

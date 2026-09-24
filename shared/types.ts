@@ -307,6 +307,11 @@ export interface WineEntry {
   // the developer promotes it (POST /:id/promote) with at least one list
   // tag. Set once, on promotion; never cleared. See CLAUDE.md §3.
   promoted_at: string | null
+  // Phase 12 — read-only, derived at query time from the tasting_notes row
+  // latest_tasting_note_id points at (not a column). Lets the iOS Notes tab
+  // sort by and show the latest note date without a request per wine.
+  // Optional because only the SQLite adapter computes it.
+  latest_tasting_note_date?: string | null
 }
 
 export interface TastingNote {
@@ -351,9 +356,9 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at'
+  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added'>>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date'>>
 export type CreateTastingNoteInput = Omit<TastingNote, 'id'>
 export type CreateAdviceInput = Omit<AdviceEntry, 'id'>
 

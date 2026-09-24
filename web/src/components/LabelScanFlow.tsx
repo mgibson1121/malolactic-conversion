@@ -23,7 +23,7 @@ import { useState, useRef, DragEvent, ChangeEvent } from 'react'
 import type { CreateWineInput, UpdateWineInput, WineColor, WineEntry } from '@shared/types'
 import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
-import { findDuplicate } from '../utils/duplicateMatch'
+import { findDuplicate } from '@shared/utils/duplicate-match'
 
 interface Props {
   /** Promoted wines already in the collection — used only for the free
