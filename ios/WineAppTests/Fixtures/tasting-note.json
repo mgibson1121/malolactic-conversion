@@ -1,0 +1,31 @@
+{
+  "wine_id": "ae58d357-d010-43ce-981d-c06a8fef0f84",
+  "tasted_at": "2026-09-21T20:30:00.000Z",
+  "clarity": "clear",
+  "colour_intensity": "pale",
+  "colour": "ruby",
+  "nose_condition": "clean",
+  "nose_intensity": "medium_plus",
+  "nose_primary_aromas": [
+    "red cherry",
+    "violet"
+  ],
+  "nose_secondary_aromas": [],
+  "nose_tertiary_aromas": [
+    "forest floor"
+  ],
+  "palate_sweetness": "dry",
+  "palate_acidity": "high",
+  "palate_tannin": "medium",
+  "palate_body": "medium",
+  "palate_flavour_intensity": "medium_plus",
+  "palate_finish": "long",
+  "quality_assessment": "outstanding",
+  "my_rating": "outstanding",
+  "free_text": "Lifted and silky.",
+  "tags": [
+    "silky",
+    "floral"
+  ],
+  "id": "3cecab02-31d2-4fbd-a911-c4cb4b0741f3"
+}

@@ -1,0 +1,213 @@
+[
+  {
+    "id": "ae58d357-d010-43ce-981d-c06a8fef0f84",
+    "producer": "Domaine Comte Georges de Vogüé",
+    "denomination": "Chambolle-Musigny 1er Cru Les Amoureuses",
+    "vintage": 2019,
+    "region": "Burgundy",
+    "quality_classification": "Premier Cru",
+    "vineyard": "Les Amoureuses",
+    "cuvee": null,
+    "grape_varieties": [
+      "Pinot Noir"
+    ],
+    "wine_color": "red",
+    "label_image_url": null,
+    "tag_discovered": true,
+    "tag_wishlist": false,
+    "tag_cellar": true,
+    "tag_consumed": true,
+    "cellar_category": null,
+    "cellar_quantity": 3,
+    "drinking_window": {
+      "start": "2026-01-01",
+      "end": "2038-12-31"
+    },
+    "drinking_window_source": "manual",
+    "vintage_rating": "very_good",
+    "vintage_rating_source": "manual",
+    "my_rating": "outstanding",
+    "my_tags": [
+      "silky",
+      "floral"
+    ],
+    "latest_tasting_note_id": "3cecab02-31d2-4fbd-a911-c4cb4b0741f3",
+    "wishlist_notes": null,
+    "price_paid": 640,
+    "purchased_from": "Zachys",
+    "advice_linked": null,
+    "expert_reviews": null,
+    "community_sentiment": null,
+    "community_excerpts": null,
+    "price_data": {
+      "price_min": 640,
+      "price_avg": 690.5,
+      "price_max": 745,
+      "other_vintage_price_range": {
+        "min": 520,
+        "max": 910
+      },
+      "retailers": [
+        {
+          "slug": "zachys",
+          "name": "Zachys",
+          "price": 690,
+          "url": "https://www.zachys.com/products/amoureuses-2019",
+          "distance_miles": 21.4,
+          "is_preferred_retailer": true,
+          "is_search_results_page": false,
+          "matched_vintage": 2019,
+          "vintage_mismatch": false,
+          "vintage_verdict": "match",
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": false,
+          "verification": "verified"
+        },
+        {
+          "slug": "kl",
+          "name": "K&L Wine Merchants",
+          "price": null,
+          "url": "https://www.klwines.com/Products?searchText=vogue",
+          "distance_miles": 2570.2,
+          "is_preferred_retailer": true,
+          "is_search_results_page": true,
+          "matched_vintage": null,
+          "vintage_mismatch": false,
+          "vintage_verdict": "unknown",
+          "pack_quantity": 1,
+          "bottle_size_ml": null,
+          "non_standard_format": false,
+          "format_label": "",
+          "link_only": true,
+          "verification": "unchecked"
+        },
+        {
+          "slug": "benchmark",
+          "name": "Benchmark Wine Group",
+          "price": 1380,
+          "url": "https://www.zachys.com/products/amoureuses-2019",
+          "distance_miles": 21.4,
+          "is_preferred_retailer": true,
+          "is_search_results_page": false,
+          "matched_vintage": 2018,
+          "vintage_mismatch": true,
+          "vintage_verdict": "mismatch",
+          "pack_quantity": 1,
+          "bottle_size_ml": 1500,
+          "non_standard_format": true,
+          "format_label": "1.5L",
+          "link_only": false,
+          "verification": "unverified"
+        }
+      ],
+      "nearest_retailer": {
+        "slug": "zachys",
+        "name": "Zachys",
+        "price": 690,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      },
+      "fetched_at": "2026-09-20T18:04:11.000Z"
+    },
+    "retailer_links": null,
+    "review_data": [
+      {
+        "slug": "zachys",
+        "name": "Zachys",
+        "product_url": "https://www.zachys.com/products/amoureuses-2019",
+        "critic_scores": [
+          {
+            "publication": "Burghound",
+            "score": 96,
+            "known_publication": true,
+            "drinking_window": {
+              "start": 2029,
+              "end": 2045
+            },
+            "vintage_character": "very_good",
+            "deal": false
+          },
+          {
+            "publication": "Vinous",
+            "score": 96,
+            "known_publication": true,
+            "drinking_window": null,
+            "vintage_character": null,
+            "deal": false
+          }
+        ],
+        "fetched_at": "2026-09-20T18:05:00.000Z",
+        "source": "configured",
+        "page_vintage": 2019,
+        "vintage_gap": 0,
+        "match": {
+          "producer": "match",
+          "denomination": "match",
+          "bottling": "match",
+          "vintage": "match",
+          "candidateVintage": 2019,
+          "vintageGap": 0
+        },
+        "page_price": 690
+      },
+      {
+        "slug": "fallback-somewine",
+        "name": "somewine.example",
+        "product_url": "https://somewine.example/amoureuses",
+        "critic_scores": [
+          {
+            "publication": "Burghound",
+            "score": 95,
+            "known_publication": true,
+            "drinking_window": null,
+            "vintage_character": null,
+            "deal": false
+          },
+          {
+            "publication": "Jancis Robinson MW",
+            "score": 18.5,
+            "known_publication": false,
+            "drinking_window": {
+              "start": 2030,
+              "end": null
+            },
+            "vintage_character": null,
+            "deal": true
+          }
+        ],
+        "fetched_at": "2026-09-20T18:05:30.000Z",
+        "source": "fallback",
+        "page_vintage": null,
+        "vintage_gap": null,
+        "match": {
+          "producer": "match",
+          "denomination": "match",
+          "bottling": "unknown",
+          "vintage": "unknown",
+          "candidateVintage": null,
+          "vintageGap": null
+        },
+        "page_price": null
+      }
+    ],
+    "review_probe_log": null,
+    "date_added": "2026-09-24T02:49:05.771Z",
+    "date_first_consumed": "2026-09-24T02:49:05.771Z",
+    "promoted_at": "2026-09-20T18:10:00.000Z",
+    "latest_tasting_note_date": "2026-09-21T20:30:00.000Z"
+  }
+]

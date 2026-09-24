@@ -18,3 +18,8 @@ validate-reviews-results.json
 backend/modules/reviews/__fixtures__/adhoc-*.html
 .claude/settings.local.json
 .claude/launch.json
+# iOS (Phase 12) — per-user Xcode state and build output
+xcuserdata/
+*.xcuserstate
+ios/build/
+DerivedData/

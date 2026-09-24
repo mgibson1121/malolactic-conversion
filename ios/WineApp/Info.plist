@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged with the build-setting-generated Info.plist (GENERATE_INFOPLIST_FILE).
+	     Only keys with no INFOPLIST_KEY_ equivalent live here. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Phase 12 is LAN-only (D5): the backend is plain HTTP on the local network. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The app talks to your wine backend running on this network.</string>
+</dict>
+</plist>
