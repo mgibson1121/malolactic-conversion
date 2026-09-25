@@ -82,6 +82,8 @@ interface WineRow {
   date_added: string
   date_first_consumed: string | null
   promoted_at: string | null
+  // Not a column — computed by WINE_SELECT's subquery (Phase 12).
+  latest_tasting_note_date: string | null
 }
 
 interface TastingNoteRow {
@@ -170,8 +172,17 @@ function rowToWine(row: WineRow): WineEntry {
     date_added: row.date_added,
     date_first_consumed: row.date_first_consumed,
     promoted_at: row.promoted_at,
+    latest_tasting_note_date: row.latest_tasting_note_date ?? null,
   }
 }
+
+// Phase 12 — every wine read carries its latest tasting note's date, so the
+// iOS Notes tab can sort and label by it without a request per row. A
+// correlated subquery rather than a JOIN: tasting_notes shares column names
+// with wines (my_rating, id), and listWines' WHERE clauses use bare names.
+const WINE_SELECT = `SELECT wines.*,
+  (SELECT date FROM tasting_notes WHERE tasting_notes.id = wines.latest_tasting_note_id) AS latest_tasting_note_date
+  FROM wines`
 
 function rowToTastingNote(row: TastingNoteRow): TastingNote {
   return {
@@ -299,7 +310,7 @@ export class SQLiteAdapter implements StorageAdapter {
   }
 
   async getWine(id: string): Promise<WineEntry | null> {
-    const row = this.db.prepare('SELECT * FROM wines WHERE id = ?').get(id) as WineRow | undefined
+    const row = this.db.prepare(`${WINE_SELECT} WHERE id = ?`).get(id) as WineRow | undefined
     return row ? rowToWine(row) : null
   }
 
@@ -349,7 +360,7 @@ export class SQLiteAdapter implements StorageAdapter {
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
-    const rows = this.db.prepare(`SELECT * FROM wines ${where}`).all(...params) as WineRow[]
+    const rows = this.db.prepare(`${WINE_SELECT} ${where}`).all(...params) as WineRow[]
     return rows.map(rowToWine)
   }
 
@@ -394,7 +405,9 @@ export class SQLiteAdapter implements StorageAdapter {
       id
     )
 
-    return updated
+    // Re-read rather than returning the merge: latest_tasting_note_date is
+    // derived, and a changed latest_tasting_note_id would leave it stale.
+    return (await this.getWine(id)) as WineEntry
   }
 
   // Phase 9.4 (WI-7)

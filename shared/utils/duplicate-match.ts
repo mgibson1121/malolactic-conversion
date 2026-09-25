@@ -1,6 +1,12 @@
-import type { WineEntry } from '@shared/types'
-import { scoreMatch } from '@shared/utils/wine-match'
-import type { LabelScanResult } from '../api'
+import type { WineEntry } from '../types'
+import { scoreMatch } from './wine-match'
+
+/** The identity fields a label scan (or any would-be new wine) supplies. */
+export interface DuplicateCheckInput {
+  producer: string | null
+  denomination: string | null
+  vintage: number | null
+}
 
 export type DuplicateOutcome =
   | { kind: 'none' }
@@ -21,8 +27,13 @@ export type DuplicateOutcome =
  * bottling worth flagging rather than silently treating as new, and
  * 'unknown' (vintage absent on one side) isn't enough to say either way, so
  * the scan proceeds as a new wine with no notice.
+ *
+ * Phase 12 — moved here from web/src/utils/duplicateMatch.ts so the iOS app
+ * can run the same check through POST /api/wines/duplicate-check rather than
+ * carrying a second, Swift implementation of wine identity (CLAUDE.md §5).
+ * The web app still calls this directly against the wines it already holds.
  */
-export function findDuplicate(scan: LabelScanResult, existingWines: WineEntry[]): DuplicateOutcome {
+export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntry[]): DuplicateOutcome {
   if (!scan.producer && !scan.denomination) return { kind: 'none' }
 
   const candidate = {

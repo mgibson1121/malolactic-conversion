@@ -1,20 +1,11 @@
 import type { WineEntry } from '@shared/types'
-import { findDuplicate } from './duplicateMatch'
-import type { LabelScanResult } from '../api'
+import { findDuplicate, type DuplicateCheckInput } from '@shared/utils/duplicate-match'
 
-function makeScan(overrides: Partial<LabelScanResult> = {}): LabelScanResult {
+function makeScan(overrides: Partial<DuplicateCheckInput> = {}): DuplicateCheckInput {
   return {
     producer: 'Domaine Leroy',
     vintage: 2019,
-    region: 'Burgundy',
     denomination: 'Gevrey-Chambertin',
-    quality_classification: null,
-    vineyard: null,
-    cuvee: null,
-    grape_varieties: null,
-    wine_color: null,
-    missing_tier1_fields: [],
-    raw_response: '',
     ...overrides,
   }
 }

@@ -5,7 +5,7 @@
  */
 import Database from 'better-sqlite3'
 import { SQLiteAdapter } from './sqlite-adapter'
-import type { RetailerReview } from '@shared/types'
+import type { CreateTastingNoteInput, RetailerReview } from '@shared/types'
 
 function makeAdapter(): SQLiteAdapter {
   const db = new Database(':memory:')
@@ -595,6 +595,35 @@ describe('tasting notes', () => {
 
     const fetched = await adapter.getWine(wine.id)
     expect(fetched!.latest_tasting_note_id).toBe(note.id)
+  })
+
+  it('derives latest_tasting_note_date from the latest note on every wine read (Phase 12)', async () => {
+    const adapter = makeAdapter()
+    const wine = await makeWine(adapter)
+    expect((await adapter.getWine(wine.id))!.latest_tasting_note_date).toBeNull()
+
+    const blankNote: Omit<CreateTastingNoteInput, 'wine_id' | 'tasted_at'> = {
+      clarity: null, colour_intensity: null, colour: null,
+      nose_condition: null, nose_intensity: null,
+      nose_primary_aromas: [], nose_secondary_aromas: [], nose_tertiary_aromas: [],
+      palate_sweetness: null, palate_acidity: null, palate_tannin: null,
+      palate_body: null, palate_flavour_intensity: null, palate_finish: null,
+      quality_assessment: null, my_rating: null, free_text: null, tags: [],
+    }
+    await adapter.createTastingNote({ ...blankNote, wine_id: wine.id, tasted_at: '2026-01-10T19:00:00.000Z' })
+    await adapter.createTastingNote({ ...blankNote, wine_id: wine.id, tasted_at: '2026-03-02T19:00:00.000Z' })
+
+    expect((await adapter.getWine(wine.id))!.latest_tasting_note_date).toBe('2026-03-02T19:00:00.000Z')
+    const [listed] = await adapter.listWines({ include_drafts: true })
+    expect(listed.latest_tasting_note_date).toBe('2026-03-02T19:00:00.000Z')
+  })
+
+  it('does not collide the derived note date with filters on shared column names', async () => {
+    const adapter = makeAdapter()
+    const wine = await makeWine(adapter)
+    await adapter.updateWine(wine.id, { my_rating: 'good' })
+    const rows = await adapter.listWines({ include_drafts: true, my_rating: 'good', has_tasting_note: false })
+    expect(rows.map((w) => w.id)).toEqual([wine.id])
   })
 
   it('sets tag_consumed to true on first note save', async () => {
