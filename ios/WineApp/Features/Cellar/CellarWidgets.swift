@@ -106,7 +106,9 @@ struct CapacityWidget: View {
                         .textFieldStyle(.roundedBorder)
                     Button("Save") { Task { await commit() } }
                         .disabled(isSaving)
+                        .buttonStyle(.borderless)
                     Button("Cancel") { isEditing = false }
+                        .buttonStyle(.borderless)
                 }
             } else {
                 Button(summary.capacity == nil ? "Set cellar capacity" : "Edit capacity") {
@@ -115,6 +117,8 @@ struct CapacityWidget: View {
                 }
                 .font(AppFont.meta())
                 .frame(minHeight: Theme.minHitTarget)
+                // Inside a List row, an unstyled Button claims the whole row.
+                .buttonStyle(.borderless)
             }
             if let error {
                 Text(error).font(.system(size: 12)).foregroundStyle(Theme.redPill)
@@ -204,6 +208,7 @@ struct RegionWidget: View {
                 Button(showAll ? "Show fewer" : "Show all \(regions.count) regions") { showAll.toggle() }
                     .font(AppFont.meta())
                     .frame(minHeight: Theme.minHitTarget)
+                    .buttonStyle(.borderless)
             }
         }
     }

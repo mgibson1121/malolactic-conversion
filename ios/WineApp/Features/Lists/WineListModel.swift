@@ -28,7 +28,7 @@ enum ListKind: String, Hashable {
 /// list GET and nothing else — it never triggers enrichment (spec R4).
 @MainActor
 @Observable
-final class WineListModel {
+final class WineListModel: WineRowActionTarget {
     let kind: ListKind
     private(set) var state: LoadState<[Wine]> = .idle
     /// A search is in flight over results already on screen — they stay,
@@ -37,6 +37,8 @@ final class WineListModel {
     private(set) var consecutiveFailures = 0
     var query = ""
     var ratingFilter: MyRating?
+    /// A failed swipe/long-press action, shown above the list (§4.3 inline).
+    var rowActionError: String?
 
     init(kind: ListKind) {
         self.kind = kind
@@ -65,6 +67,17 @@ final class WineListModel {
             state = state.failing(with: .network(error.localizedDescription))
             consecutiveFailures += 1
         }
+    }
+
+    func replace(_ wine: Wine) {
+        guard var wines = state.value, let i = wines.firstIndex(where: { $0.id == wine.id }) else { return }
+        wines[i] = wine
+        state = .loaded(wines)
+    }
+
+    func remove(id: String) {
+        guard let wines = state.value else { return }
+        state = .from(wines.filter { $0.id != id })
     }
 
     /// Notes: latest note first (spec §7). Every other tab keeps the server's

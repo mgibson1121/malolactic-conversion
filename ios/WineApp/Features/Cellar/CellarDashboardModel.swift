@@ -11,13 +11,26 @@ struct CellarSnapshot: Hashable {
 /// (implementation spec §6.1).
 @MainActor
 @Observable
-final class CellarDashboardModel {
+final class CellarDashboardModel: WineRowActionTarget {
     private(set) var state: LoadState<CellarSnapshot> = .idle
     private(set) var consecutiveFailures = 0
     /// The Ready-to-drink segment currently filtering the list, if any.
     var readinessFilter: ReadinessSegment?
     /// Inline error under the capacity widget (an Action-class failure).
     private(set) var capacityError: String?
+    var rowActionError: String?
+
+    func replace(_ wine: Wine) {
+        guard var snapshot = state.value, let i = snapshot.wines.firstIndex(where: { $0.id == wine.id }) else { return }
+        snapshot.wines[i] = wine
+        state = .loaded(snapshot)
+    }
+
+    func remove(id: String) {
+        guard var snapshot = state.value else { return }
+        snapshot.wines.removeAll { $0.id == id }
+        state = .loaded(snapshot)
+    }
 
     func load(using api: APIClient) async {
         if state.value == nil { state = .loading }

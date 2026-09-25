@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Discovered / Wishlist / Notes. Same compressed card and nav pattern as the
-/// Cellar list; tab-scoped search, 300 ms debounce (§6.2).
+/// Cellar list; tab-scoped search, 300 ms debounce (§6.2). A `List` rather
+/// than a ScrollView because swipe actions only exist on List rows.
 struct WineListView: View {
     @Environment(AppSession.self) private var session
     @State private var model: WineListModel
     @State private var path: [DetailRoute] = []
+    @State private var rowSheets = RowSheets()
     let onScan: () -> Void
     let onChangeServer: () -> Void
 
@@ -18,13 +20,13 @@ struct WineListView: View {
     var body: some View {
         @Bindable var model = model
         NavigationStack(path: $path) {
-            ScrollView {
-                if case .stale = model.state { StaleBanner() }
+            List {
+                if case .stale = model.state { StaleBanner().cardRow() }
                 WineListContent(model: model, onScan: onScan, onChangeServer: onChangeServer, reload: reload,
-                                open: { path.append($0) })
-                    .padding(.horizontal, Theme.sideMargin)
-                    .padding(.bottom, 24)
+                                open: { path.append($0) }, sheets: rowSheets)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Theme.bg)
             .navigationTitle(model.kind.title)
             .searchable(text: $model.query, prompt: "Search \(model.kind.title)")
@@ -51,6 +53,7 @@ struct WineListView: View {
                 }
                 await reload()
             }
+            .rowSheets(rowSheets, target: model)
         }
     }
 
@@ -60,25 +63,80 @@ struct WineListView: View {
     }
 }
 
-/// The list body in every state. Shared with the Cellar dashboard.
+/// The Evaluate sheet and Delete confirmation a card's gestures can open —
+/// owned by the list screen, shared by every row on it.
+@MainActor
+@Observable
+final class RowSheets {
+    var evaluating: Wine?
+    var deleting: Wine?
+    var deleteError: String?
+}
+
+private struct RowSheetsModifier: ViewModifier {
+    @Environment(AppSession.self) private var session
+    @Bindable var sheets: RowSheets
+    let target: WineRowActionTarget
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $sheets.evaluating) { wine in
+                if let api = session.api {
+                    EvaluateFormView(wine: wine, api: api) { session.collectionChanged() }
+                }
+            }
+            .confirmationDialog(
+                "Delete \(sheets.deleting.map(WineFormatting.title) ?? "this wine")?",
+                isPresented: Binding(get: { sheets.deleting != nil }, set: { if !$0 { sheets.deleting = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    guard let wine = sheets.deleting, let api = session.api else { return }
+                    Task {
+                        let actions = RowActions(api: api, target: target, collectionChanged: { session.collectionChanged() })
+                        sheets.deleteError = await actions.delete(wine)
+                    }
+                }
+            } message: {
+                Text("This removes the wine from every list. It can't be undone.")
+            }
+            .alert("Couldn't delete", isPresented: Binding(get: { sheets.deleteError != nil },
+                                                          set: { if !$0 { sheets.deleteError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(sheets.deleteError ?? "")
+            }
+    }
+}
+
+extension View {
+    func rowSheets(_ sheets: RowSheets, target: WineRowActionTarget) -> some View {
+        modifier(RowSheetsModifier(sheets: sheets, target: target))
+    }
+}
+
+/// The list rows in every state — used inside a `List`. Shared with the
+/// Cellar tab's search results.
 struct WineListContent: View {
     let model: WineListModel
     let onScan: () -> Void
     let onChangeServer: () -> Void
     let reload: () async -> Void
     let open: (DetailRoute) -> Void
+    let sheets: RowSheets
     @Environment(AppSession.self) private var session
 
     var body: some View {
+        if let error = model.rowActionError {
+            Text(error).font(.system(size: 12)).foregroundStyle(Theme.redPill).cardRow()
+        }
         switch model.state {
         case .idle:
             EmptyView()
         case .loading:
-            LazyVStack(spacing: Theme.rowGap) {
-                ForEach(0..<3, id: \.self) { _ in SkeletonRow() }
-            }
+            ForEach(0..<3, id: \.self) { _ in SkeletonRow().cardRow() }
         case .empty:
-            emptyState
+            emptyState.cardRow()
         case .failed(let error):
             FullStateErrorView(
                 message: error.isNetwork
@@ -89,15 +147,20 @@ struct WineListContent: View {
                 secondaryAction: error.isNetwork ? onChangeServer : nil,
                 retry: { Task { await reload() } }
             )
+            .cardRow()
         case .loaded(let wines), .stale(let wines, _):
-            LazyVStack(spacing: Theme.rowGap) {
-                ForEach(wines) { wine in
-                    WineRowView(wine: wine, kind: model.kind) { focus in
-                        open(DetailRoute(wine: wine, focusScores: focus))
-                    }
-                }
+            let actions = session.api.map {
+                RowActions(api: $0, target: model, collectionChanged: { session.collectionChanged() })
             }
-            .opacity(model.isSearching ? 0.5 : 1)
+            ForEach(wines) { wine in
+                WineRowView(wine: wine, kind: model.kind) { focus in
+                    open(DetailRoute(wine: wine, focusScores: focus))
+                }
+                .opacity(model.isSearching ? 0.5 : 1)
+                .wineRowActions(wine, kind: model.kind, actions: actions,
+                                evaluate: { sheets.evaluating = $0 }, requestDelete: { sheets.deleting = $0 })
+                .cardRow()
+            }
         }
     }
 
