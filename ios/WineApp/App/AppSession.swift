@@ -38,6 +38,11 @@ final class AppSession {
         Self.normalisedURL(baseURLString)?.host(percentEncoded: false) ?? baseURLString
     }
 
+    /// Which detail-screen disclosure groups are open, per wine, for this
+    /// session only — reopening a wine keeps what the user opened; a new
+    /// wine starts collapsed; nothing survives a relaunch (spec §8).
+    var expandedGroups: [String: Set<DetailGroup>] = [:]
+
     func collectionChanged() {
         collectionRevision += 1
     }

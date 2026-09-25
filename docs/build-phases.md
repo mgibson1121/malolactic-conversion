@@ -1609,9 +1609,24 @@ and the iOS suite passes 43/43. Added since: the scan flow (system camera,
 library and manual fallbacks, duplicate check, draft review with the
 primary-tier auto-fire, Save/Discard) and manual add behind the Cellar "+".
 Running against real data found two bugs no fixture had caught, both fixed —
-see the rule below. Not yet built: detail view, Evaluate form, enrichment
-controls outside the scan path, swipe/long-press actions, bundled Domine/Work
-Sans font files.
+see the rule below.
+
+**Build status (2026-09-24, later):** PR #34 merged. On
+`feature/phase-12-ios-detail` (PR #35):
+- The iOS CI job runs on every PR (macos-15, the latest installed Xcode,
+  the first available iPhone simulator). It passed on its first run.
+- The wine detail screen: Research, Retailers and Reviews disclosure
+  groups; metered Fetch/Refresh with the web's "Refresh anyway" two-tap
+  pattern; tap-time retailer URL resolution.
+- The WSET Evaluate form, with the post-save tag review.
+- Swipe and long-press card actions, optimistic with rollback.
+
+The iOS suite passes 59/59. Remaining for the phase:
+- Bundled Domine/Work Sans font files (Google Fonts, OFL; needs a download).
+- The guided "copy the product URL and switch back" retailer flow (web
+  Phase 7.2).
+- A walk through the implementation spec's §13 QA checklist on a device:
+  Dynamic Type, dark appearance, VoiceOver, and a real scan.
 
 **Stored enrichment JSON is older than its types (found 2026-09-24).**
 `price_data` and `review_data` are stored as JSON written by whichever phase
