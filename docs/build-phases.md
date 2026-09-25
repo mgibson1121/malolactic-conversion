@@ -1600,11 +1600,31 @@ Swift models mirroring `shared/types.ts`, API client, six-state `LoadState`,
 theme tokens (light + dark), the five-tab shell, the Cellar dashboard widgets,
 the list screens and a first cut of the compressed card, plus XCTest suites
 decoding fixtures exported from the real storage adapter
-(`backend/scripts/export-ios-fixtures.ts`). **None of the Swift has been
-compiled yet** — the development Mac had only a broken Command Line Tools
-install and no Xcode; installing Xcode is the gate for the next slice. Not yet
-built: scan flow, detail view, draft review, Evaluate form, swipe/long-press
-actions, bundled Domine/Work Sans font files, iOS CI.
+(`backend/scripts/export-ios-fixtures.ts`). That first slice was written
+before Xcode was installed and compiled cleanly once it was.
+
+**Build status (2026-09-24):** Xcode 27 installed; the app builds and runs on
+an iPhone 17 Pro simulator (iOS 27) against the real backend and collection,
+and the iOS suite passes 43/43. Added since: the scan flow (system camera,
+library and manual fallbacks, duplicate check, draft review with the
+primary-tier auto-fire, Save/Discard) and manual add behind the Cellar "+".
+Running against real data found two bugs no fixture had caught, both fixed —
+see the rule below. Not yet built: detail view, Evaluate form, enrichment
+controls outside the scan path, swipe/long-press actions, bundled Domine/Work
+Sans font files.
+
+**Stored enrichment JSON is older than its types (found 2026-09-24).**
+`price_data` and `review_data` are stored as JSON written by whichever phase
+last fetched them, so real rows predate fields that later phases added. In the
+developer's 52 promoted wines, 46 retailer rows had no `verification` or
+`vintage_verdict`, 44 reviews had no `source` or `match`, 21 retailer rows had
+no `link_only`, and 13 scores had no `deal`. `shared/types.ts` declares all of
+these required. The web copes because JavaScript reads a missing field as
+`undefined`; strict Swift decoding failed the whole list. The iOS decoders now
+default each missing field to what the web renders for `undefined`, and the
+fixture exporter emits a legacy-shaped wine to keep that tested. Any new
+client, and any new code that reads these blobs, should make the same
+assumption.
 
 A small product call made while building, recorded so it isn't re-derived: on
 the Ready-to-drink widget, a wine **past** the end of its window counts under
