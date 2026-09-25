@@ -1,7 +1,7 @@
 {
   "kind": "duplicate",
   "wine": {
-    "id": "daf84d84-2b64-40ed-acc6-5f5b2c25ea27",
+    "id": "860000a5-9b44-4877-9278-58d7d69cfd6b",
     "producer": "Domaine Comte Georges de Vogüé",
     "denomination": "Chambolle-Musigny 1er Cru Les Amoureuses",
     "vintage": 2019,
@@ -32,7 +32,7 @@
       "silky",
       "floral"
     ],
-    "latest_tasting_note_id": "09637998-3c69-426a-8179-f49d2b9e6869",
+    "latest_tasting_note_id": "93a0cb47-c12a-4232-a90b-300c6c01b854",
     "wishlist_notes": null,
     "price_paid": 640,
     "purchased_from": "Zachys",
@@ -208,8 +208,8 @@
       }
     ],
     "review_probe_log": null,
-    "date_added": "2026-09-24T03:29:39.382Z",
-    "date_first_consumed": "2026-09-24T03:29:39.387Z",
+    "date_added": "2026-09-25T02:19:58.016Z",
+    "date_first_consumed": "2026-09-25T02:19:58.017Z",
     "promoted_at": "2026-09-20T18:10:00.000Z",
     "latest_tasting_note_date": "2026-09-21T20:30:00.000Z"
   }

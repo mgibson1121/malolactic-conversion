@@ -123,6 +123,27 @@ async function main() {
     price_paid: null, purchased_from: null, retailer_links: null,
   })
 
+  // Stored enrichment JSON written by earlier phases, which predates fields
+  // later phases added (verification, vintage_verdict, link_only, pack/format
+  // before 9.1/7.x; review source before 7.3, match before 9.1; score deal
+  // before 8). Real collections carry rows like this — the iOS decoders
+  // must default them the way the web renders `undefined`.
+  const legacy = await storage.createWine({ ...BASE, producer: 'Château Rayas', denomination: 'Châteauneuf-du-Pape', vintage: 2012 })
+  await storage.updateWine(legacy.id, {
+    tag_wishlist: true, promoted_at: '2026-07-01T12:00:00.000Z',
+    price_data: {
+      price_min: 900, price_avg: 900, price_max: 900,
+      retailers: [{ slug: 'zachys', name: 'Zachys', price: 900, url: 'https://www.zachys.com/rayas-2012', distance_miles: 21.4, is_preferred_retailer: true, is_search_results_page: false, matched_vintage: 2012, vintage_mismatch: false }],
+      nearest_retailer: null,
+      fetched_at: '2026-07-01T12:00:00.000Z',
+    } as unknown as PriceData,
+    review_data: [{
+      slug: 'benchmark', name: 'Benchmark Wine Group', product_url: 'https://www.benchmarkwine.com/rayas-2012',
+      critic_scores: [{ publication: 'Wine Advocate', score: 97, known_publication: true, drinking_window: null, vintage_character: null }],
+      fetched_at: '2026-07-01T12:00:00.000Z',
+    }] as unknown as RetailerReview[],
+  })
+
   const [listed] = await storage.listWines({ tag_cellar: true })
   const draftRead = await storage.getWine(draft.id)
   const settings = await storage.updateSettings({ cellar_capacity: 120 })
@@ -131,6 +152,7 @@ async function main() {
   const fixtures: Record<string, unknown> = {
     'wine-full.json': listed,
     'wine-draft-nv.json': draftRead,
+    'wine-legacy-enrichment.json': await storage.getWine(legacy.id),
     'wine-list.json': [listed],
     'tasting-note.json': note,
     'settings.json': settings,

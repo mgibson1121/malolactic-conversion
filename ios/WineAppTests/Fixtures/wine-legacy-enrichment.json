@@ -1,0 +1,84 @@
+{
+  "id": "0c3fc437-2013-45cc-877a-6f6c30291085",
+  "producer": "Château Rayas",
+  "denomination": "Châteauneuf-du-Pape",
+  "vintage": 2012,
+  "region": "Burgundy",
+  "quality_classification": "Premier Cru",
+  "vineyard": "Les Amoureuses",
+  "cuvee": null,
+  "grape_varieties": [
+    "Pinot Noir"
+  ],
+  "wine_color": "red",
+  "label_image_url": null,
+  "tag_discovered": false,
+  "tag_wishlist": true,
+  "tag_cellar": false,
+  "tag_consumed": false,
+  "cellar_category": null,
+  "cellar_quantity": 3,
+  "drinking_window": {
+    "start": "2026-01-01",
+    "end": "2038-12-31"
+  },
+  "drinking_window_source": "manual",
+  "vintage_rating": "very_good",
+  "vintage_rating_source": "manual",
+  "my_rating": "outstanding",
+  "my_tags": [
+    "silky",
+    "floral"
+  ],
+  "latest_tasting_note_id": null,
+  "wishlist_notes": null,
+  "price_paid": 640,
+  "purchased_from": "Zachys",
+  "advice_linked": null,
+  "expert_reviews": null,
+  "community_sentiment": null,
+  "community_excerpts": null,
+  "price_data": {
+    "price_min": 900,
+    "price_avg": 900,
+    "price_max": 900,
+    "retailers": [
+      {
+        "slug": "zachys",
+        "name": "Zachys",
+        "price": 900,
+        "url": "https://www.zachys.com/rayas-2012",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2012,
+        "vintage_mismatch": false
+      }
+    ],
+    "nearest_retailer": null,
+    "fetched_at": "2026-07-01T12:00:00.000Z"
+  },
+  "retailer_links": null,
+  "review_data": [
+    {
+      "slug": "benchmark",
+      "name": "Benchmark Wine Group",
+      "product_url": "https://www.benchmarkwine.com/rayas-2012",
+      "critic_scores": [
+        {
+          "publication": "Wine Advocate",
+          "score": 97,
+          "known_publication": true,
+          "drinking_window": null,
+          "vintage_character": null
+        }
+      ],
+      "fetched_at": "2026-07-01T12:00:00.000Z"
+    }
+  ],
+  "review_probe_log": null,
+  "date_added": "2026-09-25T02:19:58.017Z",
+  "date_first_consumed": null,
+  "promoted_at": "2026-07-01T12:00:00.000Z",
+  "latest_tasting_note_date": null
+}

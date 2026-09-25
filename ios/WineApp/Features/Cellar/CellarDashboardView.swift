@@ -106,8 +106,13 @@ struct CellarDashboardView: View {
                 }
                 if !model.recentlyAdded.isEmpty {
                     SectionLabel("Recently added")
-                    ForEach(model.recentlyAdded) { wine in
-                        WineRowView(wine: wine, kind: .cellar)
+                    // Its own container: these wines appear again in the list
+                    // below, and a LazyVStack silently drops rows whose IDs
+                    // repeat within it.
+                    VStack(spacing: Theme.rowGap) {
+                        ForEach(model.recentlyAdded) { wine in
+                            WineRowView(wine: wine, kind: .cellar)
+                        }
                     }
                 }
             }

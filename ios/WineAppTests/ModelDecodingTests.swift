@@ -48,8 +48,8 @@ final class ModelDecodingTests: XCTestCase {
         let reviews = try XCTUnwrap(try Fixture.fullWine.reviewData)
 
         XCTAssertEqual(reviews.count, 2)
-        XCTAssertEqual(reviews[0].match.vintage, .match)
-        XCTAssertEqual(reviews[0].match.candidateVintage, 2019)
+        XCTAssertEqual(reviews[0].match?.vintage, .match)
+        XCTAssertEqual(reviews[0].match?.candidateVintage, 2019)
         XCTAssertEqual(reviews[1].source, .fallback)
         XCTAssertNil(reviews[1].pageVintage)
 
@@ -72,6 +72,27 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertNil(wine.reviewData)
         XCTAssertNil(wine.latestTastingNoteDate)
         XCTAssertFalse(wine.tagDiscovered || wine.tagWishlist || wine.tagCellar || wine.tagConsumed)
+    }
+
+    /// Real collections hold enrichment JSON written by earlier phases. One
+    /// such row must not fail the whole list (found 2026-09-24 against the
+    /// developer's live data: 46 retailer rows without `verification`).
+    func testDecodesEnrichmentStoredByEarlierPhases() throws {
+        let wine = try Fixture.decode(Wine.self, "wine-legacy-enrichment")
+
+        let retailer = try XCTUnwrap(wine.priceData?.retailers.first)
+        XCTAssertEqual(retailer.verification, .unchecked, "absent renders no badge, as on the web")
+        XCTAssertEqual(retailer.vintageVerdict, .unknown)
+        XCTAssertFalse(retailer.linkOnly)
+        XCTAssertEqual(retailer.packQuantity, 1)
+        XCTAssertFalse(retailer.nonStandardFormat)
+        XCTAssertEqual(retailer.formatLabel, "")
+
+        let review = try XCTUnwrap(wine.reviewData?.first)
+        XCTAssertEqual(review.source, .configured)
+        XCTAssertNil(review.match)
+        XCTAssertEqual(review.criticScores.first?.deal, false)
+        XCTAssertEqual(CriticScores.cardBadge(wine.reviewData)?.text, "97 WA")
     }
 
     func testDecodesAListResponse() throws {
