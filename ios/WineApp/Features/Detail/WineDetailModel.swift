@@ -49,6 +49,14 @@ final class WineDetailModel {
         } catch {}
     }
 
+    /// After a note is saved: the wine's rating, tags and latest note all
+    /// changed server-side, so re-read both (free GETs).
+    func reloadAfterEvaluate() async {
+        if let fresh = try? await api.getWine(id: wine.id) { wine = fresh }
+        await loadNotes()
+        onChanged()
+    }
+
     // MARK: Lists and quantity — optimistic, rolled back on failure (§4.4)
 
     func toggle(_ keyPath: WritableKeyPath<Wine, Bool>, patch: (Bool) -> WinePatch) async {

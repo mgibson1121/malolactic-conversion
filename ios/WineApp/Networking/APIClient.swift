@@ -96,6 +96,12 @@ struct APIClient: Sendable {
         try await send(request("GET", "api/tasting-notes/wine/\(wineID)"))
     }
 
+    /// Also sets `tag_consumed` and `latest_tasting_note_id` on the wine, and
+    /// extracts tags with one GPT-4o call server-side — so only on Save.
+    func createTastingNote(_ note: NewTastingNote) async throws -> TastingNote {
+        try await send(request("POST", "api/tasting-notes", json: note))
+    }
+
     // MARK: Settings
 
     func settings() async throws -> AppSettings {

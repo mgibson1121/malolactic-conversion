@@ -57,7 +57,11 @@ struct WineDetailView: View {
             }
         }
         .sheet(isPresented: $isEvaluating) {
-            EvaluatePlaceholder()
+            if let api = session.api {
+                EvaluateFormView(wine: wine, api: api) {
+                    Task { await model.reloadAfterEvaluate() }
+                }
+            }
         }
     }
 
@@ -399,21 +403,6 @@ struct WineDetailView: View {
             session.expandedGroups[wine.id, default: []].insert(group)
         } else {
             session.expandedGroups[wine.id, default: []].remove(group)
-        }
-    }
-}
-
-/// Stand-in until the Evaluate form lands (next slice).
-private struct EvaluatePlaceholder: View {
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationStack {
-            Text("The Evaluate form is the next Phase 12 slice.")
-                .font(AppFont.body())
-                .foregroundStyle(Theme.textMuted)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.bg)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
     }
 }

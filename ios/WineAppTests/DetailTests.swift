@@ -76,3 +76,49 @@ final class RetailerNamesTests: XCTestCase {
         XCTAssertEqual(RetailerNames.name(for: "nowhere", in: wine), "nowhere")
     }
 }
+
+final class EvaluateDraftTests: XCTestCase {
+    private func complete() -> EvaluateDraft {
+        var d = EvaluateDraft()
+        d.clarity = "clear"; d.colourIntensity = "medium"; d.colour = "ruby"
+        d.noseCondition = "clean"; d.noseIntensity = "medium_plus"
+        d.nosePrimary = "red cherry, violet"; d.noseSecondary = "none"; d.noseTertiary = "forest floor"
+        d.sweetness = "dry"; d.acidity = "high"; d.body = "medium"
+        d.flavourIntensity = "medium_plus"; d.finish = "long"; d.quality = "very_good"
+        return d
+    }
+
+    func testEverythingButTanninAndNotesIsRequired() {
+        XCTAssertEqual(EvaluateDraft().missing.count, 14)
+        XCTAssertTrue(complete().missing.isEmpty, "tannin and notes are optional")
+        var d = complete()
+        d.colour = "  "
+        XCTAssertEqual(d.missing, [.colour])
+    }
+
+    func testRatingIsDerivedFromQuality() {
+        var d = complete()
+        XCTAssertEqual(d.rating, .veryGood)
+        d.quality = "flawed"
+        XCTAssertEqual(d.rating, .poor)
+    }
+
+    func testNoteInputSplitsAromasAndDropsBlankNotes() throws {
+        let input = complete().noteInput(wineID: "w1", now: day("2026-09-24"))
+        XCTAssertEqual(input.nosePrimaryAromas, ["red cherry", "violet"])
+        XCTAssertNil(input.freeText)
+        XCTAssertNil(input.palateTannin)
+        XCTAssertEqual(input.tastedAt, "2026-09-24T00:00:00Z")
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any])
+        XCTAssertEqual(body["wine_id"] as? String, "w1")
+        XCTAssertEqual(body["my_rating"] as? String, "very_good")
+        XCTAssertNil(body["tags"], "tags are extracted server-side")
+    }
+
+    func testDescriptorTapAppendsOnce() {
+        XCTAssertEqual(AromaDescriptors.adding("rose", to: "cherry"), "cherry, rose")
+        XCTAssertEqual(AromaDescriptors.adding("rose", to: "cherry, rose"), "cherry, rose")
+        XCTAssertEqual(AromaDescriptors.adding("rose", to: ""), "rose")
+    }
+}
