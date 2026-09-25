@@ -34,6 +34,7 @@ struct WineListView: View {
                 }
             }
             .refreshable { await reload() }
+            .onChange(of: session.collectionRevision) { Task { await reload() } }
             // Re-runs on every query/filter change; `.task(id:)` cancels the
             // previous run, which is the debounce and the in-flight cancel.
             .task(id: model.filter) {

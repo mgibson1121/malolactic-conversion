@@ -17,6 +17,10 @@ final class AppSession {
     #endif
 
     private(set) var baseURLString: String
+    /// Bumped whenever something changes which wines are in which list (a
+    /// draft saved, a scan's tags applied), so every list re-issues its GET.
+    /// Nothing else observes it — in particular it never triggers enrichment.
+    private(set) var collectionRevision = 0
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -32,6 +36,10 @@ final class AppSession {
     /// The host shown in "Can't reach the backend at {host}".
     var hostDescription: String {
         Self.normalisedURL(baseURLString)?.host(percentEncoded: false) ?? baseURLString
+    }
+
+    func collectionChanged() {
+        collectionRevision += 1
     }
 
     func setBaseURL(_ string: String) {

@@ -43,7 +43,7 @@ const BASE: CreateWineInput = {
   price_paid: 640,
   purchased_from: 'Zachys',
   date_first_consumed: null,
-  retailer_links: { kl: 'https://www.klwines.com/p/i?i=1592587' },
+  retailer_links: null,
 }
 
 function retailer(overrides: Partial<RetailerPrice>): RetailerPrice {
@@ -100,6 +100,9 @@ async function main() {
   await storage.updateWine(full.id, {
     tag_cellar: true, tag_discovered: true, promoted_at: '2026-09-20T18:10:00.000Z',
     price_data: PRICE_DATA, review_data: REVIEW_DATA,
+    // createWine always starts retailer_links null — saved links only ever
+    // arrive through confirm-retailer-link, i.e. an update.
+    retailer_links: { kl: 'https://www.klwines.com/p/i?i=1592587' },
   })
   const note = await storage.createTastingNote({
     wine_id: full.id, tasted_at: '2026-09-21T20:30:00.000Z',

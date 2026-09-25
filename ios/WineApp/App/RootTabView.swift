@@ -11,6 +11,7 @@ struct RootTabView: View {
     @Environment(AppSession.self) private var session
     @State private var selection: AppTab = .cellar
     @State private var isScanning = false
+    @State private var isAddingManually = false
     @State private var isEditingServer = false
 
     var body: some View {
@@ -34,7 +35,9 @@ struct RootTabView: View {
             }
         )) {
             Tab("Cellar", systemImage: "square.grid.2x2", value: AppTab.cellar) {
-                CellarDashboardView(onScan: { isScanning = true }, onChangeServer: { isEditingServer = true })
+                CellarDashboardView(onScan: { isScanning = true },
+                                    onAddManually: { isAddingManually = true },
+                                    onChangeServer: { isEditingServer = true })
             }
             Tab("Discovered", systemImage: "circle.circle", value: AppTab.discovered) {
                 WineListView(kind: .discovered, onScan: { isScanning = true }, onChangeServer: { isEditingServer = true })
@@ -53,7 +56,10 @@ struct RootTabView: View {
             ScanTabButton { isScanning = true }
         }
         .fullScreenCover(isPresented: $isScanning) {
-            ScanFlowPlaceholder()
+            if let api = session.api { ScanFlowView(api: api) }
+        }
+        .fullScreenCover(isPresented: $isAddingManually) {
+            if let api = session.api { ScanFlowView(api: api, startManual: true) }
         }
     }
 }
@@ -78,26 +84,5 @@ private struct ScanTabButton: View {
         // Circle bottom = bar height (49) + lift (18) − diameter (56).
         .padding(.bottom, 11)
         .accessibilityLabel("Scan a label")
-    }
-}
-
-/// Stand-in until the scan flow (spec §6) lands — keeps the tab bar's
-/// behaviour real while the capture machine is built.
-private struct ScanFlowPlaceholder: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Text("Label capture is the next Phase 12 slice.")
-                .font(AppFont.body())
-                .foregroundStyle(Theme.textMuted)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.bg)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                    }
-                }
-        }
     }
 }

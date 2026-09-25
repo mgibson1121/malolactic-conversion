@@ -21,6 +21,7 @@ enum LabelImage {
     static func jpegForUpload(_ image: UIImage) -> Data? {
         let pixelSize = CGSize(width: image.size.width * image.scale,
                                height: image.size.height * image.scale)
+        guard pixelSize.width > 0, pixelSize.height > 0 else { return nil }
         let target = targetPixelSize(for: pixelSize)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1

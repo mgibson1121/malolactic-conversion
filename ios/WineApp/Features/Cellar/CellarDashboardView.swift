@@ -7,6 +7,8 @@ struct CellarDashboardView: View {
     @State private var model = CellarDashboardModel()
     @State private var search = WineListModel(kind: .cellar)
     let onScan: () -> Void
+    /// Spec D4 — the nav-bar "+" for manual entry.
+    let onAddManually: () -> Void
     let onChangeServer: () -> Void
 
     var body: some View {
@@ -26,6 +28,15 @@ struct CellarDashboardView: View {
             .background(Theme.bg)
             .navigationTitle("Cellar")
             .searchable(text: $search.query, prompt: "Search Cellar")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onAddManually) {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add wine manually")
+                }
+            }
+            .onChange(of: session.collectionRevision) { Task { await reload() } }
             .refreshable {
                 if isSearching { await reloadSearch() } else { await reload() }
             }
