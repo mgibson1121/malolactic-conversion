@@ -6,6 +6,7 @@ struct CellarDashboardView: View {
     @Environment(AppSession.self) private var session
     @State private var model = CellarDashboardModel()
     @State private var search = WineListModel(kind: .cellar)
+    @State private var path: [DetailRoute] = []
     let onScan: () -> Void
     /// Spec D4 — the nav-bar "+" for manual entry.
     let onAddManually: () -> Void
@@ -13,10 +14,11 @@ struct CellarDashboardView: View {
 
     var body: some View {
         @Bindable var search = search
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 if isSearching {
-                    WineListContent(model: search, onScan: onScan, onChangeServer: onChangeServer, reload: reloadSearch)
+                    WineListContent(model: search, onScan: onScan, onChangeServer: onChangeServer, reload: reloadSearch,
+                                    open: { path.append($0) })
                         .padding(.horizontal, Theme.sideMargin)
                 } else {
                     if case .stale = model.state { StaleBanner() }
@@ -37,6 +39,11 @@ struct CellarDashboardView: View {
                 }
             }
             .onChange(of: session.collectionRevision) { Task { await reload() } }
+            .navigationDestination(for: DetailRoute.self) { route in
+                if let api = session.api {
+                    WineDetailView(route: route, api: api, onChanged: { session.collectionChanged() })
+                }
+            }
             .refreshable {
                 if isSearching { await reloadSearch() } else { await reload() }
             }
@@ -111,7 +118,9 @@ struct CellarDashboardView: View {
                     // repeat within it.
                     VStack(spacing: Theme.rowGap) {
                         ForEach(model.recentlyAdded) { wine in
-                            WineRowView(wine: wine, kind: .cellar)
+                            WineRowView(wine: wine, kind: .cellar) { focus in
+                                path.append(DetailRoute(wine: wine, focusScores: focus))
+                            }
                         }
                     }
                 }
@@ -123,7 +132,9 @@ struct CellarDashboardView: View {
                 EmptyStateView(message: "No wines here yet.", actionTitle: "Scan a label", action: onScan)
             } else {
                 ForEach(listed) { wine in
-                    WineRowView(wine: wine, kind: .cellar)
+                    WineRowView(wine: wine, kind: .cellar) { focus in
+                        path.append(DetailRoute(wine: wine, focusScores: focus))
+                    }
                 }
             }
         }

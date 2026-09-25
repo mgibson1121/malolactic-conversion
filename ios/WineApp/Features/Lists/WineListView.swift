@@ -5,6 +5,7 @@ import SwiftUI
 struct WineListView: View {
     @Environment(AppSession.self) private var session
     @State private var model: WineListModel
+    @State private var path: [DetailRoute] = []
     let onScan: () -> Void
     let onChangeServer: () -> Void
 
@@ -16,10 +17,11 @@ struct WineListView: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 if case .stale = model.state { StaleBanner() }
-                WineListContent(model: model, onScan: onScan, onChangeServer: onChangeServer, reload: reload)
+                WineListContent(model: model, onScan: onScan, onChangeServer: onChangeServer, reload: reload,
+                                open: { path.append($0) })
                     .padding(.horizontal, Theme.sideMargin)
                     .padding(.bottom, 24)
             }
@@ -34,6 +36,11 @@ struct WineListView: View {
                 }
             }
             .refreshable { await reload() }
+            .navigationDestination(for: DetailRoute.self) { route in
+                if let api = session.api {
+                    WineDetailView(route: route, api: api, onChanged: { session.collectionChanged() })
+                }
+            }
             .onChange(of: session.collectionRevision) { Task { await reload() } }
             // Re-runs on every query/filter change; `.task(id:)` cancels the
             // previous run, which is the debounce and the in-flight cancel.
@@ -59,6 +66,7 @@ struct WineListContent: View {
     let onScan: () -> Void
     let onChangeServer: () -> Void
     let reload: () async -> Void
+    let open: (DetailRoute) -> Void
     @Environment(AppSession.self) private var session
 
     var body: some View {
@@ -84,7 +92,9 @@ struct WineListContent: View {
         case .loaded(let wines), .stale(let wines, _):
             LazyVStack(spacing: Theme.rowGap) {
                 ForEach(wines) { wine in
-                    WineRowView(wine: wine, kind: model.kind)
+                    WineRowView(wine: wine, kind: model.kind) { focus in
+                        open(DetailRoute(wine: wine, focusScores: focus))
+                    }
                 }
             }
             .opacity(model.isSearching ? 0.5 : 1)

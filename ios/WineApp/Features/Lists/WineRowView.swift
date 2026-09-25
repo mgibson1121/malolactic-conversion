@@ -6,6 +6,9 @@ import SwiftUI
 struct WineRowView: View {
     let wine: Wine
     let kind: ListKind
+    /// Opens the detail screen; `true` when the tap landed on the score badge
+    /// (Research opens, scrolled to scores — implementation spec §8).
+    var onOpen: ((_ focusScores: Bool) -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -32,14 +35,18 @@ struct WineRowView: View {
                     .foregroundStyle(Theme.textMuted)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                BadgeRun(items: badges)
+                BadgeRun(items: badges, onScoreTap: onOpen.map { open in { open(true) } })
             }
         }
         .padding(14)
         .frame(minHeight: 96, alignment: .top)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .onTapGesture { onOpen?(false) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
+        .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
+        .accessibilityAction { onOpen?(false) }
     }
 
     /// Line 3 in priority order, highest first: rating > critic score >
@@ -90,13 +97,24 @@ enum BadgeItem: Hashable {
 /// tries the full run, then each shorter prefix.
 struct BadgeRun: View {
     let items: [BadgeItem]
+    var onScoreTap: (() -> Void)?
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             ForEach(Array(stride(from: items.count, through: 1, by: -1)), id: \.self) { count in
                 HStack(spacing: 6) {
                     ForEach(items.prefix(count), id: \.self) { item in
-                        BadgeView(item: item)
+                        if case .score = item, let onScoreTap {
+                            // A 44 pt tall hit area (§7.2) that doesn't grow the
+                            // card: pad, claim the padded shape, pad back out.
+                            BadgeView(item: item)
+                                .padding(.vertical, 13)
+                                .contentShape(Rectangle())
+                                .onTapGesture(perform: onScoreTap)
+                                .padding(.vertical, -13)
+                        } else {
+                            BadgeView(item: item)
+                        }
                     }
                 }
                 .fixedSize()
