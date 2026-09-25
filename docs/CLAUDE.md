@@ -245,13 +245,13 @@ Offline mode is out of scope for v1.
 - Test-driven development is followed for all new features
 - Each module has unit tests co-located in its directory (`*.test.ts`)
 - Integration tests live in `backend/tests/integration/`
-- Use Jest for the backend, Vitest for web; XCTest for iOS (`ios/WineAppTests/`, run from Xcode or `xcodebuild test`; builds and passes locally as of 2026-09-24, not yet in CI). **Stored `price_data`/`review_data` JSON can predate fields `shared/types.ts` marks required** (e.g. `verification`, `vintage_verdict`, `source`, `match`, `deal`), because each row is whatever the phase that last fetched it wrote. Treat those fields as possibly absent when reading stored blobs; see `docs/build-phases.md` Phase 12
+- Use Jest for the backend, Vitest for web; XCTest for iOS (`ios/WineAppTests/`, run from Xcode or `xcodebuild test`; CI's `ios` job runs it on every PR since 2026-09-24). **Stored `price_data`/`review_data` JSON can predate fields `shared/types.ts` marks required** (e.g. `verification`, `vintage_verdict`, `source`, `match`, `deal`), because each row is whatever the phase that last fetched it wrote. Treat those fields as possibly absent when reading stored blobs; see `docs/build-phases.md` Phase 12
 - All tests must pass before merging to `main`
 - Backend `testMatch` (`backend/jest.config.ts`) covers `__tests__/`, `tests/`, and `modules/**` — a test file placed outside all three (e.g. directly in `backend/db/`) will not run under `npm test` or CI without an explicit pattern added for it (found 2026-09-03: `backend/db/migrate.test.ts` had silently never run since it was written; fixed by adding a `db/**` pattern rather than moving the file). Both web (`tsconfig.json`, no `exclude`) and backend (`tsconfig.json`, `exclude: ["**/*.test.ts", ...]`) type-check differently — web's CI `tsc --noEmit` step does check test files, backend's does not; a type-only-caught bug in a backend test file will surface only when `jest`/`ts-jest` runs it, not from `tsc` alone.
 
 ### GitHub Actions (CI)
 
-CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to `main`: install → lint (`tsc --noEmit` + ESLint) → backend tests (`jest`) → frontend tests → build.
+CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to `main`: install → lint (`tsc --noEmit` + ESLint) → backend tests (`jest`) → frontend tests → build. A separate `ios` job (Phase 12) builds the app and runs XCTest on a macOS runner. It uses the latest installed Xcode and the first available iPhone simulator, not a pinned model name. It is a separate job so a macOS runner problem never hides the backend/web result.
 
 ---
 
