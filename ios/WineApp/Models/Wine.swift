@@ -171,6 +171,9 @@ struct WinePatch: Encodable, Hashable {
     var vineyard: String?
     var cuvee: String?
     var wineColor: WineColor?
+    /// The whole slug-keyed map, as the web sends it — the server replaces
+    /// rather than merges, so callers merge first.
+    var retailerLinks: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case tagDiscovered = "tag_discovered"
@@ -182,6 +185,7 @@ struct WinePatch: Encodable, Hashable {
         case qualityClassification = "quality_classification"
         case vineyard, cuvee
         case wineColor = "wine_color"
+        case retailerLinks = "retailer_links"
     }
 }
 

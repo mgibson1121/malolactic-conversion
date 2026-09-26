@@ -57,6 +57,13 @@ final class WineDetailModel {
         onChanged()
     }
 
+    /// A wine the server returned from another action on this screen
+    /// (a saved link, a confirmed retailer page).
+    func apply(_ updated: Wine) {
+        wine = updated
+        PriceOnce.record(updated.id)
+    }
+
     // MARK: Lists and quantity — optimistic, rolled back on failure (§4.4)
 
     func toggle(_ keyPath: WritableKeyPath<Wine, Bool>, patch: (Bool) -> WinePatch) async {
