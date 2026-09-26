@@ -1623,12 +1623,27 @@ see the rule below.
 - The WSET Evaluate form, with the post-save tag review.
 - Swipe and long-press card actions, optimistic with rollback.
 
-The iOS suite passes 59/59. Remaining for the phase:
-- Bundled Domine/Work Sans font files (Google Fonts, OFL; needs a download).
-- The guided "copy the product URL and switch back" retailer flow (web
-  Phase 7.2).
-- A walk through the implementation spec's §13 QA checklist on a device:
-  Dynamic Type, dark appearance, VoiceOver, and a real scan.
+The iOS suite passed 59/59 at that point.
+
+**Build status (2026-09-26):** PR #35 merged. On `feature/phase-12-ios-finish`:
+- **Fonts.** Domine and Work Sans are bundled: variable TTFs from
+  `google/fonts`, SIL OFL, with the licences shipped alongside. They're
+  registered through `UIAppFonts`, including on the UIKit nav titles, and a
+  test fails if either family stops loading.
+- **Price fetch-once rule.** See its own entry below and `CLAUDE.md` §15.
+- **Find reviews.** A port of `RetailerLinksSection`, with the guided flow
+  adapted for the phone. The web opens the retailer in a new tab and reads
+  the clipboard when the tab regains focus. iOS prompts "Allow Paste" on
+  every programmatic clipboard read, so that flow would nag on every use.
+  Instead, Search opens the retailer in an in-app browser, and **"Use this
+  page"** sends the browser's current URL to `confirm-retailer-link`. It is
+  enabled only on that retailer's own domain (the web's `hostnameMatches`
+  rule) and never on the search URL itself, and it asks for confirmation
+  first, because the call is a Puppeteer render plus one GPT-4o extraction.
+
+The iOS suite passes 66/66. **Remaining:** the implementation spec's §13 QA
+checklist, walked on a device (Dynamic Type, dark appearance, VoiceOver, a
+real scan). This is the testing step the developer holds for themselves.
 
 **Stored enrichment JSON is older than its types (found 2026-09-24).**
 `price_data` and `review_data` are stored as JSON written by whichever phase
