@@ -160,12 +160,15 @@ struct ReadinessWidget: View {
                         VStack(spacing: 2) {
                             Text("\(counts[segment] ?? 0)")
                                 .font(AppFont.detailTitle().monospacedDigit())
+                            // Wraps rather than truncating or shrinking —
+                            // "Needs more time" doesn't fit one line in Work
+                            // Sans at 393 pt.
                             Text(segment.title)
                                 .font(AppFont.meta())
-                                .lineLimit(1)
-                                .minimumScaleFactor(1)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .frame(maxWidth: .infinity, minHeight: 64)
                         .foregroundStyle(isSelected ? Color.white : Theme.text)
                         .background(isSelected ? Theme.accent : Theme.surface2,
                                     in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
