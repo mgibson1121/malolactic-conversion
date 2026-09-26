@@ -85,9 +85,18 @@ final class WineDetailModel {
         }
     }
 
-    // MARK: Metered — user-initiated only, never retried
+    // MARK: Metered — never retried
+
+    /// Opening a wine that has never been priced prices it, once
+    /// (developer decision 2026-09-26). A wine with stored prices makes no
+    /// call; refreshing is always a tap.
+    func fetchPriceOnceIfNeeded() async {
+        guard PriceOnce.claim(wine) else { return }
+        await fetchPrice()
+    }
 
     func fetchPrice(force: Bool = false) async {
+        PriceOnce.record(wine.id)
         price.isBusy = true
         price.error = nil
         defer { price.isBusy = false }

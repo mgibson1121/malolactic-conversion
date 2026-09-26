@@ -26,6 +26,7 @@ import type { UpdateWineInput, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { claimPriceOnce } from '../utils/priceOnce'
 import { EnrichmentFreshness } from './EnrichmentFreshness'
 import { PriceSection } from './PriceSection'
 import { CriticScoreBadges } from './CriticScoreBadges'
@@ -79,13 +80,15 @@ export function DiscoveryReview({
   const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
   const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Review lookup failed')
 
-  // Price keeps its pre-existing auto-fetch-on-mount behavior (Phase 6).
+  // Price follows the fetch-once rule (developer decision 2026-09-26,
+  // utils/priceOnce.ts): priced automatically only if it has never been, and
+  // at most once per session even when that attempt fails.
   // Reviews auto-fire only on the fresh-scan path (Phase 9.4, WI-6) — this
   // call joins whatever LabelScanFlow already started (or hits its TTL
   // cache) via the same coalescing key, rather than starting a second run.
   // Manual add and the duplicate-match path stay click-gated, as before.
   useEffect(() => {
-    if (!wine.price_data) price.run()
+    if (claimPriceOnce(wine)) price.run()
     if (autoFireReviews && !wine.review_data) reviews.run({ tier: 'primary' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

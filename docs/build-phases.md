@@ -1546,7 +1546,9 @@ no widgets, no offline mode, no push.
 - Metered enrichment stays user-initiated. No fetch-on-appear, no
   fetch-on-pull-to-refresh, no automatic retry on a paid endpoint. Auto-fire
   exists in exactly one place: the scan path, primary tier, once per wine,
-  after the free duplicate check.
+  after the free duplicate check. *(Amended 2026-09-26: price for a wine with
+  no stored price data is also fetched once, on first open — see "Price
+  fetch-once rule" below and `CLAUDE.md` §15.)*
 - Additive boolean tags, no `status` enum. `promoted_at == nil` means draft.
 - Critic scores are never blended; the card's highest-score display is
   truncation with a `+N` affordance, **not** the source prioritization Phase 11
@@ -1640,6 +1642,22 @@ default each missing field to what the web renders for `undefined`, and the
 fixture exporter emits a legacy-shaped wine to keep that tested. Any new
 client, and any new code that reads these blobs, should make the same
 assumption.
+
+**Price fetch-once rule (developer decision, 2026-09-26).** Asked whether
+the web `DiscoveryReview`'s long-standing auto-fetch of price on mount should
+be tightened to match §15, the developer answered the other way: *"The app
+should fetch prices once and then give me the option to refresh. I don't need
+a fresh call each time the page is loaded."* So:
+- A wine with no stored `price_data` is priced once, automatically, when first
+  opened. That covers iOS detail, draft review, manual add and duplicate
+  "Open it", plus web `DiscoveryReview` and `WineDetailModal`.
+- After that, price changes only on Refresh Price.
+- A per-session guard (`PriceOnce.swift` / `priceOnce.ts`) makes "once" hold
+  even when a fetch fails.
+- Reviews are unchanged.
+
+`CLAUDE.md` §15 carries the binding version with its boundaries and
+arithmetic.
 
 A small product call made while building, recorded so it isn't re-derived: on
 the Ready-to-drink widget, a wine **past** the end of its window counts under

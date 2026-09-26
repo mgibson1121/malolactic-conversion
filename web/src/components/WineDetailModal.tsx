@@ -10,6 +10,7 @@ import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { claimPriceOnce } from '../utils/priceOnce'
 import { EnrichmentFreshness } from './EnrichmentFreshness'
 import { PriceSection } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
@@ -108,6 +109,14 @@ export function WineDetailModal({
 
   const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
   const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Review lookup failed')
+
+  // Fetch-once price rule (developer decision 2026-09-26, utils/priceOnce.ts):
+  // a wine that has never been priced is priced on open; one that has is not
+  // re-fetched — Refresh Price is the only way after that.
+  useEffect(() => {
+    if (claimPriceOnce(wine)) price.run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wine.id])
 
   function handleTagToggle(tag: 'tag_discovered' | 'tag_wishlist' | 'tag_cellar' | 'tag_consumed') {
     const updated = { [tag]: !wine[tag] }

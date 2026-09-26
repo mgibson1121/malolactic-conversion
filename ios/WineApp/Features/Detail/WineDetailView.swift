@@ -48,12 +48,14 @@ struct WineDetailView: View {
             .navigationTitle(wine.producer ?? "Wine")
             .navigationBarTitleDisplayMode(.inline)
             .task {
+                async let priced: Void = model.fetchPriceOnceIfNeeded()
                 await model.loadNotes()
                 if focusScores {
                     setExpanded(.research, true)
                     try? await Task.sleep(for: .milliseconds(300))
                     withAnimation { proxy.scrollTo("scores", anchor: .top) }
                 }
+                await priced
             }
         }
         .sheet(isPresented: $isEvaluating) {

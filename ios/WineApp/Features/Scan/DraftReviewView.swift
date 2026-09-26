@@ -30,6 +30,7 @@ struct DraftReviewView: View {
             }
 
             CriticScoresBlock(wine: model.wine, autoFire: model.reviewsAutoFire)
+            PriceBlock(price: model.wine?.priceData, autoFire: model.priceAutoFire)
 
             Section {
                 ForEach(ListTag.allCases, id: \.self) { tag in
@@ -174,6 +175,41 @@ private struct CriticScoresBlock: View {
         } else if autoFire == .failed {
             Section("Critic scores") {
                 Text("Review lookup failed").font(.system(size: 12)).foregroundStyle(Theme.redPill)
+            }
+        }
+    }
+}
+
+/// Price on the review screen, landing from the scan auto-fire or the
+/// fetch-once rule: a skeleton line while it runs, then the headline figures.
+private struct PriceBlock: View {
+    let price: PriceData?
+    let autoFire: ScanFlowModel.AutoFire
+
+    var body: some View {
+        if let price {
+            Section("Price") {
+                if price.retailers.isEmpty {
+                    Text("No matching listings found for this wine at the configured retailers.")
+                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                } else {
+                    Text("Min \(DetailFormatting.priceBound(price.priceMin)) · Avg \(DetailFormatting.priceBound(price.priceAvg)) · Max \(DetailFormatting.priceBound(price.priceMax))")
+                        .font(AppFont.body().monospacedDigit())
+                    if let nearest = price.nearestRetailer {
+                        Text("Nearest: \(nearest.name)\(WineFormatting.price(nearest.price).map { " · \($0)" } ?? "")")
+                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    }
+                }
+            }
+        } else if autoFire == .running {
+            Section("Price") {
+                RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 200, height: 12)
+                    .padding(.vertical, 6)
+                    .accessibilityLabel("Looking up prices")
+            }
+        } else if autoFire == .failed {
+            Section("Price") {
+                Text("Price lookup failed").font(.system(size: 12)).foregroundStyle(Theme.redPill)
             }
         }
     }
