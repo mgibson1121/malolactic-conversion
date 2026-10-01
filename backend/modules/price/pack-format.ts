@@ -99,3 +99,34 @@ export function describeFormat(format: PackFormat): string {
   if (sizeLabel) return sizeLabel
   return ''
 }
+
+/**
+ * The format a product page states in its own headline — `<title>`,
+ * `og:title` and the first `<h1>` — or null when none of them names a
+ * non-standard one. Never the body: size selectors and "also available in"
+ * lists there name every format the shop stocks.
+ *
+ * Found 2026-10-01: B-21's Google Shopping title for La Rioja Alta 904 2015
+ * was "2015 La Rioja Alta Gran Reserva 904" — no size — at $199.98, so the
+ * magnum went into the average as a 750ml bottle. Only the page's own
+ * heading says "(1.5L)". The Shopping title is the only text a fallback
+ * retailer's listing carries at fetch time; the page is first in reach when
+ * its URL is resolved, which is where this is read.
+ */
+export function pageStatedFormat(html: string): PackFormat | null {
+  const pick = (re: RegExp) => {
+    const m = html.match(re)
+    return m ? m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : ''
+  }
+  const headlines = [
+    pick(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),
+    pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i),
+    pick(/<title\b[^>]*>([\s\S]*?)<\/title>/i),
+  ]
+  for (const text of headlines) {
+    if (!text) continue
+    const format = extractPackFormat(text)
+    if (isNonStandardFormat(format)) return format
+  }
+  return null
+}
