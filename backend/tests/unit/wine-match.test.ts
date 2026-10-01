@@ -7,6 +7,7 @@ import {
   significantWords,
   isRelevantMatch,
   stripHonorifics,
+  stripLegalForm,
   buildDistinguishingQuery,
   type WineIdentity,
   type MatchCandidate,
@@ -347,5 +348,131 @@ describe('normalize and significantWords are unchanged', () => {
 
   it('drops stopwords and short tokens', () => {
     expect(significantWords('Domaine des Ardoisières')).toEqual(['ardoisieres'])
+  })
+})
+
+
+// ─── 2026-09-30: found on the first real iPhone scans (Phase 12 QA) ─────────
+// Three wines scanned in one evening; real Serper Shopping titles below.
+
+const sestaDiSopra: WineIdentity = {
+  producer: 'Sestadisopra', // how GPT-4o read the label — the winery's own styling
+  denomination: 'Brunello di Montalcino',
+  vintage: 2018,
+}
+
+const laRiojaAlta: WineIdentity = {
+  producer: 'La Rioja Alta, S.A.', // legal entity, read off the back label
+  denomination: 'Rioja',
+  vintage: 2015,
+  cuvee: 'Selección Especial',
+}
+
+describe('stripLegalForm', () => {
+  it.each([
+    ['La Rioja Alta, S.A.', 'La Rioja Alta'],
+    ['Bodegas Muga S.L.', 'Bodegas Muga'],
+    ['Marchesi Antinori S.p.A.', 'Marchesi Antinori'],
+    ['Biondi-Santi SpA', 'Biondi-Santi'],
+    ['Poggio di Sotto S.r.l.', 'Poggio di Sotto'],
+    ['Weingut Keller GmbH', 'Weingut Keller'],
+    ['Domaine Leflaive SARL', 'Domaine Leflaive'],
+    ['Château Rayas SCEA', 'Château Rayas'],
+    ['Azienda Agricola Giuseppe Rinaldi', 'Giuseppe Rinaldi'],
+    ['Società Agricola Sesta di Sopra', 'Sesta di Sopra'],
+    ['Az. Agr. Bartolo Mascarello', 'Bartolo Mascarello'],
+  ])('%s → %s', (input, expected) => {
+    expect(stripLegalForm(input)).toBe(expected)
+  })
+
+  it('leaves names without a legal form alone, including ones that merely end in "sa"', () => {
+    expect(stripLegalForm('Domaine Jean-Marc Vincent')).toBe('Domaine Jean-Marc Vincent')
+    expect(stripLegalForm('Bodega Chacra Mainqué')).toBe('Bodega Chacra Mainqué')
+    expect(stripLegalForm('Quinta do Vesuvio Casa')).toBe('Quinta do Vesuvio Casa')
+  })
+
+  it('never empties a name', () => {
+    expect(stripLegalForm('S.A.')).toBe('S.A.')
+  })
+})
+
+describe('scoreMatch — producer legal form', () => {
+  it('matches a title that omits the legal suffix the label printed', () => {
+    const v = scoreMatch({ title: 'La Rioja Alta Gran Reserva Selección Especial 2015' }, laRiojaAlta)
+    expect(v.producer).toBe('match')
+  })
+})
+
+describe('scoreMatch — producer spacing', () => {
+  it('matches "Sesta di Sopra" for a label read as one word', () => {
+    const v = scoreMatch({ title: '2019 Sesta di Sopra, Brunello di Montalcino' }, sestaDiSopra)
+    expect(v.producer).toBe('match')
+  })
+
+  it('matches the one-word styling for a producer stored with spaces', () => {
+    const v = scoreMatch(
+      { title: 'SESTADISOPRA BRUNELLO DI MONTALCINO 750ml' },
+      { ...sestaDiSopra, producer: 'Sesta di Sopra' }
+    )
+    expect(v.producer).toBe('match')
+  })
+
+  it('does not let a short producer match inside a longer word', () => {
+    // "Sesti" is a different Montalcino estate; it must not match "Sesta di Sopra".
+    const v = scoreMatch({ title: 'Sesta di Sopra Brunello di Montalcino 2018' }, { ...sestaDiSopra, producer: 'Sesti' })
+    expect(v.producer).toBe('mismatch')
+  })
+
+  it('still rejects a different estate whose name merely shares words', () => {
+    const v = scoreMatch({ title: 'Tenuta di Sesta Brunello di Montalcino' }, sestaDiSopra)
+    expect(v.producer).not.toBe('match')
+  })
+})
+
+describe('scoreMatch — sibling appellations', () => {
+  it('rejects the Rosso di Montalcino listing for a Brunello di Montalcino (the $42.01 bug)', () => {
+    const v = scoreMatch({ title: 'SESTADISOPRA ROSSO DI MONTALCINO 750ml' }, sestaDiSopra)
+    expect(v.denomination).toBe('mismatch')
+    expect(isAcceptableMatch(v)).toBe(false)
+  })
+
+  it('still accepts the Brunello itself', () => {
+    const v = scoreMatch({ title: '2019 Sesta di Sopra, Brunello di Montalcino' }, sestaDiSopra)
+    expect(v.denomination).toBe('match')
+    expect(isAcceptableMatch(v)).toBe(true)
+  })
+
+  it('reads the sibling from the URL slug too', () => {
+    const v = scoreMatch(
+      { title: 'Sesta di Sopra 2020', url: 'https://shop.example/sesta-di-sopra-rosso-di-montalcino-2020' },
+      sestaDiSopra
+    )
+    expect(v.denomination).toBe('mismatch')
+  })
+
+  it("handles d' denominations — Nebbiolo d'Alba is not Barbera d'Alba", () => {
+    const wine: WineIdentity = { producer: 'Giacomo Conterno', denomination: "Barbera d'Alba", vintage: 2021 }
+    expect(scoreMatch({ title: "Giacomo Conterno Nebbiolo d'Alba 2021" }, wine).denomination).toBe('mismatch')
+    expect(scoreMatch({ title: "Giacomo Conterno Barbera d'Alba Cerretta 2021" }, wine).denomination).toBe('match')
+  })
+
+  it('ignores a sibling named only in the snippet — body copy mentions other wines', () => {
+    const v = scoreMatch(
+      { title: 'Sesta di Sopra Brunello di Montalcino 2018', snippet: 'Also try their Rosso di Montalcino.' },
+      sestaDiSopra
+    )
+    expect(v.denomination).toBe('match')
+  })
+
+  it('does not treat the producer\'s own "di" as a sibling appellation', () => {
+    // "Sesta di Sopra" — "di sopra" is the estate name, not "<type> di Montalcino".
+    const v = scoreMatch({ title: 'Sesta di Sopra Brunello di Montalcino' }, { ...sestaDiSopra, producer: 'Sesta di Sopra' })
+    expect(v.denomination).toBe('match')
+  })
+})
+
+describe('query builders drop the legal form', () => {
+  it('buildDistinguishingQuery', () => {
+    expect(buildDistinguishingQuery(laRiojaAlta)).toBe('La Rioja Alta Rioja Seleccion Especial')
   })
 })

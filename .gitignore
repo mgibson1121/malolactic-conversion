@@ -23,3 +23,8 @@ xcuserdata/
 *.xcuserstate
 ios/build/
 DerivedData/
+
+# Worktree convenience symlinks (a directory pattern does not match a symlink)
+/node_modules
+/backend/node_modules
+/web/node_modules

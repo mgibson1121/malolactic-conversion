@@ -95,6 +95,70 @@ export function stripHonorifics(producer: string): string {
   return words.slice(i).join(' ')
 }
 
+/** Company legal forms a label prints and a retailer never writes —
+ * "La Rioja Alta, S.A.", "Weingut Keller GmbH", "Domaine Leflaive SARL".
+ * Dots and spaces inside the abbreviation are optional ("S.p.A.", "SpA",
+ * "S. A."). Only ever a trailing suffix, after a comma or a space. */
+const LEGAL_SUFFIX = new RegExp(
+  '[\\s,]+(?:' +
+    [
+      's\\.?\\s?a\\.?\\s?s', // SAS
+      's\\.?\\s?a\\.?\\s?r\\.?\\s?l', // SARL
+      's\\.?\\s?p\\.?\\s?a', // SpA
+      's\\.?\\s?r\\.?\\s?l', // Srl
+      's\\.?\\s?l\\.?\\s?u', // SLU
+      's\\.\\s?a|sa(?=\\.)|s\\.?a\\.', // S.A. — the bare "SA" only when dotted
+      's\\.\\s?l|s\\.?l\\.', // S.L. — likewise
+      's\\.\\s?s\\.', // S.S. (società semplice)
+      's\\.?\\s?c\\.?\\s?e\\.?\\s?a', // SCEA
+      'e\\.?\\s?a\\.?\\s?r\\.?\\s?l', // EARL
+      'g\\.?\\s?a\\.?\\s?e\\.?\\s?c', // GAEC
+      'gmbh(?:\\s*&\\s*co\\.?\\s*kg)?',
+      'ltd',
+      'inc',
+      'llc',
+    ].join('|') +
+    ')\\.?\\s*$',
+  'i'
+)
+
+/** Italian agricultural-company prefixes, likewise label-only. */
+const LEGAL_PREFIX = /^(?:azienda\s+agricola|societ[aà]\s+agricola|az\.?\s*agr\.?|soc\.?\s*agr\.?)\s+/i
+
+/**
+ * Strips a company legal form from a producer name — the suffix ("S.A.",
+ * "S.r.l.", "GmbH", "SARL"…) and the Italian "Azienda/Società Agricola"
+ * prefix — preserving casing and accents of what remains.
+ *
+ * Found 2026-09-30 on the first iPhone scans: GPT-4o read "La Rioja Alta,
+ * S.A." off the back label, the reviews module quoted it as an exact phrase,
+ * and every one of eleven retailers returned zero results — no shop writes
+ * "S.A." in a product title. Applied wherever a producer is quoted into a
+ * query or compared for identity, so stored data needs no migration.
+ * Never empties a name.
+ */
+export function stripLegalForm(producer: string): string {
+  let out = producer.trim()
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(LEGAL_SUFFIX, '').replace(LEGAL_PREFIX, '').trim()
+    if (next === out) break
+    out = next
+  }
+  return out.length > 0 ? out : producer.trim()
+}
+
+/** Producer letters with all spacing and punctuation removed, for the
+ * spacing-insensitive fallback — "Sestadisopra" and "Sesta di Sopra" are the
+ * same estate styled two ways, and a label and a retailer routinely disagree. */
+function compact(s: string): string {
+  return normalize(s).replace(/\s+/g, '')
+}
+
+/** Shortest compact producer the spacing fallback will trust. Below this a
+ * contiguous-letters match is too likely to be a different name ("Sesti"
+ * inside "Sestadisopra"). */
+const MIN_COMPACT_PRODUCER = 8
+
 /** Normalized whole-word tokens of a text, for exact token comparison.
  * Substring comparison (what this replaced) is what let "vin" — a
  * significant word of "Vin de France" — match inside "vintage". */
@@ -201,14 +265,66 @@ export function scoreMatch(candidate: MatchCandidate, wine: WineIdentity): Match
     vintage = vintageGap === 0 ? 'match' : 'mismatch'
   }
 
+  const titleUrlText = `${candidate.title} ${candidate.url ?? ''}`
   return {
-    producer: verdictFor(significantWords(wine.producer), titleAndUrl),
-    denomination: denominationVerdict(significantWords(wine.denomination), allText),
+    producer: producerVerdict(wine.producer, titleAndUrl, titleUrlText),
+    denomination: siblingDenomination(wine.denomination, titleUrlText)
+      ? 'mismatch'
+      : denominationVerdict(significantWords(wine.denomination), allText),
     bottling: verdictFor(bottlingWords, titleAndUrl),
     vintage,
     candidateVintage: wine.vintage == null ? null : candidateVintage,
     vintageGap,
   }
+}
+
+/** Producer: every significant word, after dropping the legal form. Failing
+ * that, a spacing-insensitive check — the whole producer, letters only, as
+ * one contiguous run of the title's letters — so "Sestadisopra" on a label
+ * matches "Sesta di Sopra" on a shelf, and vice versa. The fallback can only
+ * upgrade a verdict to `match`, and only for producers long enough that a
+ * contiguous match is not a coincidence. */
+function producerVerdict(producer: string, titleAndUrl: Set<string>, titleUrlText: string): Verdict {
+  const stripped = stripLegalForm(producer)
+  const byWords = verdictFor(significantWords(stripped), titleAndUrl)
+  if (byWords === 'match') return byWords
+  const needle = compact(stripped)
+  if (needle.length >= MIN_COMPACT_PRODUCER && compact(titleUrlText).includes(needle)) return 'match'
+  return byWords
+}
+
+/** Connectors that join an appellation's type to its place: "Brunello *di*
+ * Montalcino", "Barbera *d'*Alba", "Châteauneuf-*du*-Pape". */
+const DENOMINATION_CONNECTORS = new Set(['di', 'de', 'del', 'della', 'dei', 'delle', 'dello', 'du', 'des', 'd'])
+
+/**
+ * True when the title or URL names a *sibling* appellation of the wine's own
+ * — the same place, a different type: "Rosso di Montalcino" against a Brunello
+ * di Montalcino, "Nebbiolo d'Alba" against a Barbera d'Alba. A producer's
+ * lineup routinely contains exactly these pairs, at very different prices, and
+ * any-one-word corroboration ("montalcino") could not tell them apart.
+ *
+ * Found 2026-09-30: the only listing accepted for a Sesta di Sopra Brunello
+ * 2018 was the estate's Rosso di Montalcino at $42.01. Title and URL only —
+ * a snippet mentioning "also try their Rosso" says nothing about this page.
+ * Only applies to "<type> <connector> <place>" denominations; others are
+ * judged as before.
+ */
+function siblingDenomination(denomination: string | null | undefined, titleUrlText: string): boolean {
+  if (!denomination) return false
+  const d = normalize(denomination).split(/\s+/).filter(Boolean)
+  const i = d.findIndex((t, k) => k > 0 && k < d.length - 1 && DENOMINATION_CONNECTORS.has(t))
+  if (i < 0) return false
+  const type = d[i - 1]
+  const place = d[i + 1]
+  const t = normalize(titleUrlText).split(/\s+/).filter(Boolean)
+  for (let k = 1; k + 1 < t.length; k++) {
+    if (DENOMINATION_CONNECTORS.has(t[k]) && t[k + 1] === place) {
+      const before = t[k - 1]
+      if (before !== type && !DENOMINATION_CONNECTORS.has(before) && !/^\d+$/.test(before)) return true
+    }
+  }
+  return false
 }
 
 /** Appellations are corroborating, not identifying: any one significant word
@@ -300,7 +416,8 @@ export function buildDistinguishingQuery(
   opts: { includeVintage?: boolean } = {}
 ): string {
   if (!wine.producer && !wine.denomination) return ''
-  const parts = [wine.producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
+  const producer = wine.producer ? stripLegalForm(wine.producer) : wine.producer
+  const parts = [producer, wine.denomination, wine.cuvee, wine.vineyard].filter(Boolean)
   if (opts.includeVintage && wine.vintage) parts.push(String(wine.vintage))
   return foldDiacritics(parts.join(' '))
 }

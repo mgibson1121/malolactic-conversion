@@ -6,6 +6,7 @@ import {
   compareByMatchQuality,
   foldDiacritics,
   stripHonorifics,
+  stripLegalForm,
   type MatchVerdict,
   type WineIdentity,
 } from '@shared/utils/wine-match'
@@ -51,7 +52,10 @@ interface QueryOptions {
 function buildQuery(wine: WineIdentity, domain: string, opts: QueryOptions): string {
   const parts = [`site:${domain}`]
   if (wine.producer) {
-    const producer = opts.relaxProducer ? stripHonorifics(wine.producer) : wine.producer
+    // Legal forms ("S.A.", "GmbH") are always dropped — no retailer writes
+    // them. Honorifics only on the relaxed variant.
+    const named = stripLegalForm(wine.producer)
+    const producer = opts.relaxProducer ? stripHonorifics(named) : named
     parts.push(`"${foldDiacritics(producer)}"`)
   }
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
@@ -400,7 +404,7 @@ export async function findMerchantProductPage(
  * under-specified without this, so the trade favors inclusion. */
 function openWebIdentityPhrase(wine: WineIdentity): string {
   const parts: string[] = []
-  if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(wine.producer))}"`)
+  if (wine.producer) parts.push(`"${foldDiacritics(stripHonorifics(stripLegalForm(wine.producer)))}"`)
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
   if (wine.cuvee) parts.push(`"${foldDiacritics(wine.cuvee)}"`)
   if (wine.vineyard) parts.push(`"${foldDiacritics(wine.vineyard)}"`)
