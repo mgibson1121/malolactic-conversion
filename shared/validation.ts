@@ -77,6 +77,10 @@ export const DuplicateCheckSchema = z.object({
   producer: z.string().nullish().transform((v) => v ?? null),
   denomination: z.string().nullish().transform((v) => v ?? null),
   vintage: z.number().int().nullish().transform((v) => v ?? null),
+  // 2026-09-30 — bottling, so "Magistra" vs regular is not called a duplicate.
+  cuvee: z.string().nullish().transform((v) => v ?? null),
+  vineyard: z.string().nullish().transform((v) => v ?? null),
+  quality_classification: z.string().nullish().transform((v) => v ?? null),
 })
 
 // ─── Settings ─────────────────────────────────────────────────────────────────

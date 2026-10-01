@@ -259,7 +259,7 @@ Six states, mirroring `LabelScanFlow.tsx`:
 | `capture` | System camera picker, presented immediately | photo / cancel / `Choose from library` / **[new]** `Enter manually` |
 | `resizing` | Instant, no UI | → uploading |
 | `scanning` | Captured thumbnail at 40% opacity, pulsing 1.2 s, **[new]** `Reading the label…`; after 15 s append **[new]** `Still going — labels with a lot of text take longer.` | result / error |
-| `duplicate` | `{producer · denomination} {vintage or NV} looks like a wine you already have — no search has been run.` (existing) | `Open it` / `Add anyway` |
+| `duplicate` | "Same wine?" — *You have* / *This label* side by side, any bottling difference spelled out; `No search has been run yet.` *(amended 2026-09-30, was a one-line notice)* | `Same wine — open it` / `Different wine — add it` |
 | `review` | Draft review form (§6.4) | save / discard |
 | `error` | `Scan Failed` + `Scan failed: {message}` | `Retake` / `Enter manually` / `Cancel` |
 

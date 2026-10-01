@@ -164,6 +164,7 @@ Rules that follow from it, all load-bearing:
 - **The verdict is stored on the result** (`RetailerReview.match`, `RetailerPrice.vintage_verdict`) — callers read it rather than re-deriving it.
 - **Two queries, not one.** The vintage belongs in a relevance-ranked Serper query and must never reach a retailer's own literal on-site search.
 - **`VerificationState` is three-valued.** "Couldn't check" is not spelled the same way as "checked and confirmed."
+- **A duplicate is always a question, never a silent reuse** (2026-09-30). `shared/utils/duplicate-match.ts` compares bottling (cuvée / vineyard / classification) too: two named bottlings with no significant word in common are different wines and never match; when only one side names a bottling (Sesta di Sopra vs. Sesta di Sopra *Magistra*), the match is returned with a `bottling` difference so the scan screen shows it. The developer answers "Same wine" (open the existing row) or "Different wine" (a new draft with its own id). Nothing is merged or reused without that answer.
 
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file

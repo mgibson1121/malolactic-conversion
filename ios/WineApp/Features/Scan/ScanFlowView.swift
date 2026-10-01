@@ -84,13 +84,15 @@ struct ScanFlowView: View {
         case .scanning:
             ScanningView(thumbnail: model.thumbnail, isSlow: model.isSlow)
                 .navigationTitle("Scanning")
-        case .duplicate(let existing):
+        case .duplicate(let existing, let scanned, let bottling):
             DuplicateView(
                 existing: existing,
-                open: { model.openExisting(existing) },
-                addAnyway: { Task { await model.addAnyway() } }
+                scanned: scanned,
+                bottling: bottling,
+                same: { model.openExisting(existing) },
+                different: { Task { await model.addAnyway() } }
             )
-            .navigationTitle("Already in your collection")
+            .navigationTitle("Same wine?")
         case .review:
             DraftReviewView(model: model, onSaved: { finish() })
                 .navigationTitle(model.isDraft ? "Review" : "In your collection")
@@ -211,27 +213,111 @@ private struct ScanningView: View {
     }
 }
 
+/// "Is this a wine you already have?" — always a question, never a silent
+/// reuse. Shows both identities side by side, including the bottling that
+/// most often separates two wines of one producer, appellation and vintage
+/// (Sesta di Sopra's Brunello vs its Magistra, 2026-09-30). "Different wine"
+/// creates a new entry with its own id.
 private struct DuplicateView: View {
     let existing: Wine
-    let open: () -> Void
-    let addAnyway: () -> Void
+    let scanned: LabelScanResult
+    let bottling: BottlingDifference?
+    let same: () -> Void
+    let different: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("\(WineFormatting.title(existing)) \(WineFormatting.vintage(existing)) looks like a wine you already have — no search has been run.")
-                .font(AppFont.body())
-                .foregroundStyle(Theme.text)
-            Button(action: open) {
-                Text("Open it").frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("This label looks like a wine you already have. Is it the same wine?")
+                    .font(AppFont.body())
+                    .foregroundStyle(Theme.text)
+
+                IdentityCard(
+                    heading: "You have",
+                    title: WineFormatting.title(existing),
+                    bottling: Self.bottling(cuvee: existing.cuvee, vineyard: existing.vineyard, classification: existing.qualityClassification),
+                    vintage: WineFormatting.vintage(existing),
+                    extra: existing.tagCellar ? "\(existing.cellarQuantity) btl in your cellar" : nil
+                )
+                IdentityCard(
+                    heading: "This label",
+                    title: [scanned.producer, scanned.denomination].compactMap { $0 }.joined(separator: " · "),
+                    bottling: Self.bottling(cuvee: scanned.cuvee, vineyard: scanned.vineyard, classification: scanned.qualityClassification),
+                    vintage: scanned.vintage.map(String.init) ?? "NV",
+                    extra: nil
+                )
+
+                if let bottling {
+                    Text(Self.differenceNote(bottling))
+                        .font(AppFont.meta())
+                        .foregroundStyle(Theme.accent2)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.accent2Soft, in: RoundedRectangle(cornerRadius: Theme.fieldRadius))
+                }
+
+                Button(action: same) {
+                    Text("Same wine — open it").frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
+                }
+                .buttonStyle(.bordered)
+                Button(action: different) {
+                    Text("Different wine — add it").frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
+                }
+                .buttonStyle(.borderedProminent)
+                Text("No search has been run yet. Adding it creates a separate wine.")
+                    .font(AppFont.meta())
+                    .foregroundStyle(Theme.textMuted)
             }
-            .buttonStyle(.borderedProminent)
-            Button(action: addAnyway) {
-                Text("Add anyway").frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
-            }
-            .buttonStyle(.bordered)
-            Spacer()
+            .padding(Theme.sideMargin)
         }
-        .padding(Theme.sideMargin)
+    }
+
+    static func bottling(cuvee: String?, vineyard: String?, classification: String?) -> String? {
+        var seen = Set<String>()
+        let parts = [cuvee, vineyard, classification]
+            .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    static func differenceNote(_ b: BottlingDifference) -> String {
+        if let existing = b.existing, b.scanned == nil {
+            return "Yours is the \(existing). This label doesn't mention \(existing) — if it's a different bottling, add it."
+        }
+        if let scanned = b.scanned, b.existing == nil {
+            return "This label says \(scanned); the wine you have doesn't. If they're different bottlings, add it."
+        }
+        return "The bottlings may differ."
+    }
+}
+
+private struct IdentityCard: View {
+    let heading: String
+    let title: String
+    let bottling: String?
+    let vintage: String
+    let extra: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(heading.uppercased()).font(AppFont.sectionLabel()).foregroundStyle(Theme.textMuted)
+            Text(title.isEmpty ? "—" : title).font(AppFont.cardTitle()).foregroundStyle(Theme.text)
+            HStack(spacing: 6) {
+                Text(vintage).font(AppFont.meta().monospacedDigit())
+                if let bottling {
+                    Text("·")
+                    Text(bottling).fontWeight(.semibold)
+                }
+            }
+            .font(AppFont.meta())
+            .foregroundStyle(Theme.textMuted)
+            if let extra {
+                Text(extra).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
     }
 }
 

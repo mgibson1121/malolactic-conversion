@@ -62,3 +62,33 @@ describe('findDuplicate', () => {
     expect(result.kind).toBe('none')
   })
 })
+
+// 2026-09-30, Phase 12 QA: the regular Sesta di Sopra Brunello 2018 was
+// offered as a duplicate of the Magistra 2018 the developer already had.
+describe('findDuplicate — bottling', () => {
+  const magistra = makeWine({
+    id: 'magistra', producer: 'Sesta di Sopra', denomination: 'Brunello di Montalcino', vintage: 2018,
+    cuvee: 'Magistra', quality_classification: 'Magistra',
+  })
+  const regular = { producer: 'Sesta di Sopra', denomination: 'Brunello di Montalcino', vintage: 2018 }
+
+  it('is still a possible duplicate when only one side names a bottling — and says what differs', () => {
+    expect(findDuplicate(regular, [magistra])).toEqual({
+      kind: 'duplicate', wine: magistra, bottling: { existing: 'Magistra', scanned: null },
+    })
+  })
+
+  it('is not a duplicate at all when both sides name different bottlings', () => {
+    expect(findDuplicate({ ...regular, cuvee: 'Vigna del Lago' }, [magistra]).kind).toBe('none')
+  })
+
+  it('is a plain duplicate when both sides name the same bottling', () => {
+    expect(findDuplicate({ ...regular, cuvee: 'Magistra' }, [magistra])).toEqual({ kind: 'duplicate', wine: magistra })
+  })
+
+  it('prefers an exact bottling match over one that differs, whatever the collection order', () => {
+    const plain = makeWine({ id: 'plain', producer: 'Sesta di Sopra', denomination: 'Brunello di Montalcino', vintage: 2018 })
+    expect(findDuplicate(regular, [magistra, plain])).toEqual({ kind: 'duplicate', wine: plain })
+    expect(findDuplicate({ ...regular, cuvee: 'Magistra' }, [plain, magistra])).toEqual({ kind: 'duplicate', wine: magistra })
+  })
+})

@@ -1593,6 +1593,21 @@ than a phone-side workaround:
 - **`latest_tasting_note_date` on every wine read** — the Notes tab sorts by
   and shows the latest note's date, which `WineEntry` didn't carry (only the
   note's id). Derived by a correlated subquery, not a column — no migration.
+
+**Duplicate check is bottling-aware and always asks (2026-09-30, device testing):**
+a scanned Sesta di Sopra Brunello was offered as a duplicate of the developer's
+Sesta di Sopra *Magistra* — same producer, denomination and vintage, different
+wine. `findDuplicate` now also compares bottling (`cuvee`, `vineyard`,
+`quality_classification`, all optional/nullish on `DuplicateCheckSchema`, so older
+callers are unaffected):
+- both sides name a bottling with no significant word in common → not a duplicate;
+- only one side names one → still offered, with `bottling: { existing, scanned }`
+  on the outcome;
+- an exact bottling match wins over a looser candidate.
+Web and iOS both render the question as "Same wine?" with the two identities
+side by side and any bottling difference spelled out: **Same wine — open it**
+or **Different wine — add it** (a new draft row with its own id). Still zero
+metered calls before the answer.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 

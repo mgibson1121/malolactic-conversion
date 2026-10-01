@@ -114,7 +114,7 @@ final class ScanFlowModel {
         case capture
         case manual
         case scanning
-        case duplicate(existing: Wine)
+        case duplicate(existing: Wine, scanned: LabelScanResult, bottling: BottlingDifference?)
         case review
         case unavailable(String)
         case error(String)
@@ -204,9 +204,9 @@ final class ScanFlowModel {
         }
 
         switch outcome {
-        case .duplicate(let existing):
+        case .duplicate(let existing, let bottling):
             pendingScan = result
-            step = .duplicate(existing: existing)
+            step = .duplicate(existing: existing, scanned: result, bottling: bottling)
         case .vintageMismatch(let existing):
             vintageNotice = "You already have the \(existing.vintage.map(String.init) ?? "NV") — this looks like the \(result.vintage.map(String.init) ?? "NV")."
             await createDraft(from: result)
