@@ -1611,6 +1611,23 @@ primary-tier auto-fire, Save/Discard) and manual add behind the Cellar "+".
 Running against real data found two bugs no fixture had caught, both fixed —
 see the rule below.
 
+**Identity bugs found on the first real iPhone scans (2026-09-30).** Three
+scans in one evening exposed three matcher gaps, none of them iOS bugs, all
+fixed in `shared/utils/wine-match.ts`. The binding rules are in `CLAUDE.md` §5.
+- "La Rioja Alta, **S.A.**": the legal suffix was quoted into every review
+  query, so all eleven retailers returned zero results.
+- "**Sestadisopra**", the label's one-word styling, never matched "Sesta di
+  Sopra" on a shelf.
+- That estate's **Rosso** di Montalcino was accepted as its Brunello, because
+  "montalcino" alone counted as appellation agreement. That produced a $42.01
+  price for a roughly $100 wine.
+
+Re-scored against the real Serper Shopping titles for that wine, the fixed
+matcher accepts the three genuine Sesta di Sopra Brunello listings and rejects
+the Rosso and three other Montalcino estates. Existing wines recover with
+"Refresh anyway", which already clears the negative-probe memory the bad
+queries wrote.
+
 **Build status (2026-09-24, later):** PR #34 merged. On
 `feature/phase-12-ios-detail` (PR #35):
 - The iOS CI job runs on every PR (macos-15, the latest installed Xcode,
