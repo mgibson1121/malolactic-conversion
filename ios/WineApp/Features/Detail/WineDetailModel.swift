@@ -25,7 +25,11 @@ final class WineDetailModel {
     private(set) var actionError: String?
 
     private let api: APIClient
-    /// Called after any change that could move the wine between lists.
+    /// Called after any change the lists must reflect — list membership,
+    /// and any stored enrichment (price, reviews, links). The lists hold
+    /// their own copy of each wine, and the detail screen opens from that
+    /// copy, so a change not reported here is lost on the next open
+    /// (found 2026-10-01: refreshed scores vanished on reopen).
     private let onChanged: () -> Void
 
     init(wine: Wine, api: APIClient, onChanged: @escaping () -> Void) {
@@ -62,6 +66,7 @@ final class WineDetailModel {
     func apply(_ updated: Wine) {
         wine = updated
         PriceOnce.record(updated.id)
+        onChanged()
     }
 
     // MARK: Lists and quantity — optimistic, rolled back on failure (§4.4)
@@ -111,6 +116,7 @@ final class WineDetailModel {
             let result = try await api.fetchPrice(wineID: wine.id, force: force)
             wine.priceData = result.wine.priceData
             price.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
+            onChanged()
         } catch {
             price.error = "Price lookup failed"
         }
@@ -128,6 +134,7 @@ final class WineDetailModel {
             wine.vintageRating = result.wine.vintageRating
             wine.vintageRatingSource = result.wine.vintageRatingSource
             reviews.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
+            onChanged()
         } catch {
             reviews.error = "Review lookup failed"
         }
@@ -158,6 +165,7 @@ final class WineDetailModel {
         }
         guard let resolved else { return fallback }
         wine.priceData = resolved.priceData
+        onChanged()
         let url = resolved.priceData?.retailers.first { $0.slug == slug }?.url
         return url.flatMap(URL.init(string:)) ?? fallback
     }
