@@ -12,7 +12,7 @@ import type {
 } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
-import { scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
+import { identityOf, scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
@@ -82,13 +82,7 @@ export async function resolveOneRetailerUrl(
   const serperKey = process.env.SERPER_API_KEY
   if (!serperKey) return retailer
 
-  const identity = {
-    producer: wine.producer ?? '',
-    denomination: wine.denomination ?? '',
-    vintage: wine.vintage,
-    cuvee: wine.cuvee,
-    vineyard: wine.vineyard,
-  }
+  const identity = identityOf(wine)
 
   const configured = RETAILER_CONFIG.find(r => r.slug === retailer.slug)
   const outcome = configured
@@ -580,14 +574,7 @@ router.post(
     // the rendered page.
     const urlVerdict = scoreMatch(
       { title: url, url, statedVintage: extraction.vintage },
-      {
-        producer: wine.producer ?? '',
-        denomination: wine.denomination ?? '',
-        vintage: wine.vintage ?? null,
-        cuvee: wine.cuvee,
-        vineyard: wine.vineyard,
-        quality_classification: wine.quality_classification,
-      }
+      identityOf(wine)
     )
     const verdict: MatchVerdict = { ...urlVerdict, producer: 'match', denomination: 'match' }
     const matched_vintage = verdict.candidateVintage

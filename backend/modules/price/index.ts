@@ -4,7 +4,7 @@ import { querySerper } from './serper-query'
 import { renderPageHtml } from './puppeteer-extract'
 import { pageShowsNoResults, pageMentionsProducer } from './verify-listing'
 import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
-import { buildDistinguishingQuery } from '@shared/utils/wine-match'
+import { buildDistinguishingQuery, identityOf } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
 import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
 
@@ -448,13 +448,7 @@ export async function fetchPriceData(
     searchQuery,
     RETAILER_CONFIG,
     serperKey,
-    {
-      producer: wine.producer ?? '',
-      denomination: wine.denomination ?? '',
-      vintage: wine.vintage ?? null,
-      cuvee: wine.cuvee,
-      vineyard: wine.vineyard,
-    },
+    identityOf(wine),
     linkQuery
   )
 

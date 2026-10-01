@@ -582,6 +582,11 @@ describe('fetchPriceData', () => {
       expect(pageMentionsProducer(html, 'Château Gour de Chaulé')).toBe(true)
     })
 
+    it('uses the matcher\'s producer rule — legal form dropped, spacing-insensitive (2026-10-01)', () => {
+      expect(pageMentionsProducer('<a>Keller Riesling Kirchspiel</a>', 'Weingut Keller GmbH')).toBe(true)
+      expect(pageMentionsProducer('<a>Sesta di Sopra Brunello di Montalcino</a>', 'Sestadisopra')).toBe(true)
+    })
+
     it('returns null — not false — when there is no producer to look for', () => {
       // "Couldn't ask" is not "asked and the answer was no". The caller maps
       // this to 'unverified' rather than dropping the retailer.

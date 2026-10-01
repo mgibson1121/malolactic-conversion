@@ -11,7 +11,7 @@
 // This is a generic, retailer-agnostic "does the live page actually show
 // results" check — not per-site scraping logic — so it holds for whichever
 // retailer shows up next, preferred or fallback alike.
-import { normalize, significantWords } from '@shared/utils/wine-match'
+import { mentionsProducer } from '@shared/utils/wine-match'
 
 const NO_RESULTS_PATTERNS = [
   /\bno results\b/i,
@@ -45,6 +45,8 @@ export function pageShowsNoResults(html: string): boolean {
  * Every significant word of the producer must appear — the same rule
  * scoreMatch applies to a candidate's title, for the same reason: a page
  * that happens to contain "Domaine" is not a page about this producer.
+ * Since 2026-10-01 it *is* that rule (mentionsProducer in wine-match.ts),
+ * not a copy of it: the copy had missed the legal-form and spacing fixes.
  * Diacritics and punctuation are folded on both sides.
  *
  * Returns null when the question can't be asked (no producer recorded, or no
@@ -52,10 +54,5 @@ export function pageShowsNoResults(html: string): boolean {
  * "checked and absent" from "couldn't check".
  */
 export function pageMentionsProducer(html: string, producer: string | null): boolean | null {
-  const required = significantWords(producer ?? '')
-  if (required.length === 0) return null
-
-  const text = normalize(html.replace(/<[^>]+>/g, ' ').slice(0, 200_000))
-  const present = new Set(text.split(/\s+/).filter(Boolean))
-  return required.every(w => present.has(w))
+  return mentionsProducer(html.replace(/<[^>]+>/g, ' ').slice(0, 200_000), producer)
 }

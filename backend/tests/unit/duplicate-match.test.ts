@@ -92,3 +92,28 @@ describe('findDuplicate — bottling', () => {
     expect(findDuplicate({ ...regular, cuvee: 'Magistra' }, [plain, magistra])).toEqual({ kind: 'duplicate', wine: magistra })
   })
 })
+
+describe('findDuplicate — descriptors are not bottling names (2026-10-01)', () => {
+  const rioja = { producer: 'La Rioja Alta, S.A.', denomination: 'Rioja', vintage: 2015 }
+
+  it('asks — with the difference — when only descriptors are shared', () => {
+    // Used to share "gran" and pass silently as the same bottling.
+    const existing = makeWine({ ...rioja, cuvee: 'Selección Especial', quality_classification: 'Gran Reserva' })
+    const result = findDuplicate(makeScan({ ...rioja, cuvee: '904', quality_classification: 'Gran Reserva' }), [existing])
+    expect(result).toEqual({
+      kind: 'duplicate',
+      wine: existing,
+      bottling: { existing: 'Selección Especial · Gran Reserva', scanned: '904 · Gran Reserva' },
+    })
+  })
+
+  it('treats two different names as different wines even when the tier matches', () => {
+    const ardanza = makeWine({ ...rioja, cuvee: 'Viña Ardanza', quality_classification: 'Reserva' })
+    expect(findDuplicate(makeScan({ ...rioja, cuvee: 'Viña Arana', quality_classification: 'Reserva' }), [ardanza])).toEqual({ kind: 'none' })
+  })
+
+  it('is a plain duplicate when the naming words agree', () => {
+    const existing = makeWine({ ...rioja, cuvee: 'Gran Reserva 904', quality_classification: 'Gran Reserva' })
+    expect(findDuplicate(makeScan({ ...rioja, cuvee: '904' }), [existing])).toEqual({ kind: 'duplicate', wine: existing })
+  })
+})

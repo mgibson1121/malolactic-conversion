@@ -9,6 +9,9 @@ import {
   stripHonorifics,
   stripLegalForm,
   buildDistinguishingQuery,
+  bottlingNameWords,
+  identityOf,
+  mentionsProducer,
   type WineIdentity,
   type MatchCandidate,
 } from '@shared/utils/wine-match'
@@ -474,5 +477,74 @@ describe('scoreMatch — sibling appellations', () => {
 describe('query builders drop the legal form', () => {
   it('buildDistinguishingQuery', () => {
     expect(buildDistinguishingQuery(laRiojaAlta)).toBe('La Rioja Alta Rioja Seleccion Especial')
+  })
+})
+
+// 2026-10-01 — La Rioja Alta's Gran Reserva 904 2015. The scan stored the
+// cuvée as the label's subtitle, "Selección Especial"; shops sell it as
+// "Gran Reserva 904". Titles below are real Google Shopping listings.
+describe('bottling — descriptors confirm, only names reject', () => {
+  const asScanned: WineIdentity = {
+    producer: 'La Rioja Alta, S.A.', denomination: 'Rioja', vintage: 2015,
+    cuvee: 'Selección Especial', quality_classification: 'Gran Reserva',
+  }
+  const named: WineIdentity = { ...asScanned, cuvee: '904' }
+
+  it('splits naming words from descriptors', () => {
+    expect(bottlingNameWords('Gran Reserva 904 Selección Especial')).toEqual(['904'])
+    expect(bottlingNameWords('Viña Ardanza')).toEqual(['ardanza'])
+    expect(bottlingNameWords('Vieilles Vignes')).toEqual([])
+    expect(bottlingNameWords('Magistra')).toEqual(['magistra'])
+  })
+
+  it('a descriptor-only cuvée never rejects a listing that omits it', () => {
+    for (const title of ['2015 La Rioja Alta Gran Reserva 904', 'La Rioja Alta Rioja (Gran) Reserva 904 2015 6 pack']) {
+      const v = scoreMatch({ title }, asScanned)
+      expect(v.bottling).not.toBe('mismatch')
+      expect(isAcceptableMatch(v)).toBe(true)
+    }
+  })
+
+  it('a descriptor-only cuvée still confirms when every word is present', () => {
+    const v = scoreMatch({ title: 'La Rioja Alta 904 Gran Reserva Seleccion Especial 2015' }, asScanned)
+    expect(v.bottling).toBe('match')
+  })
+
+  it('a named cuvée keeps its listings and rejects the producer\'s other wines', () => {
+    expect(scoreMatch({ title: 'La Rioja Alta Gran Reserva ‘904’ 2015' }, named).bottling).toBe('match')
+    for (const title of [
+      'La Rioja Alta Rioja Reserva Vina Ardanza 2015 750ml Spain La Rioja',
+      '2015 | La Rioja Alta | Vina Arana Gran Reserva',
+      'La Rioja Alta Vina Alberdi Reserva',
+    ]) {
+      expect(scoreMatch({ title }, named).bottling).toBe('mismatch')
+    }
+  })
+
+  it('"Viña" alone does not make Arana a match for Ardanza', () => {
+    const ardanza: WineIdentity = { producer: 'La Rioja Alta', denomination: 'Rioja', vintage: 2015, cuvee: 'Viña Ardanza' }
+    expect(scoreMatch({ title: 'La Rioja Alta Viña Arana Gran Reserva 2015' }, ardanza).bottling).toBe('mismatch')
+  })
+
+  it('Magistra still rejects the regular bottling', () => {
+    const magistra: WineIdentity = { producer: 'Sesta di Sopra', denomination: 'Brunello di Montalcino', vintage: 2018, cuvee: 'Magistra' }
+    expect(scoreMatch({ title: 'Sesta di Sopra Brunello di Montalcino 2018' }, magistra).bottling).toBe('mismatch')
+  })
+})
+
+describe('identityOf — one way to build the identity', () => {
+  it('carries every identity field, classification included, with nulls not undefined', () => {
+    expect(identityOf({ producer: 'X', denomination: null, quality_classification: 'Riserva' })).toEqual({
+      producer: 'X', denomination: '', vintage: null, cuvee: null, vineyard: null, quality_classification: 'Riserva',
+    })
+  })
+})
+
+describe('mentionsProducer', () => {
+  it('is the matcher\'s producer rule over free text', () => {
+    expect(mentionsProducer('2015 La Rioja Alta Gran Reserva 904', 'La Rioja Alta, S.A.')).toBe(true)
+    expect(mentionsProducer('Sesta di Sopra Brunello', 'Sestadisopra')).toBe(true)
+    expect(mentionsProducer('Muga Reserva', 'La Rioja Alta, S.A.')).toBe(false)
+    expect(mentionsProducer('anything', 'Domaine')).toBeNull()
   })
 })
