@@ -57,6 +57,13 @@ final class WineDetailModel {
         onChanged()
     }
 
+    /// A wine the server returned from another action on this screen
+    /// (a saved link, a confirmed retailer page).
+    func apply(_ updated: Wine) {
+        wine = updated
+        PriceOnce.record(updated.id)
+    }
+
     // MARK: Lists and quantity — optimistic, rolled back on failure (§4.4)
 
     func toggle(_ keyPath: WritableKeyPath<Wine, Bool>, patch: (Bool) -> WinePatch) async {
@@ -85,9 +92,18 @@ final class WineDetailModel {
         }
     }
 
-    // MARK: Metered — user-initiated only, never retried
+    // MARK: Metered — never retried
+
+    /// Opening a wine that has never been priced prices it, once
+    /// (developer decision 2026-09-26). A wine with stored prices makes no
+    /// call; refreshing is always a tap.
+    func fetchPriceOnceIfNeeded() async {
+        guard PriceOnce.claim(wine) else { return }
+        await fetchPrice()
+    }
 
     func fetchPrice(force: Bool = false) async {
+        PriceOnce.record(wine.id)
         price.isBusy = true
         price.error = nil
         defer { price.isBusy = false }

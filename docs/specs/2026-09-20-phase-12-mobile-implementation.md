@@ -87,7 +87,7 @@ Follow the system appearance. No in-app theme switch in v1.
 | `EvaluateFormView` | `EvaluateForm.tsx` | WSET form |
 | `PriceTableView` | `PriceSection.tsx` | Retailer table, collapsed by default |
 | `CriticScoresView` | `CriticScoreBadges.tsx` | Full score list |
-| `RetailerLinksView` | `RetailerLinksSection.tsx` | Search/save/confirm |
+| `RetailerLinksView` | `RetailerLinksSection.tsx` | Search/save/confirm. Built as `FindReviewsSection` (2026-09-26): the guided confirm uses an in-app browser's "Use this page" instead of the web's clipboard read, which iOS gates behind an "Allow Paste" prompt every time |
 | `FreshnessLabel` | `EnrichmentFreshness.tsx` | Cache age + refresh-anyway |
 
 One rule for all of them: **a view never renders a field the API returned as
@@ -482,7 +482,11 @@ forcing past the TTL. Port the copy as-is.
 
 Hard rules, all inherited from `CLAUDE.md` §15 and Phase 9.4:
 
-- No fetch on view appear. No fetch on pull-to-refresh. No fetch on scroll.
+- No fetch on view appear, **except** price for a wine with no stored
+  `price_data`: fetched once when first opened, guarded per session by
+  `PriceOnce` so a failure isn't retried by reopening (amended 2026-09-26,
+  `CLAUDE.md` §15 "Second exception"). No fetch on pull-to-refresh. No fetch
+  on scroll.
 - Auto-fire exists in exactly one place: the scan path, `?tier=primary`, once
   per wine, after the free duplicate check (`POST /api/wines/duplicate-check` on
   iOS — see the product spec §6).

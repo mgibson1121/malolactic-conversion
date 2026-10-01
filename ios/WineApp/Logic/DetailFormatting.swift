@@ -186,3 +186,19 @@ enum RetailerBadge: Hashable {
         }
     }
 }
+
+/// The web's `hostnameMatches` (`RetailerLinksSection.tsx`): the same shop
+/// with or without `www.`, either side a suffix of the other
+/// (`shop.klwines.com` vs `klwines.com`). Used to decide whether the page open
+/// in the retailer browser belongs to the retailer being searched.
+enum RetailerHost {
+    static func matches(_ a: String?, _ b: String?) -> Bool {
+        guard let a = a.map(strip), let b = b.map(strip), !a.isEmpty, !b.isEmpty else { return false }
+        return a.contains(b) || b.contains(a)
+    }
+
+    private static func strip(_ host: String) -> String {
+        let lower = host.lowercased()
+        return lower.hasPrefix("www.") ? String(lower.dropFirst(4)) : lower
+    }
+}

@@ -104,3 +104,52 @@ final class RowActionsTests: XCTestCase {
         return data
     }
 }
+
+/// The fetch-once price rule (developer decision 2026-09-26).
+@MainActor
+final class PriceOnceTests: XCTestCase {
+    override func setUp() async throws {
+        PriceOnce.reset()
+        StubURLProtocol.requests = []
+    }
+
+    private func unpriced() throws -> Wine {
+        var wine = try Fixture.fullWine
+        wine.priceData = nil
+        return wine
+    }
+
+    private var priceRequests: Int {
+        StubURLProtocol.requests.filter { $0.url?.path.hasSuffix("/fetch-price") == true }.count
+    }
+
+    func testAnUnpricedWineIsPricedOnceOnOpenAndNeverAgainThatSession() async throws {
+        let wine = try unpriced()
+        StubURLProtocol.response = (200, try JSONEncoder().encode(try Fixture.fullWine))
+
+        let first = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: {})
+        await first.fetchPriceOnceIfNeeded()
+        XCTAssertEqual(priceRequests, 1)
+        XCTAssertNotNil(first.wine.priceData)
+
+        // Reopening the same wine — even one whose first fetch had failed and
+        // so still has no price_data — does not spend again.
+        let second = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: {})
+        await second.fetchPriceOnceIfNeeded()
+        XCTAssertEqual(priceRequests, 1)
+    }
+
+    func testAWineWithStoredPricesMakesNoCallOnOpen() async throws {
+        let model = WineDetailModel(wine: try Fixture.fullWine, api: StubURLProtocol.api(), onChanged: {})
+        await model.fetchPriceOnceIfNeeded()
+        XCTAssertEqual(priceRequests, 0)
+    }
+
+    func testRefreshIsAlwaysATapAwayAndNeverForcedByDefault() async throws {
+        StubURLProtocol.response = (200, try JSONEncoder().encode(try Fixture.fullWine))
+        let model = WineDetailModel(wine: try Fixture.fullWine, api: StubURLProtocol.api(), onChanged: {})
+        await model.fetchPrice()
+        let request = try XCTUnwrap(StubURLProtocol.requests.last)
+        XCTAssertNil(request.url?.query, "a plain tap lets the server's TTL cache answer — no force")
+    }
+}

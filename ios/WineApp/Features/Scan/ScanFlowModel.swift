@@ -252,13 +252,15 @@ final class ScanFlowModel {
         await createDraft(from: scan)
     }
 
-    /// "Open it" — the existing wine in promoted mode. No draft, no metered call.
+    /// "Open it" — the existing wine in promoted mode. No draft. Priced
+    /// once only if it has never been priced (`PriceOnce`).
     func openExisting(_ existing: Wine) {
         pendingScan = nil
         wine = existing
         fields = WineFields(existing)
         missingTier1 = []
         step = .review
+        fetchPriceOnce(existing)
     }
 
     // MARK: Manual entry (spec D4)
@@ -269,16 +271,18 @@ final class ScanFlowModel {
     }
 
     /// Creates the draft from typed fields. The manual path never auto-fires
-    /// (CLAUDE.md §15: "Not the manual + Add Wine path").
+    /// reviews (CLAUDE.md §15); price follows the fetch-once rule.
     func createManualDraft() async {
         isSaving = true
         defer { isSaving = false }
         actionError = nil
         do {
-            wine = try await api.createWine(fields.newWine)
+            let draft = try await api.createWine(fields.newWine)
+            wine = draft
             missingTier1 = []
             tags = PromoteTags()
             step = .review
+            fetchPriceOnce(draft)
         } catch let error as APIError {
             actionError = error.message(networkMessage: "Failed to save. Is the backend running?")
         } catch {}
@@ -290,18 +294,9 @@ final class ScanFlowModel {
     /// in the sense that nothing retries: a failure is shown inline and left.
     private func fireEnrichment(for draft: Wine, force: Bool) {
         let id = draft.id
-        priceAutoFire = .running
+        PriceOnce.record(id)
+        firePrice(id, force: force)
         reviewsAutoFire = .running
-        Task {
-            do {
-                let result = try await api.fetchPrice(wineID: id, force: force)
-                guard wine?.id == id else { return }
-                wine?.priceData = result.wine.priceData
-                priceAutoFire = .finished
-            } catch {
-                if wine?.id == id { priceAutoFire = .failed }
-            }
-        }
         Task {
             do {
                 let result = try await api.fetchReviews(wineID: id, force: force, tier: .primary)
@@ -314,6 +309,26 @@ final class ScanFlowModel {
                 reviewsAutoFire = .finished
             } catch {
                 if wine?.id == id { reviewsAutoFire = .failed }
+            }
+        }
+    }
+
+    /// Price once for a wine that has none (developer decision 2026-09-26).
+    private func fetchPriceOnce(_ wine: Wine) {
+        guard PriceOnce.claim(wine) else { return }
+        firePrice(wine.id, force: false)
+    }
+
+    private func firePrice(_ id: String, force: Bool) {
+        priceAutoFire = .running
+        Task {
+            do {
+                let result = try await api.fetchPrice(wineID: id, force: force)
+                guard wine?.id == id else { return }
+                wine?.priceData = result.wine.priceData
+                priceAutoFire = .finished
+            } catch {
+                if wine?.id == id { priceAutoFire = .failed }
             }
         }
     }

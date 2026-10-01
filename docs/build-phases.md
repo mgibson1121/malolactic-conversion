@@ -1546,7 +1546,9 @@ no widgets, no offline mode, no push.
 - Metered enrichment stays user-initiated. No fetch-on-appear, no
   fetch-on-pull-to-refresh, no automatic retry on a paid endpoint. Auto-fire
   exists in exactly one place: the scan path, primary tier, once per wine,
-  after the free duplicate check.
+  after the free duplicate check. *(Amended 2026-09-26: price for a wine with
+  no stored price data is also fetched once, on first open — see "Price
+  fetch-once rule" below and `CLAUDE.md` §15.)*
 - Additive boolean tags, no `status` enum. `promoted_at == nil` means draft.
 - Critic scores are never blended; the card's highest-score display is
   truncation with a `+N` affordance, **not** the source prioritization Phase 11
@@ -1621,12 +1623,27 @@ see the rule below.
 - The WSET Evaluate form, with the post-save tag review.
 - Swipe and long-press card actions, optimistic with rollback.
 
-The iOS suite passes 59/59. Remaining for the phase:
-- Bundled Domine/Work Sans font files (Google Fonts, OFL; needs a download).
-- The guided "copy the product URL and switch back" retailer flow (web
-  Phase 7.2).
-- A walk through the implementation spec's §13 QA checklist on a device:
-  Dynamic Type, dark appearance, VoiceOver, and a real scan.
+The iOS suite passed 59/59 at that point.
+
+**Build status (2026-09-26):** PR #35 merged. On `feature/phase-12-ios-finish`:
+- **Fonts.** Domine and Work Sans are bundled: variable TTFs from
+  `google/fonts`, SIL OFL, with the licences shipped alongside. They're
+  registered through `UIAppFonts`, including on the UIKit nav titles, and a
+  test fails if either family stops loading.
+- **Price fetch-once rule.** See its own entry below and `CLAUDE.md` §15.
+- **Find reviews.** A port of `RetailerLinksSection`, with the guided flow
+  adapted for the phone. The web opens the retailer in a new tab and reads
+  the clipboard when the tab regains focus. iOS prompts "Allow Paste" on
+  every programmatic clipboard read, so that flow would nag on every use.
+  Instead, Search opens the retailer in an in-app browser, and **"Use this
+  page"** sends the browser's current URL to `confirm-retailer-link`. It is
+  enabled only on that retailer's own domain (the web's `hostnameMatches`
+  rule) and never on the search URL itself, and it asks for confirmation
+  first, because the call is a Puppeteer render plus one GPT-4o extraction.
+
+The iOS suite passes 66/66. **Remaining:** the implementation spec's §13 QA
+checklist, walked on a device (Dynamic Type, dark appearance, VoiceOver, a
+real scan). This is the testing step the developer holds for themselves.
 
 **Stored enrichment JSON is older than its types (found 2026-09-24).**
 `price_data` and `review_data` are stored as JSON written by whichever phase
@@ -1640,6 +1657,22 @@ default each missing field to what the web renders for `undefined`, and the
 fixture exporter emits a legacy-shaped wine to keep that tested. Any new
 client, and any new code that reads these blobs, should make the same
 assumption.
+
+**Price fetch-once rule (developer decision, 2026-09-26).** Asked whether
+the web `DiscoveryReview`'s long-standing auto-fetch of price on mount should
+be tightened to match §15, the developer answered the other way: *"The app
+should fetch prices once and then give me the option to refresh. I don't need
+a fresh call each time the page is loaded."* So:
+- A wine with no stored `price_data` is priced once, automatically, when first
+  opened. That covers iOS detail, draft review, manual add and duplicate
+  "Open it", plus web `DiscoveryReview` and `WineDetailModal`.
+- After that, price changes only on Refresh Price.
+- A per-session guard (`PriceOnce.swift` / `priceOnce.ts`) makes "once" hold
+  even when a fetch fails.
+- Reviews are unchanged.
+
+`CLAUDE.md` §15 carries the binding version with its boundaries and
+arithmetic.
 
 A small product call made while building, recorded so it isn't re-derived: on
 the Ready-to-drink widget, a wine **past** the end of its window counts under

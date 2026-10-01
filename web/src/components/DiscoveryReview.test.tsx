@@ -4,6 +4,7 @@ import { vi } from 'vitest'
 import type { PriceData, RetailerPrice, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { DiscoveryReview } from './DiscoveryReview'
+import { resetPriceOnce } from '../utils/priceOnce'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 
 vi.mock('../api', () => ({
@@ -90,6 +91,7 @@ function makePriceData(retailers: RetailerPrice[]): PriceData {
 // harmless default so it resolves instead of throwing, and wait for it to
 // settle before asserting, so state updates stay inside act().
 beforeEach(() => {
+  resetPriceOnce()
   mockFetchPrice.mockResolvedValue(makeWine({ price_data: makePriceData([]) }))
 })
 

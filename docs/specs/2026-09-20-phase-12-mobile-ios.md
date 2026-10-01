@@ -103,6 +103,13 @@ path only, once per wine, after the free duplicate check. A phone in
 someone's pocket must not become a new way to spend Serper credits — no
 pull-to-refresh-triggers-enrichment, no fetch-on-appear.
 
+*Amended 2026-09-26 (developer decision):* one bounded exception to "no
+fetch-on-appear". A wine with **no stored price data** is priced once when it
+is first opened (detail, draft review, manual add, duplicate "Open it"), and
+after that only on Refresh. It is guarded per session by `PriceOnce`, so a
+failed fetch is not retried by reopening the wine. Reviews are unchanged. The
+binding rule is in `CLAUDE.md` §15, "Second exception".
+
 ---
 
 ## 3. Navigation

@@ -4,6 +4,10 @@ import SwiftUI
 struct WineApp: App {
     @State private var session = AppSession()
 
+    init() {
+        AppFont.applyNavigationBarTitles()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()

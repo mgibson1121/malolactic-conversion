@@ -10,6 +10,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Domine (display) / Work Sans (body), the Phase 11.1 type pair. Variable
+	     fonts from google/fonts, SIL OFL 1.1 — licences alongside in Fonts/. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Domine-Variable.ttf</string>
+		<string>WorkSans-Variable.ttf</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>The app talks to your wine backend running on this network.</string>
 </dict>

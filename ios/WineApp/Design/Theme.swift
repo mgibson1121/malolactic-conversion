@@ -44,9 +44,9 @@ enum Theme {
     static let minHitTarget: CGFloat = 44
 }
 
-/// Domine (display) / Work Sans (body), §1.2. Until the font files are
-/// bundled, `Font.custom` falls back to the system face — layout is unchanged,
-/// only the typeface differs.
+/// Domine (display) / Work Sans (body), §1.2 — variable fonts bundled in
+/// `Fonts/` and registered through `UIAppFonts`. `Font.custom` falls back to
+/// the system face silently if a family goes missing; `FontTests` guards that.
 enum AppFont {
     static func largeTitle() -> Font { .custom("Domine", size: 32, relativeTo: .largeTitle).weight(.bold) }
     static func cardTitle() -> Font { .custom("Domine", size: 15.5, relativeTo: .headline).weight(.semibold) }
@@ -55,6 +55,21 @@ enum AppFont {
     static func body() -> Font { .custom("Work Sans", size: 13.5, relativeTo: .body) }
     static func meta() -> Font { .custom("Work Sans", size: 12.5, relativeTo: .subheadline) }
     static func badge() -> Font { .custom("Work Sans", size: 11, relativeTo: .caption2).weight(.semibold) }
+
+    /// Nav titles are UIKit-drawn, so they take the display face through
+    /// UINavigationBar appearance: large 32/700, inline 17/600 (§1.2).
+    static func applyNavigationBarTitles() {
+        func domine(_ size: CGFloat, _ weight: UIFont.Weight, _ style: UIFont.TextStyle) -> UIFont {
+            let descriptor = UIFontDescriptor(fontAttributes: [
+                .family: "Domine",
+                .traits: [UIFontDescriptor.TraitKey.weight: weight],
+            ])
+            return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont(descriptor: descriptor, size: size))
+        }
+        let appearance = UINavigationBar.appearance()
+        appearance.largeTitleTextAttributes = [.font: domine(32, .bold, .largeTitle)]
+        appearance.titleTextAttributes = [.font: domine(17, .semibold, .headline)]
+    }
 }
 
 extension Color {

@@ -15,13 +15,16 @@ struct WineDetailView: View {
     @Environment(AppSession.self) private var session
     @Environment(\.openURL) private var openURL
     @State private var model: WineDetailModel
+    @State private var findReviews: FindReviewsModel
     @State private var showAllScores = false
     @State private var showAllRetailers = false
     @State private var isEvaluating = false
     private let focusScores: Bool
 
     init(route: DetailRoute, api: APIClient, onChanged: @escaping () -> Void) {
-        _model = State(initialValue: WineDetailModel(wine: route.wine, api: api, onChanged: onChanged))
+        let detail = WineDetailModel(wine: route.wine, api: api, onChanged: onChanged)
+        _model = State(initialValue: detail)
+        _findReviews = State(initialValue: FindReviewsModel(api: api, wine: { detail.wine }, apply: { detail.apply($0) }))
         focusScores = route.focusScores
     }
 
@@ -40,6 +43,7 @@ struct WineDetailView: View {
                     retailers
                     reviewsGroup
                     savedLinks
+                    FindReviewsSection(model: findReviews, wine: wine)
                 }
                 .padding(.horizontal, Theme.sideMargin)
                 .padding(.bottom, 32)
@@ -48,12 +52,14 @@ struct WineDetailView: View {
             .navigationTitle(wine.producer ?? "Wine")
             .navigationBarTitleDisplayMode(.inline)
             .task {
+                async let priced: Void = model.fetchPriceOnceIfNeeded()
                 await model.loadNotes()
                 if focusScores {
                     setExpanded(.research, true)
                     try? await Task.sleep(for: .milliseconds(300))
                     withAnimation { proxy.scrollTo("scores", anchor: .top) }
                 }
+                await priced
             }
         }
         .sheet(isPresented: $isEvaluating) {

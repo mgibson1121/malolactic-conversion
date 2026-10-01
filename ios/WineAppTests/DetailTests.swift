@@ -122,3 +122,54 @@ final class EvaluateDraftTests: XCTestCase {
         XCTAssertEqual(AromaDescriptors.adding("rose", to: ""), "rose")
     }
 }
+
+final class RetailerHostTests: XCTestCase {
+    func testMatchesTheWebsRule() {
+        XCTAssertTrue(RetailerHost.matches("www.klwines.com", "klwines.com"))
+        XCTAssertTrue(RetailerHost.matches("shop.klwines.com", "www.klwines.com"))
+        XCTAssertTrue(RetailerHost.matches("WWW.Zachys.com", "zachys.com"))
+        XCTAssertFalse(RetailerHost.matches("doubleclick.net", "zachys.com"))
+        XCTAssertFalse(RetailerHost.matches(nil, "zachys.com"))
+    }
+}
+
+@MainActor
+final class FindReviewsModelTests: XCTestCase {
+    func testSavingALinkSendsTheMergedMapNotJustTheNewEntry() async throws {
+        StubURLProtocol.requests = []
+        var wine = try Fixture.fullWine            // already has kl saved
+        wine.retailerLinks = ["kl": "https://www.klwines.com/p/i?i=1592587"]
+        StubURLProtocol.response = (200, try JSONEncoder().encode(wine))
+        var current = wine
+        let model = FindReviewsModel(api: StubURLProtocol.api(), wine: { current }, apply: { current = $0 })
+
+        model.startEditing(RetailerLink(slug: "zachys", name: "Zachys", url: "https://www.zachys.com/search?q=vogue"))
+        model.editValue = "https://www.zachys.com/products/amoureuses-2019"
+        await model.save("zachys")
+
+        let body = try XCTUnwrap(StubURLProtocol.requests.last?.httpBodyStream.map(Self.readAll) ?? StubURLProtocol.requests.last?.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: [String: String]])
+        XCTAssertEqual(json["retailer_links"], [
+            "kl": "https://www.klwines.com/p/i?i=1592587",
+            "zachys": "https://www.zachys.com/products/amoureuses-2019",
+        ], "the server replaces the map, so both links must be sent")
+        XCTAssertNil(model.editingSlug)
+    }
+
+    func testAFailedConfirmKeepsTheBrowserOpenWithTheWebsCopy() async throws {
+        StubURLProtocol.response = (500, Data(#"{"error":"render failed"}"#.utf8))
+        let wine = try Fixture.fullWine
+        let model = FindReviewsModel(api: StubURLProtocol.api(), wine: { wine }, apply: { _ in })
+        let closed = await model.confirm(URL(string: "https://www.zachys.com/p/1")!,
+                                         for: RetailerLink(slug: "zachys", name: "Zachys", url: "https://www.zachys.com"))
+        XCTAssertFalse(closed)
+        XCTAssertEqual(model.confirmError, "Could not save and extract from that link")
+    }
+
+    private static func readAll(_ stream: InputStream) -> Data {
+        stream.open(); defer { stream.close() }
+        var data = Data(); var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: buffer.count); if n <= 0 { break }; data.append(buffer, count: n) }
+        return data
+    }
+}
