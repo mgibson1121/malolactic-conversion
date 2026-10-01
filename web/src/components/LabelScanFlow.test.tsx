@@ -163,7 +163,7 @@ describe('LabelScanFlow — free duplicate check (WI-4)', () => {
     render(<LabelScanFlow wines={[existing]} onReview={() => {}} onDone={() => {}} />)
     await uploadAFile()
 
-    await waitFor(() => expect(screen.getByText('Already in Your Collection')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Same Wine?')).toBeInTheDocument())
     expect(mockCreateWine).not.toHaveBeenCalled()
     expect(mockFetchPrice).not.toHaveBeenCalled()
     expect(mockFetchReviews).not.toHaveBeenCalled()
@@ -176,21 +176,32 @@ describe('LabelScanFlow — free duplicate check (WI-4)', () => {
 
     render(<LabelScanFlow wines={[existing]} onReview={onReview} onDone={() => {}} />)
     await uploadAFile()
-    await userEvent.click(await screen.findByRole('button', { name: 'View Existing Wine' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Same wine — open it' }))
 
     expect(onReview).toHaveBeenCalledWith(existing, false)
   })
 
-  it('"add anyway" falls through to normal draft creation', async () => {
+  it('"different wine" falls through to normal draft creation — a new, separate wine', async () => {
     const existing = makeWine({ id: 'existing-1', promoted_at: '2026-08-01T00:00:00.000Z' })
     mockScanLabel.mockResolvedValue(makeScan())
     mockCreateWine.mockResolvedValue(makeWine({ id: 'new-wine' }))
 
     render(<LabelScanFlow wines={[existing]} onReview={() => {}} onDone={() => {}} />)
     await uploadAFile()
-    await userEvent.click(await screen.findByRole('button', { name: /different bottle/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /different wine/i }))
 
     await waitFor(() => expect(mockCreateWine).toHaveBeenCalled())
+  })
+
+  it('shows the bottling that differs when only the existing wine names one', async () => {
+    const existing = makeWine({ id: 'existing-1', cuvee: 'Magistra', promoted_at: '2026-08-01T00:00:00.000Z' })
+    mockScanLabel.mockResolvedValue(makeScan())
+
+    render(<LabelScanFlow wines={[existing]} onReview={() => {}} onDone={() => {}} />)
+    await uploadAFile()
+
+    await waitFor(() => expect(screen.getByText(/Yours is the Magistra/)).toBeInTheDocument())
+    expect(mockCreateWine).not.toHaveBeenCalled()
   })
 
   it('a vintage mismatch does not short-circuit — it creates a draft with a notice', async () => {

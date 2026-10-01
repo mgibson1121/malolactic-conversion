@@ -34,17 +34,25 @@ struct LabelScanResult: Codable, Hashable {
     }
 }
 
-/// `POST /api/wines/duplicate-check` body — the three identity fields
-/// `shared/utils/duplicate-match.ts` reads.
+/// `POST /api/wines/duplicate-check` body — the identity fields
+/// `shared/utils/duplicate-match.ts` reads, including bottling (cuvée,
+/// vineyard, classification) so "Magistra" and the regular bottling of the
+/// same producer/appellation/vintage aren't called the same wine.
 struct DuplicateCheckRequest: Encodable, Hashable {
     var producer: String?
     var denomination: String?
     var vintage: Int?
+    var cuvee: String?
+    var vineyard: String?
+    var qualityClassification: String?
 
     init(_ scan: LabelScanResult) {
         producer = scan.producer
         denomination = scan.denomination
         vintage = scan.vintage
+        cuvee = scan.cuvee
+        vineyard = scan.vineyard
+        qualityClassification = scan.qualityClassification
     }
 
     // Explicit nulls, matching what the web sends from a scan result.
@@ -53,27 +61,45 @@ struct DuplicateCheckRequest: Encodable, Hashable {
         try c.encode(producer, forKey: .producer)
         try c.encode(denomination, forKey: .denomination)
         try c.encode(vintage, forKey: .vintage)
+        try c.encode(cuvee, forKey: .cuvee)
+        try c.encode(vineyard, forKey: .vineyard)
+        try c.encode(qualityClassification, forKey: .qualityClassification)
     }
 
-    enum CodingKeys: String, CodingKey { case producer, denomination, vintage }
+    enum CodingKeys: String, CodingKey {
+        case producer, denomination, vintage, cuvee, vineyard
+        case qualityClassification = "quality_classification"
+    }
+}
+
+/// What differs in bottling when only one side names one — shown on the
+/// "same wine or different?" prompt.
+struct BottlingDifference: Decodable, Hashable {
+    var existing: String?
+    var scanned: String?
 }
 
 /// `DuplicateOutcome` — `{ kind: 'none' | 'duplicate' | 'vintage_mismatch', wine? }`.
 enum DuplicateOutcome: Decodable, Hashable {
     /// `kind: 'none'` — named so it can't be confused with `Optional.none`.
     case noMatch
-    /// A confident match: open the existing wine, no draft, no metered call.
-    case duplicate(Wine)
+    /// Looks like a wine already in the collection. Always a question: the
+    /// developer confirms "same wine" (open it) or "different wine" (a new
+    /// entry with its own id). `bottling` is set when only one side names a
+    /// cuvée/vineyard/classification — the likeliest reason they differ.
+    case duplicate(Wine, bottling: BottlingDifference?)
     /// Same producer and denomination, different vintage: still a new draft,
     /// with a notice naming the wine it is distinct from.
     case vintageMismatch(Wine)
 
-    enum CodingKeys: String, CodingKey { case kind, wine }
+    enum CodingKeys: String, CodingKey { case kind, wine, bottling }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         switch try c.decode(String.self, forKey: .kind) {
-        case "duplicate": self = .duplicate(try c.decode(Wine.self, forKey: .wine))
+        case "duplicate":
+            self = .duplicate(try c.decode(Wine.self, forKey: .wine),
+                              bottling: try c.decodeIfPresent(BottlingDifference.self, forKey: .bottling))
         case "vintage_mismatch": self = .vintageMismatch(try c.decode(Wine.self, forKey: .wine))
         default: self = .noMatch
         }

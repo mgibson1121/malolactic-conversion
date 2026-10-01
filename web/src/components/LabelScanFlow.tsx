@@ -23,7 +23,7 @@ import { useState, useRef, DragEvent, ChangeEvent } from 'react'
 import type { CreateWineInput, UpdateWineInput, WineColor, WineEntry } from '@shared/types'
 import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
-import { findDuplicate } from '@shared/utils/duplicate-match'
+import { findDuplicate, type BottlingDifference } from '@shared/utils/duplicate-match'
 
 interface Props {
   /** Promoted wines already in the collection — used only for the free
@@ -45,7 +45,7 @@ type FlowState =
   | { step: 'upload' }
   | { step: 'scanning' }
   | { step: 'unavailable'; reason: string }
-  | { step: 'duplicate'; existing: WineEntry; scan: LabelScanResult }
+  | { step: 'duplicate'; existing: WineEntry; scan: LabelScanResult; bottling: BottlingDifference | null }
   | { step: 'review'; wine: WineEntry; scan: LabelScanResult; editing: boolean; enrichmentFired: boolean; vintageNotice: string | null }
   | { step: 'error'; message: string }
 
@@ -124,7 +124,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
       // enrichment call fired.
       const dup = findDuplicate(scan, wines)
       if (dup.kind === 'duplicate') {
-        setFlow({ step: 'duplicate', existing: dup.wine, scan })
+        setFlow({ step: 'duplicate', existing: dup.wine, scan, bottling: dup.bottling ?? null })
         return
       }
 
@@ -269,9 +269,17 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
   }
 
   // ── Duplicate step (WI-4) ────────────────────────────────────────────────────
+  // Always a question, never a silent reuse (2026-09-30): both identities side
+  // by side, including the bottling that most often separates two wines of
+  // one producer/appellation/vintage. "Different wine" creates a new entry.
   if (flow.step === 'duplicate') {
-    const { existing, scan } = flow
-    const line = [existing.producer, existing.denomination].filter(Boolean).join(' · ')
+    const { existing, scan, bottling } = flow
+    const bottlingOf = (w: { cuvee: string | null; vineyard: string | null; quality_classification: string | null }) =>
+      [...new Set([w.cuvee, w.vineyard, w.quality_classification].filter((p): p is string => !!p && p.trim() !== ''))].join(' · ')
+    const existingLine = [existing.producer, existing.denomination].filter(Boolean).join(' · ')
+    const scanLine = [scan.producer, scan.denomination].filter(Boolean).join(' · ')
+    const existingBottling = bottlingOf(existing)
+    const scanBottling = bottlingOf(scan)
 
     async function addAnyway() {
       if (flow.step !== 'duplicate') return
@@ -282,17 +290,37 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
     return (
       <div className="form-overlay">
         <div className="scan-flow">
-          <h2>Already in Your Collection</h2>
-          <p className="scan-subtitle">
-            {line} {existing.vintage ?? 'NV'} looks like a wine you already have — no search has been run.
-          </p>
+          <h2>Same Wine?</h2>
+          <p className="scan-subtitle">This label looks like a wine you already have. Is it the same wine?</p>
+          <div className="duplicate-compare">
+            <div>
+              <span className="detail-field-label">You have</span>
+              <p><strong>{existingLine || '—'}</strong></p>
+              <p>{existing.vintage ?? 'NV'}{existingBottling && <> · <strong>{existingBottling}</strong></>}</p>
+            </div>
+            <div>
+              <span className="detail-field-label">This label</span>
+              <p><strong>{scanLine || '—'}</strong></p>
+              <p>{scan.vintage ?? 'NV'}{scanBottling && <> · <strong>{scanBottling}</strong></>}</p>
+            </div>
+          </div>
+          {bottling && (
+            <p className="scan-missing-notice">
+              {bottling.existing && !bottling.scanned
+                ? `Yours is the ${bottling.existing}. This label doesn't mention ${bottling.existing} — if it's a different bottling, add it.`
+                : `This label says ${bottling.scanned}; the wine you have doesn't. If they're different bottlings, add it.`}
+            </p>
+          )}
           <div className="form-actions">
-            <button className="btn-save btn-save--primary" onClick={() => onReview(existing, false)}>
-              View Existing Wine
+            <button className="btn-cancel" onClick={() => onReview(existing, false)}>
+              Same wine — open it
             </button>
-            <button className="btn-text" onClick={addAnyway}>This is a different bottle — add anyway</button>
+            <button className="btn-save btn-save--primary" onClick={addAnyway}>
+              Different wine — add it
+            </button>
             <button className="btn-cancel" onClick={onDone}>Cancel</button>
           </div>
+          <p className="scan-subtitle">No search has been run yet. Adding it creates a separate wine.</p>
         </div>
       </div>
     )

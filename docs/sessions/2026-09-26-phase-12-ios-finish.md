@@ -21,6 +21,11 @@
 
 Everything was checked visually without triggering a metered call. Domaine Rousseau already had prices, so opening it made no fetch. "Search retailers" is free. The in-app browser was opened on K&L's own search, and "Use this page" was correctly disabled there. Nothing was confirmed, and the collection data is unchanged.
 
+## Follow-up from device testing (2026-09-30)
+
+- **The duplicate check now asks, and it knows about bottlings.** The developer scanned a Sesta di Sopra Brunello. The app offered it as their Sesta di Sopra *Magistra*, a different wine. The matcher now compares cuvée, vineyard and classification. On web and iOS the prompt is now "Same wine?", showing both identities and any bottling difference. "Different wine — add it" creates a separate row with its own id. Details are in `CLAUDE.md` §5 and `build-phases.md` Phase 12.
+- **Producer legal forms and sibling appellations** ("S.A." in quoted queries zeroed every retailer search, and a Rosso di Montalcino price was accepted for a Brunello) were fixed in PR #37.
+
 ## What's next
 
 The developer's device QA pass against the implementation spec's §13 checklist: 0/1/many bottles, long names at 393/402/440 pt, NV, Dynamic Type at xxLarge, dark appearance, VoiceOver, camera permission, and a real scan end-to-end. Then close Phase 12.

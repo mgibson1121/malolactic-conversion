@@ -1,17 +1,36 @@
 import type { WineEntry } from '../types'
-import { scoreMatch } from './wine-match'
+import { scoreMatch, significantWords } from './wine-match'
 
-/** The identity fields a label scan (or any would-be new wine) supplies. */
+/** The identity fields a label scan (or any would-be new wine) supplies.
+ * The bottling fields are optional so older callers keep working. */
 export interface DuplicateCheckInput {
   producer: string | null
   denomination: string | null
   vintage: number | null
+  cuvee?: string | null
+  vineyard?: string | null
+  quality_classification?: string | null
+}
+
+/** When exactly one side names a bottling ("Magistra", a vineyard, a
+ * classification), what each side says — so the confirm prompt can show the
+ * one difference that decides "same wine or not". Absent when both agree. */
+export interface BottlingDifference {
+  existing: string | null
+  scanned: string | null
 }
 
 export type DuplicateOutcome =
   | { kind: 'none' }
-  | { kind: 'duplicate'; wine: WineEntry }
+  | { kind: 'duplicate'; wine: WineEntry; bottling?: BottlingDifference }
   | { kind: 'vintage_mismatch'; wine: WineEntry }
+
+function bottlingText(w: { cuvee?: string | null; vineyard?: string | null; quality_classification?: string | null }): string | null {
+  const parts = [w.cuvee, w.vineyard, w.quality_classification]
+    .filter((p): p is string => !!p && p.trim().length > 0)
+    .filter((p, i, all) => all.findIndex(q => q.toLowerCase() === p.toLowerCase()) === i)
+  return parts.length ? parts.join(' · ') : null
+}
 
 /**
  * Phase 9.4, WI-4 — the free duplicate check: run against the wines already
@@ -32,6 +51,15 @@ export type DuplicateOutcome =
  * can run the same check through POST /api/wines/duplicate-check rather than
  * carrying a second, Swift implementation of wine identity (CLAUDE.md §5).
  * The web app still calls this directly against the wines it already holds.
+ *
+ * Bottling (2026-09-30, Phase 12 QA): a scan of Sesta di Sopra's regular
+ * Brunello 2018 was offered as a duplicate of the Magistra 2018 — same
+ * producer, appellation and vintage, different wine. Two rules now:
+ *   - both sides name a bottling and they share no word → a different wine,
+ *     not a duplicate at all;
+ *   - only one side names one → still a *possible* duplicate, returned with
+ *     `bottling` so the prompt shows what differs and the developer decides.
+ * Never auto-merges: a duplicate is always a question, never a silent reuse.
  */
 export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntry[]): DuplicateOutcome {
   if (!scan.producer && !scan.denomination) return { kind: 'none' }
@@ -41,6 +69,7 @@ export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntr
     statedVintage: scan.vintage,
   }
 
+  let possible: DuplicateOutcome | undefined
   for (const wine of existingWines) {
     const verdict = scoreMatch(candidate, {
       producer: wine.producer ?? '',
@@ -51,9 +80,24 @@ export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntr
       quality_classification: wine.quality_classification,
     })
     if (verdict.producer !== 'match' || verdict.denomination !== 'match') continue
-    if (verdict.vintage === 'match') return { kind: 'duplicate', wine }
-    if (verdict.vintage === 'mismatch') return { kind: 'vintage_mismatch', wine }
+
+    const scanned = bottlingText(scan)
+    const existing = bottlingText(wine)
+    if (scanned && existing) {
+      const a = new Set(significantWords(scanned))
+      const shared = significantWords(existing).some(w => a.has(w))
+      if (!shared) continue // e.g. "Magistra" vs "Vigna X" — different bottlings
+    }
+
+    if (verdict.vintage === 'match') {
+      const sameBottling = scanned === existing || (!!scanned && !!existing)
+      if (sameBottling) return { kind: 'duplicate', wine }
+      // Keep looking: an exact bottling match elsewhere beats this one.
+      possible ??= { kind: 'duplicate', wine, bottling: { existing, scanned } }
+      continue
+    }
+    if (verdict.vintage === 'mismatch' && !possible) return { kind: 'vintage_mismatch', wine }
   }
 
-  return { kind: 'none' }
+  return possible ?? { kind: 'none' }
 }
