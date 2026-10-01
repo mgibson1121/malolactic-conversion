@@ -164,6 +164,9 @@ Rules that follow from it, all load-bearing:
 - **The verdict is stored on the result** (`RetailerReview.match`, `RetailerPrice.vintage_verdict`) — callers read it rather than re-deriving it.
 - **Two queries, not one.** The vintage belongs in a relevance-ranked Serper query and must never reach a retailer's own literal on-site search.
 - **`VerificationState` is three-valued.** "Couldn't check" is not spelled the same way as "checked and confirmed."
+- **A producer's legal form is never part of its identity** (2026-09-30). `stripLegalForm` drops a trailing "S.A.", "S.L.", "S.p.A.", "S.r.l.", "GmbH", "SARL", "SCEA" (etc.) and a leading "Azienda/Società Agricola" before a producer is quoted into any query or compared for identity. A label prints it, and no retailer writes it. "La Rioja Alta, S.A." quoted as an exact phrase returned zero results at all eleven retailers. Applied at query and match time, so stored data needs no migration.
+- **Producer matching tolerates spacing** (2026-09-30). If the every-significant-word check fails, the whole producer, as letters only, may match as one contiguous run of the title's letters. That way "Sestadisopra" (the winery's own styling, read off the label) matches "Sesta di Sopra" (how shops write it), and vice versa. It only ever upgrades a verdict to `match`, and only for producers of 8+ letters, so "Sesti" can't match inside "Sestadisopra".
+- **A sibling appellation is a denomination mismatch** (2026-09-30). For a "<type> <di/de/d'/du…> <place>" denomination, a title or URL naming the same place with a different type ("Rosso di Montalcino" against "Brunello di Montalcino", "Nebbiolo d'Alba" against "Barbera d'Alba") is `mismatch`, not the any-one-word `match` it used to be. It's checked against the title and URL only, never the snippet. Found when a Sesta di Sopra Brunello was priced from its own Rosso at $42.01.
 
 Rules for all modules:
 - Each module has its own `index.ts`, types file, and test file
