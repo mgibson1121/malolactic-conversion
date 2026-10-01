@@ -156,3 +156,35 @@ final class PriceOnceTests: XCTestCase {
         XCTAssertNil(request.url?.query, "a plain tap lets the server's TTL cache answer — no force")
     }
 }
+
+/// The lists hold their own copy of each wine and the detail screen opens
+/// from it, so stored enrichment must be reported back (found 2026-10-01:
+/// refreshed critic scores vanished from the list and on reopen).
+@MainActor
+final class DetailEnrichmentReportsBackTests: XCTestCase {
+    override func setUp() async throws {
+        PriceOnce.reset()
+        StubURLProtocol.requests = []
+        StubURLProtocol.response = (200, try JSONEncoder().encode(try Fixture.fullWine))
+    }
+
+    func testRefreshedReviewsAndPricesTellTheLists() async throws {
+        var changes = 0
+        let model = WineDetailModel(wine: try Fixture.fullWine, api: StubURLProtocol.api(), onChanged: { changes += 1 })
+
+        await model.fetchReviews(force: true)
+        XCTAssertEqual(changes, 1)
+        await model.fetchPrice(force: true)
+        XCTAssertEqual(changes, 2)
+    }
+
+    func testAFailedFetchReportsNothing() async throws {
+        StubURLProtocol.response = (500, Data(#"{"error":"boom"}"#.utf8))
+        var changes = 0
+        let model = WineDetailModel(wine: try Fixture.fullWine, api: StubURLProtocol.api(), onChanged: { changes += 1 })
+
+        await model.fetchReviews(force: true)
+        XCTAssertEqual(changes, 0)
+        XCTAssertNotNil(model.reviews.error)
+    }
+}

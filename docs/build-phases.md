@@ -1608,6 +1608,13 @@ Web and iOS both render the question as "Same wine?" with the two identities
 side by side and any bottling difference spelled out: **Same wine — open it**
 or **Different wine — add it** (a new draft row with its own id). Still zero
 metered calls before the answer.
+
+**Detail screen reports stored enrichment back to the lists (2026-10-01, device
+testing):** refreshed critic scores for La Rioja Alta were saved by the backend
+but vanished from the list and on reopening the wine. The lists hold their own
+copy of each wine and the detail screen opens from it; `WineDetailModel` only
+reported list-membership changes. Every successful price/review fetch, retailer
+resolve and saved link now calls `onChanged`, so the lists reload (free GETs).
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 
