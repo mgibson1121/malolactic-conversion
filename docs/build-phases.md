@@ -1636,6 +1636,19 @@ after. With a descriptor-only cuvée, 5 of the producer's other wines (Viña
 Ardanza, Alberdi, Arana) also pass. With the cuvée "904", 0 do. A
 descriptor-only cuvée can't separate a producer's wines; the data has to name
 the wine.
+
+**Bottle format read from the product page on resolve (2026-10-01):** B-21
+priced La Rioja Alta 904 2015 at $199.98 as a 750ml. It was a magnum. Its
+Google Shopping title carried no size, and that title is the only text a
+fallback retailer's listing has at fetch time, so the pack/format exception
+(`pack-format.ts`: badge it, keep it out of min/avg/max) never fired. The
+page's own `<h1>` says "(1.5L)". When a retailer's link is resolved to its
+product page (the "View" tap), the page is now rendered locally (no Serper
+credit) and its headline (`<h1>`, `og:title`, `<title>`, never the body,
+where size pickers list every format) runs through the same parser
+(`pageStatedFormat`). The format can only be upgraded: an already-flagged
+listing keeps its flag, and a page that can't be read changes nothing.
+Listings already resolved before this change aren't re-checked.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 

@@ -16,6 +16,8 @@ import { identityOf, scoreMatch, type MatchVerdict } from '@shared/utils/wine-ma
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
+import { describeFormat, pageStatedFormat } from '../modules/price/pack-format'
+import { renderPageHtml as renderProductPage } from '../modules/price/puppeteer-extract'
 import { getRetailerLinks } from '../modules/retailer-links'
 import { fetchReviewData } from '../modules/reviews'
 import { mergeProbeLog } from '../modules/reviews/probe-log'
@@ -75,7 +77,8 @@ const router = Router()
  */
 export async function resolveOneRetailerUrl(
   wine: { producer: string | null; denomination: string | null; vintage: number | null; cuvee: string | null; vineyard: string | null },
-  retailer: RetailerPrice
+  retailer: RetailerPrice,
+  render: (url: string) => Promise<string | null> = renderProductPage
 ): Promise<RetailerPrice> {
   if (!retailer.is_search_results_page) return retailer
 
@@ -91,7 +94,32 @@ export async function resolveOneRetailerUrl(
         label: `price:resolve-url:${retailer.slug}`,
       })
   if (!outcome.url) return retailer
-  return { ...retailer, url: outcome.url, is_search_results_page: false }
+  return withPageStatedFormat({ ...retailer, url: outcome.url, is_search_results_page: false }, render)
+}
+
+/**
+ * A resolved product page is the first time the shop's own words about the
+ * listing are in reach, and they can name a format the Shopping title left
+ * out — B-21's La Rioja Alta 904 was a magnum priced as a 750ml (2026-10-01;
+ * see pageStatedFormat). One local render, no Serper credit. Only ever
+ * upgrades: a listing already flagged keeps its flag, and a page that can't
+ * be rendered or names no format changes nothing.
+ */
+async function withPageStatedFormat(
+  retailer: RetailerPrice,
+  render: (url: string) => Promise<string | null>
+): Promise<RetailerPrice> {
+  if (retailer.non_standard_format) return retailer
+  const html = await render(retailer.url).catch(() => null)
+  const format = html ? pageStatedFormat(html) : null
+  if (!format) return retailer
+  return {
+    ...retailer,
+    pack_quantity: format.pack_quantity,
+    bottle_size_ml: format.bottle_size_ml,
+    non_standard_format: true,
+    format_label: describeFormat(format),
+  }
 }
 
 function wrap(fn: (req: Request, res: Response) => Promise<void>) {
