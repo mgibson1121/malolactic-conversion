@@ -1,5 +1,6 @@
 import type { RetailerConfig } from '@shared/config/retailers.config'
 import {
+  bottlingNameWords,
   isRelevantMatch,
   scoreMatch,
   isAcceptableMatch,
@@ -60,8 +61,14 @@ function buildQuery(wine: WineIdentity, domain: string, opts: QueryOptions): str
   }
   if (wine.denomination) parts.push(`"${foldDiacritics(wine.denomination)}"`)
   if (opts.includeDistinguishing) {
-    if (wine.cuvee) parts.push(`"${foldDiacritics(wine.cuvee)}"`)
-    if (wine.vineyard) parts.push(`"${foldDiacritics(wine.vineyard)}"`)
+    // Each naming word quoted on its own, descriptors left out (2026-10-01).
+    // Quoting the whole cuvée demanded the label's exact phrase and word
+    // order: `"Seleccion Especial"` against shops that write "Gran Reserva
+    // 904", and `"Gran Reserva 904"` against "904 Gran Reserva". The words
+    // that name the bottling are what a shop keeps; scoreMatch judges the
+    // rest on the way back.
+    const names = bottlingNameWords(`${wine.cuvee ?? ''} ${wine.vineyard ?? ''}`)
+    for (const w of new Set(names)) parts.push(`"${w}"`)
   }
   if (opts.includeVintage && wine.vintage) parts.push(String(wine.vintage))
   return parts.join(' ')

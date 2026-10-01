@@ -1615,6 +1615,27 @@ but vanished from the list and on reopening the wine. The lists hold their own
 copy of each wine and the detail screen opens from it; `WineDetailModel` only
 reported list-membership changes. Every successful price/review fetch, retailer
 resolve and saved link now calls `onChanged`, so the lists reload (free GETs).
+
+**Identity lessons from device testing, applied (2026-10-01):** La Rioja Alta's
+Gran Reserva 904 2015 priced nothing on three refreshes. Its cuvée was stored
+as the label subtitle "Selección Especial", every shop sells it as "Gran
+Reserva 904", and "no bottling word present → mismatch" rejected all but one
+of ~25 listings. Five changes, all in `shared/` so web, iOS and every backend
+module agree (rules in `CLAUDE.md` §5):
+- descriptors confirm but never reject a bottling (`GENERIC_BOTTLING_WORDS`),
+  in `scoreMatch` and `findDuplicate`;
+- review queries quote naming words, not the label's whole phrase;
+- `identityOf(wine)` replaces four hand-built identities (classification was
+  missing from three);
+- the live "still listed" check uses the matcher's producer rule
+  (`mentionsProducer`) instead of its own copy, which lacked the legal-form
+  and spacing fixes. "Sestadisopra" listings were failing it;
+- the scan prompt asks for the name a wine is sold under, numbers included.
+Replayed on the real listings: 1 of 15 correct listings kept before, 15 of 15
+after. With a descriptor-only cuvée, 5 of the producer's other wines (Viña
+Ardanza, Alberdi, Arana) also pass. With the cuvée "904", 0 do. A
+descriptor-only cuvée can't separate a producer's wines; the data has to name
+the wine.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 

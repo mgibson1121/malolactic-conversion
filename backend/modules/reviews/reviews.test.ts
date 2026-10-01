@@ -297,7 +297,7 @@ describe('findProductPage — relaxed-query retry', () => {
 
     expect(result).toBe('https://whwc.com/fevre-chablis-1er-cru-montee-de-tonnerre-2019/')
     expect(queries).toHaveLength(2)
-    expect(queries[0]).toContain('Montee de Tonnerre') // diacritic-folded, but still present
+    expect(queries[0]).toContain('"montee" "tonnerre"') // naming words, diacritic-folded (2026-10-01)
     expect(queries[1]).not.toContain('Tonnerre') // vineyard dropped on retry
   })
 
@@ -351,7 +351,7 @@ describe('findProductPage — relaxed-query retry', () => {
 
     expect(firstQuery).toContain('Fevre')
     expect(firstQuery).not.toContain('Fèvre')
-    expect(firstQuery).toContain('Montee de Tonnerre')
+    expect(firstQuery).toContain('"montee" "tonnerre"')
   })
 
   // ─── Producer relaxation (Phase 9.1, WI-5) ──────────────────────────────

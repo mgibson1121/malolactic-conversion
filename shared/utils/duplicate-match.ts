@@ -1,5 +1,5 @@
 import type { WineEntry } from '../types'
-import { scoreMatch, significantWords } from './wine-match'
+import { bottlingNameWords, identityOf, normalize, scoreMatch } from './wine-match'
 
 /** The identity fields a label scan (or any would-be new wine) supplies.
  * The bottling fields are optional so older callers keep working. */
@@ -55,10 +55,14 @@ function bottlingText(w: { cuvee?: string | null; vineyard?: string | null; qual
  * Bottling (2026-09-30, Phase 12 QA): a scan of Sesta di Sopra's regular
  * Brunello 2018 was offered as a duplicate of the Magistra 2018 — same
  * producer, appellation and vintage, different wine. Two rules now:
- *   - both sides name a bottling and they share no word → a different wine,
- *     not a duplicate at all;
- *   - only one side names one → still a *possible* duplicate, returned with
- *     `bottling` so the prompt shows what differs and the developer decides.
+ *   - both sides name a bottling and they share no naming word → a
+ *     different wine, not a duplicate at all;
+ *   - otherwise, unless the two read the same → still a *possible*
+ *     duplicate, returned with `bottling` so the prompt shows what differs
+ *     and the developer decides.
+ * Naming words exclude descriptors (2026-10-01, bottlingNameWords): "Gran
+ * Reserva · Selección Especial" against "Gran Reserva · 904" used to share
+ * "gran" and pass silently as the same bottling.
  * Never auto-merges: a duplicate is always a question, never a silent reuse.
  */
 export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntry[]): DuplicateOutcome {
@@ -71,26 +75,25 @@ export function findDuplicate(scan: DuplicateCheckInput, existingWines: WineEntr
 
   let possible: DuplicateOutcome | undefined
   for (const wine of existingWines) {
-    const verdict = scoreMatch(candidate, {
-      producer: wine.producer ?? '',
-      denomination: wine.denomination ?? '',
-      vintage: wine.vintage,
-      cuvee: wine.cuvee,
-      vineyard: wine.vineyard,
-      quality_classification: wine.quality_classification,
-    })
+    const verdict = scoreMatch(candidate, identityOf(wine))
     if (verdict.producer !== 'match' || verdict.denomination !== 'match') continue
 
     const scanned = bottlingText(scan)
     const existing = bottlingText(wine)
-    if (scanned && existing) {
-      const a = new Set(significantWords(scanned))
-      const shared = significantWords(existing).some(w => a.has(w))
-      if (!shared) continue // e.g. "Magistra" vs "Vigna X" — different bottlings
+    // Judged on the words that name a bottling, not descriptors: "Gran
+    // Reserva" on both sides says nothing about whether one is the 904.
+    const scannedNames = bottlingNameWords(scanned ?? '')
+    const existingNames = bottlingNameWords(existing ?? '')
+    let sameBottling: boolean
+    if (scannedNames.length > 0 && existingNames.length > 0) {
+      const a = new Set(scannedNames)
+      if (!existingNames.some(w => a.has(w))) continue // "Magistra" vs "Vigna X" — different bottlings
+      sameBottling = true
+    } else {
+      sameBottling = normalize(scanned ?? '').trim() === normalize(existing ?? '').trim()
     }
 
     if (verdict.vintage === 'match') {
-      const sameBottling = scanned === existing || (!!scanned && !!existing)
       if (sameBottling) return { kind: 'duplicate', wine }
       // Keep looking: an exact bottling match elsewhere beats this one.
       possible ??= { kind: 'duplicate', wine, bottling: { existing, scanned } }

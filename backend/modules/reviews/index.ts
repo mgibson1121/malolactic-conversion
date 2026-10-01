@@ -8,7 +8,7 @@ import {
   isUnrenderableDomain,
 } from './find-product-page'
 import type { WineIdentity } from './find-product-page'
-import type { MatchVerdict } from '@shared/utils/wine-match'
+import { identityOf, type MatchVerdict } from '@shared/utils/wine-match'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
@@ -298,13 +298,7 @@ export async function fetchReviewData(
   if (!serperKey || !openaiKey) return null
   if (!wine.producer && !wine.denomination) return []
 
-  const identity: WineIdentity = {
-    producer: wine.producer ?? '',
-    denomination: wine.denomination ?? '',
-    vintage: wine.vintage ?? null,
-    cuvee: wine.cuvee,
-    vineyard: wine.vineyard,
-  }
+  const identity: WineIdentity = identityOf(wine)
   const openai = new OpenAI({ apiKey: openaiKey })
 
   // Counted so a run that found nothing *because it could not search* can be

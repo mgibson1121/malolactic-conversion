@@ -36,9 +36,38 @@ export interface WineIdentity {
   quality_classification?: string | null
 }
 
+/**
+ * The one way to turn a stored wine into the identity every matcher and
+ * query judges it by (2026-10-01). Price, reviews, the retailer-URL resolve
+ * and the confirm-link route each built this object by hand, and they had
+ * drifted: only one of them passed `quality_classification`. Same lesson as
+ * the header of this file, one level up — a field added in one place and
+ * not the others is a matcher that silently disagrees with itself.
+ */
+export function identityOf(wine: {
+  producer?: string | null
+  denomination?: string | null
+  vintage?: number | null
+  cuvee?: string | null
+  vineyard?: string | null
+  quality_classification?: string | null
+}): WineIdentity {
+  return {
+    producer: wine.producer ?? '',
+    denomination: wine.denomination ?? '',
+    vintage: wine.vintage ?? null,
+    cuvee: wine.cuvee ?? null,
+    vineyard: wine.vineyard ?? null,
+    quality_classification: wine.quality_classification ?? null,
+  }
+}
+
 export const STOPWORDS = new Set([
   'domaine', 'chateau', 'château', 'maison', 'clos', 'les', 'le', 'la', 'du',
   'de', 'des', 'et', 'fils', 'wine', 'wines', 'winery', 'estate', 'cellars',
+  // The same estate-type words in German, Spanish and Italian (2026-10-01) —
+  // "Weingut Keller" is sold as "Keller", "Bodegas Muga" as "Muga".
+  'weingut', 'bodegas', 'bodega', 'tenuta',
 ])
 
 /** Strips diacritics only — no lowercasing, no punctuation removal. Safe to
@@ -62,13 +91,39 @@ export function significantWords(s: string): string[] {
     .filter(w => w.length >= 3 && !STOPWORDS.has(w))
 }
 
+/**
+ * Words that describe a bottling rather than name it (2026-10-01): tiers
+ * ("Gran Reserva", "Riserva"), selections ("Selección Especial"), old vines,
+ * and vineyard/cuvée prefixes ("Viña", "Vigna", "Cuvée"). Shops drop them
+ * freely; a proper name or number ("904", "Magistra", "Ardanza") they keep.
+ *
+ * Found on La Rioja Alta's Gran Reserva 904 2015: the scan stored the cuvée
+ * as "Selección Especial", every shop sells it as "Gran Reserva 904", and
+ * the bottling verdict — "no word present → mismatch" — rejected 24 of 25
+ * correct listings. A descriptor can confirm a bottling; only a name can
+ * reject one.
+ */
+const GENERIC_BOTTLING_WORDS = new Set([
+  'gran', 'grand', 'grande', 'reserva', 'riserva', 'reserve', 'premier', '1er', 'cru',
+  'superiore', 'classico',
+  'seleccion', 'selezione', 'selection', 'selektion', 'especial', 'speciale', 'special', 'spezial',
+  'vieilles', 'vignes', 'old', 'vine', 'vines', 'alte', 'reben', 'vinas', 'viejas',
+  'cuvee', 'vina', 'vinedo', 'vigna', 'vigneto', 'vigne', 'lieu', 'dit',
+])
+
+/** The significant words of a cuvée/vineyard/classification that actually
+ * name the bottling — see GENERIC_BOTTLING_WORDS. */
+export function bottlingNameWords(s: string): string[] {
+  return significantWords(s).filter(w => !GENERIC_BOTTLING_WORDS.has(w))
+}
+
 /** Honorifics/estate-type prefixes that a producer name carries on a label
  * but that retailers routinely drop from a product title. Distinct from
  * STOPWORDS: these are only stripped from the *front* of a name, because
  * they are noise as a prefix and meaningful anywhere else — "Clos" leading
  * "Clos Manou" is an estate type, while "Clos" inside "Chateau du Clos de
  * Vougeot" is part of the name. */
-const HONORIFIC_PREFIXES = new Set(['domaine', 'chateau', 'château', 'maison', 'clos', 'ch'])
+const HONORIFIC_PREFIXES = new Set(['domaine', 'chateau', 'château', 'maison', 'clos', 'ch', 'weingut', 'bodegas', 'bodega', 'tenuta'])
 
 /**
  * Drops leading honorifics from a producer name, preserving the original
@@ -231,7 +286,10 @@ function verdictFor(required: string[], present: Set<string>): Verdict {
  * - denomination — title + URL + snippet. Retailers often omit the appellation
  *                from a title, so absence is reported as `unknown`, never as a
  *                mismatch: we cannot prove a mismatch from silence.
- * - bottling   — title + URL. `unknown` whenever the wine records no cuvee,
+ * - bottling   — title + URL, judged on the words that *name* the bottling;
+ *                descriptors ("Gran Reserva", "Vieilles Vignes") can confirm
+ *                but never reject (2026-10-01, see GENERIC_BOTTLING_WORDS).
+ *                `unknown` whenever the wine records no cuvee,
  *                vineyard or classification, which is the honest answer — it is
  *                also the state all 14 wines of the 2026-08-04 batch were in,
  *                so this dimension is currently inert for them by design, not
@@ -271,11 +329,20 @@ export function scoreMatch(candidate: MatchCandidate, wine: WineIdentity): Match
     denomination: siblingDenomination(wine.denomination, titleUrlText)
       ? 'mismatch'
       : denominationVerdict(significantWords(wine.denomination), allText),
-    bottling: verdictFor(bottlingWords, titleAndUrl),
+    bottling: bottlingVerdict(bottlingWords, titleAndUrl),
     vintage,
     candidateVintage: wine.vintage == null ? null : candidateVintage,
     vintageGap,
   }
+}
+
+/** Bottling: judged on the words that name it. Descriptors alone can confirm
+ * (`match` when every one is present) but never reject — a title without
+ * "Selección Especial" is silence, not evidence of another wine. */
+function bottlingVerdict(words: string[], present: Set<string>): Verdict {
+  const naming = words.filter(w => !GENERIC_BOTTLING_WORDS.has(w))
+  if (naming.length > 0) return verdictFor(naming, present)
+  return verdictFor(words, present) === 'match' ? 'match' : 'unknown'
 }
 
 /** Producer: every significant word, after dropping the legal form. Failing
@@ -291,6 +358,22 @@ function producerVerdict(producer: string, titleAndUrl: Set<string>, titleUrlTex
   const needle = compact(stripped)
   if (needle.length >= MIN_COMPACT_PRODUCER && compact(titleUrlText).includes(needle)) return 'match'
   return byWords
+}
+
+/**
+ * Does this text name the producer? The same rule scoreMatch applies to a
+ * title — legal form dropped, every significant word, spacing-insensitive
+ * fallback — for callers holding a whole page rather than a title (the
+ * price module's live "still listed" check). Null when the producer has no
+ * significant words, so "couldn't check" stays distinct from "absent".
+ *
+ * That check kept its own copy of the rule and missed both 2026-09-30 fixes:
+ * a "Weingut Keller GmbH" page would need "gmbh" on it, and every "Sesta di
+ * Sopra" page failed a producer stored as "Sestadisopra".
+ */
+export function mentionsProducer(text: string, producer: string | null): boolean | null {
+  if (significantWords(stripLegalForm(producer ?? '')).length === 0) return null
+  return producerVerdict(producer ?? '', tokenSet(text), text) === 'match'
 }
 
 /** Connectors that join an appellation's type to its place: "Brunello *di*
