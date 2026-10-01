@@ -114,10 +114,11 @@ final class ModelDecodingTests: XCTestCase {
     func testDecodesAllThreeDuplicateOutcomes() throws {
         XCTAssertEqual(try Fixture.decode(DuplicateOutcome.self, "duplicate-none"), .noMatch)
 
-        guard case .duplicate(let wine) = try Fixture.decode(DuplicateOutcome.self, "duplicate-match") else {
+        guard case .duplicate(let wine, let bottling) = try Fixture.decode(DuplicateOutcome.self, "duplicate-match") else {
             return XCTFail("expected .duplicate")
         }
         XCTAssertEqual(wine.vintage, 2019)
+        XCTAssertNil(bottling, "no bottling difference when the scan names the same bottling")
 
         guard case .vintageMismatch(let other) = try Fixture.decode(DuplicateOutcome.self, "duplicate-vintage-mismatch") else {
             return XCTFail("expected .vintageMismatch")
@@ -144,12 +145,12 @@ final class RequestEncodingTests: XCTestCase {
         XCTAssertTrue(body["cellar_capacity"] is NSNull)
     }
 
-    func testDuplicateCheckSendsTheThreeIdentityFields() throws {
+    func testDuplicateCheckSendsIdentityAndBottlingFields() throws {
         let scan = LabelScanResult(producer: "Bollinger", vintage: nil, region: "Champagne", denomination: nil,
                                    qualityClassification: nil, vineyard: nil, cuvee: nil, grapeVarieties: nil,
                                    wineColor: nil, missingTier1Fields: ["vintage", "denomination"])
         let body = try json(DuplicateCheckRequest(scan))
-        XCTAssertEqual(Set(body.keys), ["producer", "denomination", "vintage"])
+        XCTAssertEqual(Set(body.keys), ["producer", "denomination", "vintage", "cuvee", "vineyard", "quality_classification"])
         XCTAssertEqual(body["producer"] as? String, "Bollinger")
         XCTAssertTrue(body["vintage"] is NSNull)
     }
@@ -168,5 +169,18 @@ final class RequestEncodingTests: XCTestCase {
             URLQueryItem(name: "has_tasting_note", value: "true"),
             URLQueryItem(name: "my_rating", value: "very_good"),
         ], "a whitespace-only query is not sent")
+    }
+}
+
+final class DuplicateBottlingDecodingTests: XCTestCase {
+    func testDecodesTheBottlingDifference() throws {
+        let wine = try JSONSerialization.jsonObject(with: Fixture.data("wine-full"))
+        let body = try JSONSerialization.data(withJSONObject: [
+            "kind": "duplicate", "wine": wine, "bottling": ["existing": "Magistra", "scanned": NSNull()],
+        ])
+        guard case .duplicate(_, let bottling) = try JSONDecoder().decode(DuplicateOutcome.self, from: body) else {
+            return XCTFail("expected .duplicate")
+        }
+        XCTAssertEqual(bottling, BottlingDifference(existing: "Magistra", scanned: nil))
     }
 }

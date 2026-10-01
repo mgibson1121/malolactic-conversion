@@ -5,15 +5,18 @@ import XCTest
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var response: (status: Int, body: Data) = (200, Data())
     nonisolated(unsafe) static var requests: [URLRequest] = []
+    /// When set, answers per request (method + path) instead of `response`.
+    nonisolated(unsafe) static var router: ((URLRequest) -> (status: Int, body: Data))?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.requests.append(request)
-        let http = HTTPURLResponse(url: request.url!, statusCode: Self.response.status, httpVersion: nil, headerFields: nil)!
+        let answer = Self.router?(request) ?? Self.response
+        let http = HTTPURLResponse(url: request.url!, statusCode: answer.status, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: http, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.response.body)
+        client?.urlProtocol(self, didLoad: answer.body)
         client?.urlProtocolDidFinishLoading(self)
     }
 
