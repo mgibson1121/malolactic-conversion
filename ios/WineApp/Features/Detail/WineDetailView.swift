@@ -52,6 +52,7 @@ struct WineDetailView: View {
             .navigationTitle(wine.producer ?? "Wine")
             .navigationBarTitleDisplayMode(.inline)
             .task {
+                await model.reload()
                 async let priced: Void = model.fetchPriceOnceIfNeeded()
                 await model.loadNotes()
                 if focusScores {

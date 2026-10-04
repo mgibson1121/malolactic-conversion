@@ -188,3 +188,38 @@ final class DetailEnrichmentReportsBackTests: XCTestCase {
         XCTAssertNotNil(model.reviews.error)
     }
 }
+
+/// The detail screen opens from the list's copy; it must re-read the wine
+/// so a lookup that finished afterwards shows (2026-10-04).
+@MainActor
+final class DetailReloadOnOpenTests: XCTestCase {
+    override func setUp() async throws {
+        PriceOnce.reset()
+        StubURLProtocol.requests = []
+        StubURLProtocol.response = (200, try JSONEncoder().encode(try Fixture.fullWine))
+    }
+
+    func testOpeningPicksUpEnrichmentTheListCopyLacks() async throws {
+        var stale = try Fixture.fullWine
+        stale.priceData = nil
+        stale.reviewData = nil
+        PriceOnce.record(stale.id) // the scan already spent its one price lookup
+        var changes = 0
+        let model = WineDetailModel(wine: stale, api: StubURLProtocol.api(), onChanged: { changes += 1 })
+
+        await model.reload()
+        XCTAssertNotNil(model.wine.priceData)
+        XCTAssertNotNil(model.wine.reviewData)
+        XCTAssertEqual(changes, 1, "the list's copy was stale, so it reloads too")
+
+        await model.fetchPriceOnceIfNeeded()
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.url?.path.hasSuffix("/fetch-price") == true })
+    }
+
+    func testAnUnchangedWineReportsNothing() async throws {
+        var changes = 0
+        let model = WineDetailModel(wine: try Fixture.fullWine, api: StubURLProtocol.api(), onChanged: { changes += 1 })
+        await model.reload()
+        XCTAssertEqual(changes, 0)
+    }
+}

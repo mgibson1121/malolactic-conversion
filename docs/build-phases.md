@@ -1649,6 +1649,21 @@ where size pickers list every format) runs through the same parser
 (`pageStatedFormat`). The format can only be upgraded: an already-flagged
 listing keeps its flag, and a page that can't be read changes nothing.
 Listings already resolved before this change aren't re-checked.
+
+**A scan's background lookups reach the lists (2026-10-04, device testing):**
+Collina Dalla Valle 2016 showed nothing after scanning, nothing on reopening,
+then scores on refresh that vanished again. Two causes:
+- A new wine's price and review lookups take about a minute, because each
+  shop's page is rendered and read. Collina was saved four seconds before its
+  price landed. Save reloads the lists at that moment, and the results
+  arriving later told no one. `ScanFlowModel.onEnrichmentLanded` now reloads
+  the lists whenever a lookup lands, even after the modal has closed.
+- The detail screen opens from the list's copy, and the price-once guard had
+  already counted the scan's lookup. `WineDetailModel.reload()` re-reads the
+  wine (a free GET) before anything else runs on open.
+The scores vanishing after a refresh was the pre-#39 build still on the
+device. Also: two quick taps on one retailer link each resolved it (4
+credits); `resolve-retailer-url` is now coalesced like `fetch-price`.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 

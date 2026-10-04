@@ -53,6 +53,17 @@ final class WineDetailModel {
         } catch {}
     }
 
+    /// Re-reads the wine when the screen opens (a free GET). The screen
+    /// opens from the list's copy, which can predate a lookup that finished
+    /// after the list loaded — a scan saved before its enrichment landed is
+    /// the common case (2026-10-04). Runs before the price-once check, so a
+    /// wine priced in the background isn't priced again.
+    func reload() async {
+        guard let fresh = try? await api.getWine(id: wine.id), fresh != wine else { return }
+        wine = fresh
+        onChanged()
+    }
+
     /// After a note is saved: the wine's rating, tags and latest note all
     /// changed server-side, so re-read both (free GETs).
     func reloadAfterEvaluate() async {

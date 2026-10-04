@@ -504,9 +504,13 @@ router.post(
       return
     }
 
-    const resolved = await accountSerperUsage(
-      { wine_id: req.params.id, action: 'resolve-retailer-url' },
-      () => resolveOneRetailerUrl(wine, target)
+    // Coalesced like fetch-price: a second tap while the first resolve is
+    // still searching joins it instead of paying again (2026-10-04 — two
+    // taps on one Zachys link spent 4 credits for one URL).
+    const resolved = await coalesce(`${req.params.id}:resolve-retailer-url:${slug}`, () =>
+      accountSerperUsage({ wine_id: req.params.id, action: 'resolve-retailer-url' }, () =>
+        resolveOneRetailerUrl(wine, target)
+      )
     )
     // Nothing changed — already resolved, no key configured, or the search
     // came up empty (best-effort: the existing Google link still loads).

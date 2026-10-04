@@ -32,6 +32,10 @@ struct ScanFlowView: View {
                 }
                 .navigationBarTitleDisplayMode(.inline)
         }
+        .onAppear {
+            let session = session
+            model.onEnrichmentLanded = { session.collectionChanged() }
+        }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker(
                 onImage: { image in
