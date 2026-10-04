@@ -64,6 +64,20 @@ final class ScanFlowSaveTests: XCTestCase {
 
     // MARK: helpers
 
+    /// The lookups a new draft fires can land after Save closed the modal;
+    /// each one must still tell the lists (2026-10-04).
+    func testBackgroundLookupsTellTheListsEvenAfterSave() async throws {
+        let model = ScanFlowModel(api: StubURLProtocol.api())
+        var landed = 0
+        model.onEnrichmentLanded = { landed += 1 }
+        model.scan(Self.label())
+        try await waitUntil { if case .duplicate = model.step { return true }; return false }
+        await model.addAnyway()
+        await model.toggle(.cellar)
+        _ = await model.saveToCollection()
+        try await waitUntil { landed >= 2 } // price and reviews
+    }
+
     private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 5) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {

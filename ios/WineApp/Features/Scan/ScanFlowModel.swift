@@ -146,6 +146,13 @@ final class ScanFlowModel {
     private let api: APIClient
     private var scanTask: Task<Void, Never>?
 
+    /// Called whenever a background price or review lookup lands — even
+    /// after the modal has closed. A new wine takes about a minute to enrich,
+    /// and a save made sooner reloaded the lists without it, so nothing
+    /// showed until a manual refresh (found 2026-10-04: Collina Dalla Valle
+    /// was saved four seconds before its price arrived).
+    var onEnrichmentLanded: () -> Void = {}
+
     init(api: APIClient, startManual: Bool = false) {
         self.api = api
         step = startManual ? .manual : .capture
@@ -307,6 +314,7 @@ final class ScanFlowModel {
                 wine?.vintageRating = result.wine.vintageRating
                 wine?.vintageRatingSource = result.wine.vintageRatingSource
                 reviewsAutoFire = .finished
+                onEnrichmentLanded()
             } catch {
                 if wine?.id == id { reviewsAutoFire = .failed }
             }
@@ -327,6 +335,7 @@ final class ScanFlowModel {
                 guard wine?.id == id else { return }
                 wine?.priceData = result.wine.priceData
                 priceAutoFire = .finished
+                onEnrichmentLanded()
             } catch {
                 if wine?.id == id { priceAutoFire = .failed }
             }
