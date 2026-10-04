@@ -166,12 +166,16 @@ scoped to this tab, AND-ed with the tab filter — unchanged from web).
 5. **Colour split** — red / white / rosé / unknown as a single segmented bar
    with a count legend. Uses the same four colours as the web app
    (`--red-wine`, `--white-wine`, `--rosé-wine`, `--text-muted`).
-6. **Recently added** — 3 most recent by `date_added`, as compressed cards.
+6. ~~**Recently added**~~ — removed (developer decision 2026-10-04). It
+   repeated the newest wines while the list below ran oldest first, so a
+   bottle just added sat at the very bottom of the list and read as missing.
+   The cellar list is now newest first instead.
 7. **Cellar list** — section header "In the cellar ({n})", then the compressed
-   cards (§5). This is the same list the web Cellar tab shows; it lives at the
-   bottom of the same scroll rather than behind another tap.
+   cards (§5), **newest first by `date_added`** (2026-10-04). This is the same
+   list the web Cellar tab shows; it lives at the bottom of the same scroll
+   rather than behind another tap.
 
-Empty state: if the cellar is empty, widgets 1 and 3–6 collapse to a single
+Empty state: if the cellar is empty, widgets 1 and 3–5 collapse to a single
 "Nothing in the cellar yet" card and the scan CTA stays.
 
 ---

@@ -234,8 +234,8 @@ optional single button.
 | Ready to drink | skeleton, 3 tiles | collapse | hidden | Counts derived client-side; a wine with `drinking_window == nil` is "No window" and is never guessed at |
 | By region | skeleton, 4 rows | collapse | hidden | See §7.4 for >5 regions |
 | Colour split | skeleton bar | collapse | hidden | `unknown` segment uses `text-muted`, always last |
-| Recently added | 3 skeleton cards | collapse | hidden | |
-| Cellar list | 3 skeleton cards | `No wines here yet.` | full-state error | |
+| ~~Recently added~~ | — | — | — | Removed 2026-10-04; the cellar list is newest first instead |
+| Cellar list | 3 skeleton cards | `No wines here yet.` | full-state error | Newest first by `date_added` (2026-10-04) |
 
 The dashboard makes **one** `GET /api/wines?tag_cellar=true` plus one
 `GET /api/settings`. Every widget is derived from that single response. Do not

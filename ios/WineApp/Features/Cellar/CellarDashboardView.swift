@@ -119,20 +119,6 @@ struct CellarDashboardView: View {
             if summary.colours.total > 0 {
                 ColourSplitWidget(counts: summary.colours).cardRow(top: gap, bottom: gap)
             }
-            if !model.recentlyAdded.isEmpty {
-                SectionLabel("Recently added").cardRow(top: gap, bottom: 0)
-                // Its own container: these wines appear again in the list
-                // below, and rows whose IDs repeat within one list are
-                // silently dropped.
-                VStack(spacing: Theme.rowGap) {
-                    ForEach(model.recentlyAdded) { wine in
-                        WineRowView(wine: wine, kind: .cellar) { focus in
-                            path.append(DetailRoute(wine: wine, focusScores: focus))
-                        }
-                    }
-                }
-                .cardRow(top: gap, bottom: gap)
-            }
         }
 
         let listed = model.listedWines()
