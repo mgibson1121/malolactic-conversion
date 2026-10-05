@@ -276,10 +276,17 @@ built, do not re-implement client-side.
 - **`Save to collection` disabled** until at least one of
   Discovered/Wishlist/Cellar is selected. Disabled = 40% opacity, still
   focusable, with **[new]** hint `Pick a list first.`
+  *(Amended 2026-10-05, Phase 12.1 WI-6: unselected list rows must show an empty
+  circle, the hint moves above the button, and disabled is a readable muted
+  outline rather than 40% opacity. The original wording above is kept as the record.)*
 - **Auto-fired primary-tier reviews** land asynchronously into the Critic
   scores block. Until then that block shows a 2-line skeleton, not a spinner.
   If the tier finds nothing, the block **disappears** — it does not show an
   empty state on a screen the user is mid-task on.
+  **Superseded 2026-10-05 by Phase 12.1 WI-4.** Device testing showed the
+  vanishing block read as "still loading, or broken". The critic block now has
+  four explicit states (looking / found / nothing found / failed); "nothing
+  found" says so and offers the click-gated "Search more retailers".
 - OpenAI key not configured → scan entry point shows the existing
   unavailable message and routes to manual entry.
 

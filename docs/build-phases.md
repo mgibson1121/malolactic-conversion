@@ -1817,6 +1817,52 @@ action available on the web is reachable on the phone.
 
 ---
 
+## Phase 12.1 — Field-test UX remediation (web + iOS)
+
+**Status:** Spec written 2026-10-05 (`docs/specs/2026-10-05-phase-12.1-field-test-ux-remediation.md`). Not started. Built **before** Phase 12.2.
+
+**Goal:** Fix the interface and data-flow half of the developer's 2026-10-04 device-test feedback, on **both** frontends. The feedback came from the iOS app but most of it is not iOS-specific; each item names what changes on each surface. The enrichment-accuracy half is Phase 12.2.
+
+**Trigger:** The developer loaded the real cellar through the iOS app and wrote down what felt wrong (~35 notes). They were grouped, checked against `main` @ `2fa7c5c` and the live database, and de-duplicated against the fixes in PRs #36–#46. Items already fixed there are not repeated.
+
+**Decisions fixed (developer, 2026-10-04 / 05):**
+- Both frontends; two phases (12.1 UI/data-flow first, 12.2 accuracy second).
+- **One primary drinking window, critic windows informational.** The primary window (the developer's own, else the derived one when critics agree) drives list badges and Ready-to-drink counts; per-critic windows are shown on detail only, visibly distinct. **"Check window"** is a list-view-only flag for a wine with no primary window whose critics disagree; setting a window in Edit clears it. The Ready widget gains a fourth segment.
+- **Edit screen** for a saved wine (identity, colour, **price paid**, **drinking window**), with a **"Refresh searches now?"** prompt when an identity field changed on a wine that already has data. Declining keeps the data, flagged "may not match".
+- **Tasting notes outlive the wine.** Migration 008 makes `tasting_notes.wine_id` nullable and snapshots producer/denomination/vintage/vineyard/cuvée onto each note; deleting a wine no longer 409s on notes.
+- **Hard refresh:** two dedicated buttons (Reviews; Price & retailers), replacing the "Refresh anyway" text link, each stating its credit cost.
+- **Preview screen** shows avg/high/low, ratings with the vintage each applies to, nearest retailer (tappable), and further retailers collapsed. Every critic/price state is explicit (looking / found / nothing found / failed) — the block never silently disappears, and "found but not counted" says why.
+- **Scan transition:** "Scan successful — pulling details", then the preview as soon as a critic score lands or after 3 s.
+- **Every tappable link is underlined.** "Reviews" holding the developer's tasting notes becomes **"My Review"**. Verified/Unverified badges explain themselves (definitions from `VerificationState`).
+
+**Deliverables:** WI-0 one-time cleanup of two duplicate wine pairs (needs developer OK) · WI-1 Edit screen · WI-2 primary/informational windows + Check window + fourth Ready segment (backend-derived `window_status`, one definition) · WI-3 delete + notes independence (migration 008) · WI-4 preview states and contents · WI-5 scan transition · WI-6 Save-to-collection affordances · WI-7 Price & retailers grouping + Hard refresh · WI-8 labels, explanations, link style, colour-display bug · WI-9 preview/saved parity (converge iOS's two enrichment paths).
+
+**Rules carried forward:** metered enrichment stays user-initiated (no new automatic call); critic scores and windows are never blended, and a manual window is never overwritten by an automated run; additive tags; each migration file runs once and 008 is verified on a copy of the real database.
+
+**Supersedes:** the Phase 12 implementation spec §6.4 rule "if it finds nothing, the block disappears rather than showing an empty state mid-task."
+
+**Milestone:** A wine scanned in the field shows what was found — or plainly that nothing was — within seconds; what the preview shows is exactly what the saved wine shows; a saved wine can be edited, its window set, and deleted without losing its tasting notes; and nothing on either surface asks the developer to guess what a badge, button or missing number means.
+
+---
+
+## Phase 12.2 — Enrichment accuracy and transparency
+
+**Status:** Spec written 2026-10-05 (`docs/specs/2026-10-05-phase-12.2-enrichment-accuracy-and-transparency.md`). Not started. Built **after** Phase 12.1.
+
+**Goal:** Make price and review enrichment right when it answers and honest when it doesn't, working evidence-first: replay each failing case against stored data for free, find the failing stage, fix it in `shared/` or the owning module, and lock the case in as a regression fixture.
+
+**Trigger:** The 2026-10-04 device test plus a read-only look at the live database (Marcoux Châteauneuf-du-Pape, Vietti Barolo, Girardin Chassagne, Domaine du Pavillon Pommard, Joseph Colin Saint-Aubin, De Villaine Rully, Cavalli Amarone, Cielo d'Ulisse). The developer's stated priority: *the same wine title with an identifier that makes it more special will be common* — the pipeline must tell a plain bottling from a premium one.
+
+**Lessons the evidence supports (verify, then build in):** specificity is asymmetric (a candidate that *adds* a naming word the wine never claimed is evidence of a different bottling); descriptors such as "Vieilles Vignes" mark a separate cuvée in some regions though "Gran Reserva" does not; a bimodal price spread is ambiguity, not an outlier — the Vietti fence appears to have dropped the right price and kept the wrong cluster; a lone listing cannot be outlier-checked and needs a product-page pack/size read; a retailer is a registrable domain, not a host (Flatiron `nyc.` vs `sf.`); silence must be explained.
+
+**Deliverables:** WI-0 `explain-wine` — per-stage, free replay from stored data, plus ground-truth fixtures for every case · WI-1 `price_data.excluded` / `headline_basis` and a per-bottle equivalent for packs · WI-2 bottling ambiguity (extra names, bimodal clusters, a "Which bottling is yours?" prompt that re-scores locally with zero Serper calls) · WI-3 pack/size read for headline-driving listings and a ratio fence for ≥3 comparables · WI-4 trace the total-silence cases (Girardin, Cavalli, Cielo d'Ulisse) · WI-5 adjacent-vintage discovery and extraction (Rully; a tolerant year parser for slugs like "2o24") · WI-6 retailer matching by registrable domain for reviews (Flatiron) · WI-7 **spike** on producer technical sheets / PDFs as a facts-only source (Bichot) · WI-8 regression and rollout.
+
+**Rules carried forward:** state the calls-per-wine arithmetic before any change that adds a metered call (WI-2, 3, 6 add none); vintage ranks and labels but never rejects; only a name can reject a bottling; never blend across sources; structured facts only from third-party text; one definition, one place.
+
+**Milestone:** Every case from the 2026-10-04 test either returns correct data or states, on screen, the stage that stopped it; a wine whose plain and premium bottlings both appear in the results is flagged and the developer is asked which one is theirs.
+
+---
+
 ## Phase 13 — Remaining frontend surfaces (web + iOS extras)
 
 **Goal:** Everything the validated data model and scan pipeline still need that
