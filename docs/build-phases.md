@@ -1673,6 +1673,15 @@ older wine, while "Recently added" showed the same three at the top. The
 widget is gone, and `CellarDashboardModel.listedWines()` sorts by `date_added`
 descending (a readiness filter keeps that order). Both Phase 12 specs are
 amended. Discovered and Wishlist are unchanged.
+
+**The wine's own name is never read as a bottle format (2026-10-04):** Franck
+Balthazar's Cornas Chaillot 2020 came back with all five listings flagged
+"12L" and no price. "Balthazar" is a 12-litre bottle, and the format parser
+read the producer's name in every title. CVNE's "Imperial" Rioja would read as
+a 6-litre one. `extractPackFormat` and `pageStatedFormat` now take the wine's
+producer, cuvée and vineyard and blank those words out before looking for a
+format. Numeric sizes ("1.5L", "6 x 750ml") and a real "Balthazar" on another
+wine are still read.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 

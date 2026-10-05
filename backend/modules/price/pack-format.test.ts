@@ -1,4 +1,4 @@
-import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
+import { extractPackFormat, isNonStandardFormat, describeFormat, pageStatedFormat } from './pack-format'
 
 describe('extractPackFormat', () => {
   it('treats a plain title with no size/pack wording as a standard single bottle', () => {
@@ -60,5 +60,38 @@ describe('extractPackFormat', () => {
   it('does not mistake "1er Cru" or "Grand Cru" designations for a size', () => {
     expect(extractPackFormat('Raveneau Chablis 1er Cru 2021').bottle_size_ml).toBeNull()
     expect(extractPackFormat('Domaine Leflaive Bâtard-Montrachet Grand Cru 2023').bottle_size_ml).toBeNull()
+  })
+})
+
+// 2026-10-04 — Franck Balthazar's Cornas came back with every listing
+// flagged "12L": the producer's name is also a 12-litre bottle.
+describe('extractPackFormat — the wine\'s own name is never a format', () => {
+  const balthazar = ['Franck Balthazar', null, 'Chaillot']
+
+  it('does not read a producer named Balthazar as a 12L bottle', () => {
+    for (const title of ['Franck Balthazar Cornas Chaillot 2020', 'Balthazar, Franck - Cornas Chaillot 2018']) {
+      const f = extractPackFormat(title, balthazar)
+      expect(f).toEqual({ pack_quantity: 1, bottle_size_ml: null })
+      expect(isNonStandardFormat(f)).toBe(false)
+    }
+  })
+
+  it('still reads a real size on that wine', () => {
+    expect(extractPackFormat('Franck Balthazar Cornas Chaillot 2020 1.5L', balthazar)).toEqual({ pack_quantity: 1, bottle_size_ml: 1500 })
+    expect(extractPackFormat('Franck Balthazar Cornas Chaillot 2020 Magnum', balthazar).bottle_size_ml).toBe(1500)
+    expect(extractPackFormat('Franck Balthazar Cornas 2020 6 x 750ml', balthazar).pack_quantity).toBe(6)
+  })
+
+  it('does not read CVNE "Imperial" as a 6L bottle', () => {
+    expect(extractPackFormat('CVNE Imperial Gran Reserva Rioja 2016', ['CVNE', 'Imperial', null]).bottle_size_ml).toBeNull()
+  })
+
+  it('still reads a real Balthazar when it is not the wine\'s name', () => {
+    expect(extractPackFormat('Bollinger Special Cuvee Brut Balthazar', ['Bollinger', 'Special Cuvée', null]).bottle_size_ml).toBe(12000)
+  })
+
+  it('applies to the product-page headline too', () => {
+    expect(pageStatedFormat('<h1>Franck Balthazar Cornas Chaillot 2020</h1>', balthazar)).toBeNull()
+    expect(pageStatedFormat('<h1>Franck Balthazar Cornas Chaillot 2020 (1.5L)</h1>', balthazar)).toEqual({ pack_quantity: 1, bottle_size_ml: 1500 })
   })
 })

@@ -71,10 +71,11 @@ function itemToRetailerResult(
   scored: ScoredItem,
   retailer: RetailerConfig,
   isPreferred: boolean,
-  linkQuery: string
+  linkQuery: string,
+  ownNames: Array<string | null | undefined>
 ): RetailerResult {
   const { item, verdict } = scored
-  const pack_format = extractPackFormat(item.title)
+  const pack_format = extractPackFormat(item.title, ownNames)
   return {
     slug: retailer.slug,
     name: retailer.name,
@@ -126,9 +127,13 @@ function buildFallbackUrl(source: string, query: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(`${source} ${query}`)}`
 }
 
-function buildFallbackResult(scored: ScoredItem, linkQuery: string): RetailerResult {
+function buildFallbackResult(
+  scored: ScoredItem,
+  linkQuery: string,
+  ownNames: Array<string | null | undefined>
+): RetailerResult {
   const { item, verdict } = scored
-  const pack_format = extractPackFormat(item.title)
+  const pack_format = extractPackFormat(item.title, ownNames)
   return {
     slug: slugifySource(item.source),
     name: item.source,
@@ -229,6 +234,10 @@ export async function querySerper(
 
   if (items.length === 0) return EMPTY_RESULT
 
+  // Words of the wine's own name are never read as a bottle format — see
+  // withoutOwnNames in pack-format.ts.
+  const ownNames = [wine.producer, wine.cuvee, wine.vineyard]
+
   // Relevance filter — Serper's shopping results frequently include items
   // that are not actually this wine (different producer, accessories, an
   // unrelated bottle sharing a keyword). Filtering here means an irrelevant
@@ -294,7 +303,7 @@ export async function querySerper(
     const keyword = alnumOnly(retailer.matchKeyword)
     const match = nonKlItems.find(({ item }) => item.source && alnumOnly(item.source).includes(keyword))
     if (match) {
-      preferred.push(itemToRetailerResult(match, retailer, true, linkQuery))
+      preferred.push(itemToRetailerResult(match, retailer, true, linkQuery, ownNames))
       claimed.add(match)
     }
   }
@@ -320,7 +329,7 @@ export async function querySerper(
   const fallback = nonKlItems
     .filter(scored => !claimed.has(scored) && scored.item.link && scored.item.source)
     .filter(scored => !isConfiguredMerchant(scored.item))
-    .map(scored => buildFallbackResult(scored, linkQuery))
+    .map(scored => buildFallbackResult(scored, linkQuery, ownNames))
 
   // Merged, not short-circuited (Phase 9.1). `if (preferred.length > 0)
   // return preferred` meant one preferred-retailer match suppressed every

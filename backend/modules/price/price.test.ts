@@ -595,6 +595,16 @@ describe('fetchPriceData', () => {
     })
   })
 
+  it('does not read the producer\'s name as a bottle format (Franck Balthazar, 2026-10-04)', async () => {
+    const balthazar: WineEntry = { ...baseWine, producer: 'Franck Balthazar', denomination: 'Cornas', vintage: 2020, vineyard: 'Chaillot' }
+    mockSerperItems = [{ ...makeItem('Zachys', ZACHYS_URL, '$114.95'), title: 'Franck Balthazar Cornas Chaillot 2020' }]
+    mockRenderPageHtml.mockResolvedValue(null)
+    const result = await fetchPriceData(balthazar)
+    const zachys = result!.retailers.find(r => r.slug === 'zachys')!
+    expect(zachys).toMatchObject({ bottle_size_ml: null, non_standard_format: false, format_label: '' })
+    expect(result!.price_avg).toBe(114.95)
+  })
+
   it('keeps a retailer\'s Serper price when the live-page render fails', async () => {
     // A Puppeteer timeout or network hiccup isn't evidence the retailer has
     // delisted the wine — only an explicit "no results" signal on a page
