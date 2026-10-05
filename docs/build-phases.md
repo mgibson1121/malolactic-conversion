@@ -1682,6 +1682,20 @@ a 6-litre one. `extractPackFormat` and `pageStatedFormat` now take the wine's
 producer, cuvée and vineyard and blank those words out before looking for a
 format. Numeric sizes ("1.5L", "6 x 750ml") and a real "Balthazar" on another
 wine are still read.
+
+**Backend restarts were saving unsaved drafts (2026-10-05):** a Cornas whose
+save had failed came back after a restart as saved, but in no list.
+`runMigration` re-ran every migration file on every start and relied on
+"duplicate column name" errors to make that harmless. 005's backfill `UPDATE
+wines SET promoted_at = date_added WHERE promoted_at IS NULL` ran again each
+time, turning every open draft into a saved wine stamped with its creation
+time. Fixed with a `schema_migrations` table, so each file runs once. A file
+whose ADD COLUMN already exists is recorded as applied and the rest of it
+skipped, so an existing database doesn't get one last re-run. Checked on a
+copy of the real database: the draft stayed a draft, and there were 78 saved
+wines before and after. Two rows were affected since 005 shipped, both
+tonight: Franck Balthazar Cornas 2020 and Domaine de Villaine Rully 1er Cru
+2020.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 
