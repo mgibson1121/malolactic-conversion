@@ -56,16 +56,16 @@ final class CellarDashboardModel: WineRowActionTarget {
         return CellarSummary(wines: snapshot.wines, settings: snapshot.settings, today: today)
     }
 
-    /// The cellar list, narrowed by the selected Ready-to-drink segment.
+    /// The cellar list, newest first by `date_added` (ISO timestamps sort as
+    /// strings), narrowed by the selected Ready-to-drink segment. Newest
+    /// first replaced the "Recently added" widget (developer decision
+    /// 2026-10-04): the API returns oldest first, so a bottle just added sat
+    /// at the bottom of the list, under the widgets and every older wine.
     func listedWines(today: Date = .now) -> [Wine] {
         guard let wines = state.value?.wines else { return [] }
-        guard let readinessFilter else { return wines }
-        return wines.filter { DrinkReadiness.of($0.drinkingWindow, today: today).segment == readinessFilter }
-    }
-
-    /// Three most recent by `date_added` (ISO timestamps sort as strings).
-    var recentlyAdded: [Wine] {
-        Array((state.value?.wines ?? []).sorted { $0.dateAdded > $1.dateAdded }.prefix(3))
+        let newestFirst = wines.sorted { $0.dateAdded > $1.dateAdded }
+        guard let readinessFilter else { return newestFirst }
+        return newestFirst.filter { DrinkReadiness.of($0.drinkingWindow, today: today).segment == readinessFilter }
     }
 
     func saveCapacity(_ capacity: Int?, using api: APIClient) async -> Bool {

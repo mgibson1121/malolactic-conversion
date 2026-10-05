@@ -1664,6 +1664,15 @@ then scores on refresh that vanished again. Two causes:
 The scores vanishing after a refresh was the pre-#39 build still on the
 device. Also: two quick taps on one retailer link each resolved it (4
 credits); `resolve-retailer-url` is now coalesced like `fetch-price`.
+
+**Cellar list newest first; "Recently added" removed (2026-10-04, developer
+decision):** three new bottles read as "not in the cellar". They were there,
+as the last three rows. `GET /api/wines` has no `ORDER BY`, so it returns
+oldest first, and the list put each new bottle under the widgets and every
+older wine, while "Recently added" showed the same three at the top. The
+widget is gone, and `CellarDashboardModel.listedWines()` sorts by `date_added`
+descending (a readiness filter keeps that order). Both Phase 12 specs are
+amended. Discovered and Wishlist are unchanged.
   Rejected: one `GET` per row on the phone (N+1 over LAN on every tab load),
   and dropping the date from the spec.
 
