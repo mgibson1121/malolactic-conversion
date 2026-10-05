@@ -142,7 +142,7 @@ have since shipped and changed the actual UI text and state machine:
   scores already exist.
 - Per the still-standing "additive layer" principle in `wine-app-product-context.md` §5–6
   ("each source speaks in its own voice," never blended into one number): **show every
-  critic score found, each attributed to its publication, not one prioritized score.**
+  critic score found, each attributed to its publication, not one prioritized score.** *(Superseded 2026-10-05 for the card badge and the order of scores, by developer decision — Phase 12.1 WI-10: trusted sources first, same vintage first. Detail still shows every score; nothing is blended.)*
   Do not design toward a single-headline-score treatment for this pass — that would be a
   real product-principle change the developer hasn't made yet (see the 2026-09-01
   follow-up note for the open question this raises; it's explicitly not resolved, so

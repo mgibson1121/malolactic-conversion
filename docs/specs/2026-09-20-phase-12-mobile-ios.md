@@ -229,6 +229,7 @@ The web app shows every attributed score. On mobile the card shows **one**:
 
 - Highest numeric score wins. Ties → the one from a `known_publication: true`
   source; still tied → first by source order.
+  *(Superseded 2026-10-05, Phase 12.1 WI-10: the badge is the first item of the backend-computed order — same-vintage trusted, same-vintage other, other-vintage trusted, other-vintage other, highest first within each tier.)*
 - Rendered `96 WA` using a short publication label
   (`CRITIC_KEYWORDS`-derived abbreviation; unknown publications show the raw
   source name truncated to 12 chars, still marked unnormalized).
@@ -236,7 +237,7 @@ The web app shows every attributed score. On mobile the card shows **one**:
   view's scores section directly.
 
 This is **display truncation only** — it does not reintroduce the
-preferred-source *prioritization* that Phase 11 explicitly declined to build.
+preferred-source *prioritization* that Phase 11 explicitly declined to build. *(Amended 2026-10-05: the developer has since decided to prioritise trusted sources for the badge and order — Phase 12.1 WI-10.)*
 Every score is still stored, still attributed, still shown in full on detail.
 No averaging anywhere.
 

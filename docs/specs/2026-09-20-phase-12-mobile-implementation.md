@@ -345,6 +345,7 @@ present on detail.
 - Pick the **highest numeric score**. Ties → prefer `known_publication == true`.
   Still tied → first in `getDedupedCriticScores` order (dedupe by publication,
   first occurrence wins — reuse the existing util's semantics exactly).
+  *(Superseded 2026-10-05, Phase 12.1 WI-10: the card badge is the first item of the backend-computed order — same-vintage trusted, same-vintage other, other-vintage trusted, other-vintage other, highest first within each tier, deduped per publication after classification. The `+N`, abbreviation and dashed-border rules below still apply.)*
 - Render `{score} {abbrev}` — e.g. `96 WA`. Abbreviations come from a
   `CRITIC_KEYWORDS`-derived map: `WA`, `VN`, `BH`, `WS`, `WE`, `DC`, `JS`.
 - `known_publication == false` → show the raw attribution truncated to 12
@@ -363,6 +364,7 @@ present on detail.
   picking a highest score is a *display* truncation with a `+N` affordance,
   not source prioritization — Phase 11 explicitly declined to build
   prioritization and this must not become it by the back door.
+  *(Amended 2026-10-05: the developer has since decided to order scores by trusted-source preference, same vintage first — Phase 12.1 WI-10. Still never averaged; every score is still shown on detail.)*
 
 ### 7.3 Retailers table — collapsed / expanded
 
