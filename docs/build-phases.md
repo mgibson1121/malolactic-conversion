@@ -1835,7 +1835,7 @@ action available on the web is reachable on the phone.
 - **Scan transition:** "Scan successful — pulling details", then the preview as soon as a critic score lands or after 3 s.
 - **Every tappable link is underlined.** "Reviews" holding the developer's tasting notes becomes **"My Review"**. Verified/Unverified badges explain themselves (definitions from `VerificationState`).
 - **Critic scores are ordered by trusted-reviewer preference, same vintage first** (reverses Phase 11): the first item is the list-card badge; scores are still never blended and all stay visible on detail. The trusted set is config (Burghound, Vinous, Wine Advocate, Decanter, Wine Enthusiast, Wine Spectator, Tim Atkin, Guía Peñín, Gambero Rosso).
-- **WI-0 is approved** — the two duplicate wine rows (Balthazar, Rully) are deleted by Claude Code in the first PR.
+- **WI-0 is approved** — the two duplicate wine rows (Balthazar, Rully) are deleted by Claude Code in the first PR, and Viña Tondonia (4 bottles, confirmed) loses its Discovered tag so it sits in the Cellar only.
 
 **Deliverables:** WI-0 one-time cleanup of two duplicate wine pairs (needs developer OK) · WI-1 Edit screen · WI-2 primary/informational windows + Check window + fourth Ready segment (backend-derived `window_status`, one definition) · WI-3 delete + notes independence (migration 008) · WI-4 preview states and contents · WI-5 scan transition · WI-6 Save-to-collection affordances · WI-7 Price & retailers grouping + Hard refresh · WI-8 labels, explanations, link style, colour-display bug · WI-9 preview/saved parity (converge iOS's two enrichment paths) · WI-10 critic score order and the card badge (backend-computed `critic_summary`, trusted set in config).
 
