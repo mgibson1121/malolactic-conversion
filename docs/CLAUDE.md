@@ -64,6 +64,7 @@ Schema is validated. Replace the Google Sheets adapter with SQLite. No feature b
 
 - Use `better-sqlite3` (synchronous — do not introduce async database patterns)
 - Schema and migrations in `backend/db/`
+- **Each migration file runs once** (2026-10-05). `runMigration` runs on every backend start, and `schema_migrations` records which files have been applied. Until then every file re-ran on every start, and 005's backfill (`UPDATE wines SET promoted_at = date_added WHERE promoted_at IS NULL`) silently turned every unsaved draft into a saved wine, usually in no list. A data statement in a migration (UPDATE/INSERT/DELETE) must still be safe on a database where the file's ADD COLUMN already exists: the runner stops reading a file at "duplicate column name" and records it as applied.
 - Storage adapter interface (`backend/modules/storage/`) must not change — only the implementation swaps
 - Google Sheets adapter retained in `backend/sheets/` but no longer in the active code path
 - All Phase 1–4 tests must pass identically against SQLite before this phase is closed

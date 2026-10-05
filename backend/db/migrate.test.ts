@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3'
 import { runMigration } from './migrate'
+import fs from 'fs'
+import path from 'path'
 
 describe('runMigration', () => {
   it('creates wines, tasting_notes, and advice tables on a fresh database', () => {
@@ -109,5 +111,53 @@ describe('runMigration', () => {
     expect(row.cellar_quantity).toBe(0)
 
     db.close()
+  })
+})
+
+const SCHEMA = fs.readFileSync(path.resolve(__dirname, 'schema.sql'), 'utf-8')
+const MIGRATIONS = fs.readdirSync(path.resolve(__dirname, 'migrations')).filter(f => f.endsWith('.sql')).sort()
+
+function insertDraft(db: Database.Database, id: string): void {
+  db.prepare('INSERT INTO wines (id, date_added, promoted_at) VALUES (?, ?, NULL)').run(id, '2026-10-05T00:17:54.016Z')
+}
+const promotedAt = (db: Database.Database, id: string) =>
+  (db.prepare('SELECT promoted_at FROM wines WHERE id = ?').get(id) as { promoted_at: string | null }).promoted_at
+
+// 2026-10-05 — every backend start re-ran 005's backfill and turned every
+// unsaved draft into a saved wine with no list.
+describe('runMigration — each migration runs once', () => {
+  it('a restart leaves a draft a draft', () => {
+    const db = new Database(':memory:')
+    runMigration(db)
+    insertDraft(db, 'cornas')
+    runMigration(db)
+    runMigration(db)
+    expect(promotedAt(db, 'cornas')).toBeNull()
+  })
+
+  it('records every applied file', () => {
+    const db = new Database(':memory:')
+    runMigration(db)
+    const names = (db.prepare('SELECT name FROM schema_migrations ORDER BY name').all() as Array<{ name: string }>).map(r => r.name)
+    expect(names).toEqual(MIGRATIONS)
+  })
+
+  it('a database migrated before files were recorded does not re-run the backfill', () => {
+    const db = new Database(':memory:')
+    runMigration(db)
+    db.exec('DROP TABLE schema_migrations') // as the old runner left it
+    insertDraft(db, 'cornas')
+    runMigration(db)
+    expect(promotedAt(db, 'cornas')).toBeNull()
+    expect((db.prepare('SELECT COUNT(*) n FROM schema_migrations').get() as { n: number }).n).toBe(MIGRATIONS.length)
+  })
+
+  it('a migration that never ran still gets its backfill, once', () => {
+    // A pre-Phase-9.4 database: no promoted_at column yet, one legacy wine.
+    const db = new Database(':memory:')
+    db.exec(SCHEMA)
+    db.prepare('INSERT INTO wines (id, date_added) VALUES (?, ?)').run('legacy', '2026-05-25T23:04:17.769Z')
+    runMigration(db)
+    expect(promotedAt(db, 'legacy')).toBe('2026-05-25T23:04:17.769Z')
   })
 })
