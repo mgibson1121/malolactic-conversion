@@ -1765,6 +1765,14 @@ The iOS suite passes 66/66. **Remaining:** the implementation spec's §13 QA
 checklist, walked on a device (Dynamic Type, dark appearance, VoiceOver, a
 real scan). This is the testing step the developer holds for themselves.
 
+**Build status (2026-10-05):** PRs #36–#45 merged. The app has been in daily
+use on the developer's iPhone against the real collection since 2026-09-30.
+Eleven defects found that way are fixed; each has a dated note below. The full
+account, including data changed directly and the **open backlog** with the
+options already discussed, is in
+`docs/sessions/2026-10-05-phase-12-device-testing.md`. Suites: iOS 74, web
+128, backend 505. The §13 QA checklist is still the developer's.
+
 **Stored enrichment JSON is older than its types (found 2026-09-24).**
 `price_data` and `review_data` are stored as JSON written by whichever phase
 last fetched them, so real rows predate fields that later phases added. In the

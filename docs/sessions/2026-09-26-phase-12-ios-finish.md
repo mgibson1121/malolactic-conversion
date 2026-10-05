@@ -28,6 +28,8 @@ Everything was checked visually without triggering a metered call. Domaine Rouss
 
 - **Refreshed scores now survive leaving the detail screen** (2026-10-01). The backend had stored them, but the iOS lists kept their old copy of the wine, and reopening the detail started from that copy. `WineDetailModel` now reports every stored price, review or link change back to the lists.
 
+Continued in `2026-10-05-phase-12-device-testing.md`, which covers the full device-testing round (#36–#45) and the open backlog.
+
 ## What's next
 
 The developer's device QA pass against the implementation spec's §13 checklist: 0/1/many bottles, long names at 393/402/440 pt, NV, Dynamic Type at xxLarge, dark appearance, VoiceOver, camera permission, and a real scan end-to-end. Then close Phase 12.
