@@ -10,6 +10,8 @@
 // Same treatment as vintage_mismatch: detect it, keep the listing visible
 // (badged) for transparency, exclude it from the aggregate numbers.
 
+import { foldDiacritics } from '@shared/utils/wine-match'
+
 export interface PackFormat {
   // Number of standard bottles bundled into this single listing/price.
   // 1 for an ordinary single-bottle listing (the common case, and the
@@ -59,7 +61,26 @@ function parsePackQuantity(title: string): number {
   return 1
 }
 
-export function extractPackFormat(title: string): PackFormat {
+/**
+ * The title with every word of the wine's own name blanked out (2026-10-04).
+ * Bottle formats are named after biblical kings, and so are producers:
+ * Franck **Balthazar**'s Cornas came back with all five listings flagged
+ * "12L" — the producer's name read as a 12-litre bottle — and no price.
+ * CVNE's "Imperial" Rioja would read as a 6-litre one. A word that names the
+ * wine can't also be telling us its size. Numeric sizes ("1.5L", "6x750ml")
+ * are untouched, so a magnum of Balthazar's Cornas is still a magnum.
+ */
+function withoutOwnNames(title: string, ownNames: Array<string | null | undefined>): string {
+  const words = new Set(
+    ownNames.flatMap(n => foldDiacritics(n ?? '').toLowerCase().split(/[^a-z0-9]+/)).filter(w => w.length >= 3)
+  )
+  if (words.size === 0) return title
+  return foldDiacritics(title).replace(/[A-Za-z0-9]+/g, w => (words.has(w.toLowerCase()) ? ' ' : w))
+}
+
+/** `ownNames`: the wine's producer, cuvée and vineyard — see withoutOwnNames. */
+export function extractPackFormat(rawTitle: string, ownNames: Array<string | null | undefined> = []): PackFormat {
+  const title = withoutOwnNames(rawTitle, ownNames)
   // "6 x 750ml" / "6x750ml" states pack size and bottle size together —
   // handle it as one match so a bundle listing doesn't get misread as a
   // single non-standard-size bottle (or vice versa).
@@ -113,7 +134,7 @@ export function describeFormat(format: PackFormat): string {
  * retailer's listing carries at fetch time; the page is first in reach when
  * its URL is resolved, which is where this is read.
  */
-export function pageStatedFormat(html: string): PackFormat | null {
+export function pageStatedFormat(html: string, ownNames: Array<string | null | undefined> = []): PackFormat | null {
   const pick = (re: RegExp) => {
     const m = html.match(re)
     return m ? m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : ''
@@ -125,7 +146,7 @@ export function pageStatedFormat(html: string): PackFormat | null {
   ]
   for (const text of headlines) {
     if (!text) continue
-    const format = extractPackFormat(text)
+    const format = extractPackFormat(text, ownNames)
     if (isNonStandardFormat(format)) return format
   }
   return null

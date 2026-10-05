@@ -94,7 +94,11 @@ export async function resolveOneRetailerUrl(
         label: `price:resolve-url:${retailer.slug}`,
       })
   if (!outcome.url) return retailer
-  return withPageStatedFormat({ ...retailer, url: outcome.url, is_search_results_page: false }, render)
+  return withPageStatedFormat(
+    { ...retailer, url: outcome.url, is_search_results_page: false },
+    render,
+    [wine.producer, wine.cuvee, wine.vineyard]
+  )
 }
 
 /**
@@ -107,11 +111,12 @@ export async function resolveOneRetailerUrl(
  */
 async function withPageStatedFormat(
   retailer: RetailerPrice,
-  render: (url: string) => Promise<string | null>
+  render: (url: string) => Promise<string | null>,
+  ownNames: Array<string | null | undefined>
 ): Promise<RetailerPrice> {
   if (retailer.non_standard_format) return retailer
   const html = await render(retailer.url).catch(() => null)
-  const format = html ? pageStatedFormat(html) : null
+  const format = html ? pageStatedFormat(html, ownNames) : null
   if (!format) return retailer
   return {
     ...retailer,
