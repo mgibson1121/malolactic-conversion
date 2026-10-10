@@ -25,6 +25,17 @@ router.post(
   })
 )
 
+// GET /api/tasting-notes — every note, newest first, including notes whose
+// wine has been deleted (Phase 12.1, WI-3). The Notes list reads this instead
+// of walking wines.latest_tasting_note_id, which a detached note has no wine
+// to hang from.
+router.get(
+  '/',
+  wrap(async (_req, res) => {
+    res.json(await getStorage().listTastingNotes())
+  })
+)
+
 router.get(
   '/:id',
   wrap(async (req, res) => {

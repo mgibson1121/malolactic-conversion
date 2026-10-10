@@ -12,7 +12,7 @@ import type {
 } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { haversineDistanceMiles } from '@shared/utils/proximity'
-import { identityOf, scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
+import { identityKey, identityOf, scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
@@ -205,17 +205,61 @@ router.patch(
     // means the developer is setting or overriding it by hand — mark it
     // 'manual' so a later automated review-extraction run never clobbers it
     // (Phase 8, CLAUDE.md §15 non-blending rule).
-    if ('drinking_window' in req.body) updates.drinking_window_source = 'manual'
+    if ('drinking_window' in req.body) {
+      updates.drinking_window_source = req.body.drinking_window ? 'manual' : null
+    }
     if ('vintage_rating' in req.body) updates.vintage_rating_source = 'manual'
+
+    // Phase 12.1 (WI-1) — editing a saved wine's identity while it carries
+    // enrichment. Whatever the developer answers to "Refresh searches now?",
+    // the data on file was fetched for the identity as it stands *now*, so
+    // stamp any unstamped blob with it before the edit lands. A refresh
+    // re-stamps; a declined refresh leaves the stamp behind and the stale
+    // notice (enrichment_stale) follows from the mismatch. Drafts are left
+    // alone: editing a scan's fields on the review screen is not a stale-data
+    // event.
+    const existing = await getStorage().getWine(req.params.id)
+
+    // Phase 12.1 (WI-1) — clearing the manual window hands the wine back to
+    // the critics: re-derive from what review_data already says, now, rather
+    // than waiting for the next metered fetch. Nothing is fetched. A wine
+    // whose critics disagree comes back as "Check window", as before.
+    if (existing && 'drinking_window' in req.body && !req.body.drinking_window) {
+      const derived = deriveWineLevelFields(existing.review_data ?? [], {
+        drinking_window_source: null,
+        vintage_rating_source: 'manual', // leave vintage_rating alone
+      })
+      if (derived.drinking_window !== undefined) {
+        updates.drinking_window = derived.drinking_window
+        updates.drinking_window_source = derived.drinking_window_source
+      }
+    }
+
+    if (existing && existing.promoted_at && identityKey(existing) !== identityKey({ ...existing, ...updates })) {
+      const was = identityKey(existing)
+      if (existing.price_data && !existing.price_data.enriched_for) {
+        updates.price_data = { ...existing.price_data, enriched_for: was }
+      }
+      if (existing.review_data?.some((r) => !r.enriched_for)) {
+        updates.review_data = existing.review_data.map((r) => (r.enriched_for ? r : { ...r, enriched_for: was }))
+      }
+    }
+
     const wine = await getStorage().updateWine(req.params.id, updates)
     res.json(wine)
   })
 )
 
-// DELETE /api/wines/:id — discard a wine (Phase 9.4, WI-7). Used for both an
-// explicit Discard on the Discovery Review screen and Cancel on the scan
-// edit form, and by the 24h draft sweep below. Refuses when the wine has a
-// tasting note — a note is never cascaded away silently.
+// DELETE /api/wines/:id — delete a wine (Phase 9.4, WI-7: discard a draft;
+// Phase 12.1, WI-3: delete a saved wine). Used for Discard on the review
+// screen, Cancel on the scan edit form, the 24h draft sweep, and Delete on
+// the Edit screen / row long-press.
+//
+// Tasting notes no longer block it (they used to return 409). A note is a
+// record of something the developer tasted: the wine goes, its notes stay
+// under Notes with their own identity snapshot (migration 008).
+// `?dry_run=1` deletes nothing and reports how many notes would be kept, so
+// the client can name them in the confirmation.
 router.delete(
   '/:id',
   wrap(async (req, res) => {
@@ -225,9 +269,9 @@ router.delete(
       return
     }
 
-    const notes = await getStorage().listTastingNotesByWine(req.params.id)
-    if (notes.length > 0) {
-      res.status(409).json({ error: 'Cannot delete a wine that has tasting notes.' })
+    if (req.query.dry_run === '1' || req.query.dry_run === 'true') {
+      const notes = await getStorage().listTastingNotesByWine(req.params.id)
+      res.json({ notes_kept: notes.length })
       return
     }
 
@@ -370,6 +414,8 @@ router.post(
             retailers: priceData.retailers,
             nearest_retailer: priceData.nearest_retailer,
             fetched_at: priceData.fetched_at,
+            // Phase 12.1 — what this was fetched for; see enrichmentStale.
+            enriched_for: identityKey(wine),
           },
         }
         return { ok: true, wine: await getStorage().updateWine(req.params.id, updates) }
@@ -430,7 +476,7 @@ router.post(
         // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
         // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
         // looked. Consumed only when no configured retailer yields a score.
-        const review_data = await fetchReviewData(wine, {
+        const fetchedReviews = await fetchReviewData(wine, {
           discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
             slug: r.slug,
             name: r.name,
@@ -443,7 +489,7 @@ router.post(
         // request failed) — as distinct from running and finding nothing.
         // Write nothing rather than erasing whatever this wine already had; a
         // transient failure must never look like a result.
-        if (review_data === null) {
+        if (fetchedReviews === null) {
           return {
             ok: false,
             status: 503,
@@ -452,6 +498,9 @@ router.post(
           }
         }
 
+        // Phase 12.1 — stamp what each result was fetched for.
+        const enrichedFor = identityKey(wine)
+        const review_data = fetchedReviews.map((r) => ({ ...r, enriched_for: enrichedFor }))
         const derived = deriveWineLevelFields(review_data, {
           drinking_window_source: wine.drinking_window_source,
           vintage_rating_source: wine.vintage_rating_source,
@@ -545,6 +594,9 @@ router.post(
         // are recomputed correctly above from the same, unchanged price
         // figures — only fetched_at is held at its prior value.
         fetched_at: wine.price_data?.fetched_at ?? priceData.fetched_at,
+        // Same reasoning: resolving a link is not a re-fetch for the wine as
+        // it is now, so the stamp (or its absence) is carried over as-is.
+        ...(wine.price_data?.enriched_for ? { enriched_for: wine.price_data.enriched_for } : {}),
       },
     })
     res.json(updated)
@@ -645,7 +697,7 @@ router.post(
       ...(wine.price_data?.retailers ?? []).filter((r) => r.slug !== slug),
       retailerPrice,
     ]
-    const price_data = aggregatePriceData(mergedRetailers)
+    const price_data = { ...aggregatePriceData(mergedRetailers), enriched_for: identityKey(wine) }
 
     const retailerReview: RetailerReview = {
       slug: retailer.slug,
@@ -661,6 +713,7 @@ router.post(
       vintage_gap: verdict.vintageGap,
       match: verdict,
       page_price: extraction.price,
+      enriched_for: identityKey(wine),
     }
     const review_data = [
       ...(wine.review_data ?? []).filter((r) => r.slug !== slug),
