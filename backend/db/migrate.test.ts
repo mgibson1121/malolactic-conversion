@@ -161,3 +161,105 @@ describe('runMigration — each migration runs once', () => {
     expect(promotedAt(db, 'legacy')).toBe('2026-05-25T23:04:17.769Z')
   })
 })
+
+// ─── Phase 12.1: migrations 008 / 009 against an existing database ───────────
+
+describe('migration 008 — tasting notes outlive the wine (Phase 12.1)', () => {
+  /** A database exactly as it was before 008: the old NOT NULL tasting_notes. */
+  function legacyDb(): Database.Database {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    db.exec(`
+      CREATE TABLE wines (id TEXT PRIMARY KEY, producer TEXT, denomination TEXT, vintage INTEGER,
+        vineyard TEXT, cuvee TEXT, date_added TEXT NOT NULL);
+      CREATE TABLE tasting_notes (
+        id TEXT PRIMARY KEY,
+        wine_id TEXT NOT NULL REFERENCES wines(id),
+        date TEXT NOT NULL,
+        my_rating TEXT, free_text TEXT, extracted_tags TEXT
+      );
+      INSERT INTO wines VALUES ('w1', 'Roumier', 'Bonnes-Mares', 2018, NULL, NULL, '2026-01-01');
+      INSERT INTO tasting_notes VALUES ('n1', 'w1', '2026-02-01', 'good', 'Lovely', '[]');
+    `)
+    return db
+  }
+
+  it('rebuilds the table, keeps every row, and backfills the snapshot from the wine', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    // Bring a real-shaped legacy database up through the runner.
+    runMigration(db)
+    // Rewind to the pre-008 shape, then run the runner again.
+    db.exec(`
+      DROP TABLE tasting_notes;
+      CREATE TABLE tasting_notes (
+        id TEXT PRIMARY KEY, wine_id TEXT NOT NULL REFERENCES wines(id), date TEXT NOT NULL,
+        wset_appearance_clarity TEXT, wset_appearance_intensity TEXT, wset_appearance_colour TEXT,
+        wset_nose_condition TEXT, wset_nose_intensity TEXT, wset_nose_primary_aromas TEXT,
+        wset_nose_secondary_aromas TEXT, wset_nose_tertiary_aromas TEXT, wset_palate_sweetness TEXT,
+        wset_palate_acidity TEXT, wset_palate_tannin TEXT, wset_palate_body TEXT,
+        wset_palate_flavour_intensity TEXT, wset_palate_finish TEXT, wset_conclusion_quality TEXT,
+        my_rating TEXT, free_text TEXT, extracted_tags TEXT
+      );
+      DELETE FROM schema_migrations WHERE name = '008_phase12_1_notes_independent.sql';
+      INSERT INTO wines (id, producer, denomination, vintage, vineyard, cuvee, date_added, cellar_quantity)
+        VALUES ('w1', 'Roumier', 'Bonnes-Mares', 2018, 'V', 'C', '2026-01-01', 0);
+      INSERT INTO tasting_notes (id, wine_id, date, my_rating, free_text, extracted_tags)
+        VALUES ('n1', 'w1', '2026-02-01', 'good', 'Lovely', '[]');
+    `)
+
+    runMigration(db)
+
+    const note = db.prepare('SELECT * FROM tasting_notes WHERE id = ?').get('n1') as Record<string, unknown>
+    expect(note).toMatchObject({
+      wine_id: 'w1', free_text: 'Lovely', my_rating: 'good',
+      wine_producer: 'Roumier', wine_denomination: 'Bonnes-Mares', wine_vintage: 2018,
+      wine_vineyard: 'V', wine_cuvee: 'C',
+    })
+    const cols = db.prepare('PRAGMA table_info(tasting_notes)').all() as { name: string; notnull: number }[]
+    expect(cols.find((c) => c.name === 'wine_id')!.notnull).toBe(0)
+
+    // The point of the migration: deleting the wine no longer touches the note.
+    db.prepare('DELETE FROM wines WHERE id = ?').run('w1')
+    const kept = db.prepare('SELECT wine_id, wine_producer FROM tasting_notes WHERE id = ?').get('n1')
+    expect(kept).toEqual({ wine_id: null, wine_producer: 'Roumier' })
+    db.close()
+  })
+
+  it('runs once: a second start does not rebuild the table or lose data', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    runMigration(db)
+    db.prepare(`INSERT INTO wines (id, producer, date_added, cellar_quantity) VALUES ('w', 'P', '2026-01-01', 0)`).run()
+    db.prepare(`INSERT INTO tasting_notes (id, wine_id, date) VALUES ('n', 'w', '2026-02-01')`).run()
+    runMigration(db)
+    runMigration(db)
+    expect(db.prepare('SELECT COUNT(*) AS c FROM tasting_notes').get()).toEqual({ c: 1 })
+    db.close()
+  })
+
+  it('rolls the whole file back if a statement fails, leaving the old table in place', () => {
+    const db = legacyDb()
+    // This skeletal legacy table lacks the WSET columns the file's copy step
+    // selects, so the statement fails after the new table was already created.
+    expect(() => runMigration(db)).toThrow(/no such column/)
+    const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((t) => t.name)
+    expect(names).toContain('tasting_notes')
+    expect(names).not.toContain('tasting_notes_new')
+    expect(db.prepare('SELECT COUNT(*) AS c FROM tasting_notes').get()).toEqual({ c: 1 })
+    db.close()
+  })
+})
+
+describe('migration 009 — manual_price (Phase 12.1)', () => {
+  it('adds a nullable manual_price column, null for existing wines', () => {
+    const db = new Database(':memory:')
+    runMigration(db)
+    const col = (db.prepare('PRAGMA table_info(wines)').all() as { name: string; notnull: number }[]).find(
+      (c) => c.name === 'manual_price'
+    )
+    expect(col).toBeDefined()
+    expect(col!.notnull).toBe(0)
+    db.close()
+  })
+})

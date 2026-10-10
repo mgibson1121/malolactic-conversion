@@ -23,9 +23,9 @@ export interface StorageAdapter {
   getWine(id: string): Promise<WineEntry | null>
   listWines(filter?: WineFilter): Promise<WineEntry[]>
   updateWine(id: string, data: UpdateWineInput): Promise<WineEntry>
-  /** Phase 9.4 (WI-7). Caller is responsible for checking preconditions
-   * (e.g. no tasting notes) before calling — the adapter deletes
-   * unconditionally. */
+  /** Phase 9.4 (WI-7). Deletes unconditionally. Since Phase 12.1 a wine's
+   * tasting notes are not a precondition: they outlive it (wine_id becomes
+   * null, the identity snapshot stays). */
   deleteWine(id: string): Promise<void>
   /** Phase 9.4 (WI-7). Drafts (promoted_at IS NULL) with date_added older
    * than the cutoff. Returns the number deleted. */
@@ -36,6 +36,9 @@ export interface StorageAdapter {
   createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote>
   getTastingNote(id: string): Promise<TastingNote | null>
   listTastingNotesByWine(wineId: string): Promise<TastingNote[]>
+  /** Phase 12.1 (WI-3). Every note, newest first, including notes whose wine
+   * has been deleted (wine_id null). */
+  listTastingNotes(): Promise<TastingNote[]>
 
   // ── Advice ─────────────────────────────────────────────────────────────────
 
