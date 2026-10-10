@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { AppSettings, MyRating, WineEntry, CreateTastingNoteInput, UpdateWineInput } from '@shared/types'
-import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, promoteWine, deleteWine, getSettings, updateSettings } from './api'
+import { listWines, createWine, updateWine, createTastingNote, listTastingNotesByWine, listAllTastingNotes, promoteWine, deleteWine, getSettings, updateSettings } from './api'
 import { WineList } from './components/WineList'
 import { AddWineForm } from './components/AddWineForm'
 import { LabelScanFlow } from './components/LabelScanFlow'
@@ -8,6 +8,8 @@ import { DiscoveryReview } from './components/DiscoveryReview'
 import { EvaluateForm } from './components/EvaluateForm'
 import { TastingNoteHistory } from './components/TastingNoteHistory'
 import { WineDetailModal } from './components/WineDetailModal'
+import { EditWineModal } from './components/EditWineModal'
+import { RemovedWineNotes } from './components/RemovedWineNotes'
 import { CellarStats } from './components/CellarStats'
 import type { CreateWineInput, TastingNote } from '@shared/types'
 
@@ -50,6 +52,8 @@ export default function App() {
   const [historyWine, setHistoryWine] = useState<WineEntry | null>(null)
   const [historyNotes, setHistoryNotes] = useState<TastingNote[]>([])
   const [detailWine, setDetailWine] = useState<WineEntry | null>(null)
+  const [editingWineEntry, setEditingWineEntry] = useState<WineEntry | null>(null)
+  const [removedNotes, setRemovedNotes] = useState<TastingNote[]>([])
   const [reviewingWine, setReviewingWine] = useState<WineEntry | null>(null)
   const [reviewingAutoFireReviews, setReviewingAutoFireReviews] = useState(false)
   // Phase 9.4, WI-4 — the promoted wines already in the collection, used
@@ -107,6 +111,21 @@ export default function App() {
   useEffect(() => {
     fetchWines()
   }, [fetchWines])
+
+  // Phase 12.1 (WI-3) — notes whose wine was deleted have no wine row to
+  // appear under, so the Tasting Notes tab lists them separately.
+  const loadRemovedNotes = useCallback(() => {
+    if (activeTab !== 'tasting_notes') {
+      setRemovedNotes([])
+      return
+    }
+    listAllTastingNotes()
+      .then((all) => setRemovedNotes(all.filter((n) => n.wine_removed)))
+      .catch(() => setRemovedNotes([]))
+  }, [activeTab])
+  useEffect(() => {
+    loadRemovedNotes()
+  }, [loadRemovedNotes])
 
   // Phase 9.4, WI-4 — load the duplicate-check candidate list fresh each
   // time the scan flow opens. listWines() with no filter already excludes
@@ -198,6 +217,20 @@ export default function App() {
     if (detailWine?.id === updated.id) {
       setDetailWine(updated)
     }
+  }
+
+  // ── Edit (Phase 12.1 WI-1) ───────────────────────────────────────────────────
+  const handleEdited = (saved: WineEntry) => {
+    setEditingWineEntry(null)
+    handleWineUpdated(saved)
+    fetchWines()
+  }
+
+  const handleDeletedFromEdit = (id: string) => {
+    setEditingWineEntry(null)
+    if (detailWine?.id === id) setDetailWine(null)
+    fetchWines()
+    loadRemovedNotes()
   }
 
   // ── Detail modal ─────────────────────────────────────────────────────────────
@@ -336,6 +369,17 @@ export default function App() {
             onQuantityChange={handleQuantityChange}
             onEvaluate={(wine) => setEvaluatingWine(wine)}
             onWineUpdated={handleWineUpdated}
+            onEdit={(wine) => setEditingWineEntry(wine)}
+          />
+        )}
+
+        {/* Edit a saved wine (Phase 12.1 WI-1) */}
+        {editingWineEntry && (
+          <EditWineModal
+            wine={editingWineEntry}
+            onClose={() => setEditingWineEntry(null)}
+            onSaved={handleEdited}
+            onDeleted={handleDeletedFromEdit}
           />
         )}
 
@@ -351,8 +395,11 @@ export default function App() {
             onViewHistory={handleViewHistory}
             onWineUpdated={handleWineUpdated}
             onViewDetail={handleViewDetail}
+            onEdit={(wine) => setEditingWineEntry(wine)}
           />
         )}
+
+        {activeTab === 'tasting_notes' && !loading && <RemovedWineNotes notes={removedNotes} />}
       </div>
     </div>
   )

@@ -31,6 +31,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     my_tags: [],
     wishlist_notes: null,
     price_paid: null,
+    manual_price: null,
     purchased_from: null,
     latest_tasting_note_id: null,
     advice_linked: null,
@@ -59,6 +60,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('No wines here yet.')).toBeInTheDocument()
@@ -75,6 +77,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('Roumier · Chambolle-Musigny')).toBeInTheDocument()
@@ -91,6 +94,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('2019')).toBeInTheDocument()
@@ -112,6 +116,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('Giacomo Conterno · Barolo')).toBeInTheDocument()
@@ -129,6 +134,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -145,6 +151,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -161,6 +168,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByRole('button', { name: /Evaluate/ })).toBeInTheDocument()
@@ -177,6 +185,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('3 btl')).toBeInTheDocument()
@@ -195,12 +204,13 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.queryByText('3 btl')).not.toBeInTheDocument()
   })
 
-  it('shows Reviews button when latest_tasting_note_id is set', () => {
+  it('shows a My Review button when latest_tasting_note_id is set (D11: not "Reviews")', () => {
     render(
       <WineList
         wines={[makeWine({ latest_tasting_note_id: 'note-uuid-123' })]}
@@ -211,12 +221,14 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
-    expect(screen.getByRole('button', { name: /^Reviews$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'My Review' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Reviews$/ })).not.toBeInTheDocument()
   })
 
-  it('hides Reviews button when no tasting note exists', () => {
+  it('hides My Review button when no tasting note exists', () => {
     render(
       <WineList
         wines={[makeWine({ latest_tasting_note_id: null })]}
@@ -227,9 +239,10 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
-    expect(screen.queryByRole('button', { name: /^Reviews$/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'My Review' })).not.toBeInTheDocument()
   })
 
   it('shows rating badge when my_rating is set', () => {
@@ -243,6 +256,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('Outstanding')).toBeInTheDocument()
@@ -262,6 +276,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('Year: Very Good')).toBeInTheDocument()
@@ -278,6 +293,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.queryByText(/^Year:/)).not.toBeInTheDocument()
@@ -317,13 +333,16 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
+    // The card shows one badge — the first score in the backend's order —
+    // with the existing abbreviation (Phase 12.1 D13, WI-10).
     expect(screen.getByText('94')).toBeInTheDocument()
-    expect(screen.getByText('Wine Advocate')).toBeInTheDocument()
+    expect(screen.getByText('WA')).toBeInTheDocument()
   })
 
-  it('shows drinking window, vintage character, and value coded attributes when the citation states them', () => {
+  it('keeps the card to one badge: the Phase 8 coded attributes are on the detail view', () => {
     render(
       <WineList
         wines={[makeWine({
@@ -351,11 +370,13 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
-    expect(screen.getByText('Drink 2028–2045')).toBeInTheDocument()
-    expect(screen.getByText('Very good vintage')).toBeInTheDocument()
-    expect(screen.getByText('Value pick')).toBeInTheDocument()
+    expect(screen.getByText('96')).toBeInTheDocument()
+    expect(screen.getByText('VN')).toBeInTheDocument()
+    expect(screen.queryByText('Value pick')).not.toBeInTheDocument()
+    expect(screen.queryByText('Very good vintage')).not.toBeInTheDocument()
   })
 
   it('omits coded-attribute badges the citation did not state', () => {
@@ -386,6 +407,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.queryByText('Value pick')).not.toBeInTheDocument()
@@ -403,6 +425,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByRole('button', { name: 'Fetch Reviews' })).toBeInTheDocument()
@@ -417,6 +440,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByRole('button', { name: 'Refresh Reviews' })).toBeInTheDocument()
@@ -433,6 +457,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     expect(screen.getByText('Discovered')).toBeInTheDocument()
@@ -453,6 +478,7 @@ describe('WineList', () => {
           onViewHistory={noop}
           onWineUpdated={noop}
           onViewDetail={noop}
+          onEdit={noop}
         />
       )
       expect(screen.getByRole('button', { name: /Wishlist/ })).toBeInTheDocument()
@@ -472,6 +498,7 @@ describe('WineList', () => {
           onViewHistory={noop}
           onWineUpdated={noop}
           onViewDetail={noop}
+          onEdit={noop}
         />
       )
       expect(screen.getByRole('button', { name: /Consumed/ })).toBeInTheDocument()
@@ -491,6 +518,7 @@ describe('WineList', () => {
           onViewHistory={noop}
           onWineUpdated={noop}
           onViewDetail={noop}
+          onEdit={noop}
         />
       )
       await userEvent.click(screen.getByRole('button', { name: '✕ Remove' }))
@@ -510,6 +538,7 @@ describe('WineList', () => {
           onViewHistory={noop}
           onWineUpdated={noop}
           onViewDetail={noop}
+          onEdit={noop}
         />
       )
       await userEvent.click(screen.getByRole('button', { name: /Wishlist/ }))
@@ -530,6 +559,7 @@ describe('WineList', () => {
         onViewHistory={noop}
         onWineUpdated={noop}
         onViewDetail={noop}
+        onEdit={noop}
       />
     )
     screen.getByRole('button', { name: /Evaluate/ }).click()
@@ -545,6 +575,7 @@ describe('WineList', () => {
         slug: 'jjbuckley',
         fetched_at: '2026-08-05T00:00:00.000Z',
         source: 'configured',
+        ...MATCHED_IDENTITY,
         critic_scores: [
           {
             publication: 'Decanter',
@@ -577,16 +608,26 @@ describe('WineList', () => {
           onViewHistory={noop}
           onWineUpdated={noop}
           onViewDetail={noop}
+          onEdit={noop}
         />
       )
     }
 
-    it('shows the attributed per-critic windows when the wine-level field is null', () => {
+    it('flags "Check window" in the list when there is no primary window and critics disagree (WI-2)', () => {
       renderCard({ drinking_window: null, review_data: DISAGREEING_REVIEW_DATA })
 
-      expect(screen.getByText('2 critics, 2 different windows')).toBeInTheDocument()
-      expect(screen.getAllByText('2029–2045').length).toBeGreaterThan(0)
-      expect(screen.getAllByText('2026–2038').length).toBeGreaterThan(0)
+      expect(screen.getByRole('button', { name: 'Check window' })).toBeInTheDocument()
+      // The spread itself lives on the detail view, as reference — not here.
+      expect(screen.queryByText('2 critics, 2 different windows')).not.toBeInTheDocument()
+    })
+
+    it('does not flag a wine whose window the developer set, even if critics disagree', () => {
+      renderCard({
+        drinking_window: { start: '2030-01-01', end: '2040-12-31' },
+        drinking_window_source: 'manual',
+        review_data: DISAGREEING_REVIEW_DATA,
+      })
+      expect(screen.queryByRole('button', { name: 'Check window' })).not.toBeInTheDocument()
     })
 
     it('shows the agreed wine-level window instead of the spread when one exists', () => {

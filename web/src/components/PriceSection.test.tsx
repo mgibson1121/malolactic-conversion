@@ -1,0 +1,178 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { vi } from 'vitest'
+import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
+import { PriceBlock } from './PriceSection'
+import { makeTestPriceData, makeTestRetailer, makeTestWine } from '../test-fixtures'
+
+const idle: EnrichmentAction = { busy: false, error: null, cachedAt: null, run: vi.fn() }
+const noop = () => {}
+
+function renderBlock(wine = makeTestWine(), action: EnrichmentAction = idle, variant: 'card' | 'detail' | 'preview' = 'detail', lookupUnderWay = false) {
+  return render(<PriceBlock wine={wine} action={action} onWineUpdated={noop} variant={variant} lookupUnderWay={lookupUnderWay} />)
+}
+
+describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
+  it('titles the section and its button "Price & retailers"', () => {
+    renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer()]) }))
+    expect(screen.getByRole('heading', { name: 'Price & retailers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh Price & retailers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Hard refresh/ })).toHaveTextContent('about 1 credit')
+  })
+
+  it('shows Avg · High · Low spelled out', () => {
+    const data = makeTestPriceData([makeTestRetailer({ price: 100 }), makeTestRetailer({ slug: 'b', name: 'B', price: 140 })])
+    renderBlock(makeTestWine({ price_data: data }))
+    expect(screen.getByText('Avg')).toBeInTheDocument()
+    expect(screen.getByText('High')).toBeInTheDocument()
+    expect(screen.getByText('Low')).toBeInTheDocument()
+    expect(screen.queryByText('Min')).not.toBeInTheDocument()
+    expect(screen.queryByText('Max')).not.toBeInTheDocument()
+  })
+
+  it('the nearest retailer is a tappable, underlined link to its page', () => {
+    const r = makeTestRetailer({ name: 'Zachys', url: 'https://www.zachys.com/p/1' })
+    renderBlock(makeTestWine({ price_data: makeTestPriceData([r]) }))
+    const link = screen.getByRole('link', { name: 'Zachys' })
+    expect(link).toHaveAttribute('href', 'https://www.zachys.com/p/1')
+    expect(link.className).toMatch(/\blink\b/)
+  })
+
+  it('collapses the other retailers under "N more retailers" and expands on tap', async () => {
+    const data = makeTestPriceData([
+      makeTestRetailer({ slug: 'a', name: 'Nearest Shop', distance_miles: 5 }),
+      makeTestRetailer({ slug: 'b', name: 'Second Shop' }),
+      makeTestRetailer({ slug: 'c', name: 'Third Shop' }),
+    ])
+    renderBlock(makeTestWine({ price_data: data }))
+    expect(screen.queryByText('Second Shop')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '2 more retailers' }))
+    expect(screen.getByText('Second Shop')).toBeInTheDocument()
+    expect(screen.getByText('Third Shop')).toBeInTheDocument()
+  })
+
+  it('"Your price" is the headline, marked yours; the automated figures sit under their own label', () => {
+    const data = makeTestPriceData([makeTestRetailer({ price: 100 })])
+    renderBlock(makeTestWine({ manual_price: 87.5, price_data: data }))
+    const yours = screen.getByTestId('price-yours')
+    expect(yours).toHaveTextContent('Your price (per 750 ml bottle)')
+    expect(yours).toHaveTextContent('$88')
+    expect(yours).toHaveTextContent('yours')
+    expect(screen.getByText('Retailer prices (automated)')).toBeInTheDocument()
+  })
+
+  it('on a card, the automated figures fold away behind a summary when the price is yours', () => {
+    const data = makeTestPriceData([makeTestRetailer({ price: 100 })])
+    const { container } = renderBlock(makeTestWine({ manual_price: 87.5, price_data: data }), idle, 'card')
+    const fold = container.querySelector('details.automated-prices-fold') as HTMLDetailsElement
+    expect(fold).not.toBeNull()
+    expect(fold.open).toBe(false)
+  })
+
+  it('without a manual price there is no "yours" marker', () => {
+    renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer()]) }))
+    expect(screen.queryByTestId('price-yours')).not.toBeInTheDocument()
+    expect(screen.queryByText('Retailer prices (automated)')).not.toBeInTheDocument()
+  })
+
+  describe('listings found but none counted — the Marcoux case', () => {
+    const data = makeTestPriceData(
+      [
+        makeTestRetailer({ slug: 'a', vintage_mismatch: true, matched_vintage: 2020 }),
+        makeTestRetailer({ slug: 'b', non_standard_format: true, bottle_size_ml: 1500, format_label: '1.5L' }),
+        makeTestRetailer({ slug: 'c', link_only: true, price: null }),
+      ],
+      { other_vintage_price_range: { min: 68, max: 199 } }
+    )
+
+    it('says why, with counts, instead of showing dashes', () => {
+      renderBlock(makeTestWine({ price_data: data }))
+      expect(screen.getByText(/3 listings found, none counted toward the average/)).toBeInTheDocument()
+      expect(screen.getByText(/1 other vintage \(2020\), 1 magnum, 1 search-only/)).toBeInTheDocument()
+      expect(screen.queryByText('—')).not.toBeInTheDocument()
+      expect(screen.getByText('Other vintages: $68–$199')).toBeInTheDocument()
+    })
+
+    it('prefers the sentence the backend sent', () => {
+      renderBlock(makeTestWine({ price_data: data, price_exclusions: { found: 3, reasons: [], sentence: 'Backend says hi.' } }))
+      expect(screen.getByText('Backend says hi.')).toBeInTheDocument()
+    })
+  })
+
+  describe('four states, never a vanishing block', () => {
+    it('Looking', () => {
+      renderBlock(makeTestWine(), { ...idle, busy: true })
+      expect(screen.getByText('Looking up prices…')).toBeInTheDocument()
+    })
+    it('Looking, before the first result of an automatic lookup', () => {
+      renderBlock(makeTestWine(), idle, 'preview', true)
+      expect(screen.getByText('Looking up prices…')).toBeInTheDocument()
+    })
+    it('Nothing found', () => {
+      renderBlock(makeTestWine({ price_data: makeTestPriceData([]) }))
+      expect(screen.getByText('No matching listings found at the configured retailers.')).toBeInTheDocument()
+    })
+    it('Failed, with Try again', async () => {
+      const run = vi.fn()
+      renderBlock(makeTestWine(), { ...idle, error: 'Price lookup failed', run })
+      expect(screen.getByText(/Price lookup failed —/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      expect(run).toHaveBeenCalled()
+    })
+    it('Never fetched: a plain prompt', () => {
+      renderBlock(makeTestWine())
+      expect(screen.getByText('No price data yet.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Fetch Price & retailers' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Hard refresh/ })).not.toBeInTheDocument()
+    })
+  })
+
+  it('says when the prices were fetched for a different version of the wine', () => {
+    renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer()]), enrichment_stale: { price: true, reviews: false } }))
+    expect(screen.getByText(/Fetched for a different version of this wine — may not match\. Refresh\./)).toBeInTheDocument()
+  })
+})
+
+describe('badge explanations (WI-8)', () => {
+  async function open(r: Parameters<typeof makeTestRetailer>[0]) {
+    renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer(r)]) }))
+  }
+
+  it('Verified explains itself on tap, and is honest about its scope', async () => {
+    await open({ verification: 'verified' })
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Verified' }))
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent(/opened this shop’s own search page|opened this shop's own search page/)
+    expect(note).toHaveTextContent(/does not confirm the vintage or the exact bottling/)
+  })
+
+  it('Unverified explains itself', async () => {
+    await open({ verification: 'unverified' })
+    await userEvent.click(screen.getByRole('button', { name: 'Unverified' }))
+    expect(screen.getByRole('note')).toHaveTextContent(/couldn't confirm this listing/)
+  })
+
+  it('Search only explains itself', async () => {
+    await open({ link_only: true, price: null, verification: 'unchecked' })
+    // No price, so it is never the nearest retailer: it lives in the collapsed list.
+    await userEvent.click(screen.getByRole('button', { name: '1 more retailer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Search only' }))
+    expect(screen.getByRole('note')).toHaveTextContent(/no price was found/)
+  })
+
+  it('unchecked shows no badge at all', async () => {
+    await open({ verification: 'unchecked' })
+    expect(screen.queryByRole('button', { name: /Verified|Unverified|Search only/ })).not.toBeInTheDocument()
+  })
+
+  it('the badges are tappable and underlined (D9)', async () => {
+    await open({ verification: 'verified' })
+    expect(screen.getByRole('button', { name: 'Verified' }).className).toMatch(/\blink\b/)
+  })
+
+  it('carries a legend with all three', async () => {
+    await open({ verification: 'verified' })
+    expect(screen.getByText('What do these badges mean?')).toBeInTheDocument()
+  })
+})

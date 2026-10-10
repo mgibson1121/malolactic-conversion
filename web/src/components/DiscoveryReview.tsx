@@ -26,11 +26,11 @@ import type { UpdateWineInput, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
-import { claimPriceOnce } from '../utils/priceOnce'
-import { EnrichmentFreshness } from './EnrichmentFreshness'
-import { PriceSection } from './PriceSection'
-import { CriticScoreBadges } from './CriticScoreBadges'
-import { getDedupedCriticScores } from '../utils/criticScores'
+import { claimPriceOnce, hasAttemptedPrice } from '../utils/priceOnce'
+import { CriticReviewsBlock } from './CriticReviewsBlock'
+import { EnrichmentRow } from './EnrichmentRow'
+import { PriceBlock } from './PriceSection'
+import { criticSummaryOf } from '../utils/wineDerived'
 import { summarizePreferredRetailers } from '../utils/preferredRetailers'
 
 const EXTENDED_RETAILER_COUNT = RETAILER_CONFIG.filter((r) => r.reviewTier === 'extended').length
@@ -51,6 +51,15 @@ interface Props {
   /** Draft mode only. Resolves once the wine is discarded and the screen
    * should close. */
   onDiscard?: (id: string) => Promise<void>
+}
+
+function ListRow({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className={`list-row${on ? ' list-row--on' : ''}`} aria-pressed={on} onClick={onToggle}>
+      <span className="list-row-circle" aria-hidden="true">{on ? '✓' : ''}</span>
+      {label}
+    </button>
+  )
 }
 
 export function DiscoveryReview({
@@ -131,16 +140,15 @@ export function DiscoveryReview({
 
   const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
   const metaParts = [wine.vintage ? String(wine.vintage) : null, wine.region, wine.quality_classification].filter(Boolean)
-  const criticScores = getDedupedCriticScores(wine.review_data)
+  const hasScores = criticSummaryOf(wine).ordered.length > 0
   const { carried, totalConfigured } = summarizePreferredRetailers(wine.price_data)
 
-  const reviewsLabel = reviews.busy
-    ? 'Fetching…'
-    : criticScores.length > 0
-      ? 'Refresh Reviews'
-      : wine.review_data
-        ? 'Search more retailers'
-        : 'Fetch Reviews'
+  const reviewsLabel = hasScores ? 'Refresh Reviews' : wine.review_data ? 'Search more retailers' : 'Fetch Reviews'
+  // A fresh scan has its primary-tier lookup under way until a result or an
+  // error arrives (Phase 12.1 WI-4): the block says "Looking…", not nothing.
+  const reviewsUnderWay = autoFireReviews && !wine.review_data
+  // A wine that has never been priced is about to be (fetch-once rule).
+  const priceUnderWay = !wine.price_data && !hasAttemptedPrice(wine.id)
 
   return (
     <div className="form-overlay">
@@ -164,30 +172,24 @@ export function DiscoveryReview({
           )}
         </div>
 
-        {/* Reviews — first and most prominent action on this screen */}
+        {/* Critic reviews — first and most prominent block on this screen.
+            Four explicit states, never a vanishing block (Phase 12.1 WI-4). */}
         <div className="scan-enrichment-section">
-          {criticScores.length > 0 && <CriticScoreBadges scores={criticScores} />}
-          <div className="reviews-fetch-row">
-            <button
-              className="btn-fetch-price"
-              onClick={() => reviews.run()}
-              disabled={reviews.busy}
-            >
-              {reviewsLabel}
-            </button>
-            {reviewsLabel === 'Search more retailers' && (
-              <p className="scan-result-tier2">Searches {EXTENDED_RETAILER_COUNT} more shops</p>
-            )}
-            {reviews.cachedAt && (
-              <EnrichmentFreshness
-                fetchedAt={reviews.cachedAt}
-                label="Reviews"
-                onRefreshAnyway={() => reviews.run({ force: true })}
-                disabled={reviews.busy}
-              />
-            )}
-            {reviews.error && <span className="price-error">{reviews.error}</span>}
-          </div>
+          <h3 className="preview-section-title">Critic reviews</h3>
+          <CriticReviewsBlock wine={wine} action={reviews} lookupUnderWay={reviewsUnderWay} />
+          <EnrichmentRow
+            kind="reviews"
+            action={reviews}
+            label={reviewsLabel}
+            busyLabel="Fetching…"
+            freshnessLabel="Reviews"
+            hasData={!!wine.review_data}
+            note={
+              reviewsLabel === 'Search more retailers' ? (
+                <p className="scan-result-tier2">Searches {EXTENDED_RETAILER_COUNT} more shops</p>
+              ) : undefined
+            }
+          />
         </div>
 
         {/* Preferred-retailer carry-check — frontend-only, computed from the
@@ -202,65 +204,37 @@ export function DiscoveryReview({
           </div>
         )}
 
-        {/* Price */}
+        {/* Price & retailers */}
         <div className="scan-enrichment-section">
-          {price.busy && !wine.price_data && (
-            <div className="scan-price-loading">
-              <span className="scan-price-loading-icon">🔎</span>
-              <span>Fetching prices from Retailer Crawl…</span>
-            </div>
-          )}
-
-          {wine.price_data && (
-            <>
-              <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={applyUpdate} />
-              <button
-                className="btn-fetch-price"
-                onClick={() => price.run()}
-                disabled={price.busy}
-              >
-                {price.busy ? 'Refreshing…' : 'Refresh Price'}
-              </button>
-              {price.cachedAt && (
-                <EnrichmentFreshness
-                  fetchedAt={price.cachedAt}
-                  label="Price"
-                  onRefreshAnyway={() => price.run({ force: true })}
-                  disabled={price.busy}
-                />
-              )}
-            </>
-          )}
-
-          {!price.busy && !wine.price_data && price.error && (
-            <p className="scan-price-unavailable">{price.error}</p>
-          )}
+          <PriceBlock
+            wine={wine}
+            action={price}
+            onWineUpdated={applyUpdate}
+            variant="preview"
+            lookupUnderWay={priceUnderWay}
+          />
         </div>
 
-        {/* List decision */}
+        {/* List decision (Phase 12.1 WI-6): every row looks selectable — an
+            empty circle when off, a filled one when on — and the hint says
+            what is needed, next to the picker rather than under a disabled
+            button. */}
         <div className="scan-enrichment-section">
-          <div className="wine-tag-controls">
+          <h3 className="preview-section-title">Add to which list?</h3>
+          <div className="list-picker" role="group" aria-label="Add to which list?">
             {isDraft && (
-              <button
-                className={`btn-tag-toggle ${draftTags.tag_discovered ? 'active' : ''}`}
-                onClick={toggleDraftDiscovered}
-              >
-                {draftTags.tag_discovered ? '✓ ' : '+ '}Discovered
-              </button>
+              <ListRow label="Discovered" on={draftTags.tag_discovered} onToggle={toggleDraftDiscovered} />
             )}
-            {(['tag_wishlist', 'tag_cellar'] as const).map((tag) => {
-              const active = isDraft ? draftTags[tag] : wine[tag]
-              return (
-                <button
-                  key={tag}
-                  className={`btn-tag-toggle ${active ? 'active' : ''}`}
-                  onClick={() => toggleTag(tag)}
-                >
-                  {active ? '✓ ' : '+ '}{tag === 'tag_wishlist' ? 'Wishlist' : 'Cellar'}
-                </button>
-              )
-            })}
+            {(['tag_wishlist', 'tag_cellar'] as const).map((tag) => (
+              <ListRow
+                key={tag}
+                label={tag === 'tag_wishlist' ? 'Wishlist' : 'Cellar'}
+                on={isDraft ? draftTags[tag] : wine[tag]}
+                onToggle={() => toggleTag(tag)}
+              />
+            ))}
           </div>
+          {isDraft && !canPromote && <p className="pick-list-hint">Pick at least one list to save.</p>}
         </div>
 
         {/* Done / Save / Discard */}
@@ -271,7 +245,7 @@ export function DiscoveryReview({
                 {discarding ? 'Discarding…' : 'Discard'}
               </button>
               <button
-                className="btn-save btn-save--primary"
+                className={`btn-save btn-save--primary${canPromote ? '' : ' btn-save--inactive'}`}
                 onClick={handlePromote}
                 disabled={!canPromote || promoting || discarding}
               >

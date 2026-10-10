@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void
 }
 
-const RATING_LABELS: Record<string, string> = {
+export const RATING_LABELS: Record<string, string> = {
   poor: 'Poor',
   acceptable: 'Acceptable',
   good: 'Good',
@@ -24,13 +24,13 @@ const QUALITY_LABELS: Record<string, string> = {
   outstanding: 'Outstanding',
 }
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric',
   })
 }
 
-function NoteDetail({ note }: { note: TastingNote }) {
+export function NoteDetail({ note }: { note: TastingNote }) {
   const aromas = [
     note.nose_primary_aromas.length > 0 && `Primary: ${note.nose_primary_aromas.join(', ')}`,
     note.nose_secondary_aromas.length > 0 && `Secondary: ${note.nose_secondary_aromas.join(', ')}`,
@@ -72,7 +72,7 @@ export function TastingNoteHistory({ wine, notes, onClose }: Props) {
   return (
     <div className="form-overlay">
       <div className="add-wine-form note-history-modal">
-        <h2>Tasting Notes</h2>
+        <h2>My Review</h2>
         <p className="evaluate-wine-label">{wineLabel}</p>
 
         {notes.length === 0 ? (

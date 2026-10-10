@@ -1,13 +1,11 @@
 import type { WineEntry, UpdateWineInput } from '@shared/types'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
-import { EnrichmentFreshness } from './EnrichmentFreshness'
-import { PriceSection } from './PriceSection'
+import { EnrichmentRow } from './EnrichmentRow'
+import { PriceBlock } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
-import { CriticScoreBadges } from './CriticScoreBadges'
-import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
-import { getDedupedCriticScores } from '../utils/criticScores'
-import { getAttributedDrinkingWindows } from '../utils/drinkingWindows'
+import { cardBadge } from '../utils/criticBadge'
+import { criticSummaryOf, windowStatusOfWine } from '../utils/wineDerived'
 
 interface Props {
   wine: WineEntry
@@ -18,6 +16,7 @@ interface Props {
   onViewHistory: (wine: WineEntry) => void
   onWineUpdated: (wine: WineEntry) => void
   onViewDetail: (wine: WineEntry) => void
+  onEdit: (wine: WineEntry) => void
 }
 
 const TAG_LABELS: Record<string, string> = {
@@ -44,12 +43,12 @@ const VINTAGE_RATING_LABELS: Record<string, string> = {
   very_good: 'Very Good',
 }
 
-export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail }: Props) {
+export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail, onEdit }: Props) {
   const price = useEnrichmentAction(wine.id, fetchWinePrice, onWineUpdated, 'Price lookup failed')
   const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Review lookup failed')
 
-  const criticScores = getDedupedCriticScores(wine.review_data)
-  const attributedWindows = getAttributedDrinkingWindows(wine.review_data)
+  const badge = cardBadge(criticSummaryOf(wine))
+  const windowStatus = windowStatusOfWine(wine)
   const primaryLine = [wine.producer, wine.denomination].filter(Boolean).join(' · ')
   const secondaryParts = [
     wine.vintage ? String(wine.vintage) : null,
@@ -70,7 +69,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
 
   return (
     <div className="wine-card">
-      <button className="wine-name wine-name--clickable" onClick={() => onViewDetail(wine)}>
+      <button className="wine-name wine-name--clickable link" onClick={() => onViewDetail(wine)}>
         {primaryLine || '—'}
       </button>
 
@@ -134,9 +133,13 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         {/* View review history — any wine with at least one note */}
         {wine.latest_tasting_note_id && (
           <button className="btn-history" onClick={() => onViewHistory(wine)}>
-            Reviews
+            My Review
           </button>
         )}
+
+        <button className="btn-edit" onClick={() => onEdit(wine)}>
+          Edit
+        </button>
 
         {/* Evaluate — available on all wines */}
         <button className="btn-evaluate" onClick={() => onEvaluate(wine)}>
@@ -184,10 +187,11 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         </div>
       )}
 
-      {/* Drinking window — the agreed wine-level value when critics agree,
-          otherwise the per-critic windows attributed to their sources. The
-          field is null in the disagreement case (derive-wine-level.ts) and
-          stays null; showing the spread doesn't reconcile it (CLAUDE.md §15). */}
+      {/* Drinking window — the *primary* window only (Phase 12.1 WI-2): the
+          developer's own, or the one derived from agreeing critics. A wine
+          whose critics disagree and who has no window of its own is flagged
+          "Check window" here, in the list view only; the per-critic windows
+          are on the detail view, as reference. */}
       {wine.drinking_window ? (
         <div className="drinking-window">
           Drink {wine.drinking_window.start}–{wine.drinking_window.end}
@@ -196,71 +200,52 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           )}
         </div>
       ) : (
-        attributedWindows.length > 0 && (
-          <div className="drinking-window drinking-window--disputed">
-            <span className="drinking-window-label">Drink</span>
-            <AttributedDrinkingWindows windows={attributedWindows} />
+        windowStatus === 'check' && (
+          <div className="drinking-window drinking-window--check">
+            <button
+              type="button"
+              className="check-window-flag link"
+              title="The critics disagree on this wine's window. Open it to see each critic's window, or set your own in Edit."
+              onClick={() => onViewDetail(wine)}
+            >
+              Check window
+            </button>
           </div>
         )
       )}
 
-      {/* Critic scores — sourced from review_data (Phase 7), a rendered
-          single product page per retailer, never price_data's guaranteed-
-          empty critic_scores. Each badge carries the number, the publication,
-          and any coded attributes (drinking window, vintage character, value
-          signal) the source text stated for that citation — see Phase 8. */}
-      {criticScores.length > 0 && <CriticScoreBadges scores={criticScores} />}
-      <div className="reviews-fetch-row">
-        <button
-          className="btn-fetch-price"
-          onClick={() => reviews.run()}
-          disabled={reviews.busy}
-        >
-          {reviews.busy ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
-        </button>
-        {reviews.cachedAt && (
-          <EnrichmentFreshness
-            fetchedAt={reviews.cachedAt}
-            label="Reviews"
-            onRefreshAnyway={() => reviews.run({ force: true })}
-            disabled={reviews.busy}
-          />
+      {/* Critic reviews — the first score in the backend's order (Phase 12.1
+          D13: trusted source, same vintage first) is the badge; the rest are
+          "+N" and open the detail view. Nothing is averaged. */}
+      <section className="card-section">
+        <h4 className="card-section-title">Critic reviews</h4>
+        {badge && (
+          <button
+            type="button"
+            className="card-score-badge"
+            onClick={() => onViewDetail(wine)}
+            title={`${badge.item.publication} — open for every score`}
+          >
+            <span className={`critic-score-badge${badge.known ? '' : ' critic-score-badge--unknown'}`}>
+              <span className="critic-score">{badge.score}</span>
+              <span className="critic-publication">{badge.label}</span>
+              {badge.yearTag && <span className="critic-attribute critic-year-tag">{badge.yearTag}</span>}
+            </span>
+            {badge.additional > 0 && <span className="card-score-more link">+{badge.additional}</span>}
+          </button>
         )}
-        {reviews.error && <span className="price-error">{reviews.error}</span>}
-      </div>
+        <EnrichmentRow
+          kind="reviews"
+          action={reviews}
+          label={wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
+          busyLabel="Fetching…"
+          freshnessLabel="Reviews"
+          hasData={!!wine.review_data}
+        />
+      </section>
 
-      {/* Price data from Retailer Crawl */}
-      {wine.price_data ? (
-        <div>
-          <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={onWineUpdated} />
-          <button
-            className="btn-fetch-price"
-            onClick={() => price.run()}
-            disabled={price.busy}
-          >
-            {price.busy ? 'Refreshing…' : 'Refresh Price'}
-          </button>
-          {price.cachedAt && (
-            <EnrichmentFreshness
-              fetchedAt={price.cachedAt}
-              label="Price"
-              onRefreshAnyway={() => price.run({ force: true })}
-              disabled={price.busy}
-            />
-          )}
-        </div>
-      ) : (
-        <div className="price-fetch-prompt">
-          <button
-            className="btn-fetch-price"
-            onClick={() => price.run()}
-            disabled={price.busy}
-          >
-            {price.busy ? 'Fetching price…' : 'Fetch Price'}
-          </button>
-          {price.error && <span className="price-error">{price.error}</span>}
-        </div>
-      )}
+      {/* Price & retailers */}
+      <PriceBlock wine={wine} action={price} onWineUpdated={onWineUpdated} variant="card" />
 
       <RetailerLinksSection wine={wine} onWineUpdated={onWineUpdated} />
     </div>

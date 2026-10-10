@@ -11,13 +11,11 @@ import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
 import { claimPriceOnce } from '../utils/priceOnce'
-import { EnrichmentFreshness } from './EnrichmentFreshness'
-import { PriceSection } from './PriceSection'
+import { CriticReviewsBlock } from './CriticReviewsBlock'
+import { DrinkingWindowSection } from './DrinkingWindowSection'
+import { EnrichmentRow } from './EnrichmentRow'
+import { PriceBlock } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
-import { CriticScoreBadges } from './CriticScoreBadges'
-import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
-import { getDedupedCriticScores } from '../utils/criticScores'
-import { getAttributedDrinkingWindows } from '../utils/drinkingWindows'
 
 interface Props {
   wine: WineEntry
@@ -26,6 +24,7 @@ interface Props {
   onQuantityChange: (id: string, delta: number) => void
   onEvaluate: (wine: WineEntry) => void
   onWineUpdated: (wine: WineEntry) => void
+  onEdit: (wine: WineEntry) => void
 }
 
 const TAG_LABELS: Record<string, string> = {
@@ -75,6 +74,7 @@ export function WineDetailModal({
   onQuantityChange,
   onEvaluate,
   onWineUpdated,
+  onEdit,
 }: Props) {
   const [wine, setWine] = useState(initialWine)
   const [notes, setNotes] = useState<TastingNote[]>([])
@@ -148,12 +148,6 @@ export function WineDetailModal({
 
   const activeTags = (['tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed'] as const).filter(t => wine[t])
 
-  // Attributed critic scores sourced from real rendered retailer product
-  // pages (Phase 7's review_data) — not price_data.retailers[].critic_scores,
-  // which was always guaranteed empty (see build-phases.md Phase 9).
-  const criticScores = getDedupedCriticScores(wine.review_data)
-  const attributedWindows = getAttributedDrinkingWindows(wine.review_data)
-
   const latestNote = notes[0] ?? null
 
   return (
@@ -166,6 +160,7 @@ export function WineDetailModal({
             <span className="detail-producer">{wine.producer ?? '—'}</span>
             {wine.denomination && <span className="detail-denomination">{wine.denomination}</span>}
           </div>
+          <button className="btn-edit" onClick={() => onEdit(wine)}>Edit</button>
           <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
@@ -272,91 +267,29 @@ export function WineDetailModal({
             </section>
           )}
 
-          {/* Drinking window — the agreed wine-level value when critics agree,
-              otherwise the per-critic windows attributed to their sources. The
-              field is null in the disagreement case (derive-wine-level.ts) and
-              stays null; showing the spread doesn't reconcile it (§15). */}
-          {wine.drinking_window ? (
-            <section className="detail-section">
-              <h3 className="detail-section-title">Drinking Window</h3>
-              <p className="detail-drinking-window">
-                {wine.drinking_window.start} – {wine.drinking_window.end}
-                {wine.drinking_window_source === 'derived' && (
-                  <span className="badge-tier badge-tier--derived" title="From automated review extraction, not manually entered">Sourced</span>
-                )}
-              </p>
-            </section>
-          ) : (
-            attributedWindows.length > 0 && (
-              <section className="detail-section">
-                <h3 className="detail-section-title">Drinking Window</h3>
-                <AttributedDrinkingWindows windows={attributedWindows} />
-              </section>
-            )
-          )}
+          {/* Drinking window — the primary window, then the critics' windows
+              for reference (Phase 12.1 WI-2). */}
+          <DrinkingWindowSection wine={wine} />
 
-          {/* Critic scores — sourced from review_data (Phase 7), a rendered
-              single product page per retailer, not a search-results page. */}
+          {/* Critic reviews — sourced from review_data (Phase 7), a rendered
+              single product page per retailer, not a search-results page.
+              A section of its own, peer to Price & retailers (WI-7). */}
           <section className="detail-section">
-            <h3 className="detail-section-title">Critic Scores</h3>
-            {criticScores.length > 0 ? (
-              <CriticScoreBadges scores={criticScores} />
-            ) : (
-              <p className="detail-empty-hint">No attributed critic scores found yet.</p>
-            )}
-            <button
-              className="btn-fetch-price"
-              onClick={() => reviews.run()}
-              disabled={reviews.busy}
-            >
-              {reviews.busy ? 'Fetching…' : wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
-            </button>
-            {reviews.cachedAt && (
-              <EnrichmentFreshness
-                fetchedAt={reviews.cachedAt}
-                label="Reviews"
-                onRefreshAnyway={() => reviews.run({ force: true })}
-                disabled={reviews.busy}
-              />
-            )}
-            {reviews.error && <span className="price-error">{reviews.error}</span>}
+            <h3 className="detail-section-title">Critic reviews</h3>
+            <CriticReviewsBlock wine={wine} action={reviews} />
+            <EnrichmentRow
+              kind="reviews"
+              action={reviews}
+              label={wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
+              busyLabel="Fetching…"
+              freshnessLabel="Reviews"
+              hasData={!!wine.review_data}
+            />
           </section>
 
-          {/* Price section */}
+          {/* Price & retailers — one section, refreshed together */}
           <section className="detail-section">
-            <h3 className="detail-section-title">Pricing</h3>
-            {wine.price_data ? (
-              <>
-                <PriceSection priceData={wine.price_data} wineId={wine.id} onWineUpdated={applyUpdate} />
-                <button
-                  className="btn-fetch-price"
-                  onClick={() => price.run()}
-                  disabled={price.busy}
-                >
-                  {price.busy ? 'Refreshing…' : 'Refresh Price'}
-                </button>
-                {price.cachedAt && (
-                  <EnrichmentFreshness
-                    fetchedAt={price.cachedAt}
-                    label="Price"
-                    onRefreshAnyway={() => price.run({ force: true })}
-                    disabled={price.busy}
-                  />
-                )}
-              </>
-            ) : (
-              <div className="price-fetch-prompt">
-                <p className="detail-empty-hint">No price data yet.</p>
-                <button
-                  className="btn-fetch-price"
-                  onClick={() => price.run()}
-                  disabled={price.busy}
-                >
-                  {price.busy ? 'Fetching…' : 'Fetch Price'}
-                </button>
-                {price.error && <span className="price-error">{price.error}</span>}
-              </div>
-            )}
+            <PriceBlock wine={wine} action={price} onWineUpdated={applyUpdate} variant="detail" />
           </section>
 
           {/* Find / save retailer review links */}
@@ -368,7 +301,7 @@ export function WineDetailModal({
           {/* Tasting notes */}
           <section className="detail-section">
             <h3 className="detail-section-title">
-              Tasting Notes {notes.length > 0 && <span className="detail-note-count">({notes.length})</span>}
+              My Review {notes.length > 0 && <span className="detail-note-count">({notes.length})</span>}
             </h3>
 
             {notesLoading && <p className="detail-loading">Loading notes…</p>}

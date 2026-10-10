@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
@@ -40,6 +42,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     latest_tasting_note_id: null,
     wishlist_notes: null,
     price_paid: null,
+    manual_price: null,
     purchased_from: null,
     date_added: '2026-08-16T00:00:00.000Z',
     date_first_consumed: null,
@@ -201,8 +204,8 @@ describe('DiscoveryReview — preferred-retailer carry-check', () => {
 describe('DiscoveryReview — list decision', () => {
   it('offers Wishlist and Cellar toggles but not Discovered or Consumed', async () => {
     await renderAndSettle(makeWine({ price_data: makePriceData([]) }))
-    expect(screen.getByRole('button', { name: '+ Wishlist' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ Cellar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Wishlist' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cellar' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Discovered/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Consumed/ })).not.toBeInTheDocument()
   })
@@ -211,7 +214,7 @@ describe('DiscoveryReview — list decision', () => {
     const onTagUpdate = vi.fn()
     await renderAndSettle(makeWine({ price_data: makePriceData([]) }), { onTagUpdate })
 
-    await userEvent.click(screen.getByRole('button', { name: '+ Wishlist' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Wishlist' }))
 
     expect(onTagUpdate).toHaveBeenCalledWith('wine-1', { tag_wishlist: true })
   })
@@ -351,5 +354,107 @@ describe('DiscoveryReview — reviews button copy (Phase 9.4, WI-6)', () => {
   it('shows "Fetch Reviews" when review_data has never been fetched', async () => {
     await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: null }))
     expect(screen.getByRole('button', { name: 'Fetch Reviews' })).toBeInTheDocument()
+  })
+})
+
+// Phase 12.1 — WI-6: Save to collection
+describe('DiscoveryReview — save affordances (WI-6)', () => {
+  const draft = (overrides: Partial<WineEntry> = {}) =>
+    makeWine({ promoted_at: null, tag_discovered: false, price_data: makePriceData([]), ...overrides })
+
+  it('asks "Add to which list?" (not "Save to")', async () => {
+    await renderAndSettle(draft())
+    expect(screen.getByRole('heading', { name: 'Add to which list?' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Add to which list?' })).toBeInTheDocument()
+  })
+
+  it('every row shows a selection circle — empty when off, checked when on — and is exposed as pressed/not', async () => {
+    await renderAndSettle(draft())
+    const wishlist = screen.getByRole('button', { name: 'Wishlist' })
+    expect(wishlist).toHaveAttribute('aria-pressed', 'false')
+    expect(wishlist.querySelector('.list-row-circle')).toBeInTheDocument()
+    expect(wishlist.querySelector('.list-row-circle')!.textContent).toBe('')
+
+    await userEvent.click(wishlist)
+    expect(wishlist).toHaveAttribute('aria-pressed', 'true')
+    expect(wishlist.querySelector('.list-row-circle')!.textContent).toBe('✓')
+  })
+
+  it('the hint sits with the picker (above the action bar) and says what is needed', async () => {
+    await renderAndSettle(draft())
+    const hint = screen.getByText('Pick at least one list to save.')
+    const save = screen.getByRole('button', { name: 'Save to Collection' })
+    // Document order: the hint comes before the Save button, not after it.
+    expect(hint.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Cellar' }))
+    expect(screen.queryByText('Pick at least one list to save.')).not.toBeInTheDocument()
+  })
+
+  it('a disabled Save reads as inactive (outline), an enabled one as the primary action', async () => {
+    await renderAndSettle(draft())
+    const save = screen.getByRole('button', { name: 'Save to Collection' })
+    expect(save).toBeDisabled()
+    expect(save.className).toMatch(/btn-save--inactive/)
+    await userEvent.click(screen.getByRole('button', { name: 'Cellar' }))
+    expect(save).toBeEnabled()
+    expect(save.className).not.toMatch(/btn-save--inactive/)
+  })
+
+  it('Save and Discard live in the card’s own action bar, kept on screen by CSS sticky positioning', async () => {
+    const { container } = await renderAndSettle(draft())
+    const bar = container.querySelector('.scan-result-actions')!
+    expect(bar).toContainElement(screen.getByRole('button', { name: 'Save to Collection' }))
+    expect(bar).toContainElement(screen.getByRole('button', { name: 'Discard' }))
+    const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8')
+    expect(css).toMatch(/\.scan-enriching-card \.scan-result-actions\s*\{[^}]*position:\s*sticky/)
+  })
+})
+
+// Phase 12.1 — WI-4: the critic and price blocks never vanish
+describe('DiscoveryReview — states (WI-4)', () => {
+  it('a scan whose lookups are under way reads "Looking…" for both blocks', async () => {
+    mockFetchReviews.mockReturnValue(new Promise(() => {}))
+    mockFetchPrice.mockReturnValue(new Promise(() => {}))
+    render(
+      <DiscoveryReview
+        wine={makeWine({ promoted_at: null })}
+        autoFireReviews
+        onDone={() => {}}
+        onTagUpdate={() => {}}
+        onWineUpdated={() => {}}
+      />
+    )
+    expect(await screen.findByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(await screen.findByText('Looking up prices…')).toBeInTheDocument()
+  })
+
+  it('a finished review lookup with no scores says so — the block does not disappear', async () => {
+    await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: [] }))
+    expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search more retailers' })).toBeInTheDocument()
+  })
+
+  it('a failed review lookup says so and offers Try again', async () => {
+    mockFetchReviews.mockRejectedValue(new Error('Review lookup failed'))
+    render(
+      <DiscoveryReview
+        wine={makeWine({ promoted_at: null, price_data: makePriceData([]) })}
+        autoFireReviews
+        onDone={() => {}}
+        onTagUpdate={() => {}}
+        onWineUpdated={() => {}}
+      />
+    )
+    expect(await screen.findByText(/Review lookup failed —/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('shows Price & retailers with the nearest retailer as a link and the rest collapsed', async () => {
+    const data = makePriceData([makeRetailer(), makeRetailer({ slug: 'zachys', name: 'Zachys' })])
+    await renderAndSettle(makeWine({ price_data: data }))
+    expect(screen.getByRole('heading', { name: 'Price & retailers' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'K&L Wine Merchants' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1 more retailer' })).toBeInTheDocument()
+    expect(screen.queryByText('Zachys')).not.toBeInTheDocument()
   })
 })

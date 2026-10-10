@@ -6,6 +6,11 @@ import { LabelScanFlow } from './LabelScanFlow'
 import { scanLabel, createWine, deleteWine, updateWine, fetchWinePrice, fetchWineReviews } from '../api'
 import type { LabelScanResult } from '../api'
 
+// The "Scan successful — pulling details" hold (Phase 12.1 WI-5) is covered by
+// LabelScanFlow.interstitial.test.tsx; everything else here is about what
+// follows it, so the hold is zero.
+vi.mock('../constants', () => ({ PREVIEW_HOLD_MS: 0 }))
+
 vi.mock('../api', () => ({
   scanLabel: vi.fn(),
   createWine: vi.fn(),
@@ -64,6 +69,7 @@ function makeWine(overrides: Partial<WineEntry> = {}): WineEntry {
     latest_tasting_note_id: null,
     wishlist_notes: null,
     price_paid: null,
+    manual_price: null,
     purchased_from: null,
     date_added: '2026-08-19T00:00:00.000Z',
     date_first_consumed: null,
@@ -121,7 +127,7 @@ describe('LabelScanFlow — draft creation on parse (WI-1)', () => {
     render(<LabelScanFlow wines={[]} onReview={() => {}} onDone={() => {}} />)
     await uploadAFile()
 
-    await waitFor(() => expect(mockFetchPrice).toHaveBeenCalledWith('wine-1', undefined))
+    await waitFor(() => expect(mockFetchPrice).toHaveBeenCalledWith('wine-1'))
     expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { tier: 'primary' })
   })
 

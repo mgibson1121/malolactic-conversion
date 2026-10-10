@@ -20,6 +20,13 @@ export function claimPriceOnce(wine: Pick<WineEntry, 'id' | 'price_data'>): bool
   return true
 }
 
+/** True once this wine has been claimed this session — a read, no claim. The
+ * preview uses it to show "Looking up prices…" for a wine whose automatic
+ * price lookup is about to start, without waiting for the effect that starts it. */
+export function hasAttemptedPrice(id: string): boolean {
+  return attempted.has(id)
+}
+
 /** Tests only. */
 export function resetPriceOnce(): void {
   attempted.clear()
