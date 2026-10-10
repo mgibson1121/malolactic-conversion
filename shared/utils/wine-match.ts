@@ -62,6 +62,23 @@ export function identityOf(wine: {
   }
 }
 
+/**
+ * A stable string for "which wine is this": the six identity fields, folded
+ * and punctuation-stripped so a casing or accent edit does not read as a
+ * change. Phase 12.1 stamps it on price_data / review_data as `enriched_for`
+ * when they are fetched, and the server compares it with the wine's current
+ * key to say whether stored enrichment was fetched for a different version of
+ * the wine (a stale-data notice, never a rejection).
+ */
+export function identityKey(wine: Parameters<typeof identityOf>[0]): string {
+  const id = identityOf(wine)
+  const fold = (v: string | number | null | undefined) =>
+    v == null ? '' : normalize(String(v)).split(/\s+/).filter(Boolean).join(' ')
+  return [id.producer, id.denomination, id.vintage, id.cuvee, id.vineyard, id.quality_classification]
+    .map(fold)
+    .join('|')
+}
+
 export const STOPWORDS = new Set([
   'domaine', 'chateau', 'château', 'maison', 'clos', 'les', 'le', 'la', 'du',
   'de', 'des', 'et', 'fils', 'wine', 'wines', 'winery', 'estate', 'cellars',
