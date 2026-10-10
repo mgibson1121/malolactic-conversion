@@ -47,6 +47,9 @@ export function buildCriticSummary(
         trusted: isTrusted,
         tier: tierOf(sameVintage, isTrusted),
         known_publication: score.known_publication === true,
+        drinking_window: score.drinking_window ?? null,
+        vintage_character: score.vintage_character ?? null,
+        deal: score.deal === true,
         order: order++,
       })
     }

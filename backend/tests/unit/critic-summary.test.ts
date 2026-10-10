@@ -49,7 +49,10 @@ describe('buildCriticSummary (Phase 12.1 WI-10, D13)', () => {
   it('a page with no stated vintage is not-same, untagged, never rejected', () => {
     const s = buildCriticSummary([review('a', null, [score('Vinous', 93)])], 2019)
     expect(s.ordered).toEqual([
-      { publication: 'Vinous', score: 93, vintage: null, same_vintage: false, trusted: true, tier: 3, known_publication: true },
+      {
+        publication: 'Vinous', score: 93, vintage: null, same_vintage: false, trusted: true, tier: 3,
+        known_publication: true, drinking_window: null, vintage_character: null, deal: false,
+      },
     ])
   })
 
@@ -92,6 +95,11 @@ describe('buildCriticSummary (Phase 12.1 WI-10, D13)', () => {
   it('does not average or alter scores', () => {
     const rd = [review('a', 2019, [score('Vinous', 93), score('Burghound', 91)])]
     expect(buildCriticSummary(rd, 2019).ordered.map((i) => i.score)).toEqual([93, 91])
+  })
+
+  it('carries each citation Phase 8 attributes through to the summary', () => {
+    const s = buildCriticSummary([review('a', 2019, [score('Vinous', 93, { window: [2028, 2040] })])], 2019)
+    expect(s.ordered[0].drinking_window).toEqual({ start: 2028, end: 2040 })
   })
 
   it('is empty for no review data', () => {

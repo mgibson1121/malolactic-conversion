@@ -223,6 +223,22 @@ export interface CriticSummaryItem {
   // 1 same vintage + trusted · 2 same vintage · 3 trusted · 4 the rest.
   tier: 1 | 2 | 3 | 4
   known_publication: boolean
+  // The same citation's Phase 8 attributes, carried through so a client never
+  // has to look back into review_data to render a score. Null / false when
+  // the source did not state them.
+  drinking_window: CriticDrinkingWindow | null
+  vintage_character: VintageRating | null
+  deal: boolean
+}
+
+/**
+ * Why a price lookup that found listings has no average. See
+ * shared/utils/price-exclusions.ts. `sentence` is the whole line to show.
+ */
+export interface PriceExclusions {
+  found: number
+  reasons: string[]
+  sentence: string
 }
 
 /** A wine's critic scores in display order; the first is the card badge. */
@@ -359,6 +375,8 @@ export interface WineEntry {
   // A blob with no stamp (everything stored before this phase) is unknown,
   // not stale. Computed here so no client ports the identity rules.
   enrichment_stale?: { price: boolean; reviews: boolean }
+  // Phase 12.1 (WI-4) — non-null only when listings were found but none counted.
+  price_exclusions?: PriceExclusions | null
 }
 
 export interface TastingNote {
@@ -414,9 +432,9 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale'>>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions'>>
 // The identity snapshot is copied from the wine by the adapter at save time,
 // never supplied by a client.
 export type CreateTastingNoteInput = Omit<

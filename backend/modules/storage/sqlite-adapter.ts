@@ -16,6 +16,7 @@ import type {
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
+import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { windowStatusOf } from '@shared/utils/window-status'
 import type { StorageAdapter } from './interface'
 
@@ -201,6 +202,7 @@ function rowToWine(row: WineRow): WineEntry {
       price_data: priceData,
       review_data: reviewData,
     }),
+    price_exclusions: describePriceExclusions(priceData),
   }
 }
 
