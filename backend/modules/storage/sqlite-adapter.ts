@@ -17,7 +17,7 @@ import type {
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { buildReviewLadder } from '@shared/utils/review-ladder'
 import { buildBottlingPrompt } from '@shared/utils/bottling-prompt'
-import type { BottlingWine } from '@shared/utils/bottling-difference'
+import { bottlingWineOf, type BottlingWine } from '@shared/utils/bottling-difference'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { windowStatusOf } from '@shared/utils/window-status'
@@ -151,17 +151,11 @@ function rowToWine(row: WineRow): WineEntry {
   const priceData = fromJson<WineEntry['price_data']>(row.price_data, null)
   const reviewData = fromJson<WineEntry['review_data']>(row.review_data, null)
 
-  const bottlingWine: BottlingWine = {
-    producer: row.producer ?? '',
-    denomination: row.denomination ?? '',
-    vintage: row.vintage,
-    cuvee: row.cuvee,
-    vineyard: row.vineyard,
-    quality_classification: row.quality_classification,
-    region: row.region,
+  const bottlingWine: BottlingWine = bottlingWineOf({
+    ...row,
     grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
     bottling_plain: row.bottling_plain == null ? null : row.bottling_plain === 1,
-  }
+  })
   const reviewLadder = buildReviewLadder(reviewData, bottlingWine)
 
   return {

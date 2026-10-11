@@ -20,7 +20,8 @@ export function review(
   slug: string,
   pageVintage: number | null,
   scores: CriticScore[],
-  vintageVerdict: 'match' | 'mismatch' | 'unknown' = pageVintage === null ? 'unknown' : 'match'
+  vintageVerdict: 'match' | 'mismatch' | 'unknown' = pageVintage === null ? 'unknown' : 'match',
+  overrides: Partial<RetailerReview> = {}
 ): RetailerReview {
   return {
     slug,
@@ -40,5 +41,6 @@ export function review(
       vintageGap: null,
     },
     page_price: null,
+    ...overrides,
   }
 }

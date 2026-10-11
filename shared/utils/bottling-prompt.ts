@@ -22,9 +22,7 @@ interface PromptInput {
  * modifier signature so only a refresh that brings *different* modifiers asks
  * again. Presents one option per modifier found, with the evidence for it.
  */
-export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
-  if (input.bottling_plain) return null
-
+export function bottlingOptions(input: Pick<PromptInput, 'wine' | 'price_data' | 'review_data'>): BottlingOption[] {
   const options = new Map<string, BottlingOption>()
   const option = (words: string[]): BottlingOption => {
     const name = modifierName(words)
@@ -61,7 +59,17 @@ export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
     for (const s of review.critic_scores ?? []) if (!o.critics.includes(s.publication)) o.critics.push(s.publication)
   }
 
-  const list = [...options.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  return [...options.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
+/** The modifiers a prompt was raised for, as a stable string (stored when answered or dismissed). */
+export function bottlingSignature(options: BottlingOption[]): string {
+  return options.map(o => o.name.toLowerCase()).sort().join('|')
+}
+
+export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
+  if (input.bottling_plain) return null
+  const list = bottlingOptions(input)
 
   const reasons: BottlingPrompt['reasons'] = []
   if (list.length >= 2) reasons.push('modifiers')
@@ -69,8 +77,13 @@ export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
   if (input.review_ladder.tier === '3a' || input.review_ladder.tier === '3b') reasons.push('tier3')
   if (reasons.length === 0) return null
 
-  const signature = list.map(o => o.name.toLowerCase()).sort().join('|')
-  if (input.bottling_prompt_dismissed != null && input.bottling_prompt_dismissed === signature) return null
+  const signature = bottlingSignature(list)
+  // Asked and answered (or dismissed) for these modifiers: quiet until a
+  // refresh brings one that was not among them.
+  if (input.bottling_prompt_dismissed != null) {
+    const known = new Set(input.bottling_prompt_dismissed.split('|').filter(Boolean))
+    if (list.every(o => known.has(o.name.toLowerCase()))) return null
+  }
 
   return { reasons, options: list, signature }
 }

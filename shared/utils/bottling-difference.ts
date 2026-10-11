@@ -188,3 +188,28 @@ export function bottlingBadge(d: BottlingDifference): string | null {
   if (d.missing.length > 0) return `Doesn't name ${modifierName(d.missing)} — yours does`
   return null
 }
+
+/** The fields a bottling judgement reads, from a wine (or a database row). */
+export function bottlingWineOf(wine: {
+  producer: string | null
+  denomination: string | null
+  vintage: number | null
+  cuvee: string | null
+  vineyard: string | null
+  quality_classification: string | null
+  region?: string | null
+  grape_varieties?: string[] | null
+  bottling_plain?: boolean | null
+}): BottlingWine {
+  return {
+    producer: wine.producer ?? '',
+    denomination: wine.denomination ?? '',
+    vintage: wine.vintage,
+    cuvee: wine.cuvee,
+    vineyard: wine.vineyard,
+    quality_classification: wine.quality_classification,
+    region: wine.region ?? null,
+    grape_varieties: wine.grape_varieties ?? null,
+    bottling_plain: wine.bottling_plain ?? null,
+  }
+}
