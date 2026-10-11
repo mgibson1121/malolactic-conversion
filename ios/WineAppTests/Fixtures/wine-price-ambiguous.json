@@ -1,0 +1,205 @@
+{
+  "id": "d8bad9eb-4ac0-427e-959e-4f0829e1ac27",
+  "producer": "Vietti",
+  "denomination": "Barolo",
+  "vintage": 2021,
+  "region": "Burgundy",
+  "quality_classification": "Premier Cru",
+  "vineyard": "Les Amoureuses",
+  "cuvee": null,
+  "grape_varieties": [
+    "Pinot Noir"
+  ],
+  "wine_color": "red",
+  "label_image_url": null,
+  "tag_discovered": false,
+  "tag_wishlist": false,
+  "tag_cellar": true,
+  "tag_consumed": false,
+  "cellar_category": null,
+  "cellar_quantity": 3,
+  "drinking_window": {
+    "start": "2026-01-01",
+    "end": "2038-12-31"
+  },
+  "drinking_window_source": "manual",
+  "vintage_rating": "very_good",
+  "vintage_rating_source": "manual",
+  "my_rating": "outstanding",
+  "my_tags": [
+    "silky",
+    "floral"
+  ],
+  "latest_tasting_note_id": null,
+  "wishlist_notes": null,
+  "price_paid": 640,
+  "manual_price": null,
+  "purchased_from": "Zachys",
+  "advice_linked": null,
+  "expert_reviews": null,
+  "community_sentiment": null,
+  "community_excerpts": null,
+  "price_data": {
+    "price_min": null,
+    "price_avg": null,
+    "price_max": null,
+    "other_vintage_price_range": null,
+    "retailers": [
+      {
+        "slug": "s0",
+        "name": "Shop 0",
+        "price": 74.99,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      },
+      {
+        "slug": "s1",
+        "name": "Shop 1",
+        "price": 149,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      },
+      {
+        "slug": "s2",
+        "name": "Shop 2",
+        "price": 199.99,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      },
+      {
+        "slug": "s3",
+        "name": "Shop 3",
+        "price": 229,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      },
+      {
+        "slug": "s4",
+        "name": "Shop 4",
+        "price": 245,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified"
+      }
+    ],
+    "nearest_retailer": {
+      "slug": "s0",
+      "name": "Shop 0",
+      "price": 74.99,
+      "url": "https://www.zachys.com/products/amoureuses-2019",
+      "distance_miles": 21.4,
+      "is_preferred_retailer": true,
+      "is_search_results_page": false,
+      "matched_vintage": 2019,
+      "vintage_mismatch": false,
+      "vintage_verdict": "match",
+      "pack_quantity": 1,
+      "bottle_size_ml": null,
+      "non_standard_format": false,
+      "format_label": "",
+      "link_only": false,
+      "verification": "verified"
+    },
+    "fetched_at": "2026-10-11T17:35:41.927Z",
+    "excluded": {
+      "other_vintage": 0,
+      "pack": 0,
+      "non_standard_format": 0,
+      "suspected_large_format": 0,
+      "link_only": 0,
+      "outlier": 0
+    },
+    "normalized": 0,
+    "headline_basis": "ambiguous",
+    "price_groups": [
+      {
+        "min": 74.99,
+        "max": 74.99,
+        "retailers": [
+          "s0"
+        ]
+      },
+      {
+        "min": 149,
+        "max": 245,
+        "retailers": [
+          "s1",
+          "s2",
+          "s3",
+          "s4"
+        ]
+      }
+    ],
+    "headline_estimated": false
+  },
+  "retailer_links": null,
+  "review_data": null,
+  "review_probe_log": null,
+  "date_added": "2026-10-11T17:35:41.927Z",
+  "date_first_consumed": null,
+  "promoted_at": "2026-10-01T00:00:00.000Z",
+  "latest_tasting_note_date": null,
+  "window_status": "primary",
+  "critic_summary": {
+    "ordered": []
+  },
+  "enrichment_stale": {
+    "price": false,
+    "reviews": false
+  },
+  "price_exclusions": null
+}

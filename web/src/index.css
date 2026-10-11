@@ -2513,3 +2513,12 @@ summary.link { display: inline-block; font-size: 12px; }
 .removed-notes { margin-top: 24px; }
 .removed-notes-title { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; }
 .wine-removed-tag { margin-left: 6px; }
+
+/* Phase 12.2: counted packs, estimated headline, ambiguous price split */
+.format-badge--counted { border-color: var(--accent-2); }
+.price-per-bottle { color: var(--text-muted, inherit); font-size: 0.9em; }
+.price-estimated { font-size: 0.8em; font-style: italic; color: var(--text-muted, inherit); margin-left: 6px; }
+.price-single-listing { font-size: 0.85em; color: var(--text-muted, inherit); margin: 4px 0; }
+.price-group-list { list-style: none; padding: 0; margin: 4px 0; display: flex; gap: 16px; flex-wrap: wrap; }
+.price-group { display: flex; flex-direction: column; }
+.price-group-count { font-size: 0.8em; color: var(--text-muted, inherit); }

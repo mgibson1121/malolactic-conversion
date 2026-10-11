@@ -133,6 +133,51 @@ struct RetailerReview: Codable, Hashable {
     }
 }
 
+/// A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7).
+struct NormalizedFormat: Codable, Hashable {
+    enum Kind: String, Codable { case pack, `case`, magnum }
+    var kind: Kind
+    var divisor: Int
+    var source: String
+    var shelfPrice: Double
+
+    enum CodingKeys: String, CodingKey {
+        case kind, divisor, source
+        case shelfPrice = "shelf_price"
+    }
+}
+
+/// One side of an ambiguous price split (Phase 12.2 D10).
+struct PriceGroup: Codable, Hashable {
+    var min: Double
+    var max: Double
+    var retailers: [String]
+}
+
+/// Why listings were kept out of the headline (Phase 12.2 WI-1).
+struct PriceExcludedCounts: Codable, Hashable {
+    var otherVintage: Int
+    var pack: Int
+    var nonStandardFormat: Int
+    var suspectedLargeFormat: Int
+    var linkOnly: Int
+    var outlier: Int
+
+    enum CodingKeys: String, CodingKey {
+        case otherVintage = "other_vintage"
+        case pack
+        case nonStandardFormat = "non_standard_format"
+        case suspectedLargeFormat = "suspected_large_format"
+        case linkOnly = "link_only"
+        case outlier
+    }
+}
+
+enum HeadlineBasis: String, Codable {
+    case singleListing = "single_listing"
+    case multiple, ambiguous, none
+}
+
 struct RetailerPrice: Codable, Hashable {
     var slug: String
     var name: String
@@ -150,9 +195,17 @@ struct RetailerPrice: Codable, Hashable {
     var formatLabel: String
     var linkOnly: Bool
     var verification: VerificationState
+    /// Phase 12.2: set only when the format is certain, see `NormalizedFormat`.
+    var normalized: NormalizedFormat?
+    var pricePer750: Double?
+    var suspectedLargeFormat: Bool?
+    var otherStorefront: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case slug, name, price, url
+        case slug, name, price, url, normalized
+        case pricePer750 = "price_per_750"
+        case suspectedLargeFormat = "suspected_large_format"
+        case otherStorefront = "other_storefront"
         case distanceMiles = "distance_miles"
         case isPreferredRetailer = "is_preferred_retailer"
         case isSearchResultsPage = "is_search_results_page"
@@ -169,7 +222,9 @@ struct RetailerPrice: Codable, Hashable {
     init(slug: String, name: String, price: Double?, url: String, distanceMiles: Double,
          isPreferredRetailer: Bool, isSearchResultsPage: Bool, matchedVintage: Int?, vintageMismatch: Bool,
          vintageVerdict: MatchDimension, packQuantity: Int, bottleSizeMl: Int?, nonStandardFormat: Bool,
-         formatLabel: String, linkOnly: Bool, verification: VerificationState) {
+         formatLabel: String, linkOnly: Bool, verification: VerificationState,
+         normalized: NormalizedFormat? = nil, pricePer750: Double? = nil,
+         suspectedLargeFormat: Bool? = nil, otherStorefront: Bool? = nil) {
         self.slug = slug
         self.name = name
         self.price = price
@@ -186,6 +241,10 @@ struct RetailerPrice: Codable, Hashable {
         self.formatLabel = formatLabel
         self.linkOnly = linkOnly
         self.verification = verification
+        self.normalized = normalized
+        self.pricePer750 = pricePer750
+        self.suspectedLargeFormat = suspectedLargeFormat
+        self.otherStorefront = otherStorefront
     }
 
     /// `price_data` is stored JSON, written by whichever phase last fetched
@@ -211,6 +270,10 @@ struct RetailerPrice: Codable, Hashable {
         formatLabel = try c.decodeIfPresent(String.self, forKey: .formatLabel) ?? ""
         linkOnly = try c.decodeIfPresent(Bool.self, forKey: .linkOnly) ?? false
         verification = try c.decodeIfPresent(VerificationState.self, forKey: .verification) ?? .unchecked
+        normalized = try c.decodeIfPresent(NormalizedFormat.self, forKey: .normalized)
+        pricePer750 = try c.decodeIfPresent(Double.self, forKey: .pricePer750)
+        suspectedLargeFormat = try c.decodeIfPresent(Bool.self, forKey: .suspectedLargeFormat)
+        otherStorefront = try c.decodeIfPresent(Bool.self, forKey: .otherStorefront)
     }
 }
 
@@ -229,8 +292,19 @@ struct PriceData: Codable, Hashable {
     var retailers: [RetailerPrice]
     var nearestRetailer: RetailerPrice?
     var fetchedAt: String
+    /// Phase 12.2 WI-1, absent on blobs fetched before it.
+    var excluded: PriceExcludedCounts?
+    var normalizedCount: Int?
+    var headlineBasis: HeadlineBasis?
+    var priceGroups: [PriceGroup]?
+    var headlineEstimated: Bool?
 
     enum CodingKeys: String, CodingKey {
+        case excluded
+        case normalizedCount = "normalized"
+        case headlineBasis = "headline_basis"
+        case priceGroups = "price_groups"
+        case headlineEstimated = "headline_estimated"
         case priceMin = "price_min"
         case priceAvg = "price_avg"
         case priceMax = "price_max"
@@ -240,7 +314,14 @@ struct PriceData: Codable, Hashable {
         case fetchedAt = "fetched_at"
     }
     init(priceMin: Double?, priceAvg: Double?, priceMax: Double?, otherVintagePriceRange: PriceRange?,
-         retailers: [RetailerPrice], nearestRetailer: RetailerPrice?, fetchedAt: String) {
+         retailers: [RetailerPrice], nearestRetailer: RetailerPrice?, fetchedAt: String,
+         excluded: PriceExcludedCounts? = nil, normalizedCount: Int? = nil, headlineBasis: HeadlineBasis? = nil,
+         priceGroups: [PriceGroup]? = nil, headlineEstimated: Bool? = nil) {
+        self.excluded = excluded
+        self.normalizedCount = normalizedCount
+        self.headlineBasis = headlineBasis
+        self.priceGroups = priceGroups
+        self.headlineEstimated = headlineEstimated
         self.priceMin = priceMin
         self.priceAvg = priceAvg
         self.priceMax = priceMax
@@ -259,6 +340,11 @@ struct PriceData: Codable, Hashable {
         retailers = try c.decodeIfPresent([RetailerPrice].self, forKey: .retailers) ?? []
         nearestRetailer = try c.decodeIfPresent(RetailerPrice.self, forKey: .nearestRetailer)
         fetchedAt = try c.decodeIfPresent(String.self, forKey: .fetchedAt) ?? ""
+        excluded = try c.decodeIfPresent(PriceExcludedCounts.self, forKey: .excluded)
+        normalizedCount = try c.decodeIfPresent(Int.self, forKey: .normalizedCount)
+        headlineBasis = try c.decodeIfPresent(HeadlineBasis.self, forKey: .headlineBasis)
+        priceGroups = try c.decodeIfPresent([PriceGroup].self, forKey: .priceGroups)
+        headlineEstimated = try c.decodeIfPresent(Bool.self, forKey: .headlineEstimated)
     }
 }
 

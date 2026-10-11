@@ -15,6 +15,7 @@ import Database from 'better-sqlite3'
 import { SQLiteAdapter } from '../modules/storage/sqlite-adapter'
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { effectivePrice } from '@shared/utils/effective-price'
+import { aggregatePriceData } from '../modules/price/aggregate'
 import type { CreateWineInput, PriceData, RetailerPrice, RetailerReview } from '@shared/types'
 
 const OUT_DIR = path.resolve(__dirname, '../../ios/WineAppTests/Fixtures')
@@ -184,6 +185,26 @@ async function main() {
     },
   })
 
+  // Phase 12.2: a certain six-pack counted at a per-bottle price (headline
+  // estimated), and prices too far apart for one average (headline ambiguous).
+  const packed = await storage.createWine({ ...BASE, producer: 'Domaine du Pavillon', denomination: 'Pommard 1er Cru', vintage: 2019 })
+  await storage.updateWine(packed.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z',
+    price_data: aggregatePriceData([
+      retailer({
+        slug: 'saratoga', name: 'Saratoga Wine', price: 946.32, non_standard_format: true, pack_quantity: 6, format_label: '6-pack',
+        normalized: { kind: 'pack', divisor: 6, source: 'page', shelf_price: 946.32 }, price_per_750: 157.72,
+      }),
+    ]) as PriceData,
+  })
+  const split = await storage.createWine({ ...BASE, producer: 'Vietti', denomination: 'Barolo', vintage: 2021 })
+  await storage.updateWine(split.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z',
+    price_data: aggregatePriceData(
+      [74.99, 149, 199.99, 229, 245].map((price, i) => retailer({ slug: `s${i}`, name: `Shop ${i}`, price }))
+    ) as PriceData,
+  })
+
   // A note whose wine was deleted: it outlives the wine (migration 008).
   const doomed = await storage.createWine({ ...BASE, producer: 'Georges Roumier', denomination: 'Chambolle-Musigny', vintage: 2018 })
   await storage.updateWine(doomed.id, { tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z' })
@@ -215,6 +236,8 @@ async function main() {
     'wine-list.json': [listed],
     'wine-check-window.json': await storage.getWine(check.id),
     'wine-manual-price.json': await storage.getWine(mine.id),
+    'wine-price-normalized.json': await storage.getWine(packed.id),
+    'wine-price-ambiguous.json': await storage.getWine(split.id),
     'tasting-note-removed.json': await storage.getTastingNote(detached.id),
     'tasting-notes-all.json': await storage.listTastingNotes(),
     'effective-price-cases.json': priceCases,

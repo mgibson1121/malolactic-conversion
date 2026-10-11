@@ -196,7 +196,12 @@ struct RetailerRow: View {
                     }
                     Spacer()
                     if !retailer.linkOnly, let price = WineFormatting.price(retailer.price) {
-                        Text(price).font(AppFont.body().monospacedDigit()).foregroundStyle(Theme.text)
+                        // A counted pack, case or magnum shows the shelf price and the per-bottle figure.
+                        if retailer.normalized != nil, let each = WineFormatting.price(retailer.pricePer750) {
+                            Text("\(price) · \(each) a bottle").font(AppFont.body().monospacedDigit()).foregroundStyle(Theme.text)
+                        } else {
+                            Text(price).font(AppFont.body().monospacedDigit()).foregroundStyle(Theme.text)
+                        }
                     }
                     if isResolving {
                         ProgressView().controlSize(.mini)
