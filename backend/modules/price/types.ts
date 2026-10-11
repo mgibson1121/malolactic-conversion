@@ -77,6 +77,9 @@ export interface RetailerResult {
   normalized?: NormalizedFormat | null
   price_per_750?: number | null
   suspected_large_format?: boolean
+  // Phase 12.2 WI-6 — a product page from another storefront of the same shop
+  // (Flatiron's sf. site). Counted for price, but never the "nearest" store.
+  other_storefront?: boolean
 }
 
 /**

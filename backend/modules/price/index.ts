@@ -5,6 +5,7 @@ import { renderPageHtml } from './puppeteer-extract'
 import { pageShowsNoResults, pageMentionsProducer } from './verify-listing'
 import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
 import { buildDistinguishingQuery, identityOf } from '@shared/utils/wine-match'
+import { sameRegistrableDomain } from '@shared/utils/registrable-domain'
 import { haversineDistanceMiles } from './proximity'
 import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
 import { aggregatePriceData } from './aggregate'
@@ -63,7 +64,7 @@ function isRetailerOwnPage(retailer: RetailerResult): boolean {
   const config = RETAILER_CONFIG.find(r => r.slug === retailer.slug)
   if (!config) return false
   try {
-    return new URL(retailer.url).hostname.toLowerCase().endsWith(config.domain.toLowerCase())
+    return sameRegistrableDomain(new URL(retailer.url).hostname, config.domain)
   } catch {
     return false
   }
@@ -201,6 +202,14 @@ function buildKlLinkOnlyResult(wine: WineEntry): RetailerResult | null {
  * and verify-listing is not run against them: the page was already rendered
  * successfully by the module that found it.
  */
+function hostIs(url: string, host: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '') === host.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
 function confirmedPageResults(
   pages: ConfirmedProductPage[],
   existing: RetailerResult[]
@@ -212,6 +221,12 @@ function confirmedPageResults(
     if (seen.has(page.slug)) continue
     seen.add(page.slug)
     const configured = RETAILER_CONFIG.find(r => r.slug === page.slug)
+    // A product page on a different storefront of the same shop (Flatiron's
+    // sf. site) is evidence the shop carries the wine and at what price, but
+    // not that it is the *nearest* — it can't win that (aggregatePriceData).
+    const otherStorefront = configured?.storefrontHost
+      ? !hostIs(page.product_url, configured.storefrontHost)
+      : false
     results.push({
       slug: page.slug,
       name: page.name,
@@ -240,6 +255,7 @@ function confirmedPageResults(
       // re-rendering it here to confirm what it just confirmed would spend a
       // second Puppeteer launch for nothing. The price came off that render.
       verification: page.price === null ? 'unchecked' : 'verified',
+      ...(otherStorefront ? { other_storefront: true } : {}),
     })
   }
 

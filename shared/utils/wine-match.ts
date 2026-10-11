@@ -280,7 +280,26 @@ export interface MatchVerdict {
 /** Parses a plausible vintage year (1900–2099) out of free text or a URL. */
 export function extractVintage(text: string): number | null {
   const match = text.match(/\b(19\d{2}|20\d{2})\b/)
-  return match ? parseInt(match[0], 10) : null
+  if (match) return parseInt(match[0], 10)
+  return extractTypoedVintage(text)
+}
+
+/**
+ * A year with one letter "o" standing in for a zero (Phase 12.2 WI-5). Joseph
+ * Colin's Saint-Aubin En Remilly page on Flatiron is slugged `...-2o24-...`, so
+ * the strict year pattern read nothing and the listing had no vintage at all.
+ * Tolerant on purpose and narrow: a 4-character token that is a plausible year
+ * once exactly one `o`/`O` (never the first character) is read as `0`. A year
+ * that still cannot be read is `unknown`, never `mismatch`.
+ */
+function extractTypoedVintage(text: string): number | null {
+  for (const token of text.match(/\b[12][0-9oO]{3}\b/g) ?? []) {
+    const letters = token.match(/[oO]/g)
+    if (!letters || letters.length !== 1) continue
+    const year = parseInt(token.replace(/[oO]/, '0'), 10)
+    if ((year >= 1900 && year <= 2099)) return year
+  }
+  return null
 }
 
 /** all present → match · none present → mismatch · some present → unknown */

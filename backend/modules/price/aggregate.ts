@@ -253,11 +253,15 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
       : null
 
   // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
-  const preferred = eligibleForStats.filter(r => r.is_preferred_retailer)
+  // A product page from another storefront of the same shop can't be the
+  // nearest store (Phase 12.2 WI-6) — unless it is all there is.
+  const here = eligibleForStats.filter(r => !r.other_storefront)
+  const nearestPool = here.length > 0 ? here : eligibleForStats
+  const preferred = nearestPool.filter(r => r.is_preferred_retailer)
   const nearest_retailer =
     preferred.length > 0
       ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
-      : eligibleForStats[0] ?? null
+      : nearestPool[0] ?? null
 
   return {
     price_min,

@@ -117,6 +117,9 @@ export interface RetailerPrice {
   // the median of three or more comparable listings and nothing the system
   // could read states its size, so it is kept out of the average and labelled.
   suspected_large_format?: boolean
+  // Phase 12.2 WI-6 — a product page from another storefront of the same shop
+  // (Flatiron's sf. site). Counted for price, never the nearest store.
+  other_storefront?: boolean
 }
 
 /** A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7). */
