@@ -1,5 +1,5 @@
 {
-  "id": "6742f13e-993d-494b-be24-bf4917182074",
+  "id": "31620d99-07b0-4339-b64a-1aafb0b0d69c",
   "producer": "Bollinger",
   "denomination": null,
   "vintage": null,
@@ -26,6 +26,8 @@
   "wishlist_notes": null,
   "price_paid": null,
   "manual_price": null,
+  "bottling_plain": null,
+  "bottling_prompt_dismissed": null,
   "purchased_from": null,
   "advice_linked": null,
   "expert_reviews": null,
@@ -35,7 +37,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-10-11T17:35:41.926Z",
+  "date_added": "2026-10-11T18:01:07.282Z",
   "date_first_consumed": null,
   "promoted_at": null,
   "latest_tasting_note_date": null,
@@ -47,5 +49,11 @@
     "price": false,
     "reviews": false
   },
-  "price_exclusions": null
+  "price_exclusions": null,
+  "review_ladder": {
+    "tier": "none",
+    "rungs": [],
+    "pages": []
+  },
+  "bottling_prompt": null
 }

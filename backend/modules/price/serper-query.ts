@@ -13,6 +13,7 @@ import {
 } from '@shared/utils/wine-match'
 import { extractPackFormat, isNonStandardFormat, describeFormat, normalizationFor } from './pack-format'
 import { serperFetch } from '@shared/utils/serper-client'
+import { bottlingDifference, isExactBottling, type BottlingDifference, type BottlingWine } from '@shared/utils/bottling-difference'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — the implementation now lives in
@@ -65,6 +66,8 @@ function parsePriceString(price?: string): number | null {
 interface ScoredItem {
   item: SerperShoppingItem
   verdict: MatchVerdict
+  // Phase 12.2 — what the title says about the bottling, both directions (D8).
+  difference: BottlingDifference
 }
 
 function itemToRetailerResult(
@@ -74,7 +77,7 @@ function itemToRetailerResult(
   linkQuery: string,
   ownNames: Array<string | null | undefined>
 ): RetailerResult {
-  const { item, verdict } = scored
+  const { item, verdict, difference } = scored
   const pack_format = extractPackFormat(item.title, ownNames)
   const price = item.priceRaw ?? parsePriceString(item.price)
   return {
@@ -108,6 +111,10 @@ function itemToRetailerResult(
     // A certain six-pack / case / magnum stated in this title is counted at a
     // 750 ml-equivalent price (Phase 12.2 WI-1, D7).
     ...normalizationFor(pack_format, price, 'title'),
+    // Labelled in both directions and counted until the developer answers
+    // "Which bottling is yours?" (Phase 12.2 D8/D10).
+    listing_title: item.title,
+    bottling_difference: { extra: difference.extra, missing: difference.missing },
   }
 }
 
@@ -136,7 +143,7 @@ function buildFallbackResult(
   linkQuery: string,
   ownNames: Array<string | null | undefined>
 ): RetailerResult {
-  const { item, verdict } = scored
+  const { item, verdict, difference } = scored
   const pack_format = extractPackFormat(item.title, ownNames)
   const price = item.priceRaw ?? parsePriceString(item.price)
   return {
@@ -164,6 +171,10 @@ function buildFallbackResult(
     // A certain six-pack / case / magnum stated in this title is counted at a
     // 750 ml-equivalent price (Phase 12.2 WI-1, D7).
     ...normalizationFor(pack_format, price, 'title'),
+    // Labelled in both directions and counted until the developer answers
+    // "Which bottling is yours?" (Phase 12.2 D8/D10).
+    listing_title: item.title,
+    bottling_difference: { extra: difference.extra, missing: difference.missing },
   }
 }
 
@@ -222,7 +233,7 @@ export async function querySerper(
   searchQuery: string,
   retailers: RetailerConfig[],
   apiKey: string,
-  wine: WineIdentity,
+  wine: BottlingWine,
   linkQuery: string
 ): Promise<QuerySerperResult> {
   let items: SerperShoppingItem[] = []
@@ -258,10 +269,24 @@ export async function querySerper(
   // `.find()` took whichever Serper ranked first, which is how Grand Village
   // matched Zachys on a 2023 listing. Vintage still never rejects: a shop
   // holding only the 2020 keeps its listing, badged.
+  //
+  // Phase 12.2: a listing that names a different bottling than the wine (an
+  // extra or a missing modifier) sorts below the exact wine's listings, so a
+  // retailer carrying both the plain Barolo and a Monvigliero yields the plain
+  // one for a plain wine. Labelled, never dropped.
   const relevantItems: ScoredItem[] = items
-    .map(item => ({ item, verdict: scoreMatch({ title: item.title }, wine) }))
+    .map(item => ({
+      item,
+      verdict: scoreMatch({ title: item.title }, wine),
+      difference: bottlingDifference({ title: item.title }, wine),
+    }))
     .filter(scored => isAcceptableMatch(scored.verdict))
-    .sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))
+    .sort((a, b) => {
+      const exactA = isExactBottling(a.difference)
+      const exactB = isExactBottling(b.difference)
+      if (exactA !== exactB) return exactA ? -1 : 1
+      return compareByMatchQuality(a.verdict, b.verdict)
+    })
 
   // Both sides are stripped to bare alphanumerics before comparing merchant
   // names below. Serper's `source` string for a given merchant is not

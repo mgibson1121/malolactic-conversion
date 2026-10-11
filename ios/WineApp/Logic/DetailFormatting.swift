@@ -90,6 +90,14 @@ enum DetailFormatting {
         WineFormatting.price(amount) ?? "—"
     }
 
+    /// "Names Monvigliero — yours doesn't" / "Doesn't name X — yours does" (Phase 12.2 D8); nil for the same bottling.
+    static func bottlingBadge(extra: [String], missing: [String]) -> String? {
+        func titled(_ words: [String]) -> String { words.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ") }
+        if !extra.isEmpty { return "Names \(titled(extra)) — yours doesn't" }
+        if !missing.isEmpty { return "Doesn't name \(titled(missing)) — yours does" }
+        return nil
+    }
+
     /// `$75` or `$149–$245` (Phase 12.2 price groups).
     static func priceRange(_ low: Double, _ high: Double) -> String {
         let a = priceBound(low)
@@ -179,6 +187,11 @@ enum RetailerTable {
             badges.append(.format(r.formatLabel))
         }
         if r.suspectedLargeFormat == true { badges.append(.format("larger format? size unconfirmed")) }
+        if r.outsideBottling == true {
+            badges.append(.format("outside your bottling"))
+        } else if let d = r.bottlingDifference, let text = DetailFormatting.bottlingBadge(extra: d.extra, missing: d.missing) {
+            badges.append(.format(text))
+        }
         if r.linkOnly { badges.append(.searchOnly) }
         badges.append(.distance(r.distanceMiles))
         return badges

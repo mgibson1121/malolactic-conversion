@@ -96,6 +96,12 @@ struct APIClient: Sendable {
         try await send(request("POST", "api/wines/\(wineID)/resolve-retailer-url", json: ["slug": slug]))
     }
 
+    /// "Which bottling is yours?" (Phase 12.2). The server re-scores every stored
+    /// listing and page against the answer with no outbound call.
+    func chooseBottling(wineID: String, choice: BottlingChoice) async throws -> BottlingChoiceResponse {
+        try await send(request("POST", "api/wines/\(wineID)/choose-bottling", json: choice.body))
+    }
+
     func confirmRetailerLink(wineID: String, slug: String, url: String) async throws -> Wine {
         try await send(request("POST", "api/wines/\(wineID)/confirm-retailer-link", json: ["slug": slug, "url": url]))
     }

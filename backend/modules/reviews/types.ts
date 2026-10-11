@@ -26,6 +26,8 @@ export interface GptPageExtraction {
   // against a manually-confirmed product page, same convention as the
   // price module's Serper-derived matched_vintage.
   vintage: number | null
+  // Phase 12.2 — the vineyard/cuvée/special bottling the page's wine bears (a fact, no verdict).
+  bottling?: string | null
   critic_scores: CriticScore[]
 }
 
@@ -52,4 +54,6 @@ export interface ReviewResult {
   vintage_gap: number | null
   match: MatchVerdict
   page_price: number | null
+  // Phase 12.2 — see RetailerReview.page_bottling in shared/types.ts.
+  page_bottling?: string | null
 }

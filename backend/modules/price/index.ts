@@ -304,7 +304,7 @@ export async function fetchPriceData(
     searchQuery,
     RETAILER_CONFIG,
     serperKey,
-    identityOf(wine),
+    { ...identityOf(wine), region: wine.region, grape_varieties: wine.grape_varieties, bottling_plain: wine.bottling_plain },
     linkQuery
   )
 

@@ -6,6 +6,8 @@ import { priceExclusionsOf, staleOf } from '../utils/wineDerived'
 import { BADGE_EXPLANATIONS, badgeKindOf, type BadgeKind } from '../utils/verificationCopy'
 import { EnrichmentRow } from './EnrichmentRow'
 import { RetailerViewLink } from './RetailerViewLink'
+import { Sheet } from './Sheet'
+import { bottlingBadge } from '@shared/utils/bottling-difference'
 
 interface Props {
   wine: WineEntry
@@ -37,12 +39,29 @@ function RowPrice({ r }: { r: RetailerPrice }) {
 /** Two groups of prices that are too far apart for one average (Phase 12.2 D10). */
 function PriceGroups({ data }: { data: NonNullable<WineEntry['price_data']> }) {
   const groups = data.price_groups ?? []
+  const [explain, setExplain] = useState(false)
   const range = (g: { min: number; max: number }) => (g.min === g.max ? fmt(g.min) : `${fmt(g.min)}–${fmt(g.max)}`)
   return (
     <div className="price-groups" data-testid="price-groups">
       <p className="price-no-average">
         These prices are too far apart for one average — this may be more than one bottling.
       </p>
+      <p className="tier-marker">
+        Prices: split by the 2.5× rule{' '}
+        <button type="button" className="link info-badge" aria-label="What is the 2.5× rule?" onClick={() => setExplain(true)}>
+          ⓘ
+        </button>
+      </p>
+      {explain && (
+        <Sheet title="Why there is no single average" onClose={() => setExplain(false)}>
+          <p>
+            When the highest price we counted is 2.5 times the lowest or more, one average would be a number nobody is
+            actually offered. Usually that means the listings are not all the same bottling — a plain wine and a named
+            vineyard, say.
+          </p>
+          <p>Nothing was dropped. Both groups are shown, and every listing is still listed below. If you tell us which bottling is yours, we recompute from the listings that name it.</p>
+        </Sheet>
+      )}
       <ul className="price-group-list">
         {groups.map((g, i) => (
           <li key={i} className="price-group">
@@ -112,6 +131,17 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
         r.non_standard_format && (
           <span className="format-badge" title="Price is for this format, not a single standard 750ml bottle">
             {r.format_label}
+          </span>
+        )
+      )}
+      {r.outside_bottling ? (
+        <span className="format-badge" title={bottlingBadge({ extra: r.bottling_difference?.extra ?? [], missing: r.bottling_difference?.missing ?? [], tierNote: null }) ?? ''}>
+          outside your bottling
+        </span>
+      ) : (
+        r.bottling_difference && (r.bottling_difference.extra.length > 0 || r.bottling_difference.missing.length > 0) && (
+          <span className="format-badge" title="Counted until you say which bottling is yours">
+            {bottlingBadge({ ...r.bottling_difference, tierNote: null })}
           </span>
         )
       )}

@@ -586,6 +586,7 @@ describe('fetchReviewData', () => {
           vintageGap: 0,
         },
         page_price: 1200,
+        page_bottling: null,
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.benchmarkwine.com/products/details/1557135')
@@ -1146,6 +1147,7 @@ describe('fetchReviewData — open-web fallback pass', () => {
           vintageGap: 0,
         },
         page_price: null,
+        page_bottling: null,
       },
     ])
     expect(mockRenderPageHtml).toHaveBeenCalledWith('https://www.amsterwine.com/p/1')
@@ -1519,5 +1521,93 @@ describe('extractCandidateText — regression fixtures', () => {
     expect(result).toContain('title="Vinous"')
     expect(result).toContain('title="The Wine Advocate"')
     expect(result).toContain('title="Decanter"')
+  })
+})
+
+// ─── Phase 12.2 WI-2 — narrow first, widen one rung at a time ────────────────
+describe('fetchReviewData — the review ladder (Phase 12.2 D9)', () => {
+  const vietti = () => makeWine({ producer: 'Vietti', denomination: 'Barolo', vintage: 2021, region: 'Piedmont', grape_varieties: ['Nebbiolo'] })
+  const WOODLAND_CASTIGLIONE = 'https://whwc.com/vietti-barolo-castiglione-2021/'
+  const LIBRARY_PLAIN = 'https://winelibrary.com/wines/nebbiolo/2021-vietti-barolo-147735'
+  const BUCKLEY_MONVIGLIERO = 'https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/'
+
+  const score = (publication: string, n: number) => ({
+    publication, score: n, known_publication: true, drinking_window: null, vintage_character: null, deal: false,
+  })
+  const extraction = (vintage: number | null, scores: ReturnType<typeof score>[], bottling: string | null = null) => ({
+    price: null, url: '', vintage, bottling, critic_scores: scores,
+  })
+
+  beforeEach(() => {
+    mockRenderPageHtml.mockResolvedValue('<html><body>page</body></html>')
+  })
+
+  it('reads the exact wine and never renders the different bottlings when the exact page has scores', async () => {
+    mockOrganicByDomain = {
+      'whwc.com': [{ title: 'Vietti Barolo Castiglione 2021', link: WOODLAND_CASTIGLIONE }],
+      'winelibrary.com': [{ title: '2021 Vietti Barolo', link: LIBRARY_PLAIN }],
+      'jjbuckley.com': [{ title: '2021 Vietti Barolo Monvigliero 1.5L', link: BUCKLEY_MONVIGLIERO }],
+    }
+    mockExtract.mockImplementation(async (_o, _t, url) =>
+      url === LIBRARY_PLAIN ? extraction(2021, [score('Vinous', 94)]) : extraction(2021, [score('Decanter', 99)])
+    )
+    const result = await fetchReviewData(vietti(), { tier: 'primary' })
+    expect(result!.map(r => r.product_url)).toEqual([LIBRARY_PLAIN])
+    const rendered = mockRenderPageHtml.mock.calls.map(c => c[0])
+    expect(rendered).not.toContain(WOODLAND_CASTIGLIONE)
+    expect(rendered).not.toContain(BUCKLEY_MONVIGLIERO)
+  })
+
+  it('widens to the different bottlings only when the exact wine gave no score anywhere, nearest vintage first', async () => {
+    mockOrganicByDomain = {
+      'whwc.com': [{ title: 'Vietti Barolo Castiglione 2021', link: WOODLAND_CASTIGLIONE }],
+      'jjbuckley.com': [{ title: '2021 Vietti Barolo Monvigliero 1.5L', link: BUCKLEY_MONVIGLIERO }],
+    }
+    mockExtract.mockImplementation(async (_o, _t, url) =>
+      url === WOODLAND_CASTIGLIONE ? extraction(2021, [score('Vinous', 94)], 'Castiglione') : extraction(2021, [score('Decanter', 99)], 'Monvigliero')
+    )
+    const result = await fetchReviewData(vietti())
+    // Same vintage, so both qualify; the first read that yields a score ends the rung.
+    expect(result).toHaveLength(1)
+    expect(result![0].page_bottling).toMatch(/Castiglione|Monvigliero/)
+    expect(result![0].critic_scores.length).toBeGreaterThan(0)
+  })
+
+  it('holds the different bottlings back on the scan path (tier primary): nothing is read for them', async () => {
+    mockOrganicByDomain = { 'whwc.com': [{ title: 'Vietti Barolo Castiglione 2021', link: WOODLAND_CASTIGLIONE }] }
+    mockExtract.mockResolvedValue(extraction(2021, [score('Vinous', 94)], 'Castiglione'))
+    const result = await fetchReviewData(vietti(), { tier: 'primary' })
+    expect(result).toEqual([])
+    expect(mockExtract).not.toHaveBeenCalled()
+  })
+
+  it('does not read a different bottling more than three vintages away', async () => {
+    mockOrganicByDomain = { 'whwc.com': [{ title: 'Vietti Barolo Castiglione 2015', link: 'https://whwc.com/vietti-barolo-castiglione-2015/' }] }
+    mockExtract.mockResolvedValue(extraction(2015, [score('Vinous', 94)], 'Castiglione'))
+    const result = await fetchReviewData(vietti())
+    expect(mockExtract).not.toHaveBeenCalled()
+    expect(result).toEqual([])
+  })
+
+  it('follows the page\'s own link to the vintage asked for, with no further Serper call (D12)', async () => {
+    const wine = makeWine({ producer: 'Domaine de Villaine', denomination: 'Rully 1er Cru', vintage: 2020, vineyard: 'Rabourcé', quality_classification: 'Premier Cru' })
+    const p2023 = 'https://whwc.com/de-villaine-rully-1er-cru-blanc-rabource-2023/'
+    const p2020 = 'https://whwc.com/de-villaine-rully-1er-cru-blanc-rabource-2020/'
+    mockOrganicByDomain = { 'whwc.com': [{ title: 'De Villaine Rully 1er Cru Blanc Rabource 2023', link: p2023 }] }
+    mockRenderPageHtml.mockImplementation(async url =>
+      url === p2023 ? `<html><body><a href="/de-villaine-rully-1er-cru-blanc-rabource-2020/">2020</a></body></html>` : '<html><body>2020</body></html>'
+    )
+    mockExtract.mockImplementation(async (_o, _t, url) =>
+      url === p2020 ? extraction(2020, [score('Burghound', 92)]) : extraction(2023, [])
+    )
+    const serperCalls = () => (global.fetch as jest.Mock).mock.calls.length
+    const result = await fetchReviewData(wine, { tier: 'primary' })
+    const before = serperCalls()
+    expect(result![0].product_url).toBe(p2020)
+    expect(result![0].page_vintage).toBe(2020)
+    expect(result![0].critic_scores[0].publication).toBe('Burghound')
+    // Only the retailer-search queries were sent; following the link added none.
+    expect(before).toBeGreaterThan(0)
+    expect((global.fetch as jest.Mock).mock.calls.every(c => String(c[0]).includes('serper'))).toBe(true)
   })
 })

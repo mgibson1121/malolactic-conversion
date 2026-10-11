@@ -30,6 +30,10 @@ extension Wine {
         case .price:
             wine.priceData = fresh.priceData
             wine.priceExclusions = fresh.priceExclusions
+            // The bottling prompt reads both lookups (a price split, a modifier
+            // in a review URL); the answer that arrives carries what the server
+            // had when it read the wine, which is the best view there is.
+            wine.bottlingPrompt = fresh.bottlingPrompt
             wine.enrichmentStale = EnrichmentStale(
                 price: fresh.enrichmentStale?.price ?? false,
                 reviews: wine.enrichmentStale?.reviews ?? false
@@ -44,6 +48,8 @@ extension Wine {
             wine.vintageRatingSource = fresh.vintageRatingSource
             wine.windowStatus = fresh.windowStatus
             wine.criticSummary = fresh.criticSummary
+            wine.reviewLadder = fresh.reviewLadder
+            wine.bottlingPrompt = fresh.bottlingPrompt
             wine.enrichmentStale = EnrichmentStale(
                 price: wine.enrichmentStale?.price ?? false,
                 reviews: fresh.enrichmentStale?.reviews ?? false

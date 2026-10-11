@@ -7,9 +7,10 @@ const SYSTEM_PROMPT =
   '1. The bottle price in USD (number or null if not found)\n' +
   '2. The canonical product page URL\n' +
   '3. The vintage year of the wine on this specific page (4-digit year, or null if not stated or the wine is non-vintage)\n' +
-  '4. Any critic scores explicitly attributed to a named publication or critic in the excerpt, each with three additional facts drawn from the same citation\n\n' +
+  '4. The name of the vineyard, cuvée or special bottling this page\'s wine bears beyond its producer and appellation (for example "Monvigliero" or "Vieilles Vignes"), exactly as the page writes it, or null when the page presents the producer\'s plain bottling. This is a fact read off the page, not your judgement of whether it matches anything.\n' +
+  '5. Any critic scores explicitly attributed to a named publication or critic in the excerpt, each with three additional facts drawn from the same citation\n\n' +
   'Return ONLY valid JSON in this exact shape:\n' +
-  '{"price": <number|null>, "url": "<string>", "vintage": <number|null>, "critic_scores": [{"publication": "<string>", "score": <number>, "drinking_window": {"start": <number|null>, "end": <number|null>}|null, "vintage_character": "below_avg"|"avg"|"good"|"very_good"|null, "deal": <boolean>}]}\n\n' +
+  '{"price": <number|null>, "url": "<string>", "vintage": <number|null>, "bottling": "<string>"|null, "critic_scores": [{"publication": "<string>", "score": <number>, "drinking_window": {"start": <number|null>, "end": <number|null>}|null, "vintage_character": "below_avg"|"avg"|"good"|"very_good"|null, "deal": <boolean>}]}\n\n' +
   'Only include scores with a clearly named publication or critic — this can be a full publication name (e.g. Burghound, Vinous, Wine Advocate, Wine Spectator, James Suckling, Jancis Robinson, Decanter), a critic\'s name, or a short abbreviation shown right next to the score (e.g. "WA", "JD", "V"). ' +
   'If a score is given as a range or plus form (e.g. "94-96" or "94+"), return the higher number. ' +
   'Do not include review text — scores (numbers) only. ' +
@@ -76,6 +77,7 @@ export async function extractFromRenderedHtml(
       price: number | null
       url: string
       vintage: number | null
+      bottling?: string | null
       critic_scores: Array<{
         publication: string
         score: number
@@ -92,7 +94,7 @@ export async function extractFromRenderedHtml(
       deal: s.deal ?? false,
     }))
 
-    return { price: parsed.price, url: parsed.url, vintage: parsed.vintage ?? null, critic_scores }
+    return { price: parsed.price, url: parsed.url, vintage: parsed.vintage ?? null, bottling: parsed.bottling?.trim() || null, critic_scores }
   } catch {
     return null
   }

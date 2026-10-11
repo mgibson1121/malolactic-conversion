@@ -1,5 +1,5 @@
 {
-  "id": "77d2300e-ab76-4330-8d7e-df092ebe27f3",
+  "id": "846ae5e5-0b93-4b11-b899-9c4f46f927ec",
   "producer": "Domaine du Pavillon",
   "denomination": "Pommard 1er Cru",
   "vintage": 2019,
@@ -34,6 +34,8 @@
   "wishlist_notes": null,
   "price_paid": 640,
   "manual_price": null,
+  "bottling_plain": null,
+  "bottling_prompt_dismissed": null,
   "purchased_from": "Zachys",
   "advice_linked": null,
   "expert_reviews": null,
@@ -96,13 +98,14 @@
       },
       "price_per_750": 157.72
     },
-    "fetched_at": "2026-10-11T17:35:41.927Z",
+    "fetched_at": "2026-10-11T18:01:07.283Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
       "non_standard_format": 0,
       "suspected_large_format": 0,
       "link_only": 0,
+      "outside_bottling": 0,
       "outlier": 0
     },
     "normalized": 1,
@@ -113,7 +116,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-10-11T17:35:41.927Z",
+  "date_added": "2026-10-11T18:01:07.283Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -125,5 +128,11 @@
     "price": false,
     "reviews": false
   },
-  "price_exclusions": null
+  "price_exclusions": null,
+  "review_ladder": {
+    "tier": "none",
+    "rungs": [],
+    "pages": []
+  },
+  "bottling_prompt": null
 }

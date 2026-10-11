@@ -1,0 +1,489 @@
+{
+  "id": "b1d1eb35-1e9a-4c48-ad25-b59fe7ec47b5",
+  "producer": "Vietti",
+  "denomination": "Barolo",
+  "vintage": 2021,
+  "region": "Piedmont",
+  "quality_classification": null,
+  "vineyard": null,
+  "cuvee": null,
+  "grape_varieties": [
+    "Pinot Noir"
+  ],
+  "wine_color": "red",
+  "label_image_url": null,
+  "tag_discovered": false,
+  "tag_wishlist": false,
+  "tag_cellar": true,
+  "tag_consumed": false,
+  "cellar_category": null,
+  "cellar_quantity": 3,
+  "drinking_window": {
+    "start": "2026-01-01",
+    "end": "2038-12-31"
+  },
+  "drinking_window_source": "manual",
+  "vintage_rating": "very_good",
+  "vintage_rating_source": "manual",
+  "my_rating": "outstanding",
+  "my_tags": [
+    "silky",
+    "floral"
+  ],
+  "latest_tasting_note_id": null,
+  "wishlist_notes": null,
+  "price_paid": 640,
+  "manual_price": null,
+  "bottling_plain": null,
+  "bottling_prompt_dismissed": null,
+  "purchased_from": "Zachys",
+  "advice_linked": null,
+  "expert_reviews": null,
+  "community_sentiment": null,
+  "community_excerpts": null,
+  "price_data": {
+    "price_min": null,
+    "price_avg": null,
+    "price_max": null,
+    "other_vintage_price_range": null,
+    "retailers": [
+      {
+        "slug": "zachys",
+        "name": "zachys",
+        "price": 74.99,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified",
+        "listing_title": "Vietti Barolo 2021",
+        "bottling_difference": {
+          "extra": [],
+          "missing": []
+        }
+      },
+      {
+        "slug": "thatchers",
+        "name": "thatchers",
+        "price": 149,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified",
+        "listing_title": "Vietti Barolo Castiglione 2021",
+        "bottling_difference": {
+          "extra": [
+            "castiglione"
+          ],
+          "missing": []
+        }
+      },
+      {
+        "slug": "sokolin",
+        "name": "sokolin",
+        "price": 229,
+        "url": "https://www.zachys.com/products/amoureuses-2019",
+        "distance_miles": 21.4,
+        "is_preferred_retailer": true,
+        "is_search_results_page": false,
+        "matched_vintage": 2019,
+        "vintage_mismatch": false,
+        "vintage_verdict": "match",
+        "pack_quantity": 1,
+        "bottle_size_ml": null,
+        "non_standard_format": false,
+        "format_label": "",
+        "link_only": false,
+        "verification": "verified",
+        "listing_title": "Vietti Barolo Rocche 2021",
+        "bottling_difference": {
+          "extra": [
+            "rocche"
+          ],
+          "missing": []
+        }
+      }
+    ],
+    "nearest_retailer": {
+      "slug": "zachys",
+      "name": "zachys",
+      "price": 74.99,
+      "url": "https://www.zachys.com/products/amoureuses-2019",
+      "distance_miles": 21.4,
+      "is_preferred_retailer": true,
+      "is_search_results_page": false,
+      "matched_vintage": 2019,
+      "vintage_mismatch": false,
+      "vintage_verdict": "match",
+      "pack_quantity": 1,
+      "bottle_size_ml": null,
+      "non_standard_format": false,
+      "format_label": "",
+      "link_only": false,
+      "verification": "verified",
+      "listing_title": "Vietti Barolo 2021",
+      "bottling_difference": {
+        "extra": [],
+        "missing": []
+      }
+    },
+    "fetched_at": "2026-10-11T18:01:07.283Z",
+    "excluded": {
+      "other_vintage": 0,
+      "pack": 0,
+      "non_standard_format": 0,
+      "suspected_large_format": 0,
+      "link_only": 0,
+      "outside_bottling": 0,
+      "outlier": 0
+    },
+    "normalized": 0,
+    "headline_basis": "ambiguous",
+    "price_groups": [
+      {
+        "min": 74.99,
+        "max": 149,
+        "retailers": [
+          "zachys",
+          "thatchers"
+        ]
+      },
+      {
+        "min": 229,
+        "max": 229,
+        "retailers": [
+          "sokolin"
+        ]
+      }
+    ],
+    "headline_estimated": false
+  },
+  "retailer_links": null,
+  "review_data": [
+    {
+      "slug": "winelibrary",
+      "name": "winelibrary",
+      "product_url": "https://winelibrary.com/wines/nebbiolo/2021-vietti-barolo-147735",
+      "critic_scores": [
+        {
+          "publication": "Vinous",
+          "score": 93,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2025,
+            "end": 2040
+          },
+          "vintage_character": null,
+          "deal": false
+        }
+      ],
+      "fetched_at": "2026-10-01T00:00:00.000Z",
+      "source": "configured",
+      "page_vintage": 2021,
+      "vintage_gap": 0,
+      "match": {
+        "producer": "match",
+        "denomination": "match",
+        "bottling": "unknown",
+        "vintage": "match",
+        "candidateVintage": 2019,
+        "vintageGap": 0
+      },
+      "page_price": null
+    },
+    {
+      "slug": "woodland",
+      "name": "woodland",
+      "product_url": "https://whwc.com/vietti-barolo-castiglione-2021/",
+      "critic_scores": [
+        {
+          "publication": "Decanter",
+          "score": 93,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2027,
+            "end": 2045
+          },
+          "vintage_character": null,
+          "deal": false
+        }
+      ],
+      "fetched_at": "2026-10-01T00:00:00.000Z",
+      "source": "configured",
+      "page_vintage": 2021,
+      "vintage_gap": 0,
+      "match": {
+        "producer": "match",
+        "denomination": "match",
+        "bottling": "unknown",
+        "vintage": "match",
+        "candidateVintage": 2019,
+        "vintageGap": 0
+      },
+      "page_price": null
+    },
+    {
+      "slug": "jjbuckley",
+      "name": "jjbuckley",
+      "product_url": "https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/",
+      "critic_scores": [
+        {
+          "publication": "Wine Advocate",
+          "score": 93,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2028,
+            "end": 2046
+          },
+          "vintage_character": null,
+          "deal": false
+        }
+      ],
+      "fetched_at": "2026-10-01T00:00:00.000Z",
+      "source": "configured",
+      "page_vintage": 2021,
+      "vintage_gap": 0,
+      "match": {
+        "producer": "match",
+        "denomination": "match",
+        "bottling": "unknown",
+        "vintage": "match",
+        "candidateVintage": 2019,
+        "vintageGap": 0
+      },
+      "page_price": null
+    }
+  ],
+  "review_probe_log": null,
+  "date_added": "2026-10-11T18:01:07.283Z",
+  "date_first_consumed": null,
+  "promoted_at": "2026-10-01T00:00:00.000Z",
+  "latest_tasting_note_date": null,
+  "window_status": "primary",
+  "critic_summary": {
+    "ordered": [
+      {
+        "publication": "Vinous",
+        "score": 93,
+        "vintage": 2021,
+        "same_vintage": true,
+        "trusted": true,
+        "tier": 1,
+        "known_publication": true,
+        "drinking_window": {
+          "start": 2025,
+          "end": 2040
+        },
+        "vintage_character": null,
+        "deal": false,
+        "rung": "1",
+        "vintage_delta": 0,
+        "bottling_badge": null
+      },
+      {
+        "publication": "Decanter",
+        "score": 93,
+        "vintage": 2021,
+        "same_vintage": true,
+        "trusted": true,
+        "tier": 1,
+        "known_publication": true,
+        "drinking_window": {
+          "start": 2027,
+          "end": 2045
+        },
+        "vintage_character": null,
+        "deal": false,
+        "rung": "3a",
+        "vintage_delta": 0,
+        "bottling_badge": "Names Castiglione — yours doesn't"
+      },
+      {
+        "publication": "Wine Advocate",
+        "score": 93,
+        "vintage": 2021,
+        "same_vintage": true,
+        "trusted": true,
+        "tier": 1,
+        "known_publication": true,
+        "drinking_window": {
+          "start": 2028,
+          "end": 2046
+        },
+        "vintage_character": null,
+        "deal": false,
+        "rung": "3a",
+        "vintage_delta": 0,
+        "bottling_badge": "Names Monvigliero — yours doesn't"
+      }
+    ]
+  },
+  "enrichment_stale": {
+    "price": false,
+    "reviews": false
+  },
+  "price_exclusions": null,
+  "review_ladder": {
+    "tier": "1",
+    "rungs": [
+      {
+        "tier": "1",
+        "pages": 1,
+        "scores": 1,
+        "trusted_scores": 1,
+        "critics": [
+          "Vinous"
+        ],
+        "vintages": [
+          2021
+        ]
+      },
+      {
+        "tier": "3a",
+        "pages": 2,
+        "scores": 2,
+        "trusted_scores": 2,
+        "critics": [
+          "Decanter",
+          "Wine Advocate"
+        ],
+        "vintages": [
+          2021
+        ]
+      }
+    ],
+    "pages": [
+      {
+        "slug": "winelibrary",
+        "name": "winelibrary",
+        "product_url": "https://winelibrary.com/wines/nebbiolo/2021-vietti-barolo-147735",
+        "rung": "1",
+        "page_vintage": 2021,
+        "vintage_delta": 0,
+        "scores": 1,
+        "trusted_scores": 1,
+        "badge": null,
+        "tier_note": null
+      },
+      {
+        "slug": "woodland",
+        "name": "woodland",
+        "product_url": "https://whwc.com/vietti-barolo-castiglione-2021/",
+        "rung": "3a",
+        "page_vintage": 2021,
+        "vintage_delta": 0,
+        "scores": 1,
+        "trusted_scores": 1,
+        "badge": "Names Castiglione — yours doesn't",
+        "tier_note": null
+      },
+      {
+        "slug": "jjbuckley",
+        "name": "jjbuckley",
+        "product_url": "https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/",
+        "rung": "3a",
+        "page_vintage": 2021,
+        "vintage_delta": 0,
+        "scores": 1,
+        "trusted_scores": 1,
+        "badge": "Names Monvigliero — yours doesn't",
+        "tier_note": null
+      }
+    ]
+  },
+  "bottling_prompt": {
+    "reasons": [
+      "modifiers",
+      "price_split"
+    ],
+    "options": [
+      {
+        "name": "Castiglione",
+        "words": [
+          "castiglione"
+        ],
+        "retailers": [
+          "thatchers",
+          "woodland"
+        ],
+        "critics": [
+          "Decanter"
+        ],
+        "price_range": {
+          "min": 149,
+          "max": 149
+        },
+        "links": [
+          {
+            "name": "thatchers",
+            "url": "https://www.zachys.com/products/amoureuses-2019"
+          },
+          {
+            "name": "woodland",
+            "url": "https://whwc.com/vietti-barolo-castiglione-2021/"
+          }
+        ],
+        "count": 2
+      },
+      {
+        "name": "Monvigliero",
+        "words": [
+          "monvigliero"
+        ],
+        "retailers": [
+          "jjbuckley"
+        ],
+        "critics": [
+          "Wine Advocate"
+        ],
+        "price_range": null,
+        "links": [
+          {
+            "name": "jjbuckley",
+            "url": "https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/"
+          }
+        ],
+        "count": 1
+      },
+      {
+        "name": "Rocche",
+        "words": [
+          "rocche"
+        ],
+        "retailers": [
+          "sokolin"
+        ],
+        "critics": [],
+        "price_range": {
+          "min": 229,
+          "max": 229
+        },
+        "links": [
+          {
+            "name": "sokolin",
+            "url": "https://www.zachys.com/products/amoureuses-2019"
+          }
+        ],
+        "count": 1
+      }
+    ],
+    "signature": "castiglione|monvigliero|rocche"
+  }
+}

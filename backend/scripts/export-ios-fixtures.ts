@@ -16,6 +16,7 @@ import { SQLiteAdapter } from '../modules/storage/sqlite-adapter'
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { effectivePrice } from '@shared/utils/effective-price'
 import { aggregatePriceData } from '../modules/price/aggregate'
+import { bottlingDifference } from '@shared/utils/bottling-difference'
 import type { CreateWineInput, PriceData, RetailerPrice, RetailerReview } from '@shared/types'
 
 const OUT_DIR = path.resolve(__dirname, '../../ios/WineAppTests/Fixtures')
@@ -205,6 +206,28 @@ async function main() {
     ) as PriceData,
   })
 
+  // Phase 12.2: the Vietti Barolo case — a plain wine whose results name two
+  // other vineyards. Carries the review ladder (Tier 2) and the bottling prompt.
+  const vietti = await storage.createWine({ ...BASE, producer: 'Vietti', denomination: 'Barolo', vintage: 2021, vineyard: null, quality_classification: null, region: 'Piedmont' })
+  const viettiIdentity = { producer: 'Vietti', denomination: 'Barolo', vintage: 2021, cuvee: null, vineyard: null, quality_classification: null }
+  const titled = (slug: string, title: string, price: number) => {
+    const d = bottlingDifference({ title }, viettiIdentity)
+    return retailer({ slug, name: slug, price, listing_title: title, bottling_difference: { extra: d.extra, missing: d.missing } })
+  }
+  await storage.updateWine(vietti.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z',
+    price_data: aggregatePriceData([
+      titled('zachys', 'Vietti Barolo 2021', 74.99),
+      titled('thatchers', 'Vietti Barolo Castiglione 2021', 149),
+      titled('sokolin', 'Vietti Barolo Rocche 2021', 229),
+    ]) as PriceData,
+    review_data: [
+      { ...review('winelibrary', [critic('Vinous', [2025, 2040])]), product_url: 'https://winelibrary.com/wines/nebbiolo/2021-vietti-barolo-147735', page_vintage: 2021 },
+      { ...review('woodland', [critic('Decanter', [2027, 2045])]), product_url: 'https://whwc.com/vietti-barolo-castiglione-2021/', page_vintage: 2021 },
+      { ...review('jjbuckley', [critic('Wine Advocate', [2028, 2046])]), product_url: 'https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/', page_vintage: 2021 },
+    ],
+  })
+
   // A note whose wine was deleted: it outlives the wine (migration 008).
   const doomed = await storage.createWine({ ...BASE, producer: 'Georges Roumier', denomination: 'Chambolle-Musigny', vintage: 2018 })
   await storage.updateWine(doomed.id, { tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z' })
@@ -238,6 +261,7 @@ async function main() {
     'wine-manual-price.json': await storage.getWine(mine.id),
     'wine-price-normalized.json': await storage.getWine(packed.id),
     'wine-price-ambiguous.json': await storage.getWine(split.id),
+    'wine-bottling-prompt.json': await storage.getWine(vietti.id),
     'tasting-note-removed.json': await storage.getTastingNote(detached.id),
     'tasting-notes-all.json': await storage.listTastingNotes(),
     'effective-price-cases.json': priceCases,

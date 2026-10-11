@@ -120,6 +120,14 @@ export interface RetailerPrice {
   // Phase 12.2 WI-6 — a product page from another storefront of the same shop
   // (Flatiron's sf. site). Counted for price, never the nearest store.
   other_storefront?: boolean
+  // Phase 12.2 WI-2 — the listing title it was judged on, and what that title
+  // says about the bottling relative to the wine as recorded (both directions).
+  // Labelled but counted until the developer answers "Which bottling is
+  // yours?"; then re-scored locally and, when it names a different bottling,
+  // kept outside the aggregates (`outside_bottling`).
+  listing_title?: string
+  bottling_difference?: { extra: string[]; missing: string[] } | null
+  outside_bottling?: boolean
 }
 
 /** A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7). */
@@ -148,6 +156,8 @@ export interface PriceExcludedCounts {
   /** Price-ratio flag whose page read, if any, stated no size (D11). */
   suspected_large_format: number
   link_only: number
+  /** Named a different bottling than the one the developer chose (after "Which bottling is yours?"). */
+  outside_bottling: number
   /** Dropped by the interquartile fence as a single-point outlier. */
   outlier: number
 }
@@ -223,6 +233,12 @@ export interface RetailerReview {
   // retailer's price: the shop's own figure from the shop's own page, not a
   // blend across sources.
   page_price: number | null
+  // Phase 12.2 WI-2 — the vineyard / cuvée / special-bottling name the rendered
+  // page's wine bears beyond producer and appellation, as a fact reported by
+  // the page extraction (null when it bears none). Fixed rules in
+  // shared/utils/bottling-difference.ts decide what that means; the model
+  // never gives a verdict. Absent on blobs fetched before 12.2.
+  page_bottling?: string | null
   // Phase 12.1 (WI-1) — the identity string (`identityKey(identityOf(wine))`)
   // this result was fetched for. Absent on everything stored before this
   // phase, which means "unknown": never flagged stale.
@@ -292,6 +308,13 @@ export interface CriticSummaryItem {
   drinking_window: CriticDrinkingWindow | null
   vintage_character: VintageRating | null
   deal: boolean
+  // Phase 12.2 WI-2 — where this score sits on the review ladder, and how far
+  // its page is from the wine. Optional: summaries built before 12.2 lack them.
+  rung?: ReviewRung
+  /** Years between the page's vintage and the wine's; null when either is unstated. */
+  vintage_delta?: number | null
+  /** "Names Monvigliero — yours doesn't" / "Doesn't name X — yours does"; null for the same bottling. */
+  bottling_badge?: string | null
 }
 
 /**
@@ -308,6 +331,79 @@ export interface PriceExclusions {
 export interface CriticSummary {
   ordered: CriticSummaryItem[]
 }
+
+// ─── Review ladder and bottling prompt (Phase 12.2 WI-2) ─────────────────────
+
+/**
+ * A page's rung on the review ladder (D9). '1' exact wine, same vintage, a
+ * trusted critic · '2' exact wine, any other score (other vintages, nearest
+ * first) · '3a' a different bottling, same vintage · '3b' a different bottling,
+ * ±1–3 vintages · 'out' a different bottling further than that, or whose
+ * vintage is unstated.
+ */
+export type ReviewRung = '1' | '2' | '3a' | '3b' | 'out'
+
+/** The tier a wine's reviews were matched at: its best rung with a score, or 'none'. */
+export type ReviewTierId = '1' | '2' | '3a' | '3b' | 'none'
+
+export interface ReviewLadderPage {
+  slug: string
+  name: string
+  product_url: string
+  /** Null when the page cited no score (it can sit on no rung). */
+  rung: ReviewRung | null
+  page_vintage: number | null
+  vintage_delta: number | null
+  scores: number
+  trusted_scores: number
+  badge: string | null
+  tier_note: string | null
+}
+
+export interface ReviewLadderRung {
+  tier: ReviewRung
+  pages: number
+  scores: number
+  trusted_scores: number
+  critics: string[]
+  vintages: number[]
+}
+
+export interface ReviewLadder {
+  tier: ReviewTierId
+  rungs: ReviewLadderRung[]
+  pages: ReviewLadderPage[]
+}
+
+export interface BottlingOption {
+  /** "Monvigliero", "Vieilles Vignes". */
+  name: string
+  words: string[]
+  retailers: string[]
+  critics: string[]
+  price_range: PriceRange | null
+  links: Array<{ name: string; url: string }>
+  /** Listings and review pages naming it. */
+  count: number
+}
+
+/**
+ * "Listings name different bottlings — which is yours?" (WI-2.5). Derived on
+ * every read; null when nothing triggers it, the developer answered "Plain",
+ * or dismissed it for exactly these modifiers.
+ */
+export interface BottlingPrompt {
+  reasons: Array<'modifiers' | 'price_split' | 'tier3'>
+  options: BottlingOption[]
+  /** The modifiers it was raised for; storing it as dismissed stops re-asking until a refresh brings others. */
+  signature: string
+}
+
+export type BottlingChoice =
+  | { choice: 'plain' }
+  | { choice: 'vineyard'; name: string }
+  | { choice: 'cuvee'; name: string }
+  | { choice: 'not_sure' }
 
 // ─── Enum types ───────────────────────────────────────────────────────────────
 
@@ -440,6 +536,17 @@ export interface WineEntry {
   enrichment_stale?: { price: boolean; reviews: boolean }
   // Phase 12.1 (WI-4) — non-null only when listings were found but none counted.
   price_exclusions?: PriceExclusions | null
+  // Phase 12.2 WI-2 (derived, never stored): the tier the wine's reviews were
+  // matched at and what each rung holds, and the "Which bottling is yours?"
+  // prompt when listings or pages name different bottlings.
+  review_ladder?: ReviewLadder
+  bottling_prompt?: BottlingPrompt | null
+  // Phase 12.2 WI-2 (stored, migration 010). `bottling_plain`: the developer
+  // answered "Plain / no special bottling", so a later refresh does not ask
+  // again. `bottling_prompt_dismissed`: the modifier signature of the last
+  // prompt answered or dismissed; only different modifiers re-ask.
+  bottling_plain?: boolean | null
+  bottling_prompt_dismissed?: string | null
 }
 
 export interface TastingNote {
@@ -495,9 +602,9 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions'>>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt'>>
 // The identity snapshot is copied from the wine by the adapter at save time,
 // never supplied by a client.
 export type CreateTastingNoteInput = Omit<

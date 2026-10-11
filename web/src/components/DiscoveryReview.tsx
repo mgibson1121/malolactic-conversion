@@ -176,7 +176,7 @@ export function DiscoveryReview({
             Four explicit states, never a vanishing block (Phase 12.1 WI-4). */}
         <div className="scan-enrichment-section">
           <h3 className="preview-section-title">Critic reviews</h3>
-          <CriticReviewsBlock wine={wine} action={reviews} lookupUnderWay={reviewsUnderWay} />
+          <CriticReviewsBlock wine={wine} action={reviews} lookupUnderWay={reviewsUnderWay} onWineUpdated={applyUpdate} />
           <EnrichmentRow
             kind="reviews"
             action={reviews}

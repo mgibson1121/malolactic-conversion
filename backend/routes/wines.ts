@@ -1,7 +1,9 @@
 import OpenAI from 'openai'
 import { Router, Request, Response, NextFunction } from 'express'
 import { getStorage } from '../modules/storage'
-import { CreateWineSchema, DuplicateCheckSchema, UpdateWineSchema } from '@shared/validation'
+import { ChooseBottlingSchema, CreateWineSchema, DuplicateCheckSchema, UpdateWineSchema } from '@shared/validation'
+import { BottlingChoiceError, bottlingChoiceUpdates, restampedIdentity, rescoreListings } from '@shared/utils/bottling-choice'
+import { bottlingWineOf } from '@shared/utils/bottling-difference'
 import type {
   RetailerPrice,
   RetailerReview,
@@ -214,6 +216,9 @@ router.patch(
     // event.
     const existing = await getStorage().getWine(req.params.id)
 
+    // Phase 12.2 — naming a vineyard or cuvée makes the bottling not plain.
+    if (!('bottling_plain' in req.body) && (updates.vineyard || updates.cuvee)) updates.bottling_plain = null
+
     // Phase 12.1 (WI-1) — clearing the manual window hands the wine back to
     // the critics: re-derive from what review_data already says, now, rather
     // than waiting for the next metered fetch. Nothing is fetched. A wine
@@ -241,6 +246,88 @@ router.patch(
 
     const wine = await getStorage().updateWine(req.params.id, updates)
     res.json(wine)
+  })
+)
+
+// POST /api/wines/:id/choose-bottling — "Which bottling is yours?" (Phase 12.2
+// WI-2.5). Writes the answer (a vineyard or cuvée name, or the plain flag),
+// re-scores every stored listing and review page against it **locally**, and
+// returns the wine. No Serper call, no OpenAI call, nothing metered: the pages
+// and listings are already stored, and a bottling judgement is a pure function
+// of their stored titles/URLs and the wine's identity. Review matching (the
+// ladder) re-derives on read, so the wine can climb back to Tier 1 or 2; the
+// price headline is recomputed from the listings that name the chosen bottling,
+// and the others stay listed, labelled, outside the aggregates.
+router.post(
+  '/:id/choose-bottling',
+  wrap(async (req, res) => {
+    const parsed = ChooseBottlingSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.format() })
+      return
+    }
+    const existing = await getStorage().getWine(req.params.id)
+    if (!existing) {
+      res.status(404).json({ error: 'Wine not found' })
+      return
+    }
+
+    let answer
+    try {
+      answer = bottlingChoiceUpdates(existing, parsed.data)
+    } catch (err) {
+      if (err instanceof BottlingChoiceError) {
+        res.status(409).json({ error: err.message })
+        return
+      }
+      throw err
+    }
+
+    const updates: UpdateWineInput = { ...answer }
+    const next = { ...existing, ...answer }
+    const answered = parsed.data.choice !== 'not_sure'
+
+    if (existing.price_data) {
+      const retailers = rescoreListings(existing.price_data.retailers, bottlingWineOf(next), answered)
+      updates.price_data = {
+        ...aggregatePriceData(retailers),
+        // The data is as old as it was: a local re-score is not a fetch.
+        fetched_at: existing.price_data.fetched_at,
+        enriched_for: restampedIdentity(existing, answer),
+      }
+    }
+    if (answered && existing.review_data) {
+      // The ladder re-derives from the stored pages; only the identity stamp moves.
+      updates.review_data = existing.review_data.map((r) => ({ ...r, enriched_for: restampedIdentity(existing, answer) }))
+    }
+
+    const wine = await getStorage().updateWine(req.params.id, updates)
+
+    // A new cuvée or vineyard may now match another wine in the cellar (the same
+    // free check the scan uses). Reported, never acted on.
+    const others = (await getStorage().listWines()).filter((w) => w.id !== wine.id)
+    const duplicate =
+      answered && parsed.data.choice !== 'plain'
+        ? findDuplicate(
+            {
+              producer: wine.producer, denomination: wine.denomination, vintage: wine.vintage,
+              cuvee: wine.cuvee, vineyard: wine.vineyard, quality_classification: wine.quality_classification,
+            },
+            others
+          )
+        : { kind: 'none' }
+
+    const rung = wine.review_ladder?.rungs.find((r) => r.tier === wine.review_ladder?.tier)
+    res.json({
+      wine,
+      result: {
+        tier: wine.review_ladder?.tier ?? 'none',
+        scores: rung?.scores ?? 0,
+        trusted_scores: rung?.trusted_scores ?? 0,
+        headline_basis: wine.price_data?.headline_basis ?? null,
+        duplicate,
+      },
+    })
   })
 )
 

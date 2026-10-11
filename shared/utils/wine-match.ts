@@ -120,7 +120,7 @@ export function significantWords(s: string): string[] {
  * correct listings. A descriptor can confirm a bottling; only a name can
  * reject one.
  */
-const GENERIC_BOTTLING_WORDS = new Set([
+export const GENERIC_BOTTLING_WORDS = new Set([
   'gran', 'grand', 'grande', 'reserva', 'riserva', 'reserve', 'premier', '1er', 'cru',
   'superiore', 'classico',
   'seleccion', 'selezione', 'selection', 'selektion', 'especial', 'speciale', 'special', 'spezial',
@@ -234,7 +234,7 @@ const MIN_COMPACT_PRODUCER = 8
 /** Normalized whole-word tokens of a text, for exact token comparison.
  * Substring comparison (what this replaced) is what let "vin" — a
  * significant word of "Vin de France" — match inside "vintage". */
-function tokenSet(text: string): Set<string> {
+export function tokenSet(text: string): Set<string> {
   const tokens = new Set(normalize(text).split(/\s+/).filter(Boolean))
   // A name and its plural are one word (Phase 12.2 WI-4). Burgundy's "Les
   // Cailleret" is sold as "Les Caillerets" by most shops, and the bottling

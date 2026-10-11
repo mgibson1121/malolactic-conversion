@@ -37,7 +37,8 @@ struct DraftReviewView: View {
             Section("Critic reviews") {
                 CriticReviewsBlock(wine: model.wine, control: model.reviews,
                                    retry: { model.retryReviews() },
-                                   searchMore: { model.searchMoreRetailers() })
+                                   searchMore: { model.searchMoreRetailers() },
+                                   chooseBottling: { await model.chooseBottling($0) })
             }
 
             if let wine = model.wine {

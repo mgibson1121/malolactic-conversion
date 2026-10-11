@@ -81,7 +81,17 @@ export const ManualPriceSchema = z
 
 export const UpdateWineSchema = CreateWineSchema.partial().extend({
   manual_price: ManualPriceSchema.optional(),
+  // Phase 12.2: reversible from Edit. A named vineyard/cuvée clears it.
+  bottling_plain: z.boolean().nullable().optional(),
 })
+
+// Phase 12.2 WI-2.5 — POST /api/wines/:id/choose-bottling.
+export const ChooseBottlingSchema = z.discriminatedUnion('choice', [
+  z.object({ choice: z.literal('plain') }),
+  z.object({ choice: z.literal('vineyard'), name: z.string().trim().min(2).max(80) }),
+  z.object({ choice: z.literal('cuvee'), name: z.string().trim().min(2).max(80) }),
+  z.object({ choice: z.literal('not_sure') }),
+])
 
 // Phase 12 — POST /api/wines/duplicate-check. Only the three identity fields
 // findDuplicate reads; a full LabelScanResult is accepted and the rest stripped.

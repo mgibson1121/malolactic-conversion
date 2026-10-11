@@ -8,7 +8,10 @@ import {
   isUnrenderableDomain,
 } from './find-product-page'
 import type { WineIdentity } from './find-product-page'
-import { identityOf, type MatchVerdict } from '@shared/utils/wine-match'
+import { identityOf, extractVintage, type MatchVerdict } from '@shared/utils/wine-match'
+import { isExactBottling, type BottlingDifference, type BottlingWine } from '@shared/utils/bottling-difference'
+import { reviewBottlingDifference, vintageDelta, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
+import { nearestOtherVintageLink } from './other-vintage-link'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
 import { extractFromRenderedHtml } from './gpt-extract'
@@ -38,10 +41,17 @@ function labelFromUrl(url: string): { slug: string; name: string } {
  * shared by the configured-retailer loop and the open-web fallback pass
  * below, since both need the identical render/extract pipeline. */
 async function renderAndExtract(openai: OpenAI, url: string) {
+  return (await renderExtractWithHtml(openai, url))?.extraction ?? null
+}
+
+/** As renderAndExtract, keeping the rendered page: the page's own links to
+ * other vintages are read from it (Phase 12.2 D12) without a second render. */
+async function renderExtractWithHtml(openai: OpenAI, url: string) {
   const html = await renderPageHtml(url)
   if (!html) return null
   const candidateText = extractCandidateText(html)
-  return extractFromRenderedHtml(openai, candidateText, url)
+  const extraction = await extractFromRenderedHtml(openai, candidateText, url)
+  return extraction ? { extraction, html } : null
 }
 
 /** Candidates from a single open-web query worth spending a render+extract
@@ -145,6 +155,7 @@ async function fetchFallbackReview(
     source: 'fallback',
     ...vintageFields(verdictFromPage(picked.match, picked.extraction.vintage, identity.vintage)),
     page_price: picked.extraction.price,
+    page_bottling: picked.extraction.bottling ?? null,
   }
 }
 
@@ -193,6 +204,7 @@ async function fetchDiscoveredMerchantReviews(
         source: 'fallback',
         ...vintageFields(verdictFromPage(picked.match, picked.extraction.vintage, identity.vintage)),
         page_price: picked.extraction.price,
+        page_bottling: picked.extraction.bottling ?? null,
       }
     }
   )
@@ -282,6 +294,12 @@ const SERPER_CONCURRENCY = 3
  */
 const ESTIMATED_VARIANTS_PER_RETAILER = 3
 
+/** Pages of a different bottling read at the last rung of the ladder (T3), per fetch. */
+const T3_READ_LIMIT = 3
+
+/** Other-vintage links followed per fetch (Phase 12.2 D12). */
+const MAX_VINTAGE_LINK_FOLLOWS = 2
+
 type ReviewTier = RetailerConfig['reviewTier']
 
 export async function fetchReviewData(
@@ -298,7 +316,12 @@ export async function fetchReviewData(
   if (!serperKey || !openaiKey) return null
   if (!wine.producer && !wine.denomination) return []
 
-  const identity: WineIdentity = identityOf(wine)
+  const identity: BottlingWine = {
+    ...identityOf(wine),
+    region: wine.region,
+    grape_varieties: wine.grape_varieties,
+    bottling_plain: wine.bottling_plain,
+  }
   const openai = new OpenAI({ apiKey: openaiKey })
 
   // Counted so a run that found nothing *because it could not search* can be
@@ -340,6 +363,11 @@ export async function fetchReviewData(
   // narrowing above.
   const apiKey: string = serperKey
 
+  // Pages of a different bottling, held back by sourceFromRetailer (Phase 12.2).
+  const deferred: Array<{ retailer: RetailerConfig; url: string; match: MatchVerdict; difference: BottlingDifference }> = []
+  // Links to another vintage followed in this fetch (D12): one local render + one extraction each.
+  let followBudget = MAX_VINTAGE_LINK_FOLLOWS
+
   async function sourceFromRetailer(
     retailer: RetailerConfig,
     tier: ReviewTier
@@ -367,18 +395,52 @@ export async function fetchReviewData(
 
     if (!outcome.url || !outcome.match) return null
 
-    const extraction = await renderAndExtract(openai, outcome.url)
-    if (!extraction) return null
+    // Narrow first (Phase 12.2 D9). The best page this retailer offered names
+    // a different bottling than the wine (an extra or a missing modifier), so
+    // it is held back: a render and an extraction are spent on it only if no
+    // page of the exact wine yields a score anywhere (see the end of this
+    // function). Exact-bottling candidates sort first, so this retailer's best
+    // exact page is always read before this applies.
+    const bestDifference = outcome.candidates[0]?.difference
+    if (bestDifference && !isExactBottling(bestDifference)) {
+      deferred.push({ retailer, url: outcome.url, match: outcome.match, difference: bestDifference })
+      return null
+    }
+
+    const rendered = await renderExtractWithHtml(openai, outcome.url)
+    if (!rendered) return null
+    let { extraction } = rendered
+    let productUrl = outcome.url
+    let match = outcome.match
+
+    // The page is a few years off: follow its own link to the vintage we want
+    // (D12) — one render, no Serper call. Only for the exact wine, and capped
+    // per fetch.
+    if (identity.vintage != null && extraction.vintage != null && extraction.vintage !== identity.vintage && followBudget > 0) {
+      const link = nearestOtherVintageLink(rendered.html, outcome.url, identity.vintage)
+      if (link) {
+        followBudget -= 1
+        const followed = await renderExtractWithHtml(openai, link)
+        const followedVintage = followed?.extraction.vintage ?? extractVintage(link)
+        if (followed && followed.extraction.critic_scores.length > 0 && followedVintage != null &&
+            Math.abs(followedVintage - identity.vintage) < Math.abs(extraction.vintage - identity.vintage)) {
+          extraction = { ...followed.extraction, vintage: followedVintage }
+          productUrl = link
+          match = outcome.match
+        }
+      }
+    }
 
     return {
       slug: retailer.slug,
       name: retailer.name,
-      product_url: outcome.url,
+      product_url: productUrl,
       critic_scores: extraction.critic_scores,
       fetched_at: new Date().toISOString(),
       source: 'configured',
-      ...vintageFields(verdictFromPage(outcome.match, extraction.vintage, identity.vintage)),
+      ...vintageFields(verdictFromPage(match, extraction.vintage, identity.vintage)),
       page_price: extraction.price,
+      page_bottling: extraction.bottling ?? null,
     }
   }
 
@@ -469,6 +531,37 @@ export async function fetchReviewData(
     ]
     const fallback = await fetchFallbackReview(identity, openai, serperKey, attemptedPlusDiscovered)
     if (fallback) results.push(fallback)
+  }
+
+  // The last rung (Phase 12.2 D9, T3a/T3b). No page of the exact wine yielded
+  // a score anywhere, so read the pages of a different bottling that were held
+  // back — same vintage first, then the nearest within ±3 years — and stop at
+  // the first that gives a score. Each is one local render and one extraction;
+  // no Serper call (the candidates came from queries already paid for).
+  const exactScoreFound = () =>
+    results.some(r => r.critic_scores.length > 0 && isExactBottling(reviewBottlingDifference(r, identity)))
+  if (!exactScoreFound() && deferred.length > 0) {
+    const ranked = deferred
+      .map(d => ({ d, delta: vintageDelta(d.match.candidateVintage, identity.vintage) }))
+      .filter((x): x is { d: (typeof deferred)[number]; delta: number } => x.delta !== null && x.delta <= SIMILAR_VINTAGE_YEARS)
+      .sort((a, b) => a.delta - b.delta)
+      .slice(0, T3_READ_LIMIT)
+    for (const { d } of ranked) {
+      const extraction = await renderAndExtract(openai, d.url)
+      if (!extraction) continue
+      results.push({
+        slug: d.retailer.slug,
+        name: d.retailer.name,
+        product_url: d.url,
+        critic_scores: extraction.critic_scores,
+        fetched_at: new Date().toISOString(),
+        source: 'configured',
+        ...vintageFields(verdictFromPage(d.match, extraction.vintage, identity.vintage)),
+        page_price: extraction.price,
+        page_bottling: extraction.bottling ?? null,
+      })
+      if (extraction.critic_scores.length > 0) break
+    }
   }
 
   // Nothing found, and at least one search never actually ran. Refuse to

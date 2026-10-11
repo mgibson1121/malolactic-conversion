@@ -395,6 +395,19 @@ final class ScanFlowModel {
         fireReviews(id, force: false, tier: nil)
     }
 
+    /// "Which bottling is yours?" on the review screen (Phase 12.2).
+    func chooseBottling(_ choice: BottlingChoice) async -> BottlingOutcome {
+        guard let id = wine?.id else { return .failed("Nothing to save the answer to yet.") }
+        do {
+            let response = try await api.chooseBottling(wineID: id, choice: choice)
+            wine = response.wine
+            onEnrichmentLanded()
+            return .done(WineDetailModel.line(for: choice, response))
+        } catch {
+            return .failed("Couldn't save your answer. Try again.")
+        }
+    }
+
     func retryPrice() {
         guard let id = wine?.id, !price.isBusy else { return }
         firePrice(id, force: false)

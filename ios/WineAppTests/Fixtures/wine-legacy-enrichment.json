@@ -1,5 +1,5 @@
 {
-  "id": "a8897ef3-9679-41ce-93ed-551d6acfc3dc",
+  "id": "7856585c-e11c-4108-be48-d51890a7d512",
   "producer": "Château Rayas",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2012,
@@ -34,6 +34,8 @@
   "wishlist_notes": null,
   "price_paid": 640,
   "manual_price": null,
+  "bottling_plain": null,
+  "bottling_prompt_dismissed": null,
   "purchased_from": "Zachys",
   "advice_linked": null,
   "expert_reviews": null,
@@ -78,7 +80,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-10-11T17:35:41.926Z",
+  "date_added": "2026-10-11T18:01:07.282Z",
   "date_first_consumed": null,
   "promoted_at": "2026-07-01T12:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -95,7 +97,10 @@
         "known_publication": true,
         "drinking_window": null,
         "vintage_character": null,
-        "deal": false
+        "deal": false,
+        "rung": "out",
+        "vintage_delta": null,
+        "bottling_badge": "Doesn't name Amoureuses — yours does"
       }
     ]
   },
@@ -103,5 +108,35 @@
     "price": false,
     "reviews": false
   },
-  "price_exclusions": null
+  "price_exclusions": null,
+  "review_ladder": {
+    "tier": "none",
+    "rungs": [
+      {
+        "tier": "out",
+        "pages": 1,
+        "scores": 1,
+        "trusted_scores": 1,
+        "critics": [
+          "Wine Advocate"
+        ],
+        "vintages": []
+      }
+    ],
+    "pages": [
+      {
+        "slug": "benchmark",
+        "name": "Benchmark Wine Group",
+        "product_url": "https://www.benchmarkwine.com/rayas-2012",
+        "rung": "out",
+        "page_vintage": null,
+        "vintage_delta": null,
+        "scores": 1,
+        "trusted_scores": 1,
+        "badge": "Doesn't name Amoureuses — yours does",
+        "tier_note": null
+      }
+    ]
+  },
+  "bottling_prompt": null
 }

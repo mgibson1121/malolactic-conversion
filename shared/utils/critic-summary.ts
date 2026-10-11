@@ -1,5 +1,7 @@
 import { TRUSTED_CRITICS } from '../config/trusted-critics.config'
 import type { CriticSummary, CriticSummaryItem, RetailerReview } from '../types'
+import { bottlingBadge, isExactBottling, type BottlingWine } from './bottling-difference'
+import { reviewBottlingDifference, rungOf, vintageDelta } from './review-ladder'
 
 /**
  * Orders a wine's critic scores by the developer's trusted-reviewer
@@ -27,7 +29,12 @@ import type { CriticSummary, CriticSummaryItem, RetailerReview } from '../types'
 export function buildCriticSummary(
   reviewData: RetailerReview[] | null | undefined,
   wineVintage: number | null | undefined,
-  trusted: readonly string[] = TRUSTED_CRITICS
+  trusted: readonly string[] = TRUSTED_CRITICS,
+  // Phase 12.2: when the wine is supplied, a page naming a different bottling
+  // (an extra or a missing modifier, D8) sorts below every page of the exact
+  // wine, nearest vintage first, and carries its rung and badge. Without it
+  // the 12.1 ordering is unchanged.
+  wine?: BottlingWine
 ): CriticSummary {
   const trustedSet = new Set(trusted.map((t) => t.toLowerCase()))
   const wineIsNv = wineVintage == null
@@ -37,6 +44,12 @@ export function buildCriticSummary(
   for (const review of reviewData ?? []) {
     const pageVintage = review.page_vintage ?? null
     const sameVintage = wineIsNv ? pageVintage == null : pageVintage != null && pageVintage === wineVintage
+    const diff = wine ? reviewBottlingDifference(review, wine) : null
+    const exact = diff ? isExactBottling(diff) : true
+    const delta = wine ? vintageDelta(pageVintage, wineVintage) : null
+    const trustedOnPage = (review.critic_scores ?? []).some(
+      (s) => s.known_publication === true && trustedSet.has(s.publication.toLowerCase())
+    )
     for (const score of review.critic_scores ?? []) {
       const isTrusted = score.known_publication === true && trustedSet.has(score.publication.toLowerCase())
       items.push({
@@ -50,6 +63,13 @@ export function buildCriticSummary(
         drinking_window: score.drinking_window ?? null,
         vintage_character: score.vintage_character ?? null,
         deal: score.deal === true,
+        ...(wine
+          ? {
+              rung: rungOf({ exact, delta, hasTrustedScore: trustedOnPage }),
+              vintage_delta: delta,
+              bottling_badge: diff ? bottlingBadge(diff) : null,
+            }
+          : {}),
         order: order++,
       })
     }
@@ -74,6 +94,15 @@ function tierOf(sameVintage: boolean, trusted: boolean): 1 | 2 | 3 | 4 {
 }
 
 function compareItems(a: CriticSummaryItem & { order: number }, b: CriticSummaryItem & { order: number }): number {
+  // Different bottling after the exact wine; among those, the nearest vintage first.
+  const aDiff = a.bottling_badge != null
+  const bDiff = b.bottling_badge != null
+  if (aDiff !== bDiff) return aDiff ? 1 : -1
+  if (aDiff && bDiff) {
+    const da = a.vintage_delta ?? Number.POSITIVE_INFINITY
+    const db = b.vintage_delta ?? Number.POSITIVE_INFINITY
+    if (da !== db) return da - db
+  }
   if (a.tier !== b.tier) return a.tier - b.tier
   if (a.score !== b.score) return b.score - a.score
   if (a.known_publication !== b.known_publication) return a.known_publication ? -1 : 1

@@ -23,6 +23,7 @@ export function isCountable(r: RetailerResult): boolean {
     !r.vintage_mismatch &&
     (!r.non_standard_format || !!r.normalized) &&
     !r.suspected_large_format &&
+    !r.outside_bottling &&
     !r.link_only &&
     countedPrice(r) !== null
   )
@@ -124,7 +125,7 @@ export function excludeExtremeOutliers(prices: number[]): number[] {
   return kept.length > 0 ? kept : prices
 }
 
-export type ExclusionReason = keyof Omit<PriceExcludedCounts, 'outlier'> | 'no_price'
+export type ExclusionReason = keyof Omit<PriceExcludedCounts, 'outlier'> | 'no_price' | 'outside_bottling'
 
 /**
  * Why a listing is kept out of the headline, in the priority order the counts
@@ -137,6 +138,7 @@ export function exclusionReason(r: RetailerResult): ExclusionReason | null {
   if (r.vintage_mismatch) return 'other_vintage'
   if (r.non_standard_format && !r.normalized) return r.pack_quantity > 1 ? 'pack' : 'non_standard_format'
   if (r.suspected_large_format) return 'suspected_large_format'
+  if (r.outside_bottling) return 'outside_bottling'
   if (countedPrice(r) === null) return 'no_price'
   return null
 }
@@ -242,6 +244,7 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
     non_standard_format: 0,
     suspected_large_format: 0,
     link_only: 0,
+    outside_bottling: 0,
     outlier: outliers,
   }
   for (const r of retailers) {
