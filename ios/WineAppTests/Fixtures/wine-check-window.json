@@ -1,0 +1,147 @@
+{
+  "id": "8546d76e-7d5f-4c18-910d-020eff5dfe6d",
+  "producer": "Domaine de Villaine",
+  "denomination": "Rully 1er Cru",
+  "vintage": 2019,
+  "region": "Burgundy",
+  "quality_classification": "Premier Cru",
+  "vineyard": "Les Amoureuses",
+  "cuvee": null,
+  "grape_varieties": [
+    "Pinot Noir"
+  ],
+  "wine_color": "red",
+  "label_image_url": null,
+  "tag_discovered": false,
+  "tag_wishlist": false,
+  "tag_cellar": true,
+  "tag_consumed": false,
+  "cellar_category": null,
+  "cellar_quantity": 3,
+  "drinking_window": null,
+  "drinking_window_source": null,
+  "vintage_rating": null,
+  "vintage_rating_source": null,
+  "my_rating": null,
+  "my_tags": [],
+  "latest_tasting_note_id": null,
+  "wishlist_notes": null,
+  "price_paid": 640,
+  "manual_price": null,
+  "purchased_from": "Zachys",
+  "advice_linked": null,
+  "expert_reviews": null,
+  "community_sentiment": null,
+  "community_excerpts": null,
+  "price_data": null,
+  "retailer_links": null,
+  "review_data": [
+    {
+      "slug": "a",
+      "name": "a",
+      "product_url": "https://a.example/p",
+      "critic_scores": [
+        {
+          "publication": "Vinous",
+          "score": 93,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2025,
+            "end": 2035
+          },
+          "vintage_character": null,
+          "deal": false
+        }
+      ],
+      "fetched_at": "2026-10-01T00:00:00.000Z",
+      "source": "configured",
+      "page_vintage": 2019,
+      "vintage_gap": 0,
+      "match": {
+        "producer": "match",
+        "denomination": "match",
+        "bottling": "unknown",
+        "vintage": "match",
+        "candidateVintage": 2019,
+        "vintageGap": 0
+      },
+      "page_price": null
+    },
+    {
+      "slug": "b",
+      "name": "b",
+      "product_url": "https://b.example/p",
+      "critic_scores": [
+        {
+          "publication": "Burghound",
+          "score": 93,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2030,
+            "end": 2045
+          },
+          "vintage_character": null,
+          "deal": false
+        }
+      ],
+      "fetched_at": "2026-10-01T00:00:00.000Z",
+      "source": "configured",
+      "page_vintage": 2019,
+      "vintage_gap": 0,
+      "match": {
+        "producer": "match",
+        "denomination": "match",
+        "bottling": "unknown",
+        "vintage": "match",
+        "candidateVintage": 2019,
+        "vintageGap": 0
+      },
+      "page_price": null
+    }
+  ],
+  "review_probe_log": null,
+  "date_added": "2026-10-10T23:57:53.449Z",
+  "date_first_consumed": null,
+  "promoted_at": "2026-10-01T00:00:00.000Z",
+  "latest_tasting_note_date": null,
+  "window_status": "check",
+  "critic_summary": {
+    "ordered": [
+      {
+        "publication": "Vinous",
+        "score": 93,
+        "vintage": 2019,
+        "same_vintage": true,
+        "trusted": true,
+        "tier": 1,
+        "known_publication": true,
+        "drinking_window": {
+          "start": 2025,
+          "end": 2035
+        },
+        "vintage_character": null,
+        "deal": false
+      },
+      {
+        "publication": "Burghound",
+        "score": 93,
+        "vintage": 2019,
+        "same_vintage": true,
+        "trusted": true,
+        "tier": 1,
+        "known_publication": true,
+        "drinking_window": {
+          "start": 2030,
+          "end": 2045
+        },
+        "vintage_character": null,
+        "deal": false
+      }
+    ]
+  },
+  "enrichment_stale": {
+    "price": false,
+    "reviews": false
+  },
+  "price_exclusions": null
+}

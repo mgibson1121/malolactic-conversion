@@ -65,7 +65,7 @@ final class CellarDashboardModel: WineRowActionTarget {
         guard let wines = state.value?.wines else { return [] }
         let newestFirst = wines.sorted { $0.dateAdded > $1.dateAdded }
         guard let readinessFilter else { return newestFirst }
-        return newestFirst.filter { DrinkReadiness.of($0.drinkingWindow, today: today).segment == readinessFilter }
+        return newestFirst.filter { DrinkReadiness.of($0, today: today).segment == readinessFilter }
     }
 
     func saveCapacity(_ capacity: Int?, using api: APIClient) async -> Bool {

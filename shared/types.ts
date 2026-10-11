@@ -171,6 +171,10 @@ export interface RetailerReview {
   // retailer's price: the shop's own figure from the shop's own page, not a
   // blend across sources.
   page_price: number | null
+  // Phase 12.1 (WI-1) — the identity string (`identityKey(identityOf(wine))`)
+  // this result was fetched for. Absent on everything stored before this
+  // phase, which means "unknown": never flagged stale.
+  enriched_for?: string
 }
 
 /** A price range over some set of listings. Null bounds mean the set was
@@ -196,6 +200,50 @@ export interface PriceData {
   retailers: RetailerPrice[]
   nearest_retailer: RetailerPrice | null
   fetched_at: string     // ISO timestamp
+  // Phase 12.1 (WI-1) — see RetailerReview.enriched_for.
+  enriched_for?: string
+}
+
+// ─── Derived read-path types (Phase 12.1) ─────────────────────────────────────
+
+/**
+ * Whether a wine has a usable drinking window — computed on every wine read,
+ * never stored, never re-derived by a client. See shared/utils/window-status.ts.
+ */
+export type WindowStatus = 'primary' | 'check' | 'none'
+
+export interface CriticSummaryItem {
+  publication: string
+  score: number
+  // The vintage the score's page states; null when it states none (or the
+  // blob predates `page_vintage`).
+  vintage: number | null
+  same_vintage: boolean
+  trusted: boolean
+  // 1 same vintage + trusted · 2 same vintage · 3 trusted · 4 the rest.
+  tier: 1 | 2 | 3 | 4
+  known_publication: boolean
+  // The same citation's Phase 8 attributes, carried through so a client never
+  // has to look back into review_data to render a score. Null / false when
+  // the source did not state them.
+  drinking_window: CriticDrinkingWindow | null
+  vintage_character: VintageRating | null
+  deal: boolean
+}
+
+/**
+ * Why a price lookup that found listings has no average. See
+ * shared/utils/price-exclusions.ts. `sentence` is the whole line to show.
+ */
+export interface PriceExclusions {
+  found: number
+  reasons: string[]
+  sentence: string
+}
+
+/** A wine's critic scores in display order; the first is the card badge. */
+export interface CriticSummary {
+  ordered: CriticSummaryItem[]
 }
 
 // ─── Enum types ───────────────────────────────────────────────────────────────
@@ -281,6 +329,13 @@ export interface WineEntry {
   my_tags: string[]
   wishlist_notes: string | null
   price_paid: number | null
+  // Phase 12.1 D12 — the developer's own per-750 ml price, entered when the
+  // automated lookup was wrong or empty. When set it is *the* price on every
+  // surface (see shared/utils/effective-price.ts); the automated figures
+  // become informational. A separate column, not a key in price_data, because
+  // every price fetch rewrites that blob. Never written by an automated run.
+  // price_paid is a different field and stays unsurfaced.
+  manual_price: number | null
   purchased_from: string | null
   latest_tasting_note_id: string | null   // FK to most recent tasting note; set by createTastingNote
   advice_linked: string[] | null          // advice UUIDs; appended by createAdvice
@@ -312,11 +367,32 @@ export interface WineEntry {
   // sort by and show the latest note date without a request per wine.
   // Optional because only the SQLite adapter computes it.
   latest_tasting_note_date?: string | null
+  // Phase 12.1 — read-only, computed on every read like latest_tasting_note_date.
+  window_status?: WindowStatus
+  critic_summary?: CriticSummary
+  // Phase 12.1 (WI-1) — true when the stored price / review blob carries an
+  // `enriched_for` stamp that differs from the wine's current identity key.
+  // A blob with no stamp (everything stored before this phase) is unknown,
+  // not stale. Computed here so no client ports the identity rules.
+  enrichment_stale?: { price: boolean; reviews: boolean }
+  // Phase 12.1 (WI-4) — non-null only when listings were found but none counted.
+  price_exclusions?: PriceExclusions | null
 }
 
 export interface TastingNote {
   id: string
-  wine_id: string
+  // Phase 12.1 (WI-3, migration 008) — null once the wine has been deleted.
+  // The note outlives the wine and carries its own identity snapshot, copied
+  // at save time.
+  wine_id: string | null
+  wine_producer: string | null
+  wine_denomination: string | null
+  wine_vintage: number | null
+  wine_vineyard: string | null
+  wine_cuvee: string | null
+  // Derived: wine_id === null. Lets a client label a detached note
+  // "Wine removed" without inferring it.
+  wine_removed: boolean
   tasted_at: string // ISO timestamp
   // Appearance
   clarity: TastingClarity | null
@@ -356,10 +432,15 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date'>>
-export type CreateTastingNoteInput = Omit<TastingNote, 'id'>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions'>>
+// The identity snapshot is copied from the wine by the adapter at save time,
+// never supplied by a client.
+export type CreateTastingNoteInput = Omit<
+  TastingNote,
+  'id' | 'wine_id' | 'wine_producer' | 'wine_denomination' | 'wine_vintage' | 'wine_vineyard' | 'wine_cuvee' | 'wine_removed'
+> & { wine_id: string }
 export type CreateAdviceInput = Omit<AdviceEntry, 'id'>
 
 // ─── Filter types ─────────────────────────────────────────────────────────────

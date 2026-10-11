@@ -68,7 +68,7 @@ struct ScanFlowView: View {
             didAutoOpenCamera = true
             await openCamera()
         }
-        .interactiveDismissDisabled(model.step == .review || model.step == .scanning)
+        .interactiveDismissDisabled(model.step == .review || model.step == .scanning || model.step == .pulling)
     }
 
     @ViewBuilder
@@ -88,6 +88,9 @@ struct ScanFlowView: View {
         case .scanning:
             ScanningView(thumbnail: model.thumbnail, isSlow: model.isSlow)
                 .navigationTitle("Scanning")
+        case .pulling:
+            PullingDetailsView(wine: model.wine)
+                .navigationTitle("Scan successful")
         case .duplicate(let existing, let scanned, let bottling):
             DuplicateView(
                 existing: existing,
@@ -179,6 +182,35 @@ private struct CaptureChoicesView: View {
         }
         .padding(.horizontal, Theme.sideMargin)
         .padding(.bottom, 24)
+    }
+}
+
+/// "Scan successful — pulling details" (Phase 12.1 WI-5, D8): the parsed
+/// wine, held until the first critic score lands or three seconds pass.
+private struct PullingDetailsView: View {
+    let wine: Wine?
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(Theme.green)
+                .accessibilityHidden(true)
+            Text("Scan successful").font(AppFont.detailTitle()).foregroundStyle(Theme.text)
+            if let wine {
+                Text([wine.producer, wine.denomination, wine.vintage.map(String.init)]
+                        .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(AppFont.body())
+                    .foregroundStyle(Theme.text)
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Pulling details…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+            }
+        }
+        .padding(Theme.sideMargin)
+        .accessibilityElement(children: .combine)
     }
 }
 

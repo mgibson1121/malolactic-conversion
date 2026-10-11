@@ -21,6 +21,15 @@ enum WineFormatting {
         return "\(vintage(wine)) · \(region)"
     }
 
+    /// The card's window text: `Drink '26–'38` for a primary window, or
+    /// `Check window` for a wine with none whose critics disagree (Phase 12.1
+    /// WI-2, D3 — a list-view flag; the per-critic windows are on the detail
+    /// view). Nil otherwise.
+    static func windowBadge(_ wine: Wine) -> String? {
+        if let text = drinkWindow(wine.drinkingWindow) { return text }
+        return wine.windowStatus == .check ? "Check window" : nil
+    }
+
     /// `Drink '26–'38`. Nil when there is no wine-level window — the disputed
     /// per-critic spread is detail-view only.
     static func drinkWindow(_ window: DrinkingWindow?) -> String? {
@@ -34,6 +43,15 @@ enum WineFormatting {
     static func price(_ amount: Double?) -> String? {
         guard let amount else { return nil }
         return currency.string(from: NSNumber(value: amount.rounded()))
+    }
+
+    /// The card's price text: the developer's own price with a "yours" marker
+    /// when set (the automated average is not shown beside it), otherwise the
+    /// automated average (Phase 12.1 D12).
+    static func cardPrice(_ wine: Wine) -> String? {
+        let effective = EffectivePrice(wine)
+        guard let text = price(effective.value) else { return nil }
+        return effective.isManual ? "\(text) yours" : text
     }
 
     static func rating(_ rating: MyRating) -> String {

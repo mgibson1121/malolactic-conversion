@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS wines (
 
 CREATE TABLE IF NOT EXISTS tasting_notes (
   id                          TEXT PRIMARY KEY,
-  wine_id                     TEXT NOT NULL REFERENCES wines(id),
+  wine_id                     TEXT REFERENCES wines(id) ON DELETE SET NULL,  -- nullable since migration 008 (Phase 12.1)
   date                        TEXT NOT NULL,   -- ISO timestamp (maps to tasted_at)
   wset_appearance_clarity     TEXT,
   wset_appearance_intensity   TEXT,
@@ -59,7 +59,14 @@ CREATE TABLE IF NOT EXISTS tasting_notes (
   wset_conclusion_quality     TEXT,
   my_rating                   TEXT,
   free_text                   TEXT,
-  extracted_tags              TEXT    -- JSON array; from GPT-4o tag extraction
+  extracted_tags              TEXT,   -- JSON array; from GPT-4o tag extraction
+  -- Phase 12.1 (migration 008): identity snapshot copied at save time, so the
+  -- note outlives the wine.
+  wine_producer               TEXT,
+  wine_denomination           TEXT,
+  wine_vintage                INTEGER,
+  wine_vineyard               TEXT,
+  wine_cuvee                  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS advice (

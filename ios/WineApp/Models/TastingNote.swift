@@ -6,7 +6,14 @@ import Foundation
 
 struct TastingNote: Codable, Identifiable, Hashable {
     let id: String
-    var wineId: String
+    /// Nil once the wine has been deleted (Phase 12.1 WI-3): the note outlives
+    /// the wine and carries its own identity snapshot.
+    var wineId: String?
+    var wineProducer: String?
+    var wineDenomination: String?
+    var wineVintage: Int?
+    var wineVineyard: String?
+    var wineCuvee: String?
     var tastedAt: String
 
     var clarity: String?
@@ -35,6 +42,11 @@ struct TastingNote: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id
         case wineId = "wine_id"
+        case wineProducer = "wine_producer"
+        case wineDenomination = "wine_denomination"
+        case wineVintage = "wine_vintage"
+        case wineVineyard = "wine_vineyard"
+        case wineCuvee = "wine_cuvee"
         case tastedAt = "tasted_at"
         case clarity
         case colourIntensity = "colour_intensity"
@@ -54,5 +66,17 @@ struct TastingNote: Codable, Identifiable, Hashable {
         case myRating = "my_rating"
         case freeText = "free_text"
         case tags
+    }
+}
+
+extension TastingNote {
+    /// The wine this note was written about no longer exists.
+    var isWineRemoved: Bool { wineId == nil }
+
+    /// `Georges Roumier · Chambolle-Musigny · 2018`, from the snapshot.
+    var wineSummary: String {
+        let parts: [String?] = [wineProducer, wineDenomination, wineVintage.map(String.init)]
+        let joined = parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        return joined.isEmpty ? "Unknown wine" : joined
     }
 }

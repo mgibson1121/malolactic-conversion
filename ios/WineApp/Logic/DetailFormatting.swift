@@ -129,9 +129,13 @@ enum RetailerNames {
     }
 }
 
-/// Which of the detail screen's three disclosure groups (implementation spec §8).
+/// Which of the detail screen's three disclosure groups (implementation spec
+/// §8). Phase 12.1 (WI-7) made Critic reviews and Price & retailers peer
+/// sections — pricing used to read as a child of the critic scores — and the
+/// section holding the developer's own tasting notes is "My Review" (D11),
+/// no longer "Reviews", which collided with the metered critic-score action.
 enum DetailGroup: String, Hashable, CaseIterable {
-    case research, retailers, reviews
+    case criticReviews, priceRetailers, myReview
 }
 
 /// The retailer table's collapsed ordering (§7.3): nearest first, then the

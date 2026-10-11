@@ -80,10 +80,20 @@ final class RowActionsTests: XCTestCase {
         XCTAssertFalse(StubURLProtocol.requests.contains { $0.httpMethod == "PATCH" }, "no request for a no-op")
     }
 
-    func testDeletingAWineWithANoteSurfacesTheSpecCopy() async {
-        StubURLProtocol.response = (409, Data(#"{"error":"Cannot delete a wine that has tasting notes."}"#.utf8))
+    /// Phase 12.1 (WI-3, D5): a tasting note no longer blocks a delete — the
+    /// server keeps the note and drops only the wine (it used to answer 409).
+    func testDeletingAWineWithANoteSucceedsAndTheRowGoes() async {
+        StubURLProtocol.response = (204, Data())
         let error = await actions.delete(wine)
-        XCTAssertEqual(error, "This wine has a tasting note and can't be discarded. Remove it from your lists instead.")
+        XCTAssertNil(error)
+        guard case .empty = model.state else { return XCTFail("expected .empty, got \(model.state)") }
+        XCTAssertEqual(StubURLProtocol.requests.last?.httpMethod, "DELETE")
+    }
+
+    func testAServerErrorOnDeleteKeepsTheRowAndShowsItsMessage() async {
+        StubURLProtocol.response = (500, Data(#"{"error":"database is locked"}"#.utf8))
+        let error = await actions.delete(wine)
+        XCTAssertEqual(error, "database is locked")
         XCTAssertEqual(model.state.value?.count, 1, "nothing removed")
     }
 

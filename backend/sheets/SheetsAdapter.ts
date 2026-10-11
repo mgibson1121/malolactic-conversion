@@ -225,6 +225,7 @@ export class SheetsAdapter implements StorageAdapter {
       price_data: safeParseJSON<PriceData | null>(c(WINE_COLS.price_data), null),
       wishlist_notes: orNull(c(WINE_COLS.wishlist_notes)),
       price_paid: c(WINE_COLS.price_paid) ? parseFloat(c(WINE_COLS.price_paid)) : null,
+      manual_price: null, // Phase 12.1 — SQLite only; this adapter is Phase 1–4 reference
       purchased_from: orNull(c(WINE_COLS.purchased_from)),
       advice_linked: safeParseJSON<string[] | null>(c(WINE_COLS.advice_linked), null),
       date_added: c(WINE_COLS.date_added),
@@ -240,7 +241,7 @@ export class SheetsAdapter implements StorageAdapter {
   private tastingNoteToRow(n: TastingNote): string[] {
     return [
       n.id,
-      n.wine_id,
+      n.wine_id ?? '',
       n.tasted_at,
       n.clarity ?? '',
       n.colour_intensity ?? '',
@@ -268,6 +269,13 @@ export class SheetsAdapter implements StorageAdapter {
     return {
       id: c(TASTING_NOTE_COLS.id),
       wine_id: c(TASTING_NOTE_COLS.wine_id),
+      // Phase 12.1 — snapshot and detachment are SQLite-only.
+      wine_producer: null,
+      wine_denomination: null,
+      wine_vintage: null,
+      wine_vineyard: null,
+      wine_cuvee: null,
+      wine_removed: false,
       tasted_at: c(TASTING_NOTE_COLS.tasted_at),
       clarity: orNull<TastingClarity>(c(TASTING_NOTE_COLS.clarity)),
       colour_intensity: orNull<TastingColourIntensity>(c(TASTING_NOTE_COLS.colour_intensity)),
@@ -341,6 +349,7 @@ export class SheetsAdapter implements StorageAdapter {
     const wine: WineEntry = {
       ...data,
       id: randomUUID(),
+      manual_price: null,
       tag_discovered: data.tag_discovered ?? true,
       cellar_quantity: data.cellar_quantity ?? 0,
       drinking_window_source: data.drinking_window ? 'manual' : null,
@@ -415,7 +424,16 @@ export class SheetsAdapter implements StorageAdapter {
   // ── Tasting notes ──────────────────────────────────────────────────────────
 
   async createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
-    const note: TastingNote = { ...data, id: randomUUID() }
+    const note: TastingNote = {
+      ...data,
+      id: randomUUID(),
+      wine_producer: null,
+      wine_denomination: null,
+      wine_vintage: null,
+      wine_vineyard: null,
+      wine_cuvee: null,
+      wine_removed: false,
+    }
     await this.appendRow(SHEET_NAMES.tastingNotes, this.tastingNoteToRow(note))
 
     const wine = await this.getWine(data.wine_id)
@@ -440,6 +458,11 @@ export class SheetsAdapter implements StorageAdapter {
     const rows = await this.readSheet(SHEET_NAMES.tastingNotes)
     const row = rows.find((r) => r[0] === id)
     return row ? this.rowToTastingNote(row) : null
+  }
+
+  async listTastingNotes(): Promise<TastingNote[]> {
+    const rows = await this.readSheet(SHEET_NAMES.tastingNotes)
+    return rows.map((r) => this.rowToTastingNote(r))
   }
 
   async listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {

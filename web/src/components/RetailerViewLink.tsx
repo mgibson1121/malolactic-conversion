@@ -7,6 +7,9 @@ interface Props {
   retailer: RetailerPrice
   onWineUpdated: (wine: WineEntry) => void
   className?: string
+  /** What the link says. Defaults to "View"; the Price block's nearest-retailer
+   * line passes the retailer's name so the name itself is the tappable link. */
+  label?: string
 }
 
 /**
@@ -62,7 +65,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * working handle.) `tab.opener = null` gets the same reverse-tabnabbing
  * protection `noopener` would have provided, without losing the reference.
  */
-export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }: Props) {
+export function RetailerViewLink({ wineId, retailer, onWineUpdated, className, label = 'View' }: Props) {
   // Phase 10.5 (gap doc §2.7) — three states, not one: a resolved product
   // link needs no visual flag; an unresolved search link should read as a
   // search rather than a direct product page; and the moment between a
@@ -74,7 +77,7 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
   if (!needsResolution) {
     return (
       <a href={retailer.url} target="_blank" rel="noopener noreferrer" className={className}>
-        View
+        {label}
       </a>
     )
   }
@@ -114,7 +117,7 @@ export function RetailerViewLink({ wineId, retailer, onWineUpdated, className }:
     >
       {resolving ? 'Resolving…' : (
         <>
-          <span aria-hidden="true">🔍 </span>View
+          <span aria-hidden="true">🔍 </span>{label}
         </>
       )}
     </a>

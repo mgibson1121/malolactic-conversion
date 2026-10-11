@@ -19,11 +19,13 @@
  *      wine joins the collection.
  */
 
-import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react'
 import type { CreateWineInput, UpdateWineInput, WineColor, WineEntry } from '@shared/types'
 import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
 import { findDuplicate, type BottlingDifference } from '@shared/utils/duplicate-match'
+import { PREVIEW_HOLD_MS } from '../constants'
+import { criticSummaryOf } from '../utils/wineDerived'
 
 interface Props {
   /** Promoted wines already in the collection — used only for the free
@@ -46,6 +48,7 @@ type FlowState =
   | { step: 'scanning' }
   | { step: 'unavailable'; reason: string }
   | { step: 'duplicate'; existing: WineEntry; scan: LabelScanResult; bottling: BottlingDifference | null }
+  | { step: 'pulling'; wine: WineEntry; scan: LabelScanResult; vintageNotice: string | null }
   | { step: 'review'; wine: WineEntry; scan: LabelScanResult; editing: boolean; enrichmentFired: boolean; vintageNotice: string | null }
   | { step: 'error'; message: string }
 
@@ -104,7 +107,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
   }
 
   async function discardDraft() {
-    if (flow.step === 'review') {
+    if (flow.step === 'review' || flow.step === 'pulling') {
       await deleteWine(flow.wine.id).catch(() => {})
     }
   }
@@ -147,20 +150,43 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
     }
   }
 
+  // Phase 12.1 WI-5 (D8): after a successful parse, "Scan successful —
+  // pulling details" holds the screen until the first critic score lands, or
+  // PREVIEW_HOLD_MS passes, whichever is first. The lookups are not cancelled
+  // when the hold ends — the screens that follow show their "Looking…" states
+  // for whatever is still pending. A failed scan never reaches here, so the
+  // hold never delays an error.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current) }, [])
+
   async function createDraftAndReview(scan: LabelScanResult, distinctFrom: WineEntry | null) {
     const wine = await createWine(scanToDraftInput(scan))
     const fired = hasTier1(wine)
-    if (fired) fireEnrichment(wine)
-    setFlow({
-      step: 'review',
-      wine,
-      scan,
-      editing: false,
-      enrichmentFired: fired,
-      vintageNotice: distinctFrom
-        ? `You already have the ${distinctFrom.vintage ?? 'NV'} — this looks like the ${scan.vintage ?? 'NV'}.`
-        : null,
-    })
+    const vintageNotice = distinctFrom
+      ? `You already have the ${distinctFrom.vintage ?? 'NV'} — this looks like the ${scan.vintage ?? 'NV'}.`
+      : null
+
+    let moved = false
+    const moveOn = (latest: WineEntry) => {
+      if (moved) return
+      moved = true
+      if (holdTimer.current) clearTimeout(holdTimer.current)
+      // Only if the developer is still on the interstitial for this wine.
+      setFlow((f) =>
+        f.step === 'pulling' && f.wine.id === wine.id
+          ? { step: 'review', wine: latest, scan, editing: false, enrichmentFired: fired, vintageNotice }
+          : f
+      )
+    }
+
+    setFlow({ step: 'pulling', wine, scan, vintageNotice })
+    if (fired) {
+      fetchWinePrice(wine.id).catch(() => {})
+      fetchWineReviews(wine.id, { tier: 'primary' })
+        .then((res) => { if (criticSummaryOf(res).ordered.length > 0) moveOn(res) })
+        .catch(() => {})
+    }
+    holdTimer.current = setTimeout(() => moveOn(wine), PREVIEW_HOLD_MS)
   }
 
   function onFileInput(e: ChangeEvent<HTMLInputElement>) {
@@ -231,6 +257,21 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
           <span className="scan-spinner" aria-hidden="true">🔍</span>
           <h2>Scanning label…</h2>
           <p>GPT-4o is reading the label. This usually takes 5–15 seconds.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Pulling step (Phase 12.1 WI-5) ───────────────────────────────────────────
+  if (flow.step === 'pulling') {
+    const line = [flow.scan.producer, flow.scan.denomination, flow.scan.vintage].filter(Boolean).join(' · ')
+    return (
+      <div className="form-overlay">
+        <div className="scan-flow scan-flow--scanning">
+          <span className="scan-spinner" aria-hidden="true">✓</span>
+          <h2>Scan successful</h2>
+          {line && <p className="scan-pulling-wine">{line}</p>}
+          <p role="status">Pulling details…</p>
         </div>
       </div>
     )

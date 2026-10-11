@@ -45,12 +45,12 @@ final class ScanFlowSaveTests: XCTestCase {
     }
 
     func testAddAnywayThenSaveCreatesASeparateWine() async throws {
-        let model = ScanFlowModel(api: StubURLProtocol.api())
+        let model = ScanFlowModel(api: StubURLProtocol.api(), previewHold: .zero)
         model.scan(Self.label())
         try await waitUntil { if case .duplicate = model.step { return true }; return false }
 
         await model.addAnyway()
-        XCTAssertEqual(model.step, .review)
+        try await waitUntil { model.step == .review }
         XCTAssertEqual(model.wine?.id, draftID, "a new draft, not the existing wine")
         XCTAssertTrue(model.isDraft)
 
@@ -67,7 +67,7 @@ final class ScanFlowSaveTests: XCTestCase {
     /// The lookups a new draft fires can land after Save closed the modal;
     /// each one must still tell the lists (2026-10-04).
     func testBackgroundLookupsTellTheListsEvenAfterSave() async throws {
-        let model = ScanFlowModel(api: StubURLProtocol.api())
+        let model = ScanFlowModel(api: StubURLProtocol.api(), previewHold: .zero)
         var landed = 0
         model.onEnrichmentLanded = { landed += 1 }
         model.scan(Self.label())

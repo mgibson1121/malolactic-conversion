@@ -92,8 +92,8 @@ export async function promoteWine(
 }
 
 /**
- * Discards a wine (Phase 9.4, WI-7) — an explicit Discard/Cancel, or the 24h
- * draft sweep. Rejects with 409 if the wine has a tasting note.
+ * Deletes a wine (Phase 9.4, WI-7: discard a draft; Phase 12.1, WI-3: delete a
+ * saved wine). Tasting notes no longer block it — they outlive the wine.
  */
 export async function deleteWine(id: string): Promise<void> {
   const res = await fetch(`${BASE}/wines/${id}`, { method: 'DELETE' })
@@ -101,6 +101,17 @@ export async function deleteWine(id: string): Promise<void> {
     const body = await res.json().catch(() => ({}))
     throw new Error(body?.error ? String(body.error) : `HTTP ${res.status}`)
   }
+}
+
+/**
+ * How many tasting notes deleting this wine would keep (Phase 12.1, WI-3) —
+ * `DELETE ?dry_run=1`, which deletes nothing — so the confirmation can name
+ * them.
+ */
+export async function countNotesKeptOnDelete(id: string): Promise<number> {
+  const res = await fetch(`${BASE}/wines/${id}?dry_run=1`, { method: 'DELETE' })
+  const body = await handleResponse<{ notes_kept: number }>(res)
+  return body.notes_kept
 }
 
 export async function createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
@@ -111,6 +122,12 @@ export async function createTastingNote(data: CreateTastingNoteInput): Promise<T
       body: JSON.stringify(data),
     })
   )
+}
+
+/** Every tasting note, newest first — including notes whose wine was deleted
+ * (`wine_removed`). Phase 12.1, WI-3. */
+export async function listAllTastingNotes(): Promise<TastingNote[]> {
+  return handleResponse(await fetch(`${BASE}/tasting-notes`))
 }
 
 export async function listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {

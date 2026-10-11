@@ -57,18 +57,22 @@ struct WineRowView: View {
         if let rating = wine.myRating {
             items.append(.rating(rating))
         }
-        if let score = CriticScores.cardBadge(wine.reviewData) {
+        if let score = CriticScores.cardBadge(wine) {
             items.append(.score(score))
         }
         if kind == .notes {
             if let date = NoteDate.short(wine.latestTastingNoteDate) { items.append(.text(date)) }
             return items
         }
-        if let price = WineFormatting.price(wine.priceData?.priceAvg) {
+        // The developer's own price when set (marked "yours"), else the
+        // automated average — never both (Phase 12.1 D12).
+        if let price = WineFormatting.cardPrice(wine) {
             items.append(.text(price))
         }
         if let window = WineFormatting.drinkWindow(wine.drinkingWindow) {
             items.append(.text(window))
+        } else if wine.windowStatus == .check {
+            items.append(.checkWindow)
         }
         return items
     }
@@ -78,10 +82,15 @@ struct WineRowView: View {
         if let region = wine.region { parts.append(region) }
         if kind == .cellar { parts.append("\(wine.cellarQuantity) bottles") }
         if let rating = wine.myRating { parts.append("rated \(WineFormatting.rating(rating))") }
-        if let score = CriticScores.cardBadge(wine.reviewData) {
+        if let score = CriticScores.cardBadge(wine) {
             parts.append("\(CriticScores.format(score.score)) from \(score.publication)")
+            if let year = score.yearTag { parts.append("vintage \(year)") }
             if score.additionalCount > 0 { parts.append("plus \(score.additionalCount) more scores") }
         }
+        if EffectivePrice(wine).isManual, let price = WineFormatting.price(wine.manualPrice) {
+            parts.append("your price \(price)")
+        }
+        if wine.drinkingWindow == nil, wine.windowStatus == .check { parts.append("check drinking window") }
         return parts.joined(separator: ", ")
     }
 }
@@ -90,6 +99,9 @@ enum BadgeItem: Hashable {
     case rating(MyRating)
     case score(CardScoreBadge)
     case text(String)
+    /// "Check window" — no window of its own and the critics disagree. Tinted
+    /// so it reads as a flag, not as a value (Phase 12.1 WI-2).
+    case checkWindow
 }
 
 /// A single-line run that drops whole badges right-to-left until it fits —
@@ -138,6 +150,10 @@ private struct BadgeView: View {
         case .score(let badge):
             HStack(spacing: 3) {
                 Text(badge.text).monospacedDigit()
+                // A score for another vintage carries its year, muted.
+                if let year = badge.yearTag {
+                    Text(year).foregroundStyle(Theme.textMuted)
+                }
                 if let suffix = badge.suffix {
                     Text(suffix).foregroundStyle(Theme.textMuted)
                 }
@@ -153,6 +169,13 @@ private struct BadgeView: View {
             Text(text)
                 .font(AppFont.meta().monospacedDigit())
                 .foregroundStyle(Theme.textMuted)
+        case .checkWindow:
+            Text("Check window")
+                .font(AppFont.badge())
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .foregroundStyle(Theme.accent2)
+                .background(Theme.accent2Soft, in: Capsule())
         }
     }
 }

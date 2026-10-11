@@ -2,7 +2,10 @@ import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
-const DB_PATH = path.resolve(__dirname, 'wine.db')
+// `WINE_DB_PATH` points the backend at another database file — a copy of the
+// real one, to try a build against real-shaped data without touching (or
+// spending metered calls on) the developer's collection. Unset in normal use.
+const DB_PATH = process.env.WINE_DB_PATH ? path.resolve(process.env.WINE_DB_PATH) : path.resolve(__dirname, 'wine.db')
 const SCHEMA_PATH = path.resolve(__dirname, 'schema.sql')
 const MIGRATIONS_DIR = path.resolve(__dirname, 'migrations')
 
@@ -53,18 +56,30 @@ function runAlterMigrations(db: Database.Database): void {
       .map(s => s.replace(/--[^\n]*/g, '').trim())
       .filter(Boolean)
 
-    for (const stmt of statements) {
-      try {
-        db.exec(stmt)
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        // The column is already there: this file ran before migrations
-        // were recorded. Don't run its remaining statements again.
-        if (msg.includes('duplicate column name')) break
-        throw err
+    // One transaction per file (2026-10-10, Phase 12.1): 008 rebuilds a
+    // table (create, copy, drop, rename), and a crash between the drop and the
+    // rename must not leave the database without its notes table. SQLite DDL
+    // is transactional. A statement error inside a transaction does not abort
+    // it, so the "duplicate column name" break below still just stops early.
+    db.exec('BEGIN')
+    try {
+      for (const stmt of statements) {
+        try {
+          db.exec(stmt)
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          // The column is already there: this file ran before migrations
+          // were recorded. Don't run its remaining statements again.
+          if (msg.includes('duplicate column name')) break
+          throw err
+        }
       }
+      record.run(file, new Date().toISOString())
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw err
     }
-    record.run(file, new Date().toISOString())
   }
 }
 

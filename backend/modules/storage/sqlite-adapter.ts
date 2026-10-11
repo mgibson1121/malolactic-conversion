@@ -14,6 +14,10 @@ import type {
   WineEntry,
   WineFilter,
 } from '@shared/types'
+import { buildCriticSummary } from '@shared/utils/critic-summary'
+import { enrichmentStale } from '@shared/utils/enrichment-stale'
+import { describePriceExclusions } from '@shared/utils/price-exclusions'
+import { windowStatusOf } from '@shared/utils/window-status'
 import type { StorageAdapter } from './interface'
 
 // ─── Serialization helpers ────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ interface WineRow {
   latest_tasting_note_id: string | null
   wishlist_notes: string | null
   price_paid: number | null
+  manual_price: number | null
   purchased_from: string | null
   advice_linked: string | null
   expert_reviews: string | null
@@ -88,7 +93,12 @@ interface WineRow {
 
 interface TastingNoteRow {
   id: string
-  wine_id: string
+  wine_id: string | null
+  wine_producer: string | null
+  wine_denomination: string | null
+  wine_vintage: number | null
+  wine_vineyard: string | null
+  wine_cuvee: string | null
   date: string
   wset_appearance_clarity: string | null
   wset_appearance_intensity: string | null
@@ -133,6 +143,9 @@ function rowToWine(row: WineRow): WineEntry {
       ? { start: row.drinking_window_start, end: row.drinking_window_end }
       : null
 
+  const priceData = fromJson<WineEntry['price_data']>(row.price_data, null)
+  const reviewData = fromJson<WineEntry['review_data']>(row.review_data, null)
+
   return {
     id: row.id,
     producer: row.producer,
@@ -160,19 +173,36 @@ function rowToWine(row: WineRow): WineEntry {
     latest_tasting_note_id: row.latest_tasting_note_id,
     wishlist_notes: row.wishlist_notes,
     price_paid: row.price_paid,
+    manual_price: row.manual_price ?? null,
     purchased_from: row.purchased_from,
     advice_linked: fromJson<string[] | null>(row.advice_linked, null),
     expert_reviews: fromJson(row.expert_reviews, null),
     community_sentiment: row.community_sentiment,
     community_excerpts: fromJson<string[] | null>(row.community_excerpts, null),
-    price_data: fromJson(row.price_data, null),
+    price_data: priceData,
     retailer_links: fromJson<Record<string, string> | null>(row.retailer_links, null),
-    review_data: fromJson(row.review_data, null),
+    review_data: reviewData,
     review_probe_log: fromJson(row.review_probe_log, null),
     date_added: row.date_added,
     date_first_consumed: row.date_first_consumed,
     promoted_at: row.promoted_at,
     latest_tasting_note_date: row.latest_tasting_note_date ?? null,
+    // Phase 12.1 — derived on every read, never stored, never re-derived by
+    // a client (shared/utils/window-status.ts, critic-summary.ts,
+    // enrichment-stale.ts).
+    window_status: windowStatusOf(drinkingWindow, reviewData),
+    critic_summary: buildCriticSummary(reviewData, row.vintage),
+    enrichment_stale: enrichmentStale({
+      producer: row.producer,
+      denomination: row.denomination,
+      vintage: row.vintage,
+      cuvee: row.cuvee,
+      vineyard: row.vineyard,
+      quality_classification: row.quality_classification,
+      price_data: priceData,
+      review_data: reviewData,
+    }),
+    price_exclusions: describePriceExclusions(priceData),
   }
 }
 
@@ -188,6 +218,12 @@ function rowToTastingNote(row: TastingNoteRow): TastingNote {
   return {
     id: row.id,
     wine_id: row.wine_id,
+    wine_producer: row.wine_producer ?? null,
+    wine_denomination: row.wine_denomination ?? null,
+    wine_vintage: row.wine_vintage ?? null,
+    wine_vineyard: row.wine_vineyard ?? null,
+    wine_cuvee: row.wine_cuvee ?? null,
+    wine_removed: row.wine_id === null,
     tasted_at: row.date,
     clarity: (row.wset_appearance_clarity as TastingNote['clarity']) ?? null,
     colour_intensity: (row.wset_appearance_intensity as TastingNote['colour_intensity']) ?? null,
@@ -229,6 +265,10 @@ export class SQLiteAdapter implements StorageAdapter {
 
   constructor(db: Database.Database) {
     this.db = db
+    // ON DELETE SET NULL on tasting_notes.wine_id (migration 008) only works
+    // with enforcement on. better-sqlite3 defaults it on, but a note that
+    // outlives its wine is a rule, not a default to lean on.
+    this.db.pragma('foreign_keys = ON')
     runMigration(this.db)
   }
 
@@ -252,6 +292,7 @@ export class SQLiteAdapter implements StorageAdapter {
       community_sentiment: null,
       community_excerpts: null,
       price_data: null,
+      manual_price: null,
       retailer_links: null,
       review_data: null,
       review_probe_log: null,
@@ -271,7 +312,7 @@ export class SQLiteAdapter implements StorageAdapter {
         drinking_window_start, drinking_window_end, drinking_window_source,
         vintage_rating, vintage_rating_source,
         my_rating, my_tags, latest_tasting_note_id,
-        wishlist_notes, price_paid, purchased_from,
+        wishlist_notes, price_paid, manual_price, purchased_from,
         advice_linked, expert_reviews, community_sentiment, community_excerpts, price_data,
         retailer_links, review_data, review_probe_log, date_added, date_first_consumed,
         promoted_at
@@ -283,7 +324,7 @@ export class SQLiteAdapter implements StorageAdapter {
         ?, ?, ?,
         ?, ?,
         ?, ?, ?,
-        ?, ?, ?,
+        ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
         ?
@@ -298,7 +339,7 @@ export class SQLiteAdapter implements StorageAdapter {
       wine.drinking_window?.start ?? null, wine.drinking_window?.end ?? null, wine.drinking_window_source,
       wine.vintage_rating, wine.vintage_rating_source,
       wine.my_rating, toJson(wine.my_tags), wine.latest_tasting_note_id,
-      wine.wishlist_notes, wine.price_paid, wine.purchased_from,
+      wine.wishlist_notes, wine.price_paid, wine.manual_price, wine.purchased_from,
       toJson(wine.advice_linked), toJson(wine.expert_reviews),
       wine.community_sentiment, toJson(wine.community_excerpts), toJson(wine.price_data),
       toJson(wine.retailer_links), toJson(wine.review_data), toJson(wine.review_probe_log),
@@ -380,7 +421,7 @@ export class SQLiteAdapter implements StorageAdapter {
         drinking_window_start = ?, drinking_window_end = ?, drinking_window_source = ?,
         vintage_rating = ?, vintage_rating_source = ?, my_rating = ?, my_tags = ?,
         latest_tasting_note_id = ?,
-        wishlist_notes = ?, price_paid = ?, purchased_from = ?,
+        wishlist_notes = ?, price_paid = ?, manual_price = ?, purchased_from = ?,
         advice_linked = ?, expert_reviews = ?,
         community_sentiment = ?, community_excerpts = ?, price_data = ?,
         retailer_links = ?, review_data = ?, review_probe_log = ?, date_first_consumed = ?,
@@ -396,7 +437,7 @@ export class SQLiteAdapter implements StorageAdapter {
       updated.drinking_window?.start ?? null, updated.drinking_window?.end ?? null, updated.drinking_window_source,
       updated.vintage_rating, updated.vintage_rating_source, updated.my_rating, toJson(updated.my_tags),
       updated.latest_tasting_note_id,
-      updated.wishlist_notes, updated.price_paid, updated.purchased_from,
+      updated.wishlist_notes, updated.price_paid, updated.manual_price, updated.purchased_from,
       toJson(updated.advice_linked), toJson(updated.expert_reviews),
       updated.community_sentiment, toJson(updated.community_excerpts), toJson(updated.price_data),
       toJson(updated.retailer_links), toJson(updated.review_data), toJson(updated.review_probe_log),
@@ -412,7 +453,15 @@ export class SQLiteAdapter implements StorageAdapter {
 
   // Phase 9.4 (WI-7)
   async deleteWine(id: string): Promise<void> {
-    this.db.prepare('DELETE FROM wines WHERE id = ?').run(id)
+    // Tasting notes survive (ON DELETE SET NULL, migration 008) — the wine
+    // row goes, its notes stay with wine_id NULL and their identity snapshot.
+    // Advice rows also point at the wine; an advice tip is not tied to one
+    // bottle, so it is detached rather than blocking the delete.
+    const remove = this.db.transaction(() => {
+      this.db.prepare('UPDATE advice SET wine_id = NULL WHERE wine_id = ?').run(id)
+      this.db.prepare('DELETE FROM wines WHERE id = ?').run(id)
+    })
+    remove()
   }
 
   async sweepStaleDrafts(olderThan: Date): Promise<number> {
@@ -425,7 +474,21 @@ export class SQLiteAdapter implements StorageAdapter {
   // ── Tasting notes ──────────────────────────────────────────────────────────
 
   async createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
-    const note: TastingNote = { ...data, id: randomUUID() }
+    const wine = await this.getWine(data.wine_id)
+    if (!wine) throw new Error(`Wine not found: ${data.wine_id}`)
+
+    // Phase 12.1 (WI-3) — the note keeps its own copy of the wine's identity,
+    // so it still reads correctly after the wine is deleted.
+    const note: TastingNote = {
+      ...data,
+      id: randomUUID(),
+      wine_producer: wine.producer,
+      wine_denomination: wine.denomination,
+      wine_vintage: wine.vintage,
+      wine_vineyard: wine.vineyard,
+      wine_cuvee: wine.cuvee,
+      wine_removed: false,
+    }
 
     this.db.prepare(`
       INSERT INTO tasting_notes (
@@ -435,7 +498,8 @@ export class SQLiteAdapter implements StorageAdapter {
         wset_nose_primary_aromas, wset_nose_secondary_aromas, wset_nose_tertiary_aromas,
         wset_palate_sweetness, wset_palate_acidity, wset_palate_tannin,
         wset_palate_body, wset_palate_flavour_intensity, wset_palate_finish,
-        wset_conclusion_quality, my_rating, free_text, extracted_tags
+        wset_conclusion_quality, my_rating, free_text, extracted_tags,
+        wine_producer, wine_denomination, wine_vintage, wine_vineyard, wine_cuvee
       ) VALUES (
         ?, ?, ?,
         ?, ?, ?,
@@ -443,7 +507,8 @@ export class SQLiteAdapter implements StorageAdapter {
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?,
-        ?, ?, ?, ?
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?
       )
     `).run(
       note.id, note.wine_id, note.tasted_at,
@@ -453,11 +518,9 @@ export class SQLiteAdapter implements StorageAdapter {
       note.palate_sweetness, note.palate_acidity, note.palate_tannin,
       note.palate_body, note.palate_flavour_intensity, note.palate_finish,
       note.quality_assessment, note.my_rating, note.free_text,
-      toJson(note.tags)
+      toJson(note.tags),
+      note.wine_producer, note.wine_denomination, note.wine_vintage, note.wine_vineyard, note.wine_cuvee
     )
-
-    const wine = await this.getWine(data.wine_id)
-    if (!wine) throw new Error(`Wine not found: ${data.wine_id}`)
 
     const wineUpdates: UpdateWineInput = {
       latest_tasting_note_id: note.id,
@@ -476,6 +539,16 @@ export class SQLiteAdapter implements StorageAdapter {
   async getTastingNote(id: string): Promise<TastingNote | null> {
     const row = this.db.prepare('SELECT * FROM tasting_notes WHERE id = ?').get(id) as TastingNoteRow | undefined
     return row ? rowToTastingNote(row) : null
+  }
+
+  // Phase 12.1 (WI-3) — every note, newest first, including notes whose wine
+  // has been deleted. The Notes list reads this rather than walking
+  // wines.latest_tasting_note_id, which a detached note has no wine to carry.
+  async listTastingNotes(): Promise<TastingNote[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM tasting_notes ORDER BY date DESC')
+      .all() as TastingNoteRow[]
+    return rows.map(rowToTastingNote)
   }
 
   async listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {

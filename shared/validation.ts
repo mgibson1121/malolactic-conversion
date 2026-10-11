@@ -69,7 +69,19 @@ export const CreateWineSchema = z.object({
   retailer_links: z.record(z.string(), z.string().url()).nullish().transform((v) => v ?? null),
 })
 
-export const UpdateWineSchema = CreateWineSchema.partial()
+// Phase 12.1 D12 — the developer's own per-750 ml price. Positive, at most two
+// decimals, USD like everywhere else. `null` clears it and the wine returns to
+// the automated price. Update-only: a draft has no manual price, so
+// CreateWineSchema does not take one.
+export const ManualPriceSchema = z
+  .number()
+  .positive()
+  .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, 'At most two decimal places')
+  .nullable()
+
+export const UpdateWineSchema = CreateWineSchema.partial().extend({
+  manual_price: ManualPriceSchema.optional(),
+})
 
 // Phase 12 — POST /api/wines/duplicate-check. Only the three identity fields
 // findDuplicate reads; a full LabelScanResult is accepted and the rest stripped.

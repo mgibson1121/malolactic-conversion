@@ -1422,7 +1422,7 @@ input.scan-field-missing {
 .retailer-link {
   font-size: 11px;
   color: var(--accent);
-  text-decoration: none;
+  text-decoration: underline;
   border: 1px solid var(--accent);
   border-radius: 4px;
   padding: 1px 6px;
@@ -1767,12 +1767,14 @@ input.scan-field-missing {
   font-weight: 600;
   color: var(--text);
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
 }
 
 .wine-name--clickable:hover {
   color: var(--accent);
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 /* ── Wine Detail Modal ────────────────────────────────────────────────────── */
@@ -2285,3 +2287,229 @@ input.scan-field-missing {
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+
+
+/* ── Phase 12.1 — field-test UX remediation ───────────────────────────────── */
+
+/* D9: everything tappable is underlined, on both surfaces, no exceptions. One
+   token (`.link`); the older per-component classes above also underline. A
+   test (link-affordance.test.tsx) fails if a known link component loses it. */
+.link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.link:hover { color: var(--accent-hover); }
+summary.link { display: inline-block; font-size: 12px; }
+
+/* Hard refresh (WI-7, D6): its own bordered button, with its cost. */
+.enrichment-row { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.enrichment-row-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn-hard-refresh {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.btn-hard-refresh:hover { background: var(--accent-soft); }
+.btn-hard-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-hard-refresh-cost { font-weight: 400; color: var(--text-muted); }
+
+/* Four-state critic and price blocks (WI-4): never a vanishing block. */
+.skeleton-line {
+  display: block;
+  height: 12px;
+  margin: 6px 0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface-2), var(--line), var(--surface-2));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
+.skeleton-line--short { width: 55%; }
+@keyframes skeleton-shimmer { to { background-position: -200% 0; } }
+.critic-reviews-looking-text { font-size: 12px; color: var(--text-muted); }
+.critic-reviews-failed, .price-failed { font-size: 13px; color: var(--red-pill); }
+.critic-reviews-none { font-size: 13px; }
+.stale-notice {
+  font-size: 12px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  color: var(--text);
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
+  border-radius: 7px;
+}
+.critic-score-group + .critic-score-group { margin-top: 10px; }
+.critic-score-group-title, .card-section-title, .preview-section-title, .price-block-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+.critic-score-badge--other { opacity: 0.8; }
+.critic-score-badge--unknown, .card-score-badge .critic-score-badge--unknown { border: 1px dashed var(--text-muted); }
+.critic-trusted { color: var(--green); font-weight: 600; }
+.critic-year-tag { color: var(--text-muted); }
+.card-section { margin-top: 10px; }
+.card-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  margin-bottom: 4px;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+.card-score-more { font-size: 12px; }
+.check-window-flag {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
+  border-radius: 20px;
+}
+.drinking-window--check { margin-top: 6px; }
+.critic-windows-reference { margin-top: 10px; opacity: 0.85; color: var(--text-muted); }
+.reference-only {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* Price & retailers (WI-7, D7, D12) */
+.price-block { margin-top: 10px; }
+.price-yours { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.price-yours-value { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.yours-marker {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 10px;
+}
+.price-no-average { font-size: 13px; margin-bottom: 8px; }
+.price-other-vintages { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.more-retailers-toggle { font-size: 12px; margin-bottom: 6px; }
+.badge-with-info { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.info-badge { cursor: pointer; background-clip: padding-box; text-decoration: underline; }
+.badge-explanation {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.badge-legend { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.badge-legend ul { margin: 6px 0 0 18px; }
+.automated-prices-fold { margin-top: 8px; }
+
+/* Save to collection (WI-6): rows that look selectable, a hint beside them,
+   a readable disabled state, a footer that stays on screen. */
+.list-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.list-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.list-row:hover { border-color: var(--accent); }
+.list-row--on { border-color: var(--accent); background: var(--accent-soft); }
+.list-row-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  line-height: 1;
+  color: #fff;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 50%;
+}
+.list-row--on .list-row-circle { background: var(--accent); border-color: var(--accent); }
+.pick-list-hint { margin: 8px 0 0; font-size: 12px; color: var(--accent); font-weight: 600; }
+.btn-save--inactive:disabled {
+  opacity: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1.5px solid var(--text-muted);
+}
+.scan-enriching-card { max-height: 92vh; overflow-y: auto; }
+.scan-enriching-card .scan-result-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+/* Edit screen (WI-1) and delete (WI-3) */
+.edit-wine-form { max-height: 92vh; overflow-y: auto; }
+.edit-hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
+.edit-window-row { display: flex; align-items: center; gap: 8px; }
+.edit-refresh-prompt, .edit-delete-confirm {
+  margin: 14px 0 0;
+  padding: 12px;
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.edit-busy { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+.btn-edit {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.btn-edit:hover { background: var(--surface-2); }
+.btn-danger {
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--red-pill);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.btn-danger--quiet { margin-right: auto; color: var(--red-pill); background: transparent; border: 1px solid var(--red-pill); }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Notes from removed wines (WI-3) */
+.removed-notes { margin-top: 24px; }
+.removed-notes-title { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; }
+.wine-removed-tag { margin-left: 6px; }

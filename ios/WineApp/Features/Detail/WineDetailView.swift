@@ -14,11 +14,11 @@ struct DetailRoute: Hashable {
 struct WineDetailView: View {
     @Environment(AppSession.self) private var session
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
     @State private var model: WineDetailModel
     @State private var findReviews: FindReviewsModel
-    @State private var showAllScores = false
-    @State private var showAllRetailers = false
     @State private var isEvaluating = false
+    @State private var isEditing = false
     private let focusScores: Bool
 
     init(route: DetailRoute, api: APIClient, onChanged: @escaping () -> Void) {
@@ -39,9 +39,9 @@ struct WineDetailView: View {
                     drinkingWindow
                     latestNote
                     evaluateButton
-                    research
-                    retailers
-                    reviewsGroup
+                    criticReviews
+                    priceRetailers
+                    myReview
                     savedLinks
                     FindReviewsSection(model: findReviews, wine: wine)
                 }
@@ -56,17 +56,32 @@ struct WineDetailView: View {
                 async let priced: Void = model.fetchPriceOnceIfNeeded()
                 await model.loadNotes()
                 if focusScores {
-                    setExpanded(.research, true)
+                    setExpanded(.criticReviews, true)
                     try? await Task.sleep(for: .milliseconds(300))
                     withAnimation { proxy.scrollTo("scores", anchor: .top) }
                 }
                 await priced
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit") { isEditing = true }
+            }
+        }
         .sheet(isPresented: $isEvaluating) {
             if let api = session.api {
                 EvaluateFormView(wine: wine, api: api) {
                     Task { await model.reloadAfterEvaluate() }
+                }
+            }
+        }
+        .sheet(isPresented: $isEditing) {
+            if let api = session.api {
+                EditWineView(wine: wine, api: api) { saved in
+                    model.apply(saved)
+                } onDeleted: {
+                    session.collectionChanged()
+                    dismiss()
                 }
             }
         }
@@ -172,32 +187,52 @@ struct WineDetailView: View {
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
-    /// The wine-level window when critics agree; otherwise every critic's
-    /// window, attributed, never reconciled. Omitted when neither exists (§5).
+    /// Two visually distinct groups (Phase 12.1 WI-2, D2):
+    /// 1. The *primary* window — "Your window" when the developer set it, else
+    ///    "Window (from critics)" with the Sourced marker when derived from
+    ///    agreeing critics.
+    /// 2. "Critic windows (for reference)" — one row per window with its
+    ///    critics' names, muted and labelled reference only. Shown whenever
+    ///    any exist, so a manual window never hides what the critics said.
+    /// Omitted when neither exists. Nothing is blended (CLAUDE.md §15).
     @ViewBuilder
     private var drinkingWindow: some View {
         let attributed = DrinkingWindows.attributed(wine.reviewData)
-        if let window = wine.drinkingWindow {
+        if wine.drinkingWindow != nil || !attributed.isEmpty {
             WidgetCard {
-                SectionLabel("Drinking window")
-                HStack(spacing: 6) {
-                    Text(DetailFormatting.wineWindow(window))
-                        .font(AppFont.cardTitle().monospacedDigit())
-                    if wine.drinkingWindowSource == .derived { SourcedMarker() }
+                if let window = wine.drinkingWindow {
+                    SectionLabel(wine.drinkingWindowSource == .manual ? "Your window" : "Window (from critics)")
+                    HStack(spacing: 6) {
+                        Text(DetailFormatting.wineWindow(window))
+                            .font(AppFont.cardTitle().monospacedDigit())
+                        if wine.drinkingWindowSource == .derived { SourcedMarker() }
+                    }
+                } else if wine.windowStatus == .check {
+                    SectionLabel("Drinking window")
+                    Text("The critics disagree. Set your own window in Edit.")
+                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                 }
-            }
-        } else if !attributed.isEmpty {
-            WidgetCard {
-                SectionLabel("Drinking window")
-                if let note = DrinkingWindows.disagreementNote(attributed) {
-                    Text(note).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                }
-                ForEach(attributed, id: \.self) { w in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(verbatim: "\(w.start)–\(w.end)").font(AppFont.body().monospacedDigit())
-                        Text(w.publications.joined(separator: ", "))
-                            .font(AppFont.meta())
+                if !attributed.isEmpty {
+                    HStack(spacing: 6) {
+                        SectionLabel("Critic windows (for reference)")
+                        Text("reference only")
+                            .font(.system(size: 9, weight: .bold))
+                            .textCase(.uppercase)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
                             .foregroundStyle(Theme.textMuted)
+                            .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
+                    }
+                    if let note = DrinkingWindows.disagreementNote(attributed) {
+                        Text(note).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    }
+                    ForEach(attributed, id: \.self) { w in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(verbatim: "\(w.start)–\(w.end)").font(AppFont.body().monospacedDigit())
+                            Text(w.publications.joined(separator: ", "))
+                                .font(AppFont.meta())
+                        }
+                        .foregroundStyle(Theme.textMuted)
                     }
                 }
             }
@@ -244,119 +279,66 @@ struct WineDetailView: View {
         .tint(Theme.accent2)
     }
 
-    // MARK: Research — critic scores and price (metered controls live here)
+    // MARK: Critic reviews and Price & retailers — peer sections (WI-7)
 
-    private var research: some View {
-        let scores = CriticScores.deduped(wine.reviewData)
-        let summary: String = {
-            var parts: [String] = []
-            if !scores.isEmpty { parts.append("\(scores.count) score\(scores.count == 1 ? "" : "s")") }
-            if let avg = WineFormatting.price(wine.priceData?.priceAvg) { parts.append("\(avg) avg") }
-            return parts.isEmpty ? "Not fetched" : parts.joined(separator: " · ")
-        }()
-        return DisclosureCard(title: "Research", summary: summary, isExpanded: binding(.research)) {
+    private var criticReviews: some View {
+        let count = wine.criticSummary?.ordered.count ?? CriticScores.deduped(wine.reviewData).count
+        let summary = count > 0 ? "\(count) score\(count == 1 ? "" : "s")" : (wine.reviewData == nil ? "Not fetched" : "None found")
+        return DisclosureCard(title: "Critic reviews", summary: summary, isExpanded: binding(.criticReviews)) {
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel("Critic scores").id("scores")
-                if scores.isEmpty {
-                    Text("No attributed critic scores found yet.")
-                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                } else {
-                    ForEach(Array((showAllScores ? scores : Array(scores.prefix(6))).enumerated()), id: \.offset) { _, score in
-                        CriticScoreRow(score: score)
-                    }
-                    if scores.count > 6 {
-                        Button(showAllScores ? "Show fewer" : "Show all \(scores.count) scores") { showAllScores.toggle() }
-                            .font(AppFont.meta())
-                    }
-                }
+                CriticReviewsBlock(wine: wine, control: model.reviews, retry: { Task { await model.fetchReviews() } })
+                    .id("scores")
                 EnrichmentButton(
                     title: wine.reviewData == nil ? "Fetch Reviews" : "Refresh Reviews",
                     label: "Reviews",
+                    kind: .reviews,
                     control: model.reviews,
-                    run: { force in Task { await model.fetchReviews(force: force); setExpanded(.research, true) } }
+                    hasData: wine.reviewData != nil,
+                    run: { force in Task { await model.fetchReviews(force: force); setExpanded(.criticReviews, true) } }
                 )
+            }
+        }
+    }
 
-                Divider().padding(.vertical, 4)
-
-                SectionLabel("Pricing")
-                if let price = wine.priceData {
-                    if price.retailers.isEmpty {
-                        Text("No matching listings found for this wine at the configured retailers.")
-                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                        Text("Checked \(NoteDate.short(price.fetchedAt) ?? "recently")")
-                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                    } else {
-                        Text("Min \(DetailFormatting.priceBound(price.priceMin)) · Avg \(DetailFormatting.priceBound(price.priceAvg)) · Max \(DetailFormatting.priceBound(price.priceMax))")
-                            .font(AppFont.body().monospacedDigit())
-                        if let other = price.otherVintagePriceRange {
-                            Text("Other vintages \(DetailFormatting.priceBound(other.min))–\(DetailFormatting.priceBound(other.max))")
-                                .font(AppFont.meta().monospacedDigit())
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-                } else {
-                    Text("No price data yet.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                }
-                EnrichmentButton(
-                    title: wine.priceData == nil ? "Fetch Price" : "Refresh Price",
-                    label: "Price",
+    private var priceRetailers: some View {
+        let summary: String = {
+            if let price = WineFormatting.cardPrice(wine) { return EffectivePrice(wine).isManual ? price : "\(price) avg" }
+            if let price = wine.priceData { return price.retailers.isEmpty ? "No listings" : "\(price.retailers.count) listings" }
+            return "Not fetched"
+        }()
+        return DisclosureCard(title: "Price & retailers", summary: summary, isExpanded: binding(.priceRetailers)) {
+            VStack(alignment: .leading, spacing: 10) {
+                PriceRetailersBlock(
+                    wine: wine,
                     control: model.price,
-                    run: { force in Task { await model.fetchPrice(force: force); setExpanded(.retailers, true) } }
+                    resolving: model.resolving,
+                    openRetailer: { row in Task { if let url = await model.url(for: row) { openURL(url) } } },
+                    retry: { Task { await model.fetchPrice() } }
+                )
+                EnrichmentButton(
+                    title: wine.priceData == nil ? "Fetch Price & retailers" : "Refresh Price & retailers",
+                    label: "Price & retailers",
+                    kind: .price,
+                    control: model.price,
+                    hasData: wine.priceData != nil,
+                    run: { force in Task { await model.fetchPrice(force: force); setExpanded(.priceRetailers, true) } }
                 )
             }
         }
     }
 
-    // MARK: Retailers — nearest + 2, collapsed by default (§7.3)
+    // MARK: My Review — the developer's own tasting notes
 
-    private var retailers: some View {
-        let rows = wine.priceData.map(RetailerTable.ordered) ?? []
-        let summary = rows.isEmpty
-            ? "No listings"
-            : "Nearest + \(min(2, rows.count - 1)) · \(rows.count) total"
-        return DisclosureCard(title: "Retailers", summary: summary, isExpanded: binding(.retailers)) {
-            VStack(alignment: .leading, spacing: 0) {
-                if rows.isEmpty {
-                    Text(wine.priceData == nil ? "No price data yet." : "No matching listings found for this wine at the configured retailers.")
-                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                        .padding(.bottom, 8)
-                    EnrichmentButton(title: wine.priceData == nil ? "Fetch Price" : "Refresh Price", label: "Price",
-                                     control: model.price,
-                                     run: { force in Task { await model.fetchPrice(force: force) } })
-                } else {
-                    let shown = showAllRetailers ? rows : Array(rows.prefix(RetailerTable.collapsedCount))
-                    ForEach(Array(shown.enumerated()), id: \.offset) { index, row in
-                        RetailerRow(retailer: row, isNearest: index == 0 && wine.priceData?.nearestRetailer?.slug == row.slug,
-                                    isResolving: model.resolving.contains(row.slug)) {
-                            Task { if let url = await model.url(for: row) { openURL(url) } }
-                        }
-                        if index < shown.count - 1 { Divider() }
-                    }
-                    if rows.count > RetailerTable.collapsedCount {
-                        Button(showAllRetailers ? "Show fewer" : "Show all \(rows.count) retailers") { showAllRetailers.toggle() }
-                            .font(AppFont.meta())
-                            .frame(minHeight: Theme.minHitTarget)
-                    }
-                    if let fetched = wine.priceData?.fetchedAt, let date = NoteDate.short(fetched) {
-                        Text("Updated \(date)").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: Reviews — the tasting-note history
-
-    private var reviewsGroup: some View {
+    private var myReview: some View {
         let notes = model.notes.value ?? []
-        return DisclosureCard(title: "Reviews", summary: notes.isEmpty ? "No notes" : "\(notes.count) note\(notes.count == 1 ? "" : "s")",
-                              isExpanded: binding(.reviews)) {
+        return DisclosureCard(title: "My Review", summary: notes.isEmpty ? "No notes" : "\(notes.count) note\(notes.count == 1 ? "" : "s")",
+                              isExpanded: binding(.myReview)) {
             VStack(alignment: .leading, spacing: 12) {
                 if case .failed = model.notes {
                     Text("Could not load tasting notes.").font(AppFont.meta()).foregroundStyle(Theme.redPill)
                 } else if notes.isEmpty {
                     Text("No tasting notes yet.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                    Button("Evaluate this wine") { isEvaluating = true }.font(AppFont.meta())
+                    Button("Evaluate this wine") { isEvaluating = true }.buttonStyle(.link).font(AppFont.meta())
                 } else {
                     ForEach(notes) { note in
                         VStack(alignment: .leading, spacing: 4) {
@@ -386,9 +368,12 @@ struct WineDetailView: View {
                 ForEach(links.sorted(by: { $0.key < $1.key }), id: \.key) { slug, url in
                     if let link = URL(string: url) {
                         Link(destination: link) {
-                            Label("\(RetailerNames.name(for: slug, in: wine)) review", systemImage: "arrow.up.right.square")
-                                .font(AppFont.body())
-                                .frame(minHeight: Theme.minHitTarget)
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.up.right.square")
+                                LinkText("\(RetailerNames.name(for: slug, in: wine)) review")
+                            }
+                            .font(AppFont.body())
+                            .frame(minHeight: Theme.minHitTarget)
                         }
                     }
                 }

@@ -30,13 +30,29 @@ struct APIClient: Sendable {
         try await send(request("PATCH", "api/wines/\(id)", json: patch))
     }
 
+    /// The Edit screen's PATCH: only what changed, clears sent as `null`.
+    func updateWine(id: String, edit: WineEdit) async throws -> Wine {
+        try await send(request("PATCH", "api/wines/\(id)", json: edit))
+    }
+
     func promoteWine(id: String, tags: PromoteTags) async throws -> Wine {
         try await send(request("POST", "api/wines/\(id)/promote", json: tags))
     }
 
-    /// Rejects with 409 when the wine has a tasting note.
+    /// Phase 12.1: the wine's tasting notes outlive it, so a note no longer
+    /// blocks the delete (it used to reject with 409).
     func deleteWine(id: String) async throws {
         _ = try await perform(request("DELETE", "api/wines/\(id)"))
+    }
+
+    /// How many tasting notes deleting this wine would keep — `?dry_run=1`,
+    /// which deletes nothing — so the confirmation can name them (WI-3).
+    func notesKeptOnDelete(id: String) async throws -> Int {
+        struct Preview: Decodable { let notesKept: Int
+            enum CodingKeys: String, CodingKey { case notesKept = "notes_kept" } }
+        let preview: Preview = try await send(request("DELETE", "api/wines/\(id)",
+                                                      query: [URLQueryItem(name: "dry_run", value: "1")]))
+        return preview.notesKept
     }
 
     /// The free Phase 9.4 duplicate check — a local DB read, no metered call.
@@ -91,6 +107,11 @@ struct APIClient: Sendable {
     }
 
     // MARK: Tasting notes
+
+    /// Every note, newest first, including notes whose wine was deleted.
+    func allTastingNotes() async throws -> [TastingNote] {
+        try await send(request("GET", "api/tasting-notes"))
+    }
 
     func tastingNotes(wineID: String) async throws -> [TastingNote] {
         try await send(request("GET", "api/tasting-notes/wine/\(wineID)"))

@@ -1,5 +1,5 @@
 {
-  "id": "0c3fc437-2013-45cc-877a-6f6c30291085",
+  "id": "a1a56528-b004-4720-b3d3-7cfd32f40dda",
   "producer": "Château Rayas",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2012,
@@ -33,6 +33,7 @@
   "latest_tasting_note_id": null,
   "wishlist_notes": null,
   "price_paid": 640,
+  "manual_price": null,
   "purchased_from": "Zachys",
   "advice_linked": null,
   "expert_reviews": null,
@@ -77,8 +78,30 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-09-25T02:19:58.017Z",
+  "date_added": "2026-10-10T23:57:53.449Z",
   "date_first_consumed": null,
   "promoted_at": "2026-07-01T12:00:00.000Z",
-  "latest_tasting_note_date": null
+  "latest_tasting_note_date": null,
+  "window_status": "primary",
+  "critic_summary": {
+    "ordered": [
+      {
+        "publication": "Wine Advocate",
+        "score": 97,
+        "vintage": null,
+        "same_vintage": false,
+        "trusted": true,
+        "tier": 3,
+        "known_publication": true,
+        "drinking_window": null,
+        "vintage_character": null,
+        "deal": false
+      }
+    ]
+  },
+  "enrichment_stale": {
+    "price": false,
+    "reviews": false
+  },
+  "price_exclusions": null
 }

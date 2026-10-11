@@ -49,8 +49,6 @@ struct RowActions {
             target.remove(id: wine.id)
             collectionChanged()
             return nil
-        } catch APIError.server(409, _) {
-            return "This wine has a tasting note and can't be discarded. Remove it from your lists instead."
         } catch let error as APIError {
             return error.message(networkMessage: "Could not delete — is the backend running?")
         } catch {
@@ -110,12 +108,13 @@ enum CardTag: CaseIterable, Hashable {
 /// - swipe left → Evaluate (full swipe commits)
 /// - swipe right → −1/+1 bottle on Cellar; Wishlist/Cellar/Remove on
 ///   Discovered; Cellar/Remove on Wishlist
-/// - long press → the four-way tag toggle, Evaluate, Delete (confirmed)
+/// - long press → the four-way tag toggle, Evaluate, Edit, Delete (confirmed)
 struct WineRowActionsModifier: ViewModifier {
     let wine: Wine
     let kind: ListKind
     let actions: RowActions?
     let evaluate: (Wine) -> Void
+    let edit: (Wine) -> Void
     let requestDelete: (Wine) -> Void
 
     func body(content: Content) -> some View {
@@ -142,6 +141,7 @@ struct WineRowActionsModifier: ViewModifier {
                     }
                     Divider()
                     Button { evaluate(wine) } label: { Label("Evaluate", systemImage: "square.and.pencil") }
+                    Button { edit(wine) } label: { Label("Edit", systemImage: "pencil") }
                     Button(role: .destructive) { requestDelete(wine) } label: { Label("Delete", systemImage: "trash") }
                 }
         } else {
@@ -189,9 +189,10 @@ struct WineRowActionsModifier: ViewModifier {
 
 extension View {
     func wineRowActions(_ wine: Wine, kind: ListKind, actions: RowActions?,
-                        evaluate: @escaping (Wine) -> Void, requestDelete: @escaping (Wine) -> Void) -> some View {
+                        evaluate: @escaping (Wine) -> Void, edit: @escaping (Wine) -> Void,
+                        requestDelete: @escaping (Wine) -> Void) -> some View {
         modifier(WineRowActionsModifier(wine: wine, kind: kind, actions: actions,
-                                        evaluate: evaluate, requestDelete: requestDelete))
+                                        evaluate: evaluate, edit: edit, requestDelete: requestDelete))
     }
 
     /// Makes a `List` row look like the ScrollView cards it replaced: clear

@@ -1,0 +1,34 @@
+[
+  {
+    "manual_price": 87.5,
+    "price_avg": 120,
+    "expected": {
+      "value": 87.5,
+      "basis": "manual"
+    }
+  },
+  {
+    "manual_price": null,
+    "price_avg": 120,
+    "expected": {
+      "value": 120,
+      "basis": "automated"
+    }
+  },
+  {
+    "manual_price": null,
+    "price_avg": null,
+    "expected": {
+      "value": null,
+      "basis": null
+    }
+  },
+  {
+    "manual_price": 45,
+    "price_avg": null,
+    "expected": {
+      "value": 45,
+      "basis": "manual"
+    }
+  }
+]

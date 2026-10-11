@@ -91,6 +91,7 @@ const baseWine: WineEntry = {
   my_tags: [],
   wishlist_notes: null,
   price_paid: null,
+  manual_price: null,
   purchased_from: null,
   latest_tasting_note_id: null,
   advice_linked: null,

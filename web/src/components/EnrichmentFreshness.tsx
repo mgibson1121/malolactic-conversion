@@ -3,30 +3,20 @@ interface Props {
   fetchedAt: string
   /** What was not re-fetched, e.g. "Reviews" or "Price". */
   label: string
-  onRefreshAnyway: () => void
-  disabled?: boolean
 }
 
 /**
  * Shown when an enrichment click returned stored data instead of spending
- * credits (Phase 9.2, WI-4).
+ * credits (Phase 9.2, WI-4): one click to see what you have.
  *
- * One click to see what you have; two clicks to spend money. The secondary
- * control is deliberately plain text rather than a second primary button — it
- * is the expensive path, and it should not look like the obvious one.
+ * Phase 12.1 (WI-7, D6): the old "Refresh anyway" link that used to sit here
+ * is now the section's own bordered Hard refresh button (HardRefreshButton),
+ * so this is the freshness line only.
  */
-export function EnrichmentFreshness({ fetchedAt, label, onRefreshAnyway, disabled }: Props) {
+export function EnrichmentFreshness({ fetchedAt, label }: Props) {
   return (
     <span className="enrichment-freshness">
-      {label} updated {formatAge(fetchedAt)}.{' '}
-      <button
-        type="button"
-        className="btn-link-inline"
-        onClick={onRefreshAnyway}
-        disabled={disabled}
-      >
-        Refresh anyway
-      </button>
+      {label} updated {formatAge(fetchedAt)}.
     </span>
   )
 }

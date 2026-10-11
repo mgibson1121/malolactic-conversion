@@ -106,9 +106,9 @@ struct CapacityWidget: View {
                         .textFieldStyle(.roundedBorder)
                     Button("Save") { Task { await commit() } }
                         .disabled(isSaving)
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.link)
                     Button("Cancel") { isEditing = false }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.link)
                 }
             } else {
                 Button(summary.capacity == nil ? "Set cellar capacity" : "Edit capacity") {
@@ -118,7 +118,7 @@ struct CapacityWidget: View {
                 .font(AppFont.meta())
                 .frame(minHeight: Theme.minHitTarget)
                 // Inside a List row, an unstyled Button claims the whole row.
-                .buttonStyle(.borderless)
+                .buttonStyle(.link)
             }
             if let error {
                 Text(error).font(.system(size: 12)).foregroundStyle(Theme.redPill)
@@ -142,8 +142,11 @@ struct CapacityWidget: View {
     }
 }
 
-/// Widget 3 — Ready now / Needs more time / No window. Tapping a segment
-/// filters the cellar list below; tapping it again clears the filter.
+/// Widget 3 — Ready now / Needs more time / Check window / No window.
+/// Tapping a segment filters the cellar list below; tapping it again clears
+/// the filter. Four across on a phone, two by two when the text is large
+/// (Phase 12.1 WI-2 added "Check window": wines whose critics disagree and
+/// which have no window of their own — never guessed at).
 struct ReadinessWidget: View {
     let counts: [ReadinessSegment: Int]
     @Binding var selection: ReadinessSegment?
@@ -151,33 +154,39 @@ struct ReadinessWidget: View {
     var body: some View {
         WidgetCard {
             SectionLabel("Ready to drink")
-            HStack(spacing: 8) {
-                ForEach(ReadinessSegment.allCases) { segment in
-                    let isSelected = selection == segment
-                    Button {
-                        selection = isSelected ? nil : segment
-                    } label: {
-                        VStack(spacing: 2) {
-                            Text("\(counts[segment] ?? 0)")
-                                .font(AppFont.detailTitle().monospacedDigit())
-                            // Wraps rather than truncating or shrinking —
-                            // "Needs more time" doesn't fit one line in Work
-                            // Sans at 393 pt.
-                            Text(segment.title)
-                                .font(AppFont.meta())
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 64)
-                        .foregroundStyle(isSelected ? Color.white : Theme.text)
-                        .background(isSelected ? Theme.accent : Theme.surface2,
-                                    in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(isSelected ? "Filtering the list" : "")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { ForEach(ReadinessSegment.allCases) { segmentButton($0) } }
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) { ForEach(ReadinessSegment.allCases.prefix(2)) { segmentButton($0) } }
+                    HStack(spacing: 8) { ForEach(ReadinessSegment.allCases.suffix(2)) { segmentButton($0) } }
                 }
             }
         }
+    }
+
+    private func segmentButton(_ segment: ReadinessSegment) -> some View {
+        let isSelected = selection == segment
+        return Button {
+            selection = isSelected ? nil : segment
+        } label: {
+            VStack(spacing: 2) {
+                Text("\(counts[segment] ?? 0)")
+                    .font(AppFont.detailTitle().monospacedDigit())
+                // Wraps rather than truncating or shrinking — "Needs more
+                // time" doesn't fit one line in Work Sans at 393 pt.
+                Text(segment.title)
+                    .font(AppFont.meta())
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .foregroundStyle(isSelected ? Color.white : Theme.text)
+            .background(isSelected ? Theme.accent : Theme.surface2,
+                        in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isSelected ? "Filtering the list" : "")
     }
 }
 
@@ -211,7 +220,7 @@ struct RegionWidget: View {
                 Button(showAll ? "Show fewer" : "Show all \(regions.count) regions") { showAll.toggle() }
                     .font(AppFont.meta())
                     .frame(minHeight: Theme.minHitTarget)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.link)
             }
         }
     }

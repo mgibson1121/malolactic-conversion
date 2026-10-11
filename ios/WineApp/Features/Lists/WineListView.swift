@@ -8,6 +8,7 @@ struct WineListView: View {
     @State private var model: WineListModel
     @State private var path: [DetailRoute] = []
     @State private var rowSheets = RowSheets()
+    @State private var openedRemovedNote: TastingNote?
     let onScan: () -> Void
     let onChangeServer: () -> Void
 
@@ -24,6 +25,9 @@ struct WineListView: View {
                 if case .stale = model.state { StaleBanner().cardRow() }
                 WineListContent(model: model, onScan: onScan, onChangeServer: onChangeServer, reload: reload,
                                 open: { path.append($0) }, sheets: rowSheets)
+                if model.kind == .notes {
+                    RemovedNotesSection(notes: model.visibleRemovedNotes) { openedRemovedNote = $0 }
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -54,6 +58,7 @@ struct WineListView: View {
                 await reload()
             }
             .rowSheets(rowSheets, target: model)
+            .sheet(item: $openedRemovedNote) { RemovedNoteDetail(note: $0) }
         }
     }
 
@@ -69,7 +74,12 @@ struct WineListView: View {
 @Observable
 final class RowSheets {
     var evaluating: Wine?
+    var editing: Wine?
     var deleting: Wine?
+    /// How many tasting notes deleting `deleting` would keep (Phase 12.1
+    /// WI-3: notes outlive the wine). Nil until the free dry-run answers; the
+    /// confirmation's Delete button waits for it so the copy is never wrong.
+    var notesKept: Int?
     var deleteError: String?
 }
 
@@ -85,6 +95,22 @@ private struct RowSheetsModifier: ViewModifier {
                     EvaluateFormView(wine: wine, api: api) { session.collectionChanged() }
                 }
             }
+            .sheet(item: $sheets.editing) { wine in
+                if let api = session.api {
+                    EditWineView(wine: wine, api: api) { saved in
+                        target.replace(saved)
+                        session.collectionChanged()
+                    } onDeleted: {
+                        target.remove(id: wine.id)
+                        session.collectionChanged()
+                    }
+                }
+            }
+            .onChange(of: sheets.deleting) { _, wine in
+                sheets.notesKept = nil
+                guard let wine, let api = session.api else { return }
+                Task { sheets.notesKept = (try? await api.notesKeptOnDelete(id: wine.id)) ?? 0 }
+            }
             .confirmationDialog(
                 "Delete \(sheets.deleting.map(WineFormatting.title) ?? "this wine")?",
                 isPresented: Binding(get: { sheets.deleting != nil }, set: { if !$0 { sheets.deleting = nil } }),
@@ -97,8 +123,9 @@ private struct RowSheetsModifier: ViewModifier {
                         sheets.deleteError = await actions.delete(wine)
                     }
                 }
+                .disabled(sheets.notesKept == nil)
             } message: {
-                Text("This removes the wine from every list. It can't be undone.")
+                Text(sheets.notesKept.map(EditWineModel.deleteMessage(notesKept:)) ?? "Checking its tasting notes…")
             }
             .alert("Couldn't delete", isPresented: Binding(get: { sheets.deleteError != nil },
                                                           set: { if !$0 { sheets.deleteError = nil } })) {
@@ -158,7 +185,8 @@ struct WineListContent: View {
                 }
                 .opacity(model.isSearching ? 0.5 : 1)
                 .wineRowActions(wine, kind: model.kind, actions: actions,
-                                evaluate: { sheets.evaluating = $0 }, requestDelete: { sheets.deleting = $0 })
+                                evaluate: { sheets.evaluating = $0 }, edit: { sheets.editing = $0 },
+                                requestDelete: { sheets.deleting = $0 })
                 .cardRow()
             }
         }

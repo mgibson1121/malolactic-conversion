@@ -4,13 +4,14 @@ import { vi } from 'vitest'
 import type { WineEntry } from '@shared/types'
 import { formatAge } from './EnrichmentFreshness'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
-import { EnrichmentFreshness } from './EnrichmentFreshness'
+import { EnrichmentRow } from './EnrichmentRow'
 import type { EnrichmentOptions, EnrichmentResponse } from '../api'
 
 const WINE = { id: 'wine-1' } as WineEntry
 
-/** The button wiring both WineCard and WineDetailModal use, in isolation:
- * one click shows what is stored, a second, explicit click spends credits. */
+/** The button wiring every enrichment section uses, in isolation: one click
+ * shows what is stored; a separate bordered Hard refresh button (Phase 12.1
+ * WI-7, D6) spends credits and says how many. */
 function Harness({
   fetcher,
   onWineUpdated = () => {},
@@ -21,17 +22,14 @@ function Harness({
   const reviews = useEnrichmentAction('wine-1', fetcher, onWineUpdated, 'Review lookup failed')
   return (
     <div>
-      <button onClick={() => reviews.run()} disabled={reviews.busy}>
-        Refresh Reviews
-      </button>
-      {reviews.cachedAt && (
-        <EnrichmentFreshness
-          fetchedAt={reviews.cachedAt}
-          label="Reviews"
-          onRefreshAnyway={() => reviews.run({ force: true })}
-        />
-      )}
-      {reviews.error && <span role="alert">{reviews.error}</span>}
+      <EnrichmentRow
+        kind="reviews"
+        action={reviews}
+        label="Refresh Reviews"
+        busyLabel="Fetching…"
+        freshnessLabel="Reviews"
+        hasData
+      />
     </div>
   )
 }
@@ -67,7 +65,7 @@ describe('enrichment button — cached response handling', () => {
     expect(fetcher).toHaveBeenCalledWith('wine-1', undefined)
   })
 
-  it('offers a second, explicit click when the server returned stored data', async () => {
+  it('shows a separate Hard refresh button with its credit cost, and it forces', async () => {
     const fetched_at = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
     const fetcher = vi
       .fn()
@@ -75,18 +73,39 @@ describe('enrichment button — cached response handling', () => {
       .mockResolvedValueOnce({ ...WINE, cached: false })
     render(<Harness fetcher={fetcher} />)
 
+    // The cost is on the button before anything is clicked.
+    const hard = screen.getByRole('button', { name: /Hard refresh/ })
+    expect(hard).toHaveTextContent('about 9 credits (up to 24)')
+    // The old text link is gone for good.
+    expect(screen.queryByRole('button', { name: 'Refresh anyway' })).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: 'Refresh Reviews' }))
     expect(await screen.findByText(/Reviews updated 3 days ago/)).toBeInTheDocument()
+    expect(fetcher).toHaveBeenNthCalledWith(1, 'wine-1', undefined)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh anyway' }))
+    await userEvent.click(screen.getByRole('button', { name: /Hard refresh/ }))
 
     expect(fetcher).toHaveBeenNthCalledWith(2, 'wine-1', { force: true })
-    // The prompt clears once the forced run has actually gone out — otherwise
-    // "Refresh anyway" leaves its own prompt on screen after doing what it was
-    // asked to.
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Refresh anyway' })).not.toBeInTheDocument()
-    )
+    // The freshness line clears once the forced run has actually gone out.
+    await waitFor(() => expect(screen.queryByText(/Reviews updated/)).not.toBeInTheDocument())
+  })
+
+  it('hides Hard refresh until there is data to refresh', () => {
+    function Bare() {
+      const a = useEnrichmentAction('wine-1', vi.fn(), () => {}, 'x')
+      return <EnrichmentRow kind="price" action={a} label="Fetch Price & retailers" busyLabel="…" freshnessLabel="Price" hasData={false} />
+    }
+    render(<Bare />)
+    expect(screen.queryByRole('button', { name: /Hard refresh/ })).not.toBeInTheDocument()
+  })
+
+  it('states the price cost as one credit', () => {
+    function Priced() {
+      const a = useEnrichmentAction('wine-1', vi.fn(), () => {}, 'x')
+      return <EnrichmentRow kind="price" action={a} label="Refresh Price & retailers" busyLabel="…" freshnessLabel="Price" hasData />
+    }
+    render(<Priced />)
+    expect(screen.getByRole('button', { name: /Hard refresh/ })).toHaveTextContent('about 1 credit')
   })
 
   it('still updates the wine from a cached response, so the data is shown either way', async () => {
@@ -104,7 +123,7 @@ describe('enrichment button — cached response handling', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Refresh Reviews' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Serper is down')
-    expect(screen.queryByRole('button', { name: 'Refresh anyway' })).not.toBeInTheDocument()
+    expect(await screen.findByText('Serper is down')).toBeInTheDocument()
+    expect(screen.queryByText(/Reviews updated/)).not.toBeInTheDocument()
   })
 })
