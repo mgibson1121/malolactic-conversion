@@ -15,6 +15,9 @@ import type {
   WineFilter,
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
+import { buildReviewLadder } from '@shared/utils/review-ladder'
+import { buildBottlingPrompt } from '@shared/utils/bottling-prompt'
+import type { BottlingWine } from '@shared/utils/bottling-difference'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { windowStatusOf } from '@shared/utils/window-status'
@@ -75,6 +78,8 @@ interface WineRow {
   wishlist_notes: string | null
   price_paid: number | null
   manual_price: number | null
+  bottling_plain: number | null
+  bottling_prompt_dismissed: string | null
   purchased_from: string | null
   advice_linked: string | null
   expert_reviews: string | null
@@ -146,6 +151,19 @@ function rowToWine(row: WineRow): WineEntry {
   const priceData = fromJson<WineEntry['price_data']>(row.price_data, null)
   const reviewData = fromJson<WineEntry['review_data']>(row.review_data, null)
 
+  const bottlingWine: BottlingWine = {
+    producer: row.producer ?? '',
+    denomination: row.denomination ?? '',
+    vintage: row.vintage,
+    cuvee: row.cuvee,
+    vineyard: row.vineyard,
+    quality_classification: row.quality_classification,
+    region: row.region,
+    grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
+    bottling_plain: row.bottling_plain == null ? null : row.bottling_plain === 1,
+  }
+  const reviewLadder = buildReviewLadder(reviewData, bottlingWine)
+
   return {
     id: row.id,
     producer: row.producer,
@@ -174,6 +192,8 @@ function rowToWine(row: WineRow): WineEntry {
     wishlist_notes: row.wishlist_notes,
     price_paid: row.price_paid,
     manual_price: row.manual_price ?? null,
+    bottling_plain: row.bottling_plain == null ? null : row.bottling_plain === 1,
+    bottling_prompt_dismissed: row.bottling_prompt_dismissed ?? null,
     purchased_from: row.purchased_from,
     advice_linked: fromJson<string[] | null>(row.advice_linked, null),
     expert_reviews: fromJson(row.expert_reviews, null),
@@ -191,7 +211,7 @@ function rowToWine(row: WineRow): WineEntry {
     // a client (shared/utils/window-status.ts, critic-summary.ts,
     // enrichment-stale.ts).
     window_status: windowStatusOf(drinkingWindow, reviewData),
-    critic_summary: buildCriticSummary(reviewData, row.vintage),
+    critic_summary: buildCriticSummary(reviewData, row.vintage, undefined, bottlingWine),
     enrichment_stale: enrichmentStale({
       producer: row.producer,
       denomination: row.denomination,
@@ -203,6 +223,17 @@ function rowToWine(row: WineRow): WineEntry {
       review_data: reviewData,
     }),
     price_exclusions: describePriceExclusions(priceData),
+    // Phase 12.2 — the review ladder and the bottling prompt, derived from the
+    // stored pages and listings against the wine's current identity.
+    review_ladder: reviewLadder,
+    bottling_prompt: buildBottlingPrompt({
+      wine: bottlingWine,
+      price_data: priceData,
+      review_data: reviewData,
+      review_ladder: reviewLadder,
+      bottling_plain: bottlingWine.bottling_plain,
+      bottling_prompt_dismissed: row.bottling_prompt_dismissed ?? null,
+    }),
   }
 }
 
@@ -293,6 +324,8 @@ export class SQLiteAdapter implements StorageAdapter {
       community_excerpts: null,
       price_data: null,
       manual_price: null,
+      bottling_plain: null,
+      bottling_prompt_dismissed: null,
       retailer_links: null,
       review_data: null,
       review_probe_log: null,
@@ -425,7 +458,7 @@ export class SQLiteAdapter implements StorageAdapter {
         advice_linked = ?, expert_reviews = ?,
         community_sentiment = ?, community_excerpts = ?, price_data = ?,
         retailer_links = ?, review_data = ?, review_probe_log = ?, date_first_consumed = ?,
-        promoted_at = ?
+        promoted_at = ?, bottling_plain = ?, bottling_prompt_dismissed = ?
       WHERE id = ?
     `).run(
       updated.producer, updated.denomination, updated.vintage, updated.region,
@@ -443,6 +476,8 @@ export class SQLiteAdapter implements StorageAdapter {
       toJson(updated.retailer_links), toJson(updated.review_data), toJson(updated.review_probe_log),
       updated.date_first_consumed,
       updated.promoted_at,
+      updated.bottling_plain == null ? null : toBool(updated.bottling_plain),
+      updated.bottling_prompt_dismissed ?? null,
       id
     )
 

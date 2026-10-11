@@ -80,6 +80,10 @@ export interface RetailerResult {
   // Phase 12.2 WI-6 — a product page from another storefront of the same shop
   // (Flatiron's sf. site). Counted for price, but never the "nearest" store.
   other_storefront?: boolean
+  // Phase 12.2 WI-2 — see RetailerPrice in shared/types.ts.
+  listing_title?: string
+  bottling_difference?: { extra: string[]; missing: string[] } | null
+  outside_bottling?: boolean
 }
 
 /**

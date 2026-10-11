@@ -13,6 +13,7 @@ import {
 } from '@shared/utils/wine-match'
 import { isDenylistedDomain, isNonProductUrl } from '@shared/config/denylisted-domains'
 import { serperFetch } from '@shared/utils/serper-client'
+import { bottlingDifference, isExactBottling, type BottlingDifference, type BottlingWine } from '@shared/utils/bottling-difference'
 
 export type { WineIdentity }
 // Re-exported for backward compatibility — existing callers/tests import
@@ -152,7 +153,9 @@ export interface Step1Outcome {
   // try the runner-up when the top pick's page turns out not to cite a
   // critic score, without spending a second query. Empty whenever `url` is
   // null.
-  candidates: Array<{ url: string; match: MatchVerdict }>
+  // `difference` (Phase 12.2): what the title and URL say about the bottling,
+  // both directions (D8). Optional so callers and tests built before it keep working.
+  candidates: Array<{ url: string; match: MatchVerdict; difference?: BottlingDifference }>
 }
 
 export interface RejectedCandidate {
@@ -188,9 +191,12 @@ export interface RejectedCandidate {
  */
 function pickBestCandidate(
   items: SerperOrganicItem[],
-  wine: WineIdentity
-): { candidates: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }>; rejected: RejectedCandidate[] } {
-  const acceptable: Array<{ item: SerperOrganicItem; verdict: MatchVerdict }> = []
+  wine: BottlingWine
+): {
+  candidates: Array<{ item: SerperOrganicItem; verdict: MatchVerdict; difference: BottlingDifference }>
+  rejected: RejectedCandidate[]
+} {
+  const acceptable: Array<{ item: SerperOrganicItem; verdict: MatchVerdict; difference: BottlingDifference }> = []
   const rejected: RejectedCandidate[] = []
 
   for (const item of items) {
@@ -199,11 +205,20 @@ function pickBestCandidate(
       continue
     }
     const verdict = scoreMatch({ title: item.title, snippet: item.snippet, url: item.link }, wine)
-    if (isAcceptableMatch(verdict)) acceptable.push({ item, verdict })
-    else rejected.push({ title: item.title, url: item.link, verdict })
+    if (isAcceptableMatch(verdict)) {
+      acceptable.push({ item, verdict, difference: bottlingDifference({ title: item.title, url: item.link }, wine) })
+    } else rejected.push({ title: item.title, url: item.link, verdict })
   }
 
-  acceptable.sort((a, b) => compareByMatchQuality(a.verdict, b.verdict))
+  // Exact wine before a different bottling (Phase 12.2 D8/D9: narrow first),
+  // then the existing quality order. A different bottling is still a
+  // candidate — the pipeline decides whether to spend a read on it.
+  acceptable.sort((a, b) => {
+    const exactA = isExactBottling(a.difference)
+    const exactB = isExactBottling(b.difference)
+    if (exactA !== exactB) return exactA ? -1 : 1
+    return compareByMatchQuality(a.verdict, b.verdict)
+  })
   return { candidates: acceptable, rejected }
 }
 
@@ -258,7 +273,7 @@ export async function findProductPageDetailed(
           variantsTried,
           match: best.verdict,
           rejected: [],
-          candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+          candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict, difference: c.difference })),
         }
       }
       return { url: null, stage: 'no_relevant_match', variantsTried, match: null, rejected, candidates: [] }
@@ -469,7 +484,7 @@ async function runOpenQuery(
         variantsTried: 1,
         match: best.verdict,
         rejected: [],
-        candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict })),
+        candidates: candidates.map(c => ({ url: c.item.link, match: c.verdict, difference: c.difference })),
       }
     }
     return { url: null, stage: 'no_relevant_match', variantsTried: 1, match: null, rejected, candidates: [] }
