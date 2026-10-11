@@ -147,6 +147,26 @@ final class WineDetailModel {
         }
     }
 
+    /// Saves the answer to "Which bottling is yours?" and takes the re-scored
+    /// wine the server returns (Phase 12.2). Nothing is fetched.
+    func chooseBottling(_ choice: BottlingChoice) async -> BottlingOutcome {
+        do {
+            let response = try await api.chooseBottling(wineID: wine.id, choice: choice)
+            wine = response.wine
+            onChanged()
+            return .done(Self.line(for: choice, response))
+        } catch {
+            return .failed("Couldn't save your answer. Try again.")
+        }
+    }
+
+    static func line(for choice: BottlingChoice, _ response: BottlingChoiceResponse) -> String {
+        if choice == .notSure { return "Left as it was. We'll ask again only if a refresh brings other bottlings." }
+        let line = TierCopy.resultLine(tier: response.result.tier, scores: response.result.scores, trusted: response.result.trustedScores)
+        let dup = response.result.duplicate.map { $0.kind != "none" } ?? false
+        return dup ? line + " This may match another wine in your cellar." : line
+    }
+
     /// The URL to open for a retailer row. A search-results link is resolved
     /// to its real product page first — one Serper credit, spent only at the
     /// moment of the tap, exactly as `RetailerViewLink` does on the web —

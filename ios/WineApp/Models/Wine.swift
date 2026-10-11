@@ -79,6 +79,12 @@ struct CriticSummaryItem: Codable, Hashable {
     var drinkingWindow: CriticDrinkingWindow?
     var vintageCharacter: VintageRating?
     var deal: Bool
+    /// Phase 12.2: where this score sits on the review ladder ("1", "2", "3a",
+    /// "3b", "out"), how many years its page is from the wine, and the badge
+    /// when the page names a different bottling. Absent on older backends.
+    var rung: String?
+    var vintageDelta: Int?
+    var bottlingBadge: String?
 
     enum CodingKeys: String, CodingKey {
         case publication, score, vintage
@@ -87,8 +93,62 @@ struct CriticSummaryItem: Codable, Hashable {
         case knownPublication = "known_publication"
         case drinkingWindow = "drinking_window"
         case vintageCharacter = "vintage_character"
-        case deal
+        case deal, rung
+        case vintageDelta = "vintage_delta"
+        case bottlingBadge = "bottling_badge"
     }
+}
+
+// MARK: - Review ladder and bottling prompt (Phase 12.2)
+
+/// What each rung of the ladder holds, for the explainer sheet.
+struct ReviewLadderRung: Codable, Hashable {
+    var tier: String
+    var pages: Int
+    var scores: Int
+    var trustedScores: Int
+    var critics: [String]
+    var vintages: [Int]
+
+    enum CodingKeys: String, CodingKey {
+        case tier, pages, scores, critics, vintages
+        case trustedScores = "trusted_scores"
+    }
+}
+
+/// The tier a wine's reviews were matched at ("1", "2", "3a", "3b", "none"),
+/// computed once in the backend. The app renders it and never re-derives it.
+struct ReviewLadder: Codable, Hashable {
+    var tier: String
+    var rungs: [ReviewLadderRung]
+}
+
+struct BottlingOption: Codable, Hashable {
+    var name: String
+    var words: [String]
+    var retailers: [String]
+    var critics: [String]
+    var priceRange: PriceRange?
+    var links: [BottlingLink]
+    var count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case name, words, retailers, critics, links, count
+        case priceRange = "price_range"
+    }
+}
+
+struct BottlingLink: Codable, Hashable {
+    var name: String
+    var url: String
+}
+
+/// "Listings name different bottlings, which is yours?" (WI-2.5): non-nil only
+/// when something triggers it and the developer has not answered.
+struct BottlingPrompt: Codable, Hashable {
+    var reasons: [String]
+    var options: [BottlingOption]
+    var signature: String
 }
 
 struct CriticSummary: Codable, Hashable {
@@ -160,6 +220,10 @@ struct Wine: Codable, Identifiable, Hashable {
     var criticSummary: CriticSummary?
     var enrichmentStale: EnrichmentStale?
     var priceExclusions: PriceExclusions?
+    var reviewLadder: ReviewLadder?
+    var bottlingPrompt: BottlingPrompt?
+    /// The developer answered "Plain / no special bottling".
+    var bottlingPlain: Bool?
 
     var priceData: PriceData?
     /// User-saved retailer URLs keyed by retailer slug.
@@ -203,6 +267,9 @@ struct Wine: Codable, Identifiable, Hashable {
         case criticSummary = "critic_summary"
         case enrichmentStale = "enrichment_stale"
         case priceExclusions = "price_exclusions"
+        case reviewLadder = "review_ladder"
+        case bottlingPrompt = "bottling_prompt"
+        case bottlingPlain = "bottling_plain"
         case priceData = "price_data"
         case retailerLinks = "retailer_links"
         case reviewData = "review_data"

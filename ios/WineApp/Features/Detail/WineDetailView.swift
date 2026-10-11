@@ -286,7 +286,8 @@ struct WineDetailView: View {
         let summary = count > 0 ? "\(count) score\(count == 1 ? "" : "s")" : (wine.reviewData == nil ? "Not fetched" : "None found")
         return DisclosureCard(title: "Critic reviews", summary: summary, isExpanded: binding(.criticReviews)) {
             VStack(alignment: .leading, spacing: 10) {
-                CriticReviewsBlock(wine: wine, control: model.reviews, retry: { Task { await model.fetchReviews() } })
+                CriticReviewsBlock(wine: wine, control: model.reviews, retry: { Task { await model.fetchReviews() } },
+                                   chooseBottling: { await model.chooseBottling($0) })
                     .id("scores")
                 EnrichmentButton(
                     title: wine.reviewData == nil ? "Fetch Reviews" : "Refresh Reviews",

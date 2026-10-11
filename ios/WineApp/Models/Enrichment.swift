@@ -161,7 +161,21 @@ struct PriceExcludedCounts: Codable, Hashable {
     var nonStandardFormat: Int
     var suspectedLargeFormat: Int
     var linkOnly: Int
+    var outsideBottling: Int
     var outlier: Int
+
+    /// `outside_bottling` arrived with the bottling answer (Phase 12.2), after
+    /// the first blobs carrying `excluded`: absent decodes to 0.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        otherVintage = try c.decodeIfPresent(Int.self, forKey: .otherVintage) ?? 0
+        pack = try c.decodeIfPresent(Int.self, forKey: .pack) ?? 0
+        nonStandardFormat = try c.decodeIfPresent(Int.self, forKey: .nonStandardFormat) ?? 0
+        suspectedLargeFormat = try c.decodeIfPresent(Int.self, forKey: .suspectedLargeFormat) ?? 0
+        linkOnly = try c.decodeIfPresent(Int.self, forKey: .linkOnly) ?? 0
+        outsideBottling = try c.decodeIfPresent(Int.self, forKey: .outsideBottling) ?? 0
+        outlier = try c.decodeIfPresent(Int.self, forKey: .outlier) ?? 0
+    }
 
     enum CodingKeys: String, CodingKey {
         case otherVintage = "other_vintage"
@@ -169,8 +183,15 @@ struct PriceExcludedCounts: Codable, Hashable {
         case nonStandardFormat = "non_standard_format"
         case suspectedLargeFormat = "suspected_large_format"
         case linkOnly = "link_only"
+        case outsideBottling = "outside_bottling"
         case outlier
     }
+}
+
+/// What a listing's title says about the bottling, both directions (WI-2).
+struct ListingBottlingDifference: Codable, Hashable {
+    var extra: [String]
+    var missing: [String]
 }
 
 enum HeadlineBasis: String, Codable {
@@ -200,9 +221,15 @@ struct RetailerPrice: Codable, Hashable {
     var pricePer750: Double?
     var suspectedLargeFormat: Bool?
     var otherStorefront: Bool?
+    var listingTitle: String?
+    var bottlingDifference: ListingBottlingDifference?
+    var outsideBottling: Bool?
 
     enum CodingKeys: String, CodingKey {
         case slug, name, price, url, normalized
+        case listingTitle = "listing_title"
+        case bottlingDifference = "bottling_difference"
+        case outsideBottling = "outside_bottling"
         case pricePer750 = "price_per_750"
         case suspectedLargeFormat = "suspected_large_format"
         case otherStorefront = "other_storefront"
@@ -274,6 +301,9 @@ struct RetailerPrice: Codable, Hashable {
         pricePer750 = try c.decodeIfPresent(Double.self, forKey: .pricePer750)
         suspectedLargeFormat = try c.decodeIfPresent(Bool.self, forKey: .suspectedLargeFormat)
         otherStorefront = try c.decodeIfPresent(Bool.self, forKey: .otherStorefront)
+        listingTitle = try c.decodeIfPresent(String.self, forKey: .listingTitle)
+        bottlingDifference = try c.decodeIfPresent(ListingBottlingDifference.self, forKey: .bottlingDifference)
+        outsideBottling = try c.decodeIfPresent(Bool.self, forKey: .outsideBottling)
     }
 }
 

@@ -52,3 +52,116 @@ final class RetailerHostStorefrontTests: XCTestCase {
         XCTAssertEqual(RetailerHost.registrable("shop.example.co.uk"), "example.co.uk")
     }
 }
+
+final class BottlingPromptDecodingTests: XCTestCase {
+    func testTheLadderAndThePromptDecodeFromRealAdapterOutput() throws {
+        let wine = try Fixture.decode(Wine.self, "wine-bottling-prompt")
+        let ladder = try XCTUnwrap(wine.reviewLadder)
+        XCTAssertEqual(ladder.tier, "1")
+        XCTAssertEqual(ladder.rungs.first { $0.tier == "1" }?.critics, ["Vinous"])
+        XCTAssertEqual(ladder.rungs.first { $0.tier == "3a" }?.pages, 2)
+        let prompt = try XCTUnwrap(wine.bottlingPrompt)
+        XCTAssertEqual(prompt.options.map(\.name), ["Castiglione", "Monvigliero", "Rocche"])
+        XCTAssertEqual(Set(prompt.reasons), ["modifiers", "price_split"])
+        let rocche = try XCTUnwrap(prompt.options.first { $0.name == "Rocche" })
+        XCTAssertEqual(rocche.priceRange, PriceRange(min: 229, max: 229))
+        XCTAssertEqual(rocche.retailers, ["sokolin"])
+        XCTAssertNil(wine.bottlingPlain)
+    }
+
+    func testAListingCarriesItsTitleAndWhatItSaysAboutTheBottling() throws {
+        let wine = try Fixture.decode(Wine.self, "wine-bottling-prompt")
+        let castiglione = try XCTUnwrap(wine.priceData?.retailers.first { $0.slug == "thatchers" })
+        XCTAssertEqual(castiglione.listingTitle, "Vietti Barolo Castiglione 2021")
+        XCTAssertEqual(castiglione.bottlingDifference?.extra, ["castiglione"])
+        XCTAssertTrue(RetailerTable.badges(castiglione).contains(.format("Names Castiglione — yours doesn't")))
+        let plain = try XCTUnwrap(wine.priceData?.retailers.first { $0.slug == "zachys" })
+        XCTAssertFalse(RetailerTable.badges(plain).contains { if case .format = $0 { return true } else { return false } })
+    }
+
+    func testAListingOutsideTheChosenBottlingSaysSo() {
+        var r = RetailerPrice(slug: "x", name: "X", price: 100, url: "https://x", distanceMiles: 1, isPreferredRetailer: true,
+                              isSearchResultsPage: false, matchedVintage: 2021, vintageMismatch: false, vintageVerdict: .match,
+                              packQuantity: 1, bottleSizeMl: nil, nonStandardFormat: false, formatLabel: "", linkOnly: false,
+                              verification: .verified)
+        r.outsideBottling = true
+        XCTAssertTrue(RetailerTable.badges(r).contains(.format("outside your bottling")))
+    }
+
+    func testTheBadgeReadsInBothDirectionsAndIsNilForTheSameBottling() {
+        XCTAssertEqual(DetailFormatting.bottlingBadge(extra: ["monvigliero"], missing: []), "Names Monvigliero — yours doesn't")
+        XCTAssertEqual(DetailFormatting.bottlingBadge(extra: [], missing: ["castiglione"]), "Doesn't name Castiglione — yours does")
+        XCTAssertNil(DetailFormatting.bottlingBadge(extra: [], missing: []))
+    }
+
+    func testAnExcludedCountsBlobFromBeforeTheBottlingAnswerStillDecodes() throws {
+        let json = #"{"other_vintage":1,"pack":0,"non_standard_format":0,"suspected_large_format":0,"link_only":0,"outlier":2}"#
+        let counts = try JSONDecoder().decode(PriceExcludedCounts.self, from: Data(json.utf8))
+        XCTAssertEqual(counts.outsideBottling, 0)
+        XCTAssertEqual(counts.outlier, 2)
+    }
+}
+
+final class TierCopyTests: XCTestCase {
+    func testTheHeadlineNamesTheTierInWords() {
+        XCTAssertEqual(TierCopy.headline("1"), "Matched at Tier 1 · exact wine and vintage")
+        XCTAssertEqual(TierCopy.headline("2"), "Matched at Tier 2 · same wine, other vintages")
+        XCTAssertEqual(TierCopy.headline("3a"), "Matched at Tier 3a · different bottling, same vintage")
+        XCTAssertNil(TierCopy.headline("none"))
+    }
+
+    func testTheResultLineSaysWhatChanged() {
+        XCTAssertEqual(TierCopy.resultLine(tier: "1", scores: 4, trusted: 3), "Now matched at Tier 1 — 3 trusted scores")
+        XCTAssertEqual(TierCopy.resultLine(tier: "2", scores: 1, trusted: 0), "Now matched at Tier 2 — 1 score")
+        XCTAssertTrue(TierCopy.resultLine(tier: "none", scores: 0, trusted: 0).hasPrefix("Saved."))
+    }
+}
+
+@MainActor
+final class ChooseBottlingModelTests: XCTestCase {
+    func testAnAnswerPostsTheChoiceAndTakesTheRescoredWine() async throws {
+        let wine = try Fixture.decode(Wine.self, "wine-bottling-prompt")
+        var answered = wine
+        answered.vineyard = "Castiglione"
+        answered.bottlingPrompt = nil
+        let body = #"{"wine":\#(String(decoding: try JSONEncoder().encode(answered), as: UTF8.self)),"result":{"tier":"1","scores":4,"trusted_scores":3,"duplicate":{"kind":"none"}}}"#
+        StubURLProtocol.requests = []
+        StubURLProtocol.router = nil
+        StubURLProtocol.response = (200, Data(body.utf8))
+        var changed = 0
+        let model = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: { changed += 1 })
+
+        let outcome = await model.chooseBottling(.vineyard("Castiglione"))
+
+        XCTAssertEqual(outcome, .done("Now matched at Tier 1 — 3 trusted scores"))
+        XCTAssertEqual(model.wine.vineyard, "Castiglione")
+        XCTAssertNil(model.wine.bottlingPrompt)
+        XCTAssertEqual(changed, 1)
+        let request = try XCTUnwrap(StubURLProtocol.requests.last)
+        XCTAssertEqual(request.url?.path, "/api/wines/\(wine.id)/choose-bottling")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(StubURLProtocol.requests.count, 1, "no lookup, no second request")
+    }
+
+    func testAFailedAnswerChangesNothingAndSaysSo() async throws {
+        let wine = try Fixture.decode(Wine.self, "wine-bottling-prompt")
+        StubURLProtocol.response = (500, Data(#"{"error":"nope"}"#.utf8))
+        let model = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: {})
+        let outcome = await model.chooseBottling(.plain)
+        XCTAssertEqual(outcome, .failed("Couldn't save your answer. Try again."))
+        XCTAssertNotNil(model.wine.bottlingPrompt)
+    }
+
+    func testPriceAndReviewAnswersCarryTheLadderAndPromptAcross() throws {
+        let fresh = try Fixture.decode(Wine.self, "wine-bottling-prompt")
+        var current = try Fixture.fullWine
+        current.reviewLadder = nil
+        current = current.applying(fresh, from: .reviews)
+        XCTAssertEqual(current.reviewLadder?.tier, "1")
+        XCTAssertNotNil(current.bottlingPrompt)
+        var priceOnly = try Fixture.fullWine
+        priceOnly.reviewLadder = nil
+        priceOnly = priceOnly.applying(fresh, from: .price)
+        XCTAssertNil(priceOnly.reviewLadder, "a price answer does not own the ladder")
+    }
+}

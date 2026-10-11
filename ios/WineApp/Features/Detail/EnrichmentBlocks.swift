@@ -36,6 +36,8 @@ struct CriticReviewsBlock: View {
     /// "Search more retailers" in the nothing-found state (the extended tier,
     /// still a click — preview only).
     var searchMore: (() -> Void)?
+    /// "Which bottling is yours?" (Phase 12.2). Absent where the answer cannot be saved.
+    var chooseBottling: ((BottlingChoice) async -> BottlingOutcome)?
     @State private var showAll = false
 
     private let visibleScores = 6
@@ -66,7 +68,13 @@ struct CriticReviewsBlock: View {
             case .idle:
                 Text("Critic scores haven't been looked up yet.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             case .found:
+                if let ladder = wine?.reviewLadder, ladder.tier != "none" {
+                    TierMarker(ladder: ladder)
+                }
                 found
+            }
+            if let wine, let chooseBottling {
+                BottlingBanner(wine: wine, choose: chooseBottling)
             }
         }
     }
@@ -121,8 +129,13 @@ struct CriticSummaryRow: View {
                     Pill(text: "Trusted", fg: Theme.green, bg: Theme.greenSoft)
                 }
                 if !item.sameVintage, let vintage = item.vintage {
-                    Pill(text: String(vintage), fg: Theme.textMuted, bg: Theme.surface2)
+                    let off = item.vintageDelta.flatMap { $0 > 0 ? " · \($0) \($0 == 1 ? "yr" : "yrs")" : nil } ?? ""
+                    Pill(text: String(vintage) + off, fg: Theme.textMuted, bg: Theme.surface2)
                         .accessibilityLabel("Score is for the \(vintage) vintage")
+                }
+                if item.bottlingBadge != nil {
+                    Pill(text: "different bottling?", fg: Theme.textMuted, bg: Theme.surface2)
+                        .accessibilityLabel(item.bottlingBadge ?? "")
                 }
             }
             let attributes = [
@@ -165,6 +178,7 @@ struct PriceRetailersBlock: View {
     let openRetailer: (RetailerPrice) -> Void
     var retry: (() -> Void)?
     @State private var showMore = false
+    @State private var showSplitSheet = false
 
     var body: some View {
         let manual = EffectivePrice(wine).isManual
@@ -179,6 +193,22 @@ struct PriceRetailersBlock: View {
                 }
             }
             automated(titled: manual)
+        }
+        .sheet(isPresented: $showSplitSheet) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("When the highest price we counted is 2.5 times the lowest or more, one average would be a number nobody is actually offered. Usually that means the listings are not all the same bottling — a plain wine and a named vineyard, say.")
+                        Text("Nothing was dropped. Both groups are shown, and every listing is still listed below. If you tell us which bottling is yours, we recompute from the listings that name it.")
+                    }
+                    .font(AppFont.body())
+                    .padding()
+                }
+                .navigationTitle("Why no single average")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showSplitSheet = false } } }
+            }
+            .presentationDetents([.medium])
         }
     }
 
@@ -200,6 +230,15 @@ struct PriceRetailersBlock: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("These prices are too far apart for one average — this may be more than one bottling.")
                             .font(AppFont.body()).foregroundStyle(Theme.text)
+                        HStack(spacing: 4) {
+                            Text("Prices: split by the 2.5× rule").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                            Button { showSplitSheet = true } label: {
+                                Text("ⓘ").underline().font(AppFont.meta()).foregroundStyle(Theme.accent)
+                                    .frame(minWidth: 28, minHeight: Theme.minHitTarget)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("What is the 2.5× rule?")
+                        }
                         ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
                             Text("\(DetailFormatting.priceRange(group.min, group.max)) · \(group.retailers.count) \(group.retailers.count == 1 ? "listing" : "listings")")
                                 .font(AppFont.body().monospacedDigit())
