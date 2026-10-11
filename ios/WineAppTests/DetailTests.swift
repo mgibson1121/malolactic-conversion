@@ -129,6 +129,9 @@ final class RetailerHostTests: XCTestCase {
         XCTAssertTrue(RetailerHost.matches("shop.klwines.com", "www.klwines.com"))
         XCTAssertTrue(RetailerHost.matches("WWW.Zachys.com", "zachys.com"))
         XCTAssertFalse(RetailerHost.matches("doubleclick.net", "zachys.com"))
+        // Phase 12.2: one shop, two storefronts.
+        XCTAssertTrue(RetailerHost.matches("sf.flatiron-wines.com", "nyc.flatiron-wines.com"))
+        XCTAssertFalse(RetailerHost.matches("sf.flatiron-wines.com", "nyc.zachys.com"))
         XCTAssertFalse(RetailerHost.matches(nil, "zachys.com"))
     }
 }

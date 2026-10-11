@@ -100,7 +100,7 @@ function buildQuery(wine: WineIdentity, domain: string, opts: QueryOptions): str
  * belongs before the broader relaxations, and only fires when it actually
  * changes the query (the Set dedupe handles producers with no honorific).
  */
-function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
+export function buildQueryVariants(wine: WineIdentity, domain: string): string[] {
   const variants = [
     buildQuery(wine, domain, { includeDistinguishing: true, includeVintage: true }),
     buildQuery(wine, domain, { includeDistinguishing: true, includeVintage: true, relaxProducer: true }),

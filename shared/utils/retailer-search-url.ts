@@ -81,6 +81,6 @@ export function buildRetailerSearchUrl(retailer: RetailerConfig, query: string):
       // file-level comment above. Still an unverified guess for any
       // retailer added after this date until explicitly checked (including
       // JJ Buckley, added 2026-08-02).
-      return `https://${retailer.domain}/search?q=${q}`
+      return `https://${retailer.storefrontHost ?? retailer.domain}/search?q=${q}`
   }
 }

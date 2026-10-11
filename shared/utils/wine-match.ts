@@ -235,7 +235,17 @@ const MIN_COMPACT_PRODUCER = 8
  * Substring comparison (what this replaced) is what let "vin" — a
  * significant word of "Vin de France" — match inside "vintage". */
 function tokenSet(text: string): Set<string> {
-  return new Set(normalize(text).split(/\s+/).filter(Boolean))
+  const tokens = new Set(normalize(text).split(/\s+/).filter(Boolean))
+  // A name and its plural are one word (Phase 12.2 WI-4). Burgundy's "Les
+  // Cailleret" is sold as "Les Caillerets" by most shops, and the bottling
+  // verdict read that as a different vineyard: Vincent Girardin's Chassagne-
+  // Montrachet 1er Cru Les Cailleret 2017 came back with no price and no
+  // review at all. Long words only, so short words stay exact.
+  for (const t of [...tokens]) {
+    if (t.length < 6) continue
+    tokens.add(t.endsWith('s') ? t.slice(0, -1) : `${t}s`)
+  }
+  return tokens
 }
 
 // ─── Graded identity matching (2026-08-04) ───────────────────────────────────
@@ -280,7 +290,26 @@ export interface MatchVerdict {
 /** Parses a plausible vintage year (1900–2099) out of free text or a URL. */
 export function extractVintage(text: string): number | null {
   const match = text.match(/\b(19\d{2}|20\d{2})\b/)
-  return match ? parseInt(match[0], 10) : null
+  if (match) return parseInt(match[0], 10)
+  return extractTypoedVintage(text)
+}
+
+/**
+ * A year with one letter "o" standing in for a zero (Phase 12.2 WI-5). Joseph
+ * Colin's Saint-Aubin En Remilly page on Flatiron is slugged `...-2o24-...`, so
+ * the strict year pattern read nothing and the listing had no vintage at all.
+ * Tolerant on purpose and narrow: a 4-character token that is a plausible year
+ * once exactly one `o`/`O` (never the first character) is read as `0`. A year
+ * that still cannot be read is `unknown`, never `mismatch`.
+ */
+function extractTypoedVintage(text: string): number | null {
+  for (const token of text.match(/\b[12][0-9oO]{3}\b/g) ?? []) {
+    const letters = token.match(/[oO]/g)
+    if (!letters || letters.length !== 1) continue
+    const year = parseInt(token.replace(/[oO]/, '0'), 10)
+    if ((year >= 1900 && year <= 2099)) return year
+  }
+  return null
 }
 
 /** all present → match · none present → mismatch · some present → unknown */

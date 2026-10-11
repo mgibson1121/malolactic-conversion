@@ -176,3 +176,51 @@ describe('badge explanations (WI-8)', () => {
     expect(screen.getByText('What do these badges mean?')).toBeInTheDocument()
   })
 })
+
+describe('PriceBlock — Phase 12.2 states', () => {
+  it('shows a counted six-pack with both prices, a ÷6 tag, and marks the headline estimated', () => {
+    const six = makeTestRetailer({
+      slug: 'benchmark',
+      name: 'Benchmark',
+      price: 707,
+      non_standard_format: true,
+      pack_quantity: 6,
+      format_label: '6-pack',
+      normalized: { kind: 'pack', divisor: 6, source: 'title', shelf_price: 707 },
+      price_per_750: 117.83,
+    })
+    const data = { ...makeTestPriceData([six]), price_min: 117.83, price_avg: 117.83, price_max: 117.83, headline_basis: 'single_listing' as const, headline_estimated: true }
+    renderBlock(makeTestWine({ price_data: data }))
+    expect(screen.getByText('÷6 pack')).toBeInTheDocument()
+    expect(screen.getByText('estimated')).toBeInTheDocument()
+    expect(screen.getByText(/\$707/)).toBeInTheDocument()
+    expect(screen.getByText(/\$118 a bottle/)).toBeInTheDocument()
+    expect(screen.getByText(/single listing, counted at a per-bottle price/)).toBeInTheDocument()
+  })
+
+  it('says a lone uncounted-size listing is unconfirmed instead of presenting it as certain', () => {
+    const data = { ...makeTestPriceData([makeTestRetailer({ price: 946.32 })]), price_avg: 946.32, headline_basis: 'single_listing' as const, headline_estimated: false }
+    renderBlock(makeTestWine({ price_data: data }))
+    expect(screen.getByText(/single listing — size not confirmed/)).toBeInTheDocument()
+  })
+
+  it('shows both price groups and no average when the prices span 2.5x or more', () => {
+    const data = {
+      ...makeTestPriceData([makeTestRetailer({ price: 74.99 }), makeTestRetailer({ slug: 'b', name: 'B', price: 245 })]),
+      price_min: null,
+      price_avg: null,
+      price_max: null,
+      headline_basis: 'ambiguous' as const,
+      price_groups: [
+        { min: 74.99, max: 74.99, retailers: ['a'] },
+        { min: 149, max: 245, retailers: ['b', 'c', 'd', 'e'] },
+      ],
+    }
+    renderBlock(makeTestWine({ price_data: data }))
+    expect(screen.getByTestId('price-groups')).toHaveTextContent('more than one bottling')
+    const groups = screen.getByTestId('price-groups')
+    expect(groups).toHaveTextContent('$75')
+    expect(groups).toHaveTextContent('$149–$245')
+    expect(screen.queryByText('Avg')).not.toBeInTheDocument()
+  })
+})

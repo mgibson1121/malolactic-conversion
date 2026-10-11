@@ -97,8 +97,8 @@ export function makeTestRetailer(overrides: Partial<RetailerPrice> = {}): Retail
 }
 
 export function makeTestPriceData(retailers: RetailerPrice[], overrides: Partial<PriceData> = {}): PriceData {
-  const priced = retailers.filter((r) => r.price != null && !r.vintage_mismatch && !r.non_standard_format && !r.link_only)
-  const prices = priced.map((r) => r.price as number)
+  const priced = retailers.filter((r) => r.price != null && !r.vintage_mismatch && (!r.non_standard_format || !!r.normalized) && !r.link_only)
+  const prices = priced.map((r) => (r.price_per_750 ?? r.price) as number)
   return {
     price_min: prices.length ? Math.min(...prices) : null,
     price_avg: prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null,

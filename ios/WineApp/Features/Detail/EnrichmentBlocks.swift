@@ -195,9 +195,30 @@ struct PriceRetailersBlock: View {
                 Text("Checked \(NoteDate.short(price.fetchedAt) ?? "recently")")
                     .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             } else {
-                if price.priceAvg != nil {
-                    Text("Avg \(DetailFormatting.priceBound(price.priceAvg)) · High \(DetailFormatting.priceBound(price.priceMax)) · Low \(DetailFormatting.priceBound(price.priceMin))")
-                        .font(AppFont.body().monospacedDigit())
+                if price.headlineBasis == .ambiguous, let groups = price.priceGroups {
+                    // Counted prices span 2.5x or more (Phase 12.2 D10): no single average.
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("These prices are too far apart for one average — this may be more than one bottling.")
+                            .font(AppFont.body()).foregroundStyle(Theme.text)
+                        ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                            Text("\(DetailFormatting.priceRange(group.min, group.max)) · \(group.retailers.count) \(group.retailers.count == 1 ? "listing" : "listings")")
+                                .font(AppFont.body().monospacedDigit())
+                        }
+                    }
+                } else if price.priceAvg != nil {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Avg \(DetailFormatting.priceBound(price.priceAvg)) · High \(DetailFormatting.priceBound(price.priceMax)) · Low \(DetailFormatting.priceBound(price.priceMin))")
+                            .font(AppFont.body().monospacedDigit())
+                        if price.headlineEstimated == true {
+                            Text("estimated").font(AppFont.meta().italic()).foregroundStyle(Theme.textMuted)
+                        }
+                    }
+                    if price.headlineBasis == .singleListing {
+                        Text(price.headlineEstimated == true
+                             ? "Based on a single listing, counted at a per-bottle price."
+                             : "Based on a single listing — size not confirmed.")
+                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    }
                 } else if let why = wine.priceExclusions?.sentence {
                     Text(why).font(AppFont.body()).foregroundStyle(Theme.text)
                 }

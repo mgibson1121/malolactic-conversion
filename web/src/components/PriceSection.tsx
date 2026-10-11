@@ -21,6 +21,42 @@ interface Props {
 
 const fmt = (n: number | null | undefined) => (n != null ? `$${n.toFixed(0)}` : '—')
 
+/** The price a retailer row shows: the shelf price, and for a counted pack, case or magnum the per-bottle figure too. */
+function RowPrice({ r }: { r: RetailerPrice }) {
+  if (r.link_only) return null
+  if (r.normalized && r.price_per_750 != null) {
+    return (
+      <span className="retailer-price">
+        {fmt(r.normalized.shelf_price)} <span className="price-per-bottle">· {fmt(r.price_per_750)} a bottle</span>
+      </span>
+    )
+  }
+  return <span className="retailer-price">{fmt(r.price)}</span>
+}
+
+/** Two groups of prices that are too far apart for one average (Phase 12.2 D10). */
+function PriceGroups({ data }: { data: NonNullable<WineEntry['price_data']> }) {
+  const groups = data.price_groups ?? []
+  const range = (g: { min: number; max: number }) => (g.min === g.max ? fmt(g.min) : `${fmt(g.min)}–${fmt(g.max)}`)
+  return (
+    <div className="price-groups" data-testid="price-groups">
+      <p className="price-no-average">
+        These prices are too far apart for one average — this may be more than one bottling.
+      </p>
+      <ul className="price-group-list">
+        {groups.map((g, i) => (
+          <li key={i} className="price-group">
+            <span className="price-value">{range(g)}</span>
+            <span className="price-group-count">
+              {g.retailers.length} {g.retailers.length === 1 ? 'listing' : 'listings'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * A badge on a retailer row that explains itself when tapped (Phase 12.1
  * WI-8): Verified / Unverified / Search only. Underlined, because it is
@@ -65,9 +101,23 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
           {r.matched_vintage} vintage
         </span>
       )}
-      {r.non_standard_format && (
-        <span className="format-badge" title="Price is for this format, not a single standard 750ml bottle">
-          {r.format_label}
+      {r.normalized ? (
+        <span
+          className="format-badge format-badge--counted"
+          title={`Counted at ${fmt(r.price_per_750)} per 750 ml bottle: the ${fmt(r.normalized.shelf_price)} shelf price divided by ${r.normalized.divisor}`}
+        >
+          {`÷${r.normalized.divisor} ${r.normalized.kind}`}
+        </span>
+      ) : (
+        r.non_standard_format && (
+          <span className="format-badge" title="Price is for this format, not a single standard 750ml bottle">
+            {r.format_label}
+          </span>
+        )
+      )}
+      {r.suspected_large_format && (
+        <span className="format-badge" title="Left out of the average">
+          price suggests a larger format — size unconfirmed
         </span>
       )}
       {kind && <BadgePill kind={kind} />}
@@ -174,7 +224,9 @@ function AutomatedPrices({
         </>
       ) : (
         <>
-          {data.price_avg != null ? (
+          {data.headline_basis === 'ambiguous' && data.price_groups ? (
+            <PriceGroups data={data} />
+          ) : data.price_avg != null ? (
             <div className="price-range">
               <span className="price-stat">
                 <span className="price-label">Avg</span>
@@ -190,9 +242,22 @@ function AutomatedPrices({
                 <span className="price-label">Low</span>
                 <span className="price-value">{fmt(data.price_min)}</span>
               </span>
+              {data.headline_estimated && (
+                <span className="price-estimated" title="A pack, case or magnum price divided down to a single 750 ml bottle">
+                  estimated
+                </span>
+              )}
             </div>
           ) : (
             exclusions && <p className="price-no-average">{exclusions.sentence}</p>
+          )}
+
+          {data.headline_basis === 'single_listing' && data.price_avg != null && (
+            <p className="price-single-listing">
+              {data.headline_estimated
+                ? 'Based on a single listing, counted at a per-bottle price.'
+                : 'Based on a single listing — size not confirmed.'}
+            </p>
           )}
 
           {data.other_vintage_price_range && (
@@ -211,7 +276,7 @@ function AutomatedPrices({
                 className="retailer-link link nearest-name"
                 label={nearest.name}
               />
-              {nearest.price != null && <span className="nearest-price">{fmt(nearest.price)}</span>}
+              {nearest.price != null && <RowPrice r={nearest} />}
               <RetailerBadges r={nearest} />
               <span className="nearest-distance">{nearest.distance_miles} mi</span>
             </div>
@@ -232,7 +297,7 @@ function AutomatedPrices({
                   {others.map((r) => (
                     <div key={r.slug} className="retailer-row">
                       <span className="retailer-name">{r.name}</span>
-                      <span className="retailer-price">{r.link_only ? '' : fmt(r.price)}</span>
+                      <RowPrice r={r} />
                       <RetailerBadges r={r} />
                       <RetailerViewLink
                         wineId={wine.id}

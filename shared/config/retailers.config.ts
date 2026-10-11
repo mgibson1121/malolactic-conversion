@@ -2,6 +2,11 @@ export interface RetailerConfig {
   slug: string
   name: string
   domain: string
+  /** A specific storefront host for constructed links and nearest-retailer
+   *  coordinates when `domain` covers more than one store (Phase 12.2 WI-6).
+   *  Review `site:` queries and host matching use `domain`; links the user
+   *  clicks use this. */
+  storefrontHost?: string
   // Lowercase keyword to match against Serper's shopping `source` field
   // (the merchant display name, e.g. "K&L Wine Merchants"). Serper's `link`
   // field is always a google.com/search?ibp=oshop aggregator URL — it never
@@ -157,11 +162,18 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
   {
     slug: 'flatiron',
     name: 'Flatiron Wines & Spirits',
-    // NYC storefront is served from this subdomain, not the bare
-    // flatiron-wines.com root (which also serves their SF location) — using
-    // the NYC subdomain here so Phase 7's `site:<domain>` queries land on
-    // the right store. Re-verify if `site:` results come back empty.
-    domain: 'nyc.flatiron-wines.com',
+    // REVERSED 2026-10-11 (Phase 12.2 WI-6). This used to be the NYC
+    // subdomain alone, "so Phase 7's `site:<domain>` queries land on the right
+    // store" — a choice of proximity over coverage. It cost coverage: Joseph
+    // Colin's Saint-Aubin En Remilly 2024 page is on sf.flatiron-wines.com
+    // (and its slug carries a typo, "2o24"), which `site:nyc.flatiron-wines.com`
+    // can never return. Reviews and host matching now use the registrable
+    // domain, so both storefronts count as Flatiron — ratings are evidence for
+    // the wine, not for proximity. Links the user clicks and nearest-retailer
+    // distance stay on the NYC storefront (`storefrontHost`); a product page
+    // from another storefront cannot win "nearest" (aggregatePriceData).
+    domain: 'flatiron-wines.com',
+    storefrontHost: 'nyc.flatiron-wines.com',
     matchKeyword: 'flatiron',
     reviewTier: 'primary',
     lat: 40.7365,

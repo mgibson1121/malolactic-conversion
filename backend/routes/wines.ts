@@ -16,7 +16,7 @@ import { identityKey, identityOf, scoreMatch, type MatchVerdict } from '@shared/
 import { findDuplicate } from '@shared/utils/duplicate-match'
 import { NYC } from '@shared/config/retailers.config'
 import { fetchPriceData, aggregatePriceData } from '../modules/price'
-import { describeFormat, pageStatedFormat } from '../modules/price/pack-format'
+import { pageStatedFormat, withStatedFormat } from '../modules/price/pack-format'
 import { renderPageHtml as renderProductPage } from '../modules/price/puppeteer-extract'
 import { getRetailerLinks } from '../modules/retailer-links'
 import { fetchReviewData } from '../modules/reviews'
@@ -118,13 +118,7 @@ async function withPageStatedFormat(
   const html = await render(retailer.url).catch(() => null)
   const format = html ? pageStatedFormat(html, ownNames) : null
   if (!format) return retailer
-  return {
-    ...retailer,
-    pack_quantity: format.pack_quantity,
-    bottle_size_ml: format.bottle_size_ml,
-    non_standard_format: true,
-    format_label: describeFormat(format),
-  }
+  return withStatedFormat(retailer, format)
 }
 
 function wrap(fn: (req: Request, res: Response) => Promise<void>) {

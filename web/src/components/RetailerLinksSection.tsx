@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { RetailerLink, WineEntry } from '@shared/types'
+import { sameRegistrableDomain } from '@shared/utils/registrable-domain'
 import { confirmRetailerLink, fetchRetailerLinks, updateWine } from '../api'
 
 interface Props {
@@ -25,7 +26,9 @@ function stripWww(hostname: string): string {
 function hostnameMatches(a: string, b: string): boolean {
   const sa = stripWww(a)
   const sb = stripWww(b)
-  return sa.includes(sb) || sb.includes(sa)
+  // Same shop on another storefront (nyc. / sf.flatiron-wines.com) counts too
+  // — a retailer is a registrable domain, not a host (Phase 12.2 WI-6).
+  return sa.includes(sb) || sb.includes(sa) || sameRegistrableDomain(sa, sb)
 }
 
 /**

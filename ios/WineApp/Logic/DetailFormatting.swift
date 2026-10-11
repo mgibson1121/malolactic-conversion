@@ -90,6 +90,13 @@ enum DetailFormatting {
         WineFormatting.price(amount) ?? "—"
     }
 
+    /// `$75` or `$149–$245` (Phase 12.2 price groups).
+    static func priceRange(_ low: Double, _ high: Double) -> String {
+        let a = priceBound(low)
+        let b = priceBound(high)
+        return a == b ? a : "\(a)–\(b)"
+    }
+
     /// "today" / "yesterday" / "3 days ago" / "last week" / "2 weeks ago" /
     /// "4 months ago" — the web's `formatAge`, coarse on purpose: the question
     /// is whether stored data is old enough to be worth paying to redo.
@@ -165,7 +172,13 @@ enum RetailerTable {
         if let year = r.matchedVintage {
             badges.append(r.vintageMismatch ? .vintageMismatch(year) : .vintage(year))
         }
-        if r.nonStandardFormat, !r.formatLabel.isEmpty { badges.append(.format(r.formatLabel)) }
+        if let n = r.normalized {
+            // Counted at a per-bottle price (Phase 12.2 D7): "÷6 pack".
+            badges.append(.format("÷\(n.divisor) \(n.kind.rawValue)"))
+        } else if r.nonStandardFormat, !r.formatLabel.isEmpty {
+            badges.append(.format(r.formatLabel))
+        }
+        if r.suspectedLargeFormat == true { badges.append(.format("larger format? size unconfirmed")) }
         if r.linkOnly { badges.append(.searchOnly) }
         badges.append(.distance(r.distanceMiles))
         return badges
@@ -195,10 +208,24 @@ enum RetailerBadge: Hashable {
 /// with or without `www.`, either side a suffix of the other
 /// (`shop.klwines.com` vs `klwines.com`). Used to decide whether the page open
 /// in the retailer browser belongs to the retailer being searched.
+///
+/// Phase 12.2 WI-6: a retailer is a registrable domain, not a host — the same
+/// shop on another storefront (`sf.flatiron-wines.com` vs
+/// `nyc.flatiron-wines.com`) matches too. Mirrors `shared/utils/registrable-domain.ts`;
+/// host comparison only, not wine identity.
 enum RetailerHost {
     static func matches(_ a: String?, _ b: String?) -> Bool {
         guard let a = a.map(strip), let b = b.map(strip), !a.isEmpty, !b.isEmpty else { return false }
-        return a.contains(b) || b.contains(a)
+        return a.contains(b) || b.contains(a) || registrable(a) == registrable(b)
+    }
+
+    private static let twoPartSuffixes: Set<String> = ["co.uk", "org.uk", "com.au", "co.nz", "com.br", "co.jp", "com.sg", "com.hk"]
+
+    static func registrable(_ host: String) -> String {
+        let labels = host.lowercased().split(separator: ".").map(String.init)
+        guard labels.count > 2 else { return labels.joined(separator: ".") }
+        let lastTwo = labels.suffix(2).joined(separator: ".")
+        return twoPartSuffixes.contains(lastTwo) ? labels.suffix(3).joined(separator: ".") : lastTwo
     }
 
     private static func strip(_ host: String) -> String {
