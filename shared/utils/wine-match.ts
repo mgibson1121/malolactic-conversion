@@ -235,7 +235,17 @@ const MIN_COMPACT_PRODUCER = 8
  * Substring comparison (what this replaced) is what let "vin" — a
  * significant word of "Vin de France" — match inside "vintage". */
 function tokenSet(text: string): Set<string> {
-  return new Set(normalize(text).split(/\s+/).filter(Boolean))
+  const tokens = new Set(normalize(text).split(/\s+/).filter(Boolean))
+  // A name and its plural are one word (Phase 12.2 WI-4). Burgundy's "Les
+  // Cailleret" is sold as "Les Caillerets" by most shops, and the bottling
+  // verdict read that as a different vineyard: Vincent Girardin's Chassagne-
+  // Montrachet 1er Cru Les Cailleret 2017 came back with no price and no
+  // review at all. Long words only, so short words stay exact.
+  for (const t of [...tokens]) {
+    if (t.length < 6) continue
+    tokens.add(t.endsWith('s') ? t.slice(0, -1) : `${t}s`)
+  }
+  return tokens
 }
 
 // ─── Graded identity matching (2026-08-04) ───────────────────────────────────

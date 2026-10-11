@@ -124,6 +124,23 @@ export function excludeExtremeOutliers(prices: number[]): number[] {
   return kept.length > 0 ? kept : prices
 }
 
+export type ExclusionReason = keyof Omit<PriceExcludedCounts, 'outlier'> | 'no_price'
+
+/**
+ * Why a listing is kept out of the headline, in the priority order the counts
+ * use (each listing is counted once), or null when it counts. The outlier
+ * fence is applied afterwards on the counted set and is reported separately.
+ * Shared with the explain-wine diagnostic so the two cannot disagree.
+ */
+export function exclusionReason(r: RetailerResult): ExclusionReason | null {
+  if (r.link_only) return 'link_only'
+  if (r.vintage_mismatch) return 'other_vintage'
+  if (r.non_standard_format && !r.normalized) return r.pack_quantity > 1 ? 'pack' : 'non_standard_format'
+  if (r.suspected_large_format) return 'suspected_large_format'
+  if (countedPrice(r) === null) return 'no_price'
+  return null
+}
+
 /**
  * Splits sorted prices at the largest adjacent jump (Phase 12.2 WI-2). Vietti
  * Barolo: $74.99 | $149-$245. Proposed rule from the spec; both groups are
@@ -228,12 +245,8 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
     outlier: outliers,
   }
   for (const r of retailers) {
-    if (r.link_only) excluded.link_only++
-    else if (r.vintage_mismatch) excluded.other_vintage++
-    else if (r.non_standard_format && !r.normalized) {
-      if (r.pack_quantity > 1) excluded.pack++
-      else excluded.non_standard_format++
-    } else if (r.suspected_large_format) excluded.suspected_large_format++
+    const why = exclusionReason(r)
+    if (why && why !== 'no_price') excluded[why]++
   }
 
   // Prices found for a different year of this wine (2026-08-05). Reported
