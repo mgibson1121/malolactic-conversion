@@ -135,3 +135,28 @@ describe('"Which bottling is yours?" (Phase 12.2 WI-2.5)', () => {
     expect(screen.queryByTestId('bottling-banner')).not.toBeInTheDocument()
   })
 })
+
+describe('pages found without a score (Phase 12.2 WI-5)', () => {
+  it('says which page was found and that no score could be read, instead of staying silent', () => {
+    const wine = makeTestWine({
+      vintage: 2020,
+      review_data: [],
+      review_ladder: {
+        tier: 'none',
+        rungs: [],
+        pages: [
+          { slug: 'woodland', name: 'Woodland Hills', product_url: 'https://whwc.com/x-2023/', rung: null, page_vintage: 2023, vintage_delta: 3, scores: 0, trusted_scores: 0, badge: null, tier_note: null },
+        ],
+      },
+    })
+    render(<CriticReviewsBlock wine={wine} action={idle} />)
+    const note = screen.getByTestId('scoreless-pages')
+    expect(note).toHaveTextContent('A page was found but no score could be read from it')
+    expect(within(note).getByRole('link', { name: 'Woodland Hills (2023)' })).toHaveAttribute('href', 'https://whwc.com/x-2023/')
+  })
+
+  it('is absent when every page gave a score', () => {
+    render(<CriticReviewsBlock wine={wineAt('2')} action={idle} />)
+    expect(screen.queryByTestId('scoreless-pages')).not.toBeInTheDocument()
+  })
+})

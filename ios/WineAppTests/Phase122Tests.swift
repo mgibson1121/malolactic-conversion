@@ -165,3 +165,18 @@ final class ChooseBottlingModelTests: XCTestCase {
         XCTAssertNil(priceOnly.reviewLadder, "a price answer does not own the ladder")
     }
 }
+
+final class ScorelessPagesTests: XCTestCase {
+    func testAPageFoundWithoutAScoreDecodesAsOneSoTheBlockCanSaySo() throws {
+        let json = #"{"tier":"none","rungs":[],"pages":[{"slug":"woodland","name":"Woodland Hills","product_url":"https://whwc.com/x-2023/","rung":null,"page_vintage":2023,"vintage_delta":3,"scores":0,"trusted_scores":0,"badge":null,"tier_note":null}]}"#
+        let ladder = try JSONDecoder().decode(ReviewLadder.self, from: Data(json.utf8))
+        let scoreless = try XCTUnwrap(ladder.pages).filter { $0.scores == 0 }
+        XCTAssertEqual(scoreless.map(\.name), ["Woodland Hills"])
+        XCTAssertEqual(scoreless.first?.pageVintage, 2023)
+    }
+
+    func testALadderFromAnOlderBackendWithNoPagesStillDecodes() throws {
+        let ladder = try JSONDecoder().decode(ReviewLadder.self, from: Data(#"{"tier":"2","rungs":[]}"#.utf8))
+        XCTAssertNil(ladder.pages)
+    }
+}

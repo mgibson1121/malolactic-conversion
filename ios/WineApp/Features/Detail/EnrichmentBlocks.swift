@@ -73,6 +73,17 @@ struct CriticReviewsBlock: View {
                 }
                 found
             }
+            if let scoreless = wine?.reviewLadder?.pages?.filter({ $0.scores == 0 }), !scoreless.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(scoreless.count == 1 ? "A page was found but no score could be read from it. It may carry a review without a score." : "\(scoreless.count) pages were found but no score could be read from them. They may carry reviews without a score.")
+                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    ForEach(scoreless, id: \.productUrl) { page in
+                        if let url = URL(string: page.productUrl) {
+                            Link(page.name + (page.pageVintage.map { " (\($0))" } ?? ""), destination: url).underline().font(AppFont.meta())
+                        }
+                    }
+                }
+            }
             if let wine, let chooseBottling {
                 BottlingBanner(wine: wine, choose: chooseBottling)
             }

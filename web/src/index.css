@@ -2542,3 +2542,5 @@ summary.link { display: inline-block; font-size: 12px; }
 .bottling-evidence { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.85em; margin-top: 4px; opacity: 0.85; }
 .bottling-links { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.85em; margin-top: 4px; }
 .bottling-else { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+
+.scoreless-pages { font-size: 0.85em; margin: 6px 0; opacity: 0.85; }

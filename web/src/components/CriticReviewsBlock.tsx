@@ -100,6 +100,8 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
 
       {state === 'idle' && <p className="detail-empty-hint">Critic scores haven’t been looked up yet.</p>}
 
+      <ScorelessPages wine={wine} />
+
       {state === 'found' && wine.review_ladder && wine.review_ladder.tier !== 'none' && (
         <TierMarker wine={wine} open={tierOpen} onOpenChange={setTierOpen} onChoose={onWineUpdated ? () => { setTierOpen(false); setPromptOpen(true) } : undefined} />
       )}
@@ -234,5 +236,31 @@ function TierMarker({
         </Sheet>
       )}
     </>
+  )
+}
+
+/**
+ * Pages that were found but gave no score (Phase 12.2 WI-5). Silence here read
+ * as "nothing found" when the shop's page existed and the review on it was not
+ * a number we can store (numbers only — the copyright boundary) or could not be
+ * read. Says which page, with a link, so the developer can look.
+ */
+function ScorelessPages({ wine }: { wine: WineEntry }) {
+  const pages = (wine.review_ladder?.pages ?? []).filter((p) => p.scores === 0)
+  if (pages.length === 0) return null
+  return (
+    <p className="scoreless-pages" data-testid="scoreless-pages">
+      {pages.length === 1 ? 'A page was found but no score could be read from it: ' : `${pages.length} pages were found but no score could be read from them: `}
+      {pages.map((p, i) => (
+        <span key={p.product_url}>
+          {i > 0 && ', '}
+          <a className="link" href={p.product_url} target="_blank" rel="noreferrer">
+            {p.name}
+            {p.page_vintage ? ` (${p.page_vintage})` : ''}
+          </a>
+        </span>
+      ))}
+      . It may carry a review without a score.
+    </p>
   )
 }

@@ -116,11 +116,27 @@ struct ReviewLadderRung: Codable, Hashable {
     }
 }
 
+/// One stored review page on the ladder. `scores == 0` is a page that was found but gave no score.
+struct ReviewLadderPage: Codable, Hashable {
+    var slug: String
+    var name: String
+    var productUrl: String
+    var pageVintage: Int?
+    var scores: Int
+
+    enum CodingKeys: String, CodingKey {
+        case slug, name, scores
+        case productUrl = "product_url"
+        case pageVintage = "page_vintage"
+    }
+}
+
 /// The tier a wine's reviews were matched at ("1", "2", "3a", "3b", "none"),
 /// computed once in the backend. The app renders it and never re-derives it.
 struct ReviewLadder: Codable, Hashable {
     var tier: String
     var rungs: [ReviewLadderRung]
+    var pages: [ReviewLadderPage]?
 }
 
 struct BottlingOption: Codable, Hashable {
