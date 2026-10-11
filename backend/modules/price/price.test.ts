@@ -232,26 +232,44 @@ describe('fetchPriceData', () => {
     expect(result!.nearest_retailer?.slug).toBe('benchmark')
   })
 
-  it('flags a multi-bottle pack listing and excludes it from price stats and nearest-retailer selection', async () => {
-    // A 6-pack price is not a single-bottle price — blending it into
-    // price_min/avg/max (or picking it as "nearest") would inflate the
-    // headline numbers by ~6x relative to what a single bottle costs.
+  it('counts a certain six-pack at a 750 ml-equivalent price, tagged, and marks the headline estimated (Phase 12.2 D7)', async () => {
+    // A 6-pack shelf price is not a single-bottle price, but one whose title
+    // states "6-Pack" outright is certain: divided by 6 it is $200 a bottle.
     mockSerperItems = [
       { title: 'Domaine Leroy Gevrey-Chambertin 2018 6-Pack', source: 'Zachys', link: ZACHYS_URL, price: '$1200.00' },
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$210.00' },
+    ]
+    const result = await fetchPriceData(baseWine)
+    const zachys = result!.retailers.find(r => r.slug === 'zachys')
+    expect(zachys?.price).toBe(1200)
+    expect(zachys?.price_per_750).toBe(200)
+    expect(zachys?.normalized).toEqual({ kind: 'pack', divisor: 6, source: 'title', shelf_price: 1200 })
+    expect(result!.price_min).toBe(200)
+    expect(result!.price_max).toBe(210)
+    expect(result!.normalized).toBe(1)
+    expect(result!.headline_estimated).toBe(true)
+  })
+
+  it('flags an uncertain multi-bottle pack and excludes it from price stats and nearest-retailer selection', async () => {
+    // A 3-pack is not one of the formats the system divides; it stays out.
+    mockSerperItems = [
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018 3-Pack', source: 'Zachys', link: ZACHYS_URL, price: '$600.00' },
       { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
     ]
     const result = await fetchPriceData(baseWine)
     expect(result!.retailers).toHaveLength(2) // Zachys and Benchmark; K&L is gated (Phase 9.1)
     const zachys = result!.retailers.find(r => r.slug === 'zachys')
-    expect(zachys?.pack_quantity).toBe(6)
+    expect(zachys?.pack_quantity).toBe(3)
     expect(zachys?.non_standard_format).toBe(true)
-    expect(zachys?.format_label).toBe('6-pack')
+    expect(zachys?.format_label).toBe('3-pack')
+    expect(zachys?.normalized).toBeUndefined()
+    expect(result!.excluded?.pack).toBe(1)
     expect(result!.price_min).toBe(200)
     expect(result!.price_max).toBe(200)
     expect(result!.nearest_retailer?.slug).toBe('benchmark')
   })
 
-  it('flags a non-standard bottle size (magnum) and excludes it from price stats', async () => {
+  it('counts a certain magnum at half its shelf price (Phase 12.2 D7)', async () => {
     mockSerperItems = [
       { title: 'Domaine Leroy Gevrey-Chambertin 2018 Magnum 1.5L', source: 'Zachys', link: ZACHYS_URL, price: '$600.00' },
       { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
@@ -261,8 +279,20 @@ describe('fetchPriceData', () => {
     expect(zachys?.bottle_size_ml).toBe(1500)
     expect(zachys?.non_standard_format).toBe(true)
     expect(zachys?.format_label).toBe('1.5L')
+    expect(zachys?.price_per_750).toBe(300)
     expect(result!.price_min).toBe(200)
-    expect(result!.price_max).toBe(200)
+    expect(result!.price_max).toBe(300)
+    expect(result!.headline_estimated).toBe(true)
+  })
+
+  it('keeps a half bottle out of the stats (not a normalised format)', async () => {
+    mockSerperItems = [
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018 375ml', source: 'Zachys', link: ZACHYS_URL, price: '$100.00' },
+      { title: 'Domaine Leroy Gevrey-Chambertin 2018', source: 'Benchmark Wine Group', link: BENCHMARK_URL, price: '$200.00' },
+    ]
+    const result = await fetchPriceData(baseWine)
+    expect(result!.price_min).toBe(200)
+    expect(result!.excluded?.non_standard_format).toBe(1)
   })
 
   it('does not flag an ordinary single-bottle listing as non-standard format', async () => {
@@ -1192,12 +1222,12 @@ describe('aggregatePriceData', () => {
   it('computes min/avg/max across all priced retailers', () => {
     const result = aggregatePriceData([
       makeRetailer({ price: 100 }),
-      makeRetailer({ slug: 'zachys', price: 200 }),
-      makeRetailer({ slug: 'benchmark', price: 300 }),
+      makeRetailer({ slug: 'zachys', price: 150 }),
+      makeRetailer({ slug: 'benchmark', price: 200 }),
     ])
     expect(result.price_min).toBe(100)
-    expect(result.price_max).toBe(300)
-    expect(result.price_avg).toBe(200)
+    expect(result.price_max).toBe(200)
+    expect(result.price_avg).toBe(150)
   })
 
   it('excludes vintage_mismatch and non_standard_format listings from the aggregate stats', () => {

@@ -19,15 +19,19 @@ import type { PriceData, PriceExclusions, RetailerPrice } from '../types'
  * only ever say the same thing.
  */
 export function describePriceExclusions(
-  priceData: Pick<PriceData, 'price_avg' | 'retailers'> | null | undefined
+  priceData: Pick<PriceData, 'price_avg' | 'retailers' | 'headline_basis'> | null | undefined
 ): PriceExclusions | null {
   const retailers = priceData?.retailers ?? []
   if (!priceData || retailers.length === 0 || priceData.price_avg != null) return null
+  // An ambiguous split (Phase 12.2 D10) is not "none counted" — every listing
+  // counted and none was dropped; the clients show both price groups instead.
+  if (priceData.headline_basis === 'ambiguous') return null
 
   const years = new Set<number>()
   let otherVintages = 0
   let searchOnly = 0
   let noPrice = 0
+  let largeFormat = 0
   const formats = new Map<string, number>()
 
   for (const r of retailers) {
@@ -35,7 +39,9 @@ export function describePriceExclusions(
     else if (r.vintage_mismatch) {
       otherVintages++
       if (r.matched_vintage != null) years.add(r.matched_vintage)
-    } else if (r.non_standard_format) {
+    } else if (r.suspected_large_format) {
+      largeFormat++
+    } else if (r.non_standard_format && !r.normalized) {
       const name = formatName(r)
       formats.set(name, (formats.get(name) ?? 0) + 1)
     } else if (r.price == null) noPrice++
@@ -47,6 +53,7 @@ export function describePriceExclusions(
     reasons.push(`${otherVintages} other ${otherVintages === 1 ? 'vintage' : 'vintages'}${ys.length ? ` (${ys.join(', ')})` : ''}`)
   }
   for (const [name, n] of formats) reasons.push(`${n} ${n === 1 ? name : pluralize(name)}`)
+  if (largeFormat > 0) reasons.push(`${largeFormat} priced like a larger format (size unconfirmed)`)
   if (searchOnly > 0) reasons.push(`${searchOnly} search-only`)
   if (noPrice > 0) reasons.push(`${noPrice} without a price`)
 

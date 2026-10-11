@@ -105,6 +105,55 @@ export interface RetailerPrice {
   // Phase 9.1 — what the live-page check established about this listing.
   // 'unverified' must not be shown as though it were confirmed.
   verification: VerificationState
+  // Phase 12.2 WI-1 (D7). Set only when the system is *certain* this listing
+  // is a six-pack, a 12-bottle case or a magnum: the format was stated in the
+  // listing title or the product page's own headline, and no second signal
+  // disagreed. `price` stays the shelf price; `price_per_750` is the price of
+  // one 750 ml bottle and is what the headline stats and fences read.
+  // Absent on older blobs and on every listing that is not normalised.
+  normalized?: NormalizedFormat | null
+  price_per_750?: number | null
+  // Phase 12.2 WI-3 (D11). True when this listing's price is at least ~1.75x
+  // the median of three or more comparable listings and nothing the system
+  // could read states its size, so it is kept out of the average and labelled.
+  suspected_large_format?: boolean
+}
+
+/** A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7). */
+export interface NormalizedFormat {
+  kind: 'pack' | 'case' | 'magnum'
+  divisor: 6 | 12 | 2
+  /** Where the format was stated. A size picker or body mention never counts. */
+  source: 'title' | 'page'
+  shelf_price: number
+}
+
+/**
+ * How the headline figures rest on the listings (Phase 12.2 WI-1).
+ * 'ambiguous': the counted per-750 ml prices span 2.5x or more (D10), so no
+ * single average is offered and both groups are shown instead.
+ */
+export type HeadlineBasis = 'single_listing' | 'multiple' | 'ambiguous' | 'none'
+
+/** Why listings were kept out of the headline, counted once each (Phase 12.2 WI-1). */
+export interface PriceExcludedCounts {
+  other_vintage: number
+  /** A multi-bottle pack the system is not certain of (or not one of the normalised formats). */
+  pack: number
+  /** A non-750 ml bottle the system is not certain of (half bottle, 3 L, ...). */
+  non_standard_format: number
+  /** Price-ratio flag whose page read, if any, stated no size (D11). */
+  suspected_large_format: number
+  link_only: number
+  /** Dropped by the interquartile fence as a single-point outlier. */
+  outlier: number
+}
+
+/** One side of an ambiguous price split. */
+export interface PriceGroup {
+  min: number
+  max: number
+  retailers: string[]
 }
 
 // Phase 9.2 — mirrors backend/modules/reviews/find-product-page.ts's
@@ -202,6 +251,17 @@ export interface PriceData {
   fetched_at: string     // ISO timestamp
   // Phase 12.1 (WI-1) — see RetailerReview.enriched_for.
   enriched_for?: string
+  // Phase 12.2 WI-1 — computed inside aggregatePriceData from the same flags
+  // it uses, so clients no longer re-derive them. Absent on blobs fetched
+  // before 12.2; read defensively.
+  excluded?: PriceExcludedCounts
+  /** Listings counted via a ÷6 / ÷12 / ÷2 per-750 ml price. */
+  normalized?: number
+  headline_basis?: HeadlineBasis
+  /** Set only when headline_basis is 'ambiguous'; split at the largest adjacent price jump. */
+  price_groups?: PriceGroup[] | null
+  /** True when a normalised listing alone drives the headline, the min or the max. */
+  headline_estimated?: boolean
 }
 
 // ─── Derived read-path types (Phase 12.1) ─────────────────────────────────────

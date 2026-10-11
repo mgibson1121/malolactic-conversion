@@ -11,7 +11,7 @@ import {
   type MatchVerdict,
   type WineIdentity,
 } from '@shared/utils/wine-match'
-import { extractPackFormat, isNonStandardFormat, describeFormat } from './pack-format'
+import { extractPackFormat, isNonStandardFormat, describeFormat, normalizationFor } from './pack-format'
 import { serperFetch } from '@shared/utils/serper-client'
 
 export type { WineIdentity }
@@ -76,10 +76,11 @@ function itemToRetailerResult(
 ): RetailerResult {
   const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title, ownNames)
+  const price = item.priceRaw ?? parsePriceString(item.price)
   return {
     slug: retailer.slug,
     name: retailer.name,
-    price: item.priceRaw ?? parsePriceString(item.price),
+    price,
     // Serper's shopping `link` frequently points to a Google Shopping
     // aggregator page rather than the retailer's own product page (this is
     // what caused "Details aren't available for this product"). For known
@@ -104,6 +105,9 @@ function itemToRetailerResult(
     // Stamped by verifyStillListed in index.ts, which is what actually
     // renders the page — nothing has been checked at this point.
     verification: 'unchecked',
+    // A certain six-pack / case / magnum stated in this title is counted at a
+    // 750 ml-equivalent price (Phase 12.2 WI-1, D7).
+    ...normalizationFor(pack_format, price, 'title'),
   }
 }
 
@@ -134,10 +138,11 @@ function buildFallbackResult(
 ): RetailerResult {
   const { item, verdict } = scored
   const pack_format = extractPackFormat(item.title, ownNames)
+  const price = item.priceRaw ?? parsePriceString(item.price)
   return {
     slug: slugifySource(item.source),
     name: item.source,
-    price: item.priceRaw ?? parsePriceString(item.price),
+    price,
     url: buildFallbackUrl(item.source, linkQuery),
     is_preferred_retailer: false,
     distance_miles: 0,
@@ -156,6 +161,9 @@ function buildFallbackResult(
     // Stamped by verifyStillListed in index.ts, which is what actually
     // renders the page — nothing has been checked at this point.
     verification: 'unchecked',
+    // A certain six-pack / case / magnum stated in this title is counted at a
+    // 750 ml-equivalent price (Phase 12.2 WI-1, D7).
+    ...normalizationFor(pack_format, price, 'title'),
   }
 }
 

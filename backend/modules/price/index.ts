@@ -7,6 +7,10 @@ import { buildRetailerSearchUrl } from '@shared/utils/retailer-search-url'
 import { buildDistinguishingQuery, identityOf } from '@shared/utils/wine-match'
 import { haversineDistanceMiles } from './proximity'
 import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
+import { aggregatePriceData } from './aggregate'
+import { checkHeadlineFormats } from './large-format'
+
+export { aggregatePriceData, excludeOutliers, excludeExtremeOutliers } from './aggregate'
 
 // Two queries, deliberately different (Phase 9.1). They were one string, and
 // that is the entire dead-link defect: the vintage belongs in the Serper
@@ -259,170 +263,6 @@ function emptyPriceData(): PriceData {
   }
 }
 
-/**
- * Drops prices that are wildly out of line with the rest of the set
- * (2026-08-05).
- *
- * `pack-format.ts` catches a listing that *says* it is a case or a magnum.
- * It cannot catch one that doesn't: a Rully priced at $2,044.76 and a village
- * Marsannay at $299.99 both came back titled as ordinary 750ml bottles in the
- * 2026-08-04 batch, and both set price_max. A retailer's own data-entry error
- * looks identical.
- *
- * Uses an interquartile fence rather than a fixed multiple of the cheapest
- * listing, because wine prices spread genuinely wide and a fixed rule is
- * either too tight for Burgundy or useless for Muscadet.
- *
- * The fence is applied in *log* space. Prices are roughly log-normal, and the
- * failure this catches is multiplicative — a case of twelve is ~12× a bottle,
- * a magnum ~2–3×. An additive fence has to be set so loose to accommodate a
- * genuine $86–$430 Burgundy spread that it then waves through a $1,486
- * Chablis, which is exactly what happened on the 2026-08-05 run. In log space
- * the textbook 1.5×IQR keeps that Burgundy spread intact and still rejects
- * both the $1,486 and a $2,044 Rully.
- *
- * Nothing is dropped below four prices: with three or fewer there is no
- * distribution to reason about, and discarding one of three real prices is a
- * bigger error than keeping one bad one. Excluded listings still appear in
- * the retailer list — this only governs the headline figures.
- */
-export function excludeOutliers(prices: number[]): number[] {
-  if (prices.length < 4) return prices
-  // log() needs strictly positive input; a non-positive price is not a price.
-  if (prices.some(p => p <= 0)) return prices
-
-  const logs = prices.map(Math.log).sort((a, b) => a - b)
-  const quantile = (q: number) => {
-    const pos = (logs.length - 1) * q
-    const lo = Math.floor(pos)
-    const hi = Math.ceil(pos)
-    return logs[lo] + (logs[hi] - logs[lo]) * (pos - lo)
-  }
-
-  const q1 = quantile(0.25)
-  const q3 = quantile(0.75)
-  const iqr = q3 - q1
-  // No spread at all — nothing can be an outlier.
-  if (iqr === 0) return prices
-
-  const upper = q3 + 1.5 * iqr
-  const lower = q1 - 1.5 * iqr
-  const kept = prices.filter(p => Math.log(p) >= lower && Math.log(p) <= upper)
-
-  // Never return nothing: if the test would empty the set, it is the test
-  // that is wrong about this data, not the data.
-  return kept.length > 0 ? kept : prices
-}
-
-/**
- * Drops a price wildly out of line with the rest, for sets too small for
- * `excludeOutliers`' quartile fence to reason about (2026-08-12).
- *
- * `other_vintage_price_range` is fed by `vintage_mismatch` listings, which
- * are usually a handful at most — Bessin-Tremblay's 2026-08-12 run had
- * exactly three: $37.99 / $84.99 / $1,486. `excludeOutliers` requires four
- * prices before it will drop anything, so that set passed through untouched
- * and the $1,486 landed in the UI's advisory range. Worse, quartile-based
- * IQR is the wrong tool even if the four-price gate were lowered: at n=3 the
- * outlier itself is one of only three points feeding Q3, so it pulls its own
- * fence wide enough to survive (confirmed: the same $1,486 still clears an
- * IQR fence run directly against this three-price set). A median is immune
- * to that — the median of an odd-length set is the middle value and doesn't
- * move no matter how extreme the top or bottom entry is.
- *
- * This range is advisory ("no price for this vintage, but others have run
- * $86-$430"), not the headline figure, so a looser, ratio-based fence is the
- * right trade here — reject anything more than 5x above or below the
- * median. Needs at least three prices for a median that isn't just an
- * average of the two inputs (which would arbitrarily favor whichever side
- * of a 2-element set happens to be near their average).
- */
-export function excludeExtremeOutliers(prices: number[]): number[] {
-  if (prices.length < 3) return prices
-  if (prices.some(p => p <= 0)) return prices
-
-  const sorted = [...prices].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  const median =
-    sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-
-  const RATIO_FENCE = 5
-  const kept = prices.filter(p => p / median <= RATIO_FENCE && median / p <= RATIO_FENCE)
-
-  // Never return nothing: an all-extreme set (shouldn't happen given the
-  // median is always in range of itself) falls back to the input rather
-  // than an empty advisory range.
-  return kept.length > 0 ? kept : prices
-}
-
-/**
- * Computes price_min/avg/max and nearest_retailer from a retailers list.
- * Pure — no I/O. Exported so callers that already have a RetailerResult[]
- * from somewhere other than a fresh fetchPriceData run (e.g. the
- * confirm-retailer-link flow, which updates one retailer's entry and needs
- * to recompute the aggregate) don't have to duplicate this math.
- */
-export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
-  // A confirmed vintage_mismatch means the listing is definitely a different
-  // year of this wine, not this wine at that price. A non_standard_format
-  // listing (a 6-pack, a magnum, a half bottle) means the price isn't for a
-  // single standard 750ml bottle at all — a 6-pack can inflate price_max by
-  // 5-6x, a magnum typically carries a rarity premium well past 2x. Both
-  // stay in the retailers list (badged in the UI) for transparency, but
-  // neither may feed the headline price stats or be selectable as "nearest
-  // retailer": doing so would present a wrong-vintage or wrong-quantity
-  // price as if it were the answer to "what does a bottle of this wine
-  // cost," which is the same class of error as showing a price for an
-  // unrelated wine. A link_only entry (K&L — see buildKlLinkOnlyResult) has
-  // no verifiable price at all and must never win "nearest retailer" on the
-  // strength of its coordinates alone with nothing backing up the price.
-  const eligibleForStats = retailers.filter(r => !r.vintage_mismatch && !r.non_standard_format && !r.link_only)
-
-  const withPrice = eligibleForStats.filter(r => r.price !== null)
-  const prices = excludeOutliers(withPrice.map(r => r.price as number))
-
-  const price_min = prices.length ? Math.min(...prices) : null
-  const price_max = prices.length ? Math.max(...prices) : null
-  const price_avg =
-    prices.length
-      ? Math.round((prices.reduce((s, p) => s + p, 0) / prices.length) * 100) / 100
-      : null
-
-  // Prices for a different year of this wine (2026-08-05). Reported
-  // separately rather than folded in: a 2020's price is not the 2022's. But
-  // "no price at all" and "nothing for this year, though the 2021 runs
-  // $28–$150" are very different things to show, and several wines in the
-  // 2026-08-04 batch had five real prices and displayed nothing.
-  // Non-standard formats stay excluded here too — a wrong-vintage magnum
-  // tells you even less than a wrong-vintage bottle.
-  const otherVintagePrices = excludeExtremeOutliers(
-    retailers
-      .filter(r => r.vintage_mismatch && !r.non_standard_format && r.price !== null)
-      .map(r => r.price as number)
-  )
-  const other_vintage_price_range =
-    otherVintagePrices.length > 0
-      ? { min: Math.min(...otherVintagePrices), max: Math.max(...otherVintagePrices) }
-      : null
-
-  // Only preferred retailers are eligible for nearest-to-NYC — fallback results have no coords
-  const preferred = eligibleForStats.filter(r => r.is_preferred_retailer)
-  const nearest_retailer =
-    preferred.length > 0
-      ? [...preferred].sort((a, b) => a.distance_miles - b.distance_miles)[0]
-      : eligibleForStats[0] ?? null
-
-  return {
-    price_min,
-    price_avg,
-    price_max,
-    other_vintage_price_range,
-    retailers,
-    nearest_retailer,
-    fetched_at: new Date().toISOString(),
-  }
-}
-
 export interface PriceFetchOptions {
   /** Product pages modules/reviews/ already confirmed carry this wine —
    * supplied by the router from review_data (CLAUDE.md §5: modules
@@ -503,5 +343,8 @@ export async function fetchPriceData(
   // PriceData with a fetched_at timestamp is "attempted and found nothing",
   // which the UI must be able to tell apart from "never attempted" (null).
   if (allRetailers.length === 0) return emptyPriceData()
-  return aggregatePriceData(allRetailers)
+
+  // Pack and size for the listings that decide the headline (Phase 12.2 WI-3).
+  const checked = await checkHeadlineFormats(allRetailers, [wine.producer, wine.cuvee, wine.vineyard], renderPageHtml)
+  return aggregatePriceData(checked)
 }

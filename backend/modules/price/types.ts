@@ -1,5 +1,5 @@
 import type { MatchVerdict } from '@shared/utils/wine-match'
-import type { VerificationState } from '@shared/types'
+import type { HeadlineBasis, NormalizedFormat, PriceExcludedCounts, PriceGroup, VerificationState } from '@shared/types'
 
 export interface RetailerResult {
   slug: string
@@ -73,6 +73,10 @@ export interface RetailerResult {
   // rather than collapsing "checked and confirmed" and "couldn't check" into
   // the same silent pass. See VerificationState in shared/types.ts.
   verification: VerificationState
+  // Phase 12.2 — see RetailerPrice in shared/types.ts.
+  normalized?: NormalizedFormat | null
+  price_per_750?: number | null
+  suspected_large_format?: boolean
 }
 
 /**
@@ -115,4 +119,10 @@ export interface PriceData {
   retailers: RetailerResult[]
   nearest_retailer: RetailerResult | null
   fetched_at: string
+  // Phase 12.2 WI-1 — see PriceData in shared/types.ts.
+  excluded?: PriceExcludedCounts
+  normalized?: number
+  headline_basis?: HeadlineBasis
+  price_groups?: PriceGroup[] | null
+  headline_estimated?: boolean
 }
