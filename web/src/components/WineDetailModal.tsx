@@ -276,7 +276,7 @@ export function WineDetailModal({
               A section of its own, peer to Price & retailers (WI-7). */}
           <section className="detail-section">
             <h3 className="detail-section-title">Critic reviews</h3>
-            <CriticReviewsBlock wine={wine} action={reviews} />
+            <CriticReviewsBlock wine={wine} action={reviews} onWineUpdated={applyUpdate} />
             <EnrichmentRow
               kind="reviews"
               action={reviews}

@@ -1,4 +1,4 @@
-import type { AppSettings, CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
+import type { AppSettings, BottlingChoice, ReviewTierId, CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
 
 const BASE = '/api'
 
@@ -112,6 +112,28 @@ export async function countNotesKeptOnDelete(id: string): Promise<number> {
   const res = await fetch(`${BASE}/wines/${id}?dry_run=1`, { method: 'DELETE' })
   const body = await handleResponse<{ notes_kept: number }>(res)
   return body.notes_kept
+}
+
+export interface ChooseBottlingResult {
+  wine: WineEntry
+  result: {
+    tier: ReviewTierId
+    scores: number
+    trusted_scores: number
+    headline_basis: string | null
+    duplicate: { kind: string } | null
+  }
+}
+
+/** "Which bottling is yours?" (Phase 12.2): re-scores the stored listings and pages server-side. No metered call. */
+export async function chooseBottling(id: string, choice: BottlingChoice): Promise<ChooseBottlingResult> {
+  return handleResponse(
+    await fetch(`${BASE}/wines/${id}/choose-bottling`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(choice),
+    })
+  )
 }
 
 export async function createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
