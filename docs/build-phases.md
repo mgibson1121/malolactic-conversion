@@ -1819,7 +1819,7 @@ action available on the web is reachable on the phone.
 
 ## Phase 12.1 — Field-test UX remediation (web + iOS)
 
-**Status:** Spec written 2026-10-05 (`docs/specs/2026-10-05-phase-12.1-field-test-ux-remediation.md`). Not started. Built **before** Phase 12.2.
+**Status:** Built 2026-10-10 on `feature/phase-12.1-field-test-ux` (backend, web, iOS); PR open. WI-0 (data cleanup) is pending the developer's go-ahead. Session record: `docs/sessions/2026-10-10-phase-12.1.md`. Built **before** Phase 12.2.
 
 **Goal:** Fix the interface and data-flow half of the developer's 2026-10-04 device-test feedback, on **both** frontends. The feedback came from the iOS app but most of it is not iOS-specific; each item names what changes on each surface. The enrichment-accuracy half is Phase 12.2.
 

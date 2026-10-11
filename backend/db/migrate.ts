@@ -2,7 +2,10 @@ import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
-const DB_PATH = path.resolve(__dirname, 'wine.db')
+// `WINE_DB_PATH` points the backend at another database file — a copy of the
+// real one, to try a build against real-shaped data without touching (or
+// spending metered calls on) the developer's collection. Unset in normal use.
+const DB_PATH = process.env.WINE_DB_PATH ? path.resolve(process.env.WINE_DB_PATH) : path.resolve(__dirname, 'wine.db')
 const SCHEMA_PATH = path.resolve(__dirname, 'schema.sql')
 const MIGRATIONS_DIR = path.resolve(__dirname, 'migrations')
 
