@@ -24,7 +24,7 @@ struct FindReviewsSection: View {
                     .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             case .failed:
                 Text("Could not generate retailer links").font(.system(size: 12)).foregroundStyle(Theme.redPill)
-                Button("Try again") { Task { await model.load() } }.buttonStyle(.borderless)
+                Button("Try again") { Task { await model.load() } }.buttonStyle(.link)
             case .loaded(let links), .stale(let links, _):
                 ForEach(links, id: \.slug) { link in
                     row(link)
@@ -71,7 +71,7 @@ struct FindReviewsSection: View {
                     }
                 }
                 .font(AppFont.meta())
-                .buttonStyle(.borderless)
+                .buttonStyle(.link)
             } else {
                 TextField("Paste the review or product page URL", text: $model.editValue)
                     .keyboardType(.URL)
@@ -85,7 +85,7 @@ struct FindReviewsSection: View {
                         .disabled(model.savingSlug == link.slug)
                 }
                 .font(AppFont.meta())
-                .buttonStyle(.borderless)
+                .buttonStyle(.link)
             }
         }
         .padding(.vertical, 4)

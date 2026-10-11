@@ -1,0 +1,68 @@
+[
+  {
+    "id": "0c7711e8-df6a-4ef5-a3ed-3d7effee5dc4",
+    "wine_id": null,
+    "wine_producer": "Georges Roumier",
+    "wine_denomination": "Chambolle-Musigny",
+    "wine_vintage": 2018,
+    "wine_vineyard": "Les Amoureuses",
+    "wine_cuvee": null,
+    "wine_removed": true,
+    "tasted_at": "2026-10-02T20:00:00.000Z",
+    "clarity": "clear",
+    "colour_intensity": null,
+    "colour": null,
+    "nose_condition": null,
+    "nose_intensity": null,
+    "nose_primary_aromas": [],
+    "nose_secondary_aromas": [],
+    "nose_tertiary_aromas": [],
+    "palate_sweetness": null,
+    "palate_acidity": null,
+    "palate_tannin": null,
+    "palate_body": null,
+    "palate_flavour_intensity": null,
+    "palate_finish": null,
+    "quality_assessment": null,
+    "my_rating": "good",
+    "free_text": "Silky and long.",
+    "tags": []
+  },
+  {
+    "id": "b96edba5-d6c8-4a67-89c1-8702617247ba",
+    "wine_id": "bd80bea6-ba3b-4bb6-a66e-963ae92738e3",
+    "wine_producer": "Domaine Comte Georges de Vogüé",
+    "wine_denomination": "Chambolle-Musigny 1er Cru Les Amoureuses",
+    "wine_vintage": 2019,
+    "wine_vineyard": "Les Amoureuses",
+    "wine_cuvee": null,
+    "wine_removed": false,
+    "tasted_at": "2026-09-21T20:30:00.000Z",
+    "clarity": "clear",
+    "colour_intensity": "pale",
+    "colour": "ruby",
+    "nose_condition": "clean",
+    "nose_intensity": "medium_plus",
+    "nose_primary_aromas": [
+      "red cherry",
+      "violet"
+    ],
+    "nose_secondary_aromas": [],
+    "nose_tertiary_aromas": [
+      "forest floor"
+    ],
+    "palate_sweetness": "dry",
+    "palate_acidity": "high",
+    "palate_tannin": "medium",
+    "palate_body": "medium",
+    "palate_flavour_intensity": "medium_plus",
+    "palate_finish": "long",
+    "quality_assessment": "outstanding",
+    "my_rating": "outstanding",
+    "free_text": "Lifted and silky.",
+    "tags": [
+      "silky",
+      "floral"
+    ]
+  }
+]

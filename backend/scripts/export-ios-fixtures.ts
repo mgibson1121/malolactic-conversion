@@ -14,6 +14,7 @@ import path from 'path'
 import Database from 'better-sqlite3'
 import { SQLiteAdapter } from '../modules/storage/sqlite-adapter'
 import { findDuplicate } from '@shared/utils/duplicate-match'
+import { effectivePrice } from '@shared/utils/effective-price'
 import type { CreateWineInput, PriceData, RetailerPrice, RetailerReview } from '@shared/types'
 
 const OUT_DIR = path.resolve(__dirname, '../../ios/WineAppTests/Fixtures')
@@ -144,7 +145,65 @@ async function main() {
     }] as unknown as RetailerReview[],
   })
 
-  const [listed] = await storage.listWines({ tag_cellar: true })
+  // ── Phase 12.1 fixtures ────────────────────────────────────────────────────
+
+  const critic = (publication: string, window: [number, number]) => ({
+    publication, score: 93, known_publication: true,
+    drinking_window: { start: window[0], end: window[1] }, vintage_character: null, deal: false,
+  })
+  const review = (slug: string, scores: RetailerReview['critic_scores']): RetailerReview => ({
+    slug, name: slug, product_url: `https://${slug}.example/p`, critic_scores: scores,
+    fetched_at: '2026-10-01T00:00:00.000Z', source: 'configured', page_vintage: 2019, vintage_gap: 0,
+    match: { producer: 'match', denomination: 'match', bottling: 'unknown', vintage: 'match', candidateVintage: 2019, vintageGap: 0 },
+    page_price: null,
+  })
+
+  // No window of its own, and two critics who disagree: window_status 'check'.
+  const check = await storage.createWine({
+    ...BASE, producer: 'Domaine de Villaine', denomination: 'Rully 1er Cru', vintage: 2019,
+    drinking_window: null, vintage_rating: null, my_rating: null, my_tags: [],
+  })
+  await storage.updateWine(check.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z',
+    review_data: [review('a', [critic('Vinous', [2025, 2035])]), review('b', [critic('Burghound', [2030, 2045])])],
+  })
+
+  // The developer's own price, an unstamped-then-stamped enrichment, and a
+  // lookup that found listings but counted none.
+  const mine = await storage.createWine({ ...BASE, producer: 'Marcoux', denomination: 'Châteauneuf-du-Pape', vintage: 2019 })
+  await storage.updateWine(mine.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z', manual_price: 87.5,
+    price_data: {
+      price_min: null, price_avg: null, price_max: null, other_vintage_price_range: { min: 68, max: 199 },
+      retailers: [
+        retailer({ slug: 'a', name: 'A', vintage_mismatch: true, matched_vintage: 2020, vintage_verdict: 'mismatch' }),
+        retailer({ slug: 'b', name: 'B', non_standard_format: true, bottle_size_ml: 1500, format_label: '1.5L' }),
+        retailer({ slug: 'c', name: 'C', price: null, link_only: true, verification: 'unchecked' }),
+      ],
+      nearest_retailer: null, fetched_at: '2026-10-01T00:00:00.000Z', enriched_for: 'a-different-identity',
+    },
+  })
+
+  // A note whose wine was deleted: it outlives the wine (migration 008).
+  const doomed = await storage.createWine({ ...BASE, producer: 'Georges Roumier', denomination: 'Chambolle-Musigny', vintage: 2018 })
+  await storage.updateWine(doomed.id, { tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z' })
+  const detached = await storage.createTastingNote({
+    wine_id: doomed.id, tasted_at: '2026-10-02T20:00:00.000Z',
+    clarity: 'clear', colour_intensity: null, colour: null, nose_condition: null, nose_intensity: null,
+    nose_primary_aromas: [], nose_secondary_aromas: [], nose_tertiary_aromas: [],
+    palate_sweetness: null, palate_acidity: null, palate_tannin: null, palate_body: null,
+    palate_flavour_intensity: null, palate_finish: null, quality_assessment: null,
+    my_rating: 'good', free_text: 'Silky and long.', tags: [],
+  })
+  await storage.deleteWine(doomed.id)
+
+  // effectivePrice parity: the Swift mirror must agree with the shared helper.
+  const priceCases = [
+    { manual_price: 87.5, price_avg: 120 }, { manual_price: null, price_avg: 120 },
+    { manual_price: null, price_avg: null }, { manual_price: 45, price_avg: null },
+  ].map((c) => ({ ...c, expected: effectivePrice({ manual_price: c.manual_price, price_data: c.price_avg == null ? null : { price_avg: c.price_avg } }) }))
+
+  const [listed] = await storage.listWines({ tag_cellar: true, q: 'Vogüé' })
   const draftRead = await storage.getWine(draft.id)
   const settings = await storage.updateSettings({ cellar_capacity: 120 })
   const promoted = await storage.listWines()
@@ -154,11 +213,18 @@ async function main() {
     'wine-draft-nv.json': draftRead,
     'wine-legacy-enrichment.json': await storage.getWine(legacy.id),
     'wine-list.json': [listed],
+    'wine-check-window.json': await storage.getWine(check.id),
+    'wine-manual-price.json': await storage.getWine(mine.id),
+    'tasting-note-removed.json': await storage.getTastingNote(detached.id),
+    'tasting-notes-all.json': await storage.listTastingNotes(),
+    'effective-price-cases.json': priceCases,
     'tasting-note.json': note,
     'settings.json': settings,
     'duplicate-none.json': findDuplicate({ producer: 'Domaine Leroy', denomination: 'Richebourg', vintage: 2019 }, promoted),
-    'duplicate-match.json': findDuplicate({ producer: full.producer, denomination: full.denomination, vintage: 2019 }, promoted),
-    'duplicate-vintage-mismatch.json': findDuplicate({ producer: full.producer, denomination: full.denomination, vintage: 2020 }, promoted),
+    // The scan names the same bottling (vineyard and classification) as the
+    // wine on file, so this is a plain match with no bottling difference.
+    'duplicate-match.json': findDuplicate({ producer: full.producer, denomination: full.denomination, vintage: 2019, vineyard: full.vineyard, quality_classification: full.quality_classification }, promoted),
+    'duplicate-vintage-mismatch.json': findDuplicate({ producer: full.producer, denomination: full.denomination, vintage: 2020, vineyard: full.vineyard, quality_classification: full.quality_classification }, promoted),
   }
 
   fs.mkdirSync(OUT_DIR, { recursive: true })

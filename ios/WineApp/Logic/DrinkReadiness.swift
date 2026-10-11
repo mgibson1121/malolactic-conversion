@@ -4,9 +4,11 @@ import Foundation
 /// Ready-to-drink widget (Phase 12 spec §4, R3), which is also what finally
 /// answers the long-open `cellar_category` question.
 ///
-/// Derived client-side from `drinking_window` only. A nil window — including
-/// the critic-disagreement case — is `.noWindow` and is never guessed at from
-/// the per-critic windows.
+/// Only a *primary* window — the developer's own, or one derived from agreeing
+/// critics — can place a wine in Ready now or Needs more time. A wine whose
+/// critics disagree and which has no window of its own is `.checkWindow`, and
+/// is never guessed at from the per-critic windows (Phase 12.1 WI-2); a wine
+/// with no window at all is `.noWindow`.
 enum DrinkReadiness: Hashable {
     case needsTime
     case readyNow
@@ -14,7 +16,23 @@ enum DrinkReadiness: Hashable {
     /// segment — it's still the answer to "what should I open tonight" —
     /// but kept distinct so a later screen can flag it.
     case pastWindow
+    /// No window of its own, and the critics disagree.
+    case checkWindow
     case noWindow
+
+    /// Readiness of a wine, using the backend's `window_status` (computed
+    /// once, never re-derived here). A backend that sends no status falls back
+    /// to "has a window or not", which is what it meant before 12.1.
+    static func of(_ wine: Wine, today: Date, calendar: Calendar = .current) -> DrinkReadiness {
+        switch wine.windowStatus {
+        case .check?:
+            return wine.drinkingWindow == nil ? .checkWindow : of(wine.drinkingWindow, today: today, calendar: calendar)
+        case .noWindow?:
+            return .noWindow
+        case .primary?, nil:
+            return of(wine.drinkingWindow, today: today, calendar: calendar)
+        }
+    }
 
     static func of(_ window: DrinkingWindow?, today: Date, calendar: Calendar = .current) -> DrinkReadiness {
         guard let window else { return .noWindow }
@@ -32,6 +50,7 @@ enum DrinkReadiness: Hashable {
         switch self {
         case .readyNow, .pastWindow: return .readyNow
         case .needsTime: return .needsTime
+        case .checkWindow: return .checkWindow
         case .noWindow: return .noWindow
         }
     }
@@ -42,10 +61,12 @@ enum DrinkReadiness: Hashable {
     }
 }
 
-/// The three tappable segments on the Ready-to-drink widget, in display order.
+/// The four tappable segments on the Ready-to-drink widget, in display order
+/// (Phase 12.1 WI-2: "Check window" is the new fourth).
 enum ReadinessSegment: String, CaseIterable, Hashable, Identifiable {
     case readyNow
     case needsTime
+    case checkWindow
     case noWindow
 
     var id: String { rawValue }
@@ -54,6 +75,7 @@ enum ReadinessSegment: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .readyNow: return "Ready now"
         case .needsTime: return "Needs more time"
+        case .checkWindow: return "Check window"
         case .noWindow: return "No window"
         }
     }

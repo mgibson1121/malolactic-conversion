@@ -138,7 +138,8 @@ struct CellarDashboardView: View {
                     path.append(DetailRoute(wine: wine, focusScores: focus))
                 }
                 .wineRowActions(wine, kind: .cellar, actions: actions,
-                                evaluate: { rowSheets.evaluating = $0 }, requestDelete: { rowSheets.deleting = $0 })
+                                evaluate: { rowSheets.evaluating = $0 }, edit: { rowSheets.editing = $0 },
+                                requestDelete: { rowSheets.deleting = $0 })
                 .cardRow()
             }
         }

@@ -30,7 +30,7 @@ struct FullStateErrorView: View {
             if let secondaryTitle, let secondaryAction {
                 Button(secondaryTitle, action: secondaryAction)
                     .frame(minHeight: Theme.minHitTarget)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.link)
             }
         }
         .padding(.horizontal, Theme.sideMargin)
@@ -55,7 +55,7 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .frame(minHeight: Theme.minHitTarget)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.link)
             }
         }
         .padding(.vertical, 40)

@@ -22,7 +22,7 @@ struct CellarSummary: Hashable {
 
         var readiness = Dictionary(uniqueKeysWithValues: ReadinessSegment.allCases.map { ($0, 0) })
         for wine in wines {
-            readiness[DrinkReadiness.of(wine.drinkingWindow, today: today, calendar: calendar).segment, default: 0] += 1
+            readiness[DrinkReadiness.of(wine, today: today, calendar: calendar).segment, default: 0] += 1
         }
         self.readiness = readiness
 

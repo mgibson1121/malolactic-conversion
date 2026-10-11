@@ -52,6 +52,64 @@ struct DrinkingWindow: Codable, Hashable {
     var end: String
 }
 
+/// Whether a wine has a usable drinking window — computed once by the
+/// backend on every read (Phase 12.1 WI-2); the app never re-derives it.
+enum WindowStatus: String, Codable, Hashable {
+    /// A wine-level window: the developer's own, or one derived from agreeing critics.
+    case primary
+    /// No window of its own, and critics who disagree: flagged "Check window".
+    case check
+    /// Raw value `"none"` — named so it can't be confused with `Optional.none`.
+    case noWindow = "none"
+}
+
+/// One critic score in display order (Phase 12.1 D13, WI-10). The backend
+/// orders and de-duplicates; the app renders the order it is given and never
+/// re-sorts. Nothing here is averaged or blended.
+struct CriticSummaryItem: Codable, Hashable {
+    var publication: String
+    var score: Double
+    /// The vintage the score's page states; nil when it states none.
+    var vintage: Int?
+    var sameVintage: Bool
+    var trusted: Bool
+    /// 1 same vintage + trusted · 2 same vintage · 3 trusted · 4 the rest.
+    var tier: Int
+    var knownPublication: Bool
+    var drinkingWindow: CriticDrinkingWindow?
+    var vintageCharacter: VintageRating?
+    var deal: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case publication, score, vintage
+        case sameVintage = "same_vintage"
+        case trusted, tier
+        case knownPublication = "known_publication"
+        case drinkingWindow = "drinking_window"
+        case vintageCharacter = "vintage_character"
+        case deal
+    }
+}
+
+struct CriticSummary: Codable, Hashable {
+    var ordered: [CriticSummaryItem]
+}
+
+/// Stored enrichment that was fetched for a different version of the wine
+/// (Phase 12.1 WI-1). An unstamped blob is unknown, never stale.
+struct EnrichmentStale: Codable, Hashable {
+    var price: Bool
+    var reviews: Bool
+}
+
+/// Why a price lookup that found listings has no average (WI-4); `sentence`
+/// is the whole line to show.
+struct PriceExclusions: Codable, Hashable {
+    var found: Int
+    var reasons: [String]
+    var sentence: String
+}
+
 struct Wine: Codable, Identifiable, Hashable {
     let id: String
 
@@ -86,11 +144,22 @@ struct Wine: Codable, Identifiable, Hashable {
     var myTags: [String]
     var wishlistNotes: String?
     var pricePaid: Double?
+    /// The developer's own per-750 ml price (Phase 12.1 D12). When set it is
+    /// *the* price everywhere (`EffectivePrice`); the automated figures become
+    /// informational. Never written by a fetch.
+    var manualPrice: Double?
     var purchasedFrom: String?
     var latestTastingNoteId: String?
     /// Derived server-side from the latest tasting note (Phase 12). Absent
     /// on older backends, hence optional twice over.
     var latestTastingNoteDate: String?
+
+    // Derived server-side on every read (Phase 12.1) — optional because an
+    // older backend sends none of them.
+    var windowStatus: WindowStatus?
+    var criticSummary: CriticSummary?
+    var enrichmentStale: EnrichmentStale?
+    var priceExclusions: PriceExclusions?
 
     var priceData: PriceData?
     /// User-saved retailer URLs keyed by retailer slug.
@@ -126,9 +195,14 @@ struct Wine: Codable, Identifiable, Hashable {
         case myTags = "my_tags"
         case wishlistNotes = "wishlist_notes"
         case pricePaid = "price_paid"
+        case manualPrice = "manual_price"
         case purchasedFrom = "purchased_from"
         case latestTastingNoteId = "latest_tasting_note_id"
         case latestTastingNoteDate = "latest_tasting_note_date"
+        case windowStatus = "window_status"
+        case criticSummary = "critic_summary"
+        case enrichmentStale = "enrichment_stale"
+        case priceExclusions = "price_exclusions"
         case priceData = "price_data"
         case retailerLinks = "retailer_links"
         case reviewData = "review_data"
@@ -186,6 +260,88 @@ struct WinePatch: Encodable, Hashable {
         case vineyard, cuvee
         case wineColor = "wine_color"
         case retailerLinks = "retailer_links"
+    }
+}
+
+/// A field of a PATCH that can be left alone, set, or explicitly cleared
+/// (sent as `null`). `WinePatch` omits nil fields, so it can't clear one;
+/// the Edit screen needs to (Phase 12.1 WI-1).
+enum Edit<Value: Hashable & Encodable>: Hashable {
+    case unchanged
+    case set(Value)
+    case clear
+
+    var isChange: Bool { self != .unchanged }
+}
+
+/// `PATCH /api/wines/:id` as the Edit screen sends it: only what changed,
+/// with clears sent as `null`. A `drinkingWindow` key — set *or* cleared —
+/// is the developer taking over (or handing back) the wine's primary window,
+/// so it is only ever sent when the developer touched that field.
+struct WineEdit: Encodable, Hashable {
+    var producer: Edit<String> = .unchanged
+    var denomination: Edit<String> = .unchanged
+    var vintage: Edit<Int> = .unchanged
+    var region: Edit<String> = .unchanged
+    var qualityClassification: Edit<String> = .unchanged
+    var vineyard: Edit<String> = .unchanged
+    var cuvee: Edit<String> = .unchanged
+    var wineColor: Edit<WineColor> = .unchanged
+    var manualPrice: Edit<Double> = .unchanged
+    var drinkingWindow: Edit<DrinkingWindow> = .unchanged
+    var tagDiscovered: Bool?
+    var tagWishlist: Bool?
+    var tagCellar: Bool?
+    var tagConsumed: Bool?
+    var cellarQuantity: Int?
+
+    var isEmpty: Bool { self == WineEdit() }
+
+    /// Any of the identity fields — the ones a stored price or critic score
+    /// was searched for (`identityKey` on the server).
+    var changesIdentity: Bool {
+        producer.isChange || denomination.isChange || vintage.isChange
+            || qualityClassification.isChange || vineyard.isChange || cuvee.isChange
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case producer, denomination, vintage, region
+        case qualityClassification = "quality_classification"
+        case vineyard, cuvee
+        case wineColor = "wine_color"
+        case manualPrice = "manual_price"
+        case drinkingWindow = "drinking_window"
+        case tagDiscovered = "tag_discovered"
+        case tagWishlist = "tag_wishlist"
+        case tagCellar = "tag_cellar"
+        case tagConsumed = "tag_consumed"
+        case cellarQuantity = "cellar_quantity"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        func put<V>(_ edit: Edit<V>, _ key: CodingKeys) throws {
+            switch edit {
+            case .unchanged: break
+            case .set(let v): try c.encode(v, forKey: key)
+            case .clear: try c.encodeNil(forKey: key)
+            }
+        }
+        try put(producer, .producer)
+        try put(denomination, .denomination)
+        try put(vintage, .vintage)
+        try put(region, .region)
+        try put(qualityClassification, .qualityClassification)
+        try put(vineyard, .vineyard)
+        try put(cuvee, .cuvee)
+        try put(wineColor, .wineColor)
+        try put(manualPrice, .manualPrice)
+        try put(drinkingWindow, .drinkingWindow)
+        try c.encodeIfPresent(tagDiscovered, forKey: .tagDiscovered)
+        try c.encodeIfPresent(tagWishlist, forKey: .tagWishlist)
+        try c.encodeIfPresent(tagCellar, forKey: .tagCellar)
+        try c.encodeIfPresent(tagConsumed, forKey: .tagConsumed)
+        try c.encodeIfPresent(cellarQuantity, forKey: .cellarQuantity)
     }
 }
 

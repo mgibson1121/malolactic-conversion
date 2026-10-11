@@ -3,8 +3,8 @@ import Observation
 
 /// One metered button's state — the port of `useEnrichmentAction`
 /// (implementation spec §9). One tap shows what's stored (the server
-/// declines inside its TTL and says so via `cachedAt`); only a second,
-/// explicit "Refresh anyway" sends `force` and spends credits.
+/// declines inside its TTL and says so via `cachedAt`); only a separate,
+/// explicit Hard refresh sends `force` and spends credits (Phase 12.1 D6).
 struct EnrichmentControl: Equatable {
     var isBusy = false
     var error: String?
@@ -125,7 +125,7 @@ final class WineDetailModel {
         defer { price.isBusy = false }
         do {
             let result = try await api.fetchPrice(wineID: wine.id, force: force)
-            wine.priceData = result.wine.priceData
+            wine = wine.applying(result.wine, from: .price)
             price.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
             onChanged()
         } catch {
@@ -139,11 +139,7 @@ final class WineDetailModel {
         defer { reviews.isBusy = false }
         do {
             let result = try await api.fetchReviews(wineID: wine.id, force: force)
-            wine.reviewData = result.wine.reviewData
-            wine.drinkingWindow = result.wine.drinkingWindow
-            wine.drinkingWindowSource = result.wine.drinkingWindowSource
-            wine.vintageRating = result.wine.vintageRating
-            wine.vintageRatingSource = result.wine.vintageRatingSource
+            wine = wine.applying(result.wine, from: .reviews)
             reviews.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
             onChanged()
         } catch {
@@ -156,28 +152,13 @@ final class WineDetailModel {
     /// moment of the tap, exactly as `RetailerViewLink` does on the web —
     /// falling back to the search after 3 s so the tap is never stranded.
     func url(for retailer: RetailerPrice) async -> URL? {
-        let fallback = URL(string: retailer.url)
-        guard retailer.isSearchResultsPage else { return fallback }
         resolving.insert(retailer.slug)
         defer { resolving.remove(retailer.slug) }
-
-        let api = self.api
-        let wineID = wine.id
-        let slug = retailer.slug
-        let resolved: Wine? = await withTaskGroup(of: Wine?.self) { group in
-            group.addTask { try? await api.resolveRetailerURL(wineID: wineID, slug: slug) }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(3))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
+        let result = await RetailerLinkResolver.resolve(retailer, wineID: wine.id, api: api)
+        if let resolved = result.wine {
+            wine = wine.applying(resolved, from: .price)
+            onChanged()
         }
-        guard let resolved else { return fallback }
-        wine.priceData = resolved.priceData
-        onChanged()
-        let url = resolved.priceData?.retailers.first { $0.slug == slug }?.url
-        return url.flatMap(URL.init(string:)) ?? fallback
+        return result.url
     }
 }

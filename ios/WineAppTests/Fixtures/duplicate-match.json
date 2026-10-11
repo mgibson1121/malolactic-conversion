@@ -1,7 +1,7 @@
 {
   "kind": "duplicate",
   "wine": {
-    "id": "860000a5-9b44-4877-9278-58d7d69cfd6b",
+    "id": "bd80bea6-ba3b-4bb6-a66e-963ae92738e3",
     "producer": "Domaine Comte Georges de Vogüé",
     "denomination": "Chambolle-Musigny 1er Cru Les Amoureuses",
     "vintage": 2019,
@@ -32,9 +32,10 @@
       "silky",
       "floral"
     ],
-    "latest_tasting_note_id": "93a0cb47-c12a-4232-a90b-300c6c01b854",
+    "latest_tasting_note_id": "b96edba5-d6c8-4a67-89c1-8702617247ba",
     "wishlist_notes": null,
     "price_paid": 640,
+    "manual_price": null,
     "purchased_from": "Zachys",
     "advice_linked": null,
     "expert_reviews": null,
@@ -208,9 +209,61 @@
       }
     ],
     "review_probe_log": null,
-    "date_added": "2026-09-25T02:19:58.016Z",
-    "date_first_consumed": "2026-09-25T02:19:58.017Z",
+    "date_added": "2026-10-10T23:57:53.448Z",
+    "date_first_consumed": "2026-10-10T23:57:53.448Z",
     "promoted_at": "2026-09-20T18:10:00.000Z",
-    "latest_tasting_note_date": "2026-09-21T20:30:00.000Z"
+    "latest_tasting_note_date": "2026-09-21T20:30:00.000Z",
+    "window_status": "primary",
+    "critic_summary": {
+      "ordered": [
+        {
+          "publication": "Burghound",
+          "score": 96,
+          "vintage": 2019,
+          "same_vintage": true,
+          "trusted": true,
+          "tier": 1,
+          "known_publication": true,
+          "drinking_window": {
+            "start": 2029,
+            "end": 2045
+          },
+          "vintage_character": "very_good",
+          "deal": false
+        },
+        {
+          "publication": "Vinous",
+          "score": 96,
+          "vintage": 2019,
+          "same_vintage": true,
+          "trusted": true,
+          "tier": 1,
+          "known_publication": true,
+          "drinking_window": null,
+          "vintage_character": null,
+          "deal": false
+        },
+        {
+          "publication": "Jancis Robinson MW",
+          "score": 18.5,
+          "vintage": null,
+          "same_vintage": false,
+          "trusted": false,
+          "tier": 4,
+          "known_publication": false,
+          "drinking_window": {
+            "start": 2030,
+            "end": null
+          },
+          "vintage_character": null,
+          "deal": true
+        }
+      ]
+    },
+    "enrichment_stale": {
+      "price": false,
+      "reviews": false
+    },
+    "price_exclusions": null
   }
 }

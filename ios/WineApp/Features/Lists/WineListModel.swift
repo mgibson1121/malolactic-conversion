@@ -39,6 +39,9 @@ final class WineListModel: WineRowActionTarget {
     var ratingFilter: MyRating?
     /// A failed swipe/long-press action, shown above the list (§4.3 inline).
     var rowActionError: String?
+    /// Notes whose wine has been deleted (Phase 12.1 WI-3) — Notes tab only.
+    /// They have no wine row to appear under, so the tab lists them apart.
+    private(set) var removedNotes: [TastingNote] = []
 
     init(kind: ListKind) {
         self.kind = kind
@@ -58,6 +61,7 @@ final class WineListModel: WineRowActionTarget {
             let wines = try await api.listWines(filter)
             state = .from(Self.ordered(wines, for: kind))
             consecutiveFailures = 0
+            if kind == .notes { await loadRemovedNotes(using: api) }
         } catch is CancellationError {
             // Superseded by a newer search; that request owns the state.
         } catch let error as APIError {
@@ -66,6 +70,23 @@ final class WineListModel: WineRowActionTarget {
         } catch {
             state = state.failing(with: .network(error.localizedDescription))
             consecutiveFailures += 1
+        }
+    }
+
+    /// A free GET; a failure just leaves the section as it was — the list
+    /// above it is the thing that matters.
+    private func loadRemovedNotes(using api: APIClient) async {
+        guard let all = try? await api.allTastingNotes() else { return }
+        removedNotes = all.filter(\.isWineRemoved)
+    }
+
+    /// The removed-wine notes matching the search box (a plain substring over
+    /// the identity snapshot and the note text, as the list search does for wines).
+    var visibleRemovedNotes: [TastingNote] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return removedNotes.filter { note in
+            (ratingFilter == nil || note.myRating == ratingFilter)
+                && (q.isEmpty || (note.wineSummary + " " + (note.freeText ?? "")).lowercased().contains(q))
         }
     }
 

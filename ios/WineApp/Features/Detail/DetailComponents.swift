@@ -77,19 +77,25 @@ struct DisclosureCard<Content: View>: View {
     }
 }
 
-/// A metered Fetch/Refresh button (implementation spec §9). When the server
-/// answered from its TTL cache, the freshness line offers "Refresh anyway" —
-/// plain text, not a second primary button, because it's the path that
-/// spends credits.
+/// A metered Fetch/Refresh button (implementation spec §9), with a separate
+/// bordered Hard refresh beside it (Phase 12.1 D6, WI-7). The normal button is
+/// TTL-guarded: when the server answered from its cache, the freshness line
+/// says so. Hard refresh sends `force`, spends credits, and says how many —
+/// on the button and again in the confirmation, since it costs money. It
+/// replaces the old "Refresh anyway" text link.
 struct EnrichmentButton: View {
     let title: String
-    /// "Price" / "Reviews" — for "Price updated 3 days ago."
+    /// "Reviews" / "Price" — for "Reviews updated 3 days ago."
     let label: String
+    let kind: EnrichmentCosts.Kind
     let control: EnrichmentControl
+    /// Hard refresh needs data to refresh; shown once any exists.
+    let hasData: Bool
     let run: (_ force: Bool) -> Void
+    @State private var confirmingHardRefresh = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Button {
                 run(false)
             } label: {
@@ -99,14 +105,34 @@ struct EnrichmentButton: View {
             .buttonStyle(.bordered)
             .disabled(control.isBusy)
 
-            if let cachedAt = control.cachedAt {
-                HStack(spacing: 4) {
-                    Text("\(label) updated \(DetailFormatting.age(cachedAt)).")
-                    Button("Refresh anyway") { run(true) }
-                        .disabled(control.isBusy)
+            if hasData {
+                Button {
+                    confirmingHardRefresh = true
+                } label: {
+                    VStack(spacing: 0) {
+                        Text("Hard refresh")
+                        Text(EnrichmentCosts.label(kind))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                    .frame(minHeight: Theme.minHitTarget)
                 }
-                .font(AppFont.meta())
-                .foregroundStyle(Theme.textMuted)
+                .buttonStyle(.bordered)
+                .tint(Theme.accent)
+                .disabled(control.isBusy)
+                .accessibilityLabel("Hard refresh, \(EnrichmentCosts.label(kind))")
+                .confirmationDialog("Hard refresh \(label)?", isPresented: $confirmingHardRefresh,
+                                    titleVisibility: .visible) {
+                    Button("Hard refresh · \(EnrichmentCosts.label(kind))") { run(true) }
+                } message: {
+                    Text("This ignores what's stored and runs the search again — \(EnrichmentCosts.label(kind)).")
+                }
+            }
+
+            if let cachedAt = control.cachedAt {
+                Text("\(label) updated \(DetailFormatting.age(cachedAt)).")
+                    .font(AppFont.meta())
+                    .foregroundStyle(Theme.textMuted)
             }
             if let error = control.error {
                 Text(error).font(.system(size: 12)).foregroundStyle(Theme.redPill)
@@ -147,22 +173,26 @@ struct CriticScoreRow: View {
 
 /// A retailer as two lines, not a table row (§7.3): name and price, then the
 /// badge line, which drops right-to-left — distance first, verification never.
+/// The name is the tappable link (underlined, D9). Verified / Unverified /
+/// Search only each explain themselves on tap (WI-8).
 struct RetailerRow: View {
     let retailer: RetailerPrice
     let isNearest: Bool
     let isResolving: Bool
     let open: () -> Void
+    @State private var explained: RetailerBadge?
 
     var body: some View {
-        Button(action: open) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: open) {
                 HStack {
                     Text(String(retailer.name.prefix(22)) + (retailer.name.count > 22 ? "…" : ""))
                         .font(AppFont.body())
-                        .foregroundStyle(Theme.text)
+                        .underline()
+                        .foregroundStyle(Theme.accent)
                         .lineLimit(1)
                     if isNearest {
-                        Text("Nearest").font(AppFont.badge()).foregroundStyle(Theme.accent)
+                        Text("Nearest").font(AppFont.badge()).foregroundStyle(Theme.textMuted)
                     }
                     Spacer()
                     if !retailer.linkOnly, let price = WineFormatting.price(retailer.price) {
@@ -176,42 +206,72 @@ struct RetailerRow: View {
                             .foregroundStyle(Theme.textMuted)
                     }
                 }
-                ViewThatFits(in: .horizontal) {
-                    let badges = RetailerTable.badges(retailer)
-                    ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
-                        HStack(spacing: 6) {
-                            ForEach(badges.prefix(count), id: \.self) { RetailerBadgeView(badge: $0) }
+                .frame(minHeight: Theme.minHitTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(retailer.isSearchResultsPage
+                               ? "Opens a search at \(retailer.name), not a direct product page"
+                               : "Opens the product page")
+
+            ViewThatFits(in: .horizontal) {
+                let badges = RetailerTable.badges(retailer)
+                ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
+                    HStack(spacing: 6) {
+                        ForEach(badges.prefix(count), id: \.self) { badge in
+                            RetailerBadgeView(badge: badge, explained: $explained)
                         }
-                        .fixedSize()
                     }
+                    .fixedSize()
                 }
             }
-            .padding(.vertical, 8)
-            .frame(minHeight: Theme.minHitTarget)
-            .contentShape(Rectangle())
+
+            if let badge = explained, let text = BadgeExplanation.text(for: badge) {
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.surface2, in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityHint(retailer.isSearchResultsPage
-                           ? "Opens a search at \(retailer.name), not a direct product page"
-                           : "Opens the product page")
+        .padding(.vertical, 4)
     }
 }
 
 private struct RetailerBadgeView: View {
     let badge: RetailerBadge
+    @Binding var explained: RetailerBadge?
 
     var body: some View {
         switch badge {
         case .verified:
-            Pill(text: badge.text, fg: Theme.green, bg: Theme.greenSoft)
+            explainable(Pill(text: badge.text, fg: Theme.green, bg: Theme.greenSoft))
         case .unverified:
-            Pill(text: badge.text, fg: Theme.redPill, bg: Theme.redSoft)
+            explainable(Pill(text: badge.text, fg: Theme.redPill, bg: Theme.redSoft))
+        case .searchOnly:
+            explainable(Text(badge.text).font(AppFont.meta()).foregroundStyle(Theme.textMuted))
         case .vintageMismatch:
             Pill(text: badge.text, fg: Theme.redPill, bg: Theme.redSoft)
         case .format:
             Pill(text: badge.text, fg: Theme.text, bg: Theme.accent2Soft)
-        case .vintage, .searchOnly, .distance:
+        case .vintage, .distance:
             Text(badge.text).font(AppFont.meta().monospacedDigit()).foregroundStyle(Theme.textMuted)
         }
+    }
+
+    /// A badge that explains itself on tap: underlined (D9), a 44 pt target
+    /// that doesn't grow the row, and exposed as a button.
+    private func explainable<Content: View>(_ content: Content) -> some View {
+        Button {
+            explained = (explained == badge) ? nil : badge
+        } label: {
+            content.underline()
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -13)
+        .accessibilityLabel("\(BadgeExplanation.title(for: badge) ?? badge.text). Double tap to explain.")
     }
 }

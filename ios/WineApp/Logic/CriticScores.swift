@@ -16,7 +16,32 @@ enum CriticScores {
         return scores
     }
 
-    /// The single score the compressed card shows (implementation spec §7.2).
+    /// The single score the compressed card shows: the first item in the
+    /// backend's order (Phase 12.1 D13 — a trusted critic, the wine's own
+    /// vintage first), with a muted year tag when its page's vintage is not
+    /// the wine's, and `+N` for the rest. The app renders the order it is
+    /// given; it never re-sorts. A wine from a backend that sends no summary
+    /// falls back to the older highest-score rule.
+    static func cardBadge(_ wine: Wine) -> CardScoreBadge? {
+        guard let summary = wine.criticSummary else { return cardBadge(wine.reviewData) }
+        guard let first = summary.ordered.first else { return nil }
+        return CardScoreBadge(
+            score: first.score,
+            label: label(publication: first.publication, known: first.knownPublication),
+            publication: first.publication,
+            isKnownPublication: first.knownPublication,
+            additionalCount: summary.ordered.count - 1,
+            yearTag: yearTag(first)
+        )
+    }
+
+    /// `'18` — present only when the score's stated vintage is not the wine's.
+    static func yearTag(_ item: CriticSummaryItem) -> String? {
+        guard !item.sameVintage, let vintage = item.vintage else { return nil }
+        return "'" + String(String(vintage).suffix(2))
+    }
+
+    /// The legacy card rule (Phase 12 implementation spec §7.2).
     ///
     /// This is display truncation with a `+N` affordance — every score is still
     /// stored, attributed and shown in full on detail. It is **not** the
@@ -63,12 +88,15 @@ enum CriticScores {
     static let unknownPublicationMaxLength = 12
 
     static func label(for score: CriticScore) -> String {
-        if score.knownPublication, let short = abbreviations[score.publication] {
+        label(publication: score.publication, known: score.knownPublication)
+    }
+
+    static func label(publication raw: String, known: Bool) -> String {
+        if known, let short = abbreviations[raw] {
             return short
         }
         // Unnormalized (or a known publication with no abbreviation yet):
         // raw text, truncated, so it never reads as a vetted short code.
-        let raw = score.publication
         guard raw.count > unknownPublicationMaxLength else { return raw }
         return String(raw.prefix(unknownPublicationMaxLength)) + "…"
     }
@@ -92,4 +120,6 @@ struct CardScoreBadge: Hashable {
     var text: String { "\(CriticScores.format(score)) \(label)" }
     /// `+2`, or nil.
     var suffix: String? { additionalCount > 0 ? "+\(additionalCount)" : nil }
+    /// `'18` when the score is for another vintage; nil otherwise.
+    var yearTag: String? = nil
 }

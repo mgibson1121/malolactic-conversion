@@ -105,8 +105,13 @@ extension Wine {
 }
 
 /// The scan modal's state machine (implementation spec §6.3), mirroring
-/// `LabelScanFlow.tsx`: capture → scanning → duplicate check → draft review,
-/// plus manual entry (spec D4) and the unavailable / error exits.
+/// `LabelScanFlow.tsx`: capture → scanning → duplicate check → "Scan
+/// successful — pulling details" → draft review, plus manual entry (spec D4)
+/// and the unavailable / error exits.
+///
+/// Enrichment here and on the detail screen share one `EnrichmentControl`
+/// per lookup and one `Wine.applying(_:from:)`, so what the review screen
+/// shows and what the saved wine shows cannot diverge (Phase 12.1 WI-9).
 @MainActor
 @Observable
 final class ScanFlowModel {
@@ -115,13 +120,12 @@ final class ScanFlowModel {
         case manual
         case scanning
         case duplicate(existing: Wine, scanned: LabelScanResult, bottling: BottlingDifference?)
+        /// The parse succeeded and the draft exists: hold until the first
+        /// critic score lands or `previewHold` passes, then show the review.
+        case pulling
         case review
         case unavailable(String)
         case error(String)
-    }
-
-    enum AutoFire: Equatable {
-        case notFired, running, finished, failed
     }
 
     private(set) var step: Step
@@ -133,10 +137,14 @@ final class ScanFlowModel {
     private(set) var wine: Wine?
     private(set) var missingTier1: Set<String> = []
     private(set) var vintageNotice: String?
-    /// Whether this review arrived by the fresh-scan path, the only path whose
-    /// reviews block auto-fires.
-    private(set) var reviewsAutoFire: AutoFire = .notFired
-    private(set) var priceAutoFire: AutoFire = .notFired
+    /// The two lookups' state — busy while one runs, an error if it failed,
+    /// both clear once it has landed. The same type the detail screen uses.
+    private(set) var reviews = EnrichmentControl()
+    private(set) var price = EnrichmentControl()
+    /// Retailer slugs whose search link is being resolved right now.
+    private(set) var resolving: Set<String> = []
+    /// Whether the scan path's auto-fire has gone out for this wine.
+    private var enrichmentFired = false
 
     var fields = WineFields()
     var tags = PromoteTags()
@@ -144,7 +152,9 @@ final class ScanFlowModel {
     private(set) var actionError: String?
 
     private let api: APIClient
+    private let previewHold: Duration
     private var scanTask: Task<Void, Never>?
+    private var holdTask: Task<Void, Never>?
 
     /// Called whenever a background price or review lookup lands — even
     /// after the modal has closed. A new wine takes about a minute to enrich,
@@ -153,8 +163,9 @@ final class ScanFlowModel {
     /// was saved four seconds before its price arrived).
     var onEnrichmentLanded: () -> Void = {}
 
-    init(api: APIClient, startManual: Bool = false) {
+    init(api: APIClient, startManual: Bool = false, previewHold: Duration = ScanTiming.previewHold) {
         self.api = api
+        self.previewHold = previewHold
         step = startManual ? .manual : .capture
     }
 
@@ -243,11 +254,29 @@ final class ScanFlowModel {
             fields = WineFields(scan)
             missingTier1 = Set(scan.missingTier1Fields)
             tags = PromoteTags()
-            step = .review
+            // Phase 12.1 WI-5 (D8): "Scan successful — pulling details" holds
+            // until the first critic score lands or `previewHold` passes.
+            // The lookups are never cancelled when the hold ends — the review
+            // screen shows "Looking…" for whatever is still pending.
+            step = .pulling
             if draft.hasTier1 { fireEnrichment(for: draft, force: false) }
+            holdTask?.cancel()
+            holdTask = Task { [previewHold] in
+                try? await Task.sleep(for: previewHold)
+                if !Task.isCancelled { moveToReview() }
+            }
         } catch let error as APIError {
             step = .error("Scan failed: \(error.message(networkMessage: error.networkDetail))")
         } catch {}
+    }
+
+    /// Ends the interstitial — whichever of "a score landed" and "the hold
+    /// ran out" comes first. A no-op once the screen has moved on, so the
+    /// loser of the race does nothing.
+    private func moveToReview() {
+        guard step == .pulling else { return }
+        holdTask?.cancel()
+        step = .review
     }
 
     // MARK: Duplicate
@@ -298,25 +327,31 @@ final class ScanFlowModel {
     // MARK: Enrichment — the scan path's one sanctioned auto-fire
 
     /// Price and the primary review tier, fired once, together. Fire-and-forget
-    /// in the sense that nothing retries: a failure is shown inline and left.
+    /// in the sense that nothing retries: a failure is shown inline, with a
+    /// "Try again" the developer can tap.
     private func fireEnrichment(for draft: Wine, force: Bool) {
-        let id = draft.id
-        PriceOnce.record(id)
-        firePrice(id, force: force)
-        reviewsAutoFire = .running
+        enrichmentFired = true
+        PriceOnce.record(draft.id)
+        firePrice(draft.id, force: force)
+        fireReviews(draft.id, force: force, tier: .primary)
+    }
+
+    private func fireReviews(_ id: String, force: Bool, tier: ReviewTier?) {
+        reviews.isBusy = true
+        reviews.error = nil
         Task {
             do {
-                let result = try await api.fetchReviews(wineID: id, force: force, tier: .primary)
+                let result = try await api.fetchReviews(wineID: id, force: force, tier: tier)
                 guard wine?.id == id else { return }
-                wine?.reviewData = result.wine.reviewData
-                wine?.drinkingWindow = result.wine.drinkingWindow
-                wine?.drinkingWindowSource = result.wine.drinkingWindowSource
-                wine?.vintageRating = result.wine.vintageRating
-                wine?.vintageRatingSource = result.wine.vintageRatingSource
-                reviewsAutoFire = .finished
+                wine = wine?.applying(result.wine, from: .reviews)
+                reviews.isBusy = false
                 onEnrichmentLanded()
+                // The first critic score ends the interstitial early (D8).
+                if !(wine?.criticSummary?.ordered.isEmpty ?? true) { moveToReview() }
             } catch {
-                if wine?.id == id { reviewsAutoFire = .failed }
+                guard wine?.id == id else { return }
+                reviews.isBusy = false
+                reviews.error = "Review lookup failed"
             }
         }
     }
@@ -328,18 +363,55 @@ final class ScanFlowModel {
     }
 
     private func firePrice(_ id: String, force: Bool) {
-        priceAutoFire = .running
+        price.isBusy = true
+        price.error = nil
         Task {
             do {
                 let result = try await api.fetchPrice(wineID: id, force: force)
                 guard wine?.id == id else { return }
-                wine?.priceData = result.wine.priceData
-                priceAutoFire = .finished
+                wine = wine?.applying(result.wine, from: .price)
+                price.isBusy = false
                 onEnrichmentLanded()
             } catch {
-                if wine?.id == id { priceAutoFire = .failed }
+                guard wine?.id == id else { return }
+                price.isBusy = false
+                price.error = "Price lookup failed"
             }
         }
+    }
+
+    // MARK: Developer-initiated lookups on the review screen (click-gated)
+
+    /// "Try again" after a failed review lookup — a deliberate tap, not a retry.
+    func retryReviews() {
+        guard let id = wine?.id, !reviews.isBusy else { return }
+        fireReviews(id, force: false, tier: .primary)
+    }
+
+    /// "Search more retailers" when the primary tier found nothing: the full
+    /// tier, which adds the extended shops. Still a click (CLAUDE.md §15).
+    func searchMoreRetailers() {
+        guard let id = wine?.id, !reviews.isBusy else { return }
+        fireReviews(id, force: false, tier: nil)
+    }
+
+    func retryPrice() {
+        guard let id = wine?.id, !price.isBusy else { return }
+        firePrice(id, force: false)
+    }
+
+    /// The URL to open for a retailer on the review screen — resolved on tap
+    /// exactly as the detail screen does it.
+    func url(for retailer: RetailerPrice) async -> URL? {
+        guard let id = wine?.id else { return nil }
+        resolving.insert(retailer.slug)
+        defer { resolving.remove(retailer.slug) }
+        let result = await RetailerLinkResolver.resolve(retailer, wineID: id, api: api)
+        if let resolved = result.wine, wine?.id == id {
+            wine = wine?.applying(resolved, from: .price)
+            onEnrichmentLanded()
+        }
+        return result.url
     }
 
     // MARK: Save / discard
@@ -355,7 +427,7 @@ final class ScanFlowModel {
         do {
             let patch = fields.patch(against: draft)
             let updated = patch.isEmpty ? draft : try await api.updateWine(id: draft.id, patch)
-            let alreadyFired = reviewsAutoFire != .notFired
+            let alreadyFired = enrichmentFired
             if updated.hasTier1 && (!alreadyFired || patch.changesIdentity) {
                 fireEnrichment(for: updated, force: alreadyFired)
             }
@@ -397,17 +469,14 @@ final class ScanFlowModel {
         return wine.isDraft ? tags[keyPath: tag.promoteKeyPath] : wine[keyPath: tag.wineKeyPath]
     }
 
-    /// Deletes the draft. Returns true when the modal should close. A 409
-    /// (the wine has a tasting note) keeps the screen open with the spec's copy.
+    /// Deletes the draft. Returns true when the modal should close.
     func discard() async -> Bool {
         scanTask?.cancel()
+        holdTask?.cancel()
         guard let draft = wine, draft.isDraft else { return true }
         do {
             try await api.deleteWine(id: draft.id)
             return true
-        } catch APIError.server(409, _) {
-            actionError = "This wine has a tasting note and can't be discarded. Remove it from your lists instead."
-            return false
         } catch {
             // Anything else: the 24 h server-side sweep collects the draft.
             return true
@@ -420,8 +489,9 @@ final class ScanFlowModel {
         if wine?.isDraft == true { _ = await discard() }
         wine = nil
         vintageNotice = nil
-        reviewsAutoFire = .notFired
-        priceAutoFire = .notFired
+        reviews = EnrichmentControl()
+        price = EnrichmentControl()
+        enrichmentFired = false
         actionError = nil
         step = .capture
     }

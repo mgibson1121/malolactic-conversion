@@ -124,7 +124,7 @@ final class CellarSummaryTests: XCTestCase {
             wine("c", region: nil, colour: nil, bottles: 2),
         ]
         let summary = CellarSummary(wines: wines, settings: nil, today: day("2026-09-23"), calendar: utcCalendar)
-        XCTAssertEqual(summary.readiness, [.readyNow: 1, .needsTime: 1, .noWindow: 1])
+        XCTAssertEqual(summary.readiness, [.readyNow: 1, .needsTime: 1, .checkWindow: 0, .noWindow: 1])
         XCTAssertTrue(summary.hasReadinessData)
     }
 }

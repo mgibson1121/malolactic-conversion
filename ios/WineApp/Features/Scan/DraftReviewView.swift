@@ -1,13 +1,16 @@
 import SwiftUI
 
 /// Draft review (implementation spec §6.4) — the iOS `DiscoveryReview` in
-/// draft mode: editable fields with missing-Tier-1 prompts, the auto-fired
-/// primary-tier critic scores as they land, a Discovered / Wishlist / Cellar
-/// picker, Save to collection and Discard. Reached with an already-promoted
-/// wine via the duplicate path, list toggles apply immediately instead.
+/// draft mode: editable fields with missing-Tier-1 prompts, the critic and
+/// price blocks (each with four explicit states, Phase 12.1 WI-4), an
+/// "Add to which list?" picker whose rows look selectable (WI-6), and a
+/// Save/Discard bar pinned to the bottom so neither scrolls away. Reached with
+/// an already-promoted wine via the duplicate path, list toggles apply
+/// immediately instead.
 struct DraftReviewView: View {
     @Bindable var model: ScanFlowModel
     let onSaved: () -> Void
+    @Environment(\.openURL) private var openURL
     @State private var confirmingDiscard = false
 
     var body: some View {
@@ -29,27 +32,39 @@ struct DraftReviewView: View {
                 }
             }
 
-            CriticScoresBlock(wine: model.wine, autoFire: model.reviewsAutoFire)
-            PriceBlock(price: model.wine?.priceData, autoFire: model.priceAutoFire)
+            // Section order: identity → Critic reviews → Price & retailers →
+            // list picker → Save/Discard.
+            Section("Critic reviews") {
+                CriticReviewsBlock(wine: model.wine, control: model.reviews,
+                                   retry: { model.retryReviews() },
+                                   searchMore: { model.searchMoreRetailers() })
+            }
+
+            if let wine = model.wine {
+                Section("Price & retailers") {
+                    PriceRetailersBlock(
+                        wine: wine,
+                        control: model.price,
+                        resolving: model.resolving,
+                        openRetailer: { row in Task { if let url = await model.url(for: row) { openURL(url) } } },
+                        retry: { model.retryPrice() }
+                    )
+                }
+            }
 
             Section {
+                if model.isDraft && !model.tags.hasAny {
+                    Text("Pick at least one list to save.")
+                        .font(AppFont.meta())
+                        .foregroundStyle(Theme.accent)
+                }
                 ForEach(ListTag.allCases, id: \.self) { tag in
-                    Button {
+                    ListRow(title: tag.title, isOn: model.isOn(tag)) {
                         Task { await model.toggle(tag) }
-                    } label: {
-                        HStack {
-                            Text(tag.title).foregroundStyle(Theme.text)
-                            Spacer()
-                            if model.isOn(tag) {
-                                Image(systemName: "checkmark").foregroundStyle(Theme.accent)
-                            }
-                        }
-                        .frame(minHeight: Theme.minHitTarget)
                     }
-                    .accessibilityAddTraits(model.isOn(tag) ? .isSelected : [])
                 }
             } header: {
-                Text(model.isDraft ? "Save to" : "Lists")
+                Text(model.isDraft ? "Add to which list?" : "Lists")
             }
 
             if let error = model.actionError {
@@ -57,34 +72,90 @@ struct DraftReviewView: View {
                     Text(error).font(.system(size: 12)).foregroundStyle(Theme.redPill)
                 }
             }
-
-            if model.isDraft {
-                Section {
-                    Button {
-                        Task { if await model.saveToCollection() { onSaved() } }
-                    } label: {
-                        Text(model.isSaving ? "Saving…" : "Save to collection")
-                            .frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
-                    }
-                    .disabled(model.isSaving || !model.fields.canSave)
-                    // Disabled-looking but still focusable, with the hint (§6.4).
-                    .opacity(model.tags.hasAny ? 1 : 0.4)
-                    if !model.tags.hasAny {
-                        Text("Pick a list first.")
-                            .font(AppFont.meta())
-                            .foregroundStyle(Theme.textMuted)
-                    }
-                    Button("Discard", role: .destructive) { confirmingDiscard = true }
-                        .frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
-                }
-            }
         }
         .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .bottom) {
+            if model.isDraft {
+                SaveBar(
+                    isReady: model.tags.hasAny && model.fields.canSave,
+                    isSaving: model.isSaving,
+                    save: { Task { if await model.saveToCollection() { onSaved() } } },
+                    discard: { confirmingDiscard = true }
+                )
+            }
+        }
         .confirmationDialog("Discard this wine?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
             Button("Discard", role: .destructive) {
                 Task { if await model.discard() { onSaved() } }
             }
         }
+    }
+}
+
+/// A list row that looks selectable (Phase 12.1 WI-6): an empty circle when
+/// off, a filled checked one when on — multi-select, since tags are additive.
+/// Before, only an "on" row showed a checkmark, so an unselected row was
+/// indistinguishable from plain text.
+struct ListRow: View {
+    let title: String
+    let isOn: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 12) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(isOn ? Theme.accent : Theme.textMuted)
+                Text(title).foregroundStyle(Theme.text)
+                Spacer()
+            }
+            .frame(minHeight: Theme.minHitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityValue(isOn ? "On" : "Off")
+    }
+}
+
+/// Save and Discard, pinned above the home indicator. Ready = a solid accent
+/// fill; not ready = a muted outline at normal text contrast — never a 40 %
+/// opacity burgundy on near-black (WI-6). It stays tappable: tapping while not
+/// ready does nothing, and the reason is shown next to the picker.
+struct SaveBar: View {
+    let isReady: Bool
+    let isSaving: Bool
+    let save: () -> Void
+    let discard: () -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Button(action: { if isReady && !isSaving { save() } }) {
+                Text(isSaving ? "Saving…" : "Save to collection")
+                    .font(AppFont.cardTitle())
+                    .frame(maxWidth: .infinity, minHeight: Theme.minHitTarget)
+                    .foregroundStyle(isReady ? Color.white : Theme.textMuted)
+                    .background(isReady ? Theme.accent : Color.clear,
+                                in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.buttonRadius)
+                            .strokeBorder(isReady ? Color.clear : Theme.textMuted, lineWidth: 1.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Save to collection")
+            .accessibilityHint(isReady ? "" : "Pick at least one list first")
+            .accessibilityAddTraits(isReady ? [] : .isStaticText)
+
+            Button("Discard", role: .destructive, action: discard)
+                .buttonStyle(.link)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, Theme.sideMargin)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .background(.bar)
     }
 }
 
@@ -133,84 +204,5 @@ struct WineFieldsSection: View {
                 .autocorrectionDisabled()
         }
         .listRowBackground(needsInput ? Theme.accent2Soft : Theme.surface)
-    }
-}
-
-/// Critic scores on the review screen. While the auto-fired primary tier is
-/// running: a 2-line skeleton, never a spinner. If it finds nothing, the
-/// block disappears rather than showing an empty state mid-task (§6.4).
-private struct CriticScoresBlock: View {
-    let wine: Wine?
-    let autoFire: ScanFlowModel.AutoFire
-
-    var body: some View {
-        let scores = CriticScores.deduped(wine?.reviewData)
-        if autoFire == .running && scores.isEmpty {
-            Section("Critic scores") {
-                VStack(alignment: .leading, spacing: 8) {
-                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 180, height: 12)
-                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 120, height: 12)
-                }
-                .padding(.vertical, 6)
-                .accessibilityLabel("Looking for critic scores")
-            }
-        } else if !scores.isEmpty {
-            Section("Critic scores") {
-                ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
-                    HStack {
-                        Text(CriticScores.format(score.score))
-                            .font(AppFont.cardTitle().monospacedDigit())
-                        Text(score.publication)
-                            .font(AppFont.body())
-                            .foregroundStyle(score.knownPublication ? Theme.text : Theme.textMuted)
-                        Spacer()
-                        if let window = score.drinkingWindow, let start = window.start {
-                            Text(window.end.map { "\(String(start))–\(String($0))" } ?? "from \(String(start))")
-                                .font(AppFont.meta().monospacedDigit())
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-                }
-            }
-        } else if autoFire == .failed {
-            Section("Critic scores") {
-                Text("Review lookup failed").font(.system(size: 12)).foregroundStyle(Theme.redPill)
-            }
-        }
-    }
-}
-
-/// Price on the review screen, landing from the scan auto-fire or the
-/// fetch-once rule: a skeleton line while it runs, then the headline figures.
-private struct PriceBlock: View {
-    let price: PriceData?
-    let autoFire: ScanFlowModel.AutoFire
-
-    var body: some View {
-        if let price {
-            Section("Price") {
-                if price.retailers.isEmpty {
-                    Text("No matching listings found for this wine at the configured retailers.")
-                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                } else {
-                    Text("Min \(DetailFormatting.priceBound(price.priceMin)) · Avg \(DetailFormatting.priceBound(price.priceAvg)) · Max \(DetailFormatting.priceBound(price.priceMax))")
-                        .font(AppFont.body().monospacedDigit())
-                    if let nearest = price.nearestRetailer {
-                        Text("Nearest: \(nearest.name)\(WineFormatting.price(nearest.price).map { " · \($0)" } ?? "")")
-                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                    }
-                }
-            }
-        } else if autoFire == .running {
-            Section("Price") {
-                RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 200, height: 12)
-                    .padding(.vertical, 6)
-                    .accessibilityLabel("Looking up prices")
-            }
-        } else if autoFire == .failed {
-            Section("Price") {
-                Text("Price lookup failed").font(.system(size: 12)).foregroundStyle(Theme.redPill)
-            }
-        }
     }
 }
