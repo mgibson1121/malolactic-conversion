@@ -112,14 +112,14 @@ describe('WI-2 — retailers the developer shops at', () => {
       expect(laCrauShopping.shopping.some(i => /kermit/i.test(i.source))).toBe(false)
     })
 
-    it.failing('the top-up keeps exact-vintage listings that Serper sent without a `link` (the fallback never uses it)', async () => {
+    it('the top-up keeps exact-vintage listings that Serper sent without a `link` (the fallback never uses it)', async () => {
       const { retailers } = await run()
       expect(retailers.map(r => r.name)).toEqual(expect.arrayContaining(['CaskCartel.com', 'Tribeca Wine Merchants']))
       expect(retailers.filter(r => r.matched_vintage == null)).toEqual([])
     })
   })
 
-  it.failing('"750 mL | 6 bottles" is read as a six-pack (BlockCellar, same response)', () => {
+  it('"750 mL | 6 bottles" is read as a six-pack (BlockCellar, same response)', () => {
     const f = extractPackFormat('Vieux Telegraphe La Crau Rouge Chateauneuf-du-Pape 2019 | 750 mL | 6 bottles', [LA_CRAU_2019.wine.producer, LA_CRAU_2019.wine.cuvee])
     expect(f.pack_quantity).toBe(6)
   })
