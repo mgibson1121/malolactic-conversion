@@ -175,6 +175,19 @@ struct BottlingAnswer: Codable, Hashable {
     var options: [BottlingOption]
 }
 
+/// What the price list displays (Phase 12.4 WI-1), computed in the backend:
+/// listings more than ±3 vintages from the wine stay stored but aren't shown,
+/// and "Other vintages" covers only those that are.
+struct PriceWindow: Codable, Hashable {
+    var hidden: [String]
+    var otherVintagePriceRange: PriceRange?
+
+    enum CodingKeys: String, CodingKey {
+        case hidden
+        case otherVintagePriceRange = "other_vintage_price_range"
+    }
+}
+
 struct CriticSummary: Codable, Hashable {
     var ordered: [CriticSummaryItem]
 }
@@ -247,6 +260,7 @@ struct Wine: Codable, Identifiable, Hashable {
     var reviewLadder: ReviewLadder?
     var bottlingPrompt: BottlingPrompt?
     var bottlingAnswer: BottlingAnswer?
+    var priceWindow: PriceWindow?
     /// The developer answered "Plain / no special bottling".
     var bottlingPlain: Bool?
 
@@ -295,6 +309,7 @@ struct Wine: Codable, Identifiable, Hashable {
         case reviewLadder = "review_ladder"
         case bottlingPrompt = "bottling_prompt"
         case bottlingAnswer = "bottling_answer"
+        case priceWindow = "price_window"
         case bottlingPlain = "bottling_plain"
         case priceData = "price_data"
         case retailerLinks = "retailer_links"

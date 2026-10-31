@@ -69,7 +69,7 @@ enum TierCopy {
     static func meaning(_ tier: String) -> String {
         switch tier {
         case "1": return "We found a score for this exact wine and vintage from a critic we trust."
-        case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Scores and drinking windows from vintages within 3 years are used; further ones are shown for reference."
+        case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Only vintages within 3 years are used or shown."
         case "3a": return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide."
         default: return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make."
         }
@@ -78,7 +78,7 @@ enum TierCopy {
     static func effect(_ tier: String) -> String {
         switch tier {
         case "1": return "The card badge and the drinking window come from these scores."
-        case "2": return "Scores within 3 vintages can set the card badge and the drinking window, labelled approximate. A critic's window from further away is shown for reference and never merged into yours."
+        case "2": return "These scores can set the card badge and the drinking window, labelled approximate."
         default: return "The card badge is marked “from a different bottling?” and the drinking window is approximate."
         }
     }

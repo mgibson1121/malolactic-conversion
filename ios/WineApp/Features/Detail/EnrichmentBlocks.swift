@@ -230,7 +230,7 @@ struct PriceRetailersBlock: View {
         }
         if let price = wine.priceData {
             if wine.enrichmentStale?.price == true { StaleNotice() }
-            if price.retailers.isEmpty {
+            if visibleRows(price).isEmpty {
                 Text("No matching listings found at the configured retailers.")
                     .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                 Text("Checked \(NoteDate.short(price.fetchedAt) ?? "recently")")
@@ -272,7 +272,7 @@ struct PriceRetailersBlock: View {
                 } else if let why = wine.priceExclusions?.sentence {
                     Text(why).font(AppFont.body()).foregroundStyle(Theme.text)
                 }
-                if let other = price.otherVintagePriceRange {
+                if let other = wine.priceWindow != nil ? wine.priceWindow?.otherVintagePriceRange : price.otherVintagePriceRange {
                     Text("Other vintages: \(DetailFormatting.priceBound(other.min))–\(DetailFormatting.priceBound(other.max))")
                         .font(AppFont.meta().monospacedDigit())
                         .foregroundStyle(Theme.textMuted)
@@ -299,11 +299,18 @@ struct PriceRetailersBlock: View {
         }
     }
 
+    /// Listings within ±3 vintages, in display order (Phase 12.4 WI-1). The
+    /// backend names the rest in `price_window`; they stay in `price_data`.
+    private func visibleRows(_ price: PriceData) -> [RetailerPrice] {
+        let hidden = Set(wine.priceWindow?.hidden ?? [])
+        return RetailerTable.ordered(price).filter { !hidden.contains($0.slug) }
+    }
+
     /// The nearest retailer as a tappable, underlined line, then the rest
     /// collapsed under "N more retailers" (D7).
     @ViewBuilder
     private func retailerRows(_ price: PriceData) -> some View {
-        let rows = RetailerTable.ordered(price)
+        let rows = visibleRows(price)
         let nearest = price.nearestRetailer.flatMap { n in rows.first { $0.slug == n.slug } }
         let rest = rows.filter { $0.slug != nearest?.slug }
         if let nearest {

@@ -1,6 +1,6 @@
 import type { WineEntry } from '@shared/types'
-import { getAttributedDrinkingWindows } from '../utils/drinkingWindows'
-import { windowStatusOfWine } from '../utils/wineDerived'
+import { attributedWindowsOfSummary } from '../utils/drinkingWindows'
+import { criticSummaryOf, windowStatusOfWine } from '../utils/wineDerived'
 import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
 
 /**
@@ -20,7 +20,7 @@ import { AttributedDrinkingWindows } from './AttributedDrinkingWindows'
  */
 export function DrinkingWindowSection({ wine }: { wine: WineEntry }) {
   const status = windowStatusOfWine(wine)
-  const reference = getAttributedDrinkingWindows(wine.review_data)
+  const reference = attributedWindowsOfSummary(criticSummaryOf(wine).ordered)
   if (!wine.drinking_window && reference.length === 0) return null
 
   return (

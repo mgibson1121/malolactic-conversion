@@ -42,3 +42,19 @@ final class ColourBadgeTests: XCTestCase {
         XCTAssertNil(legacy.colour)
     }
 }
+
+/// Phase 12.4 WI-1: one ±3-year display window.
+final class SimilarVintageWindowTests: XCTestCase {
+    func testThePriceWindowDecodes() throws {
+        let json = Data(#"{"hidden":["far-shop"],"other_vintage_price_range":{"min":90,"max":120}}"#.utf8)
+        let window = try JSONDecoder().decode(PriceWindow.self, from: json)
+        XCTAssertEqual(window.hidden, ["far-shop"])
+        XCTAssertEqual(window.otherVintagePriceRange, PriceRange(min: 90, max: 120))
+    }
+
+    func testCriticWindowsComeFromTheSummaryWhenThereIsOne() throws {
+        let wine = try Fixture.decode(Wine.self, "wine-full")
+        let fromSummary = DrinkingWindows.attributed(summary: wine.criticSummary)
+        XCTAssertEqual(Set(fromSummary.flatMap(\.publications)).isSubset(of: Set(wine.criticSummary?.ordered.map(\.publication) ?? [])), true)
+    }
+}

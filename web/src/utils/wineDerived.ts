@@ -1,8 +1,9 @@
-import type { CriticSummary, PriceExclusions, WindowStatus, WineEntry } from '@shared/types'
+import type { CriticSummary, PriceExclusions, PriceWindow, WindowStatus, WineEntry } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
 import { windowStatusOf } from '@shared/utils/window-status'
+import { priceWindowOf } from '@shared/utils/price-window'
 
 /**
  * The backend computes these on every wine read (Phase 12.1) and the web
@@ -26,4 +27,9 @@ export function staleOf(wine: WineEntry): { price: boolean; reviews: boolean } {
 
 export function priceExclusionsOf(wine: Pick<WineEntry, 'price_exclusions' | 'price_data'>): PriceExclusions | null {
   return wine.price_exclusions !== undefined ? wine.price_exclusions : describePriceExclusions(wine.price_data)
+}
+
+/** Which price rows are outside ±3 vintages, and the "Other vintages" range over the rest (Phase 12.4 WI-1). */
+export function priceWindowOfWine(wine: Pick<WineEntry, 'price_window' | 'price_data' | 'vintage'>): PriceWindow | null {
+  return wine.price_window !== undefined ? wine.price_window : priceWindowOf(wine.price_data, wine.vintage)
 }

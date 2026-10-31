@@ -1,5 +1,5 @@
 {
-  "id": "003b2015-4641-4a7e-8a75-91b33664fcce",
+  "id": "674bc93c-5bbf-4538-8647-f23ad93c75f9",
   "producer": "Marcoux",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2019,
@@ -112,7 +112,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-10-31T20:28:49.539Z",
+  "date_added": "2026-10-31T20:41:05.967Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -132,6 +132,13 @@
       "1 search-only"
     ],
     "sentence": "3 listings found, none counted toward the average: 1 other vintage (2020), 1 magnum, 1 search-only."
+  },
+  "price_window": {
+    "hidden": [],
+    "other_vintage_price_range": {
+      "min": 690,
+      "max": 690
+    }
   },
   "review_ladder": {
     "tier": "none",

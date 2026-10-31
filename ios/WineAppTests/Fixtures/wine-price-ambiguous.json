@@ -1,5 +1,5 @@
 {
-  "id": "01aa68c9-ca13-4cc4-8596-20d03206207f",
+  "id": "b6144a9a-177a-4498-b26c-3666cf966ac9",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -156,7 +156,7 @@
       "link_only": false,
       "verification": "verified"
     },
-    "fetched_at": "2026-10-31T20:28:49.539Z",
+    "fetched_at": "2026-10-31T20:41:05.968Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -192,7 +192,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-10-31T20:28:49.539Z",
+  "date_added": "2026-10-31T20:41:05.968Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -205,6 +205,10 @@
     "reviews": false
   },
   "price_exclusions": null,
+  "price_window": {
+    "hidden": [],
+    "other_vintage_price_range": null
+  },
   "review_ladder": {
     "tier": "none",
     "rungs": [],

@@ -197,7 +197,7 @@ struct WineDetailView: View {
     /// Omitted when neither exists. Nothing is blended (CLAUDE.md §15).
     @ViewBuilder
     private var drinkingWindow: some View {
-        let attributed = DrinkingWindows.attributed(wine.reviewData)
+        let attributed = wine.criticSummary != nil ? DrinkingWindows.attributed(summary: wine.criticSummary) : DrinkingWindows.attributed(wine.reviewData)
         if wine.drinkingWindow != nil || !attributed.isEmpty {
             WidgetCard {
                 if let window = wine.drinkingWindow {

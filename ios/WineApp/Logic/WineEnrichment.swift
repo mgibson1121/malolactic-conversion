@@ -30,6 +30,7 @@ extension Wine {
         case .price:
             wine.priceData = fresh.priceData
             wine.priceExclusions = fresh.priceExclusions
+            wine.priceWindow = fresh.priceWindow
             // The bottling prompt reads both lookups (a price split, a modifier
             // in a review URL); the answer that arrives carries what the server
             // had when it read the wine, which is the best view there is.

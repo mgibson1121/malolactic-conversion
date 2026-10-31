@@ -12,6 +12,7 @@ import { buildBottlingAnswer, buildBottlingPrompt, bottlingOptions } from '@shar
 import { bottlingChoiceUpdates, rescoreListings } from '@shared/utils/bottling-choice'
 import { bottlingDifference, isExactBottling } from '@shared/utils/bottling-difference'
 import { buildReviewLadder, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
+import { priceWindowOf } from '@shared/utils/price-window'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { extractPackFormat } from '../../modules/price/pack-format'
 import { querySerper } from '../../modules/price/serper-query'
@@ -45,21 +46,44 @@ const laCrauShopping: { shopping: Array<{ title: string; source: string; price?:
   JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/serper-shopping-la-crau-2019.json'), 'utf8'))
 
 describe('WI-1 — one ±3-year window for what is displayed', () => {
-  it.failing('Sansonnet 2017 does not display the 2005 page’s scores', () => {
+  it('Sansonnet 2017 does not display the 2005 page’s scores', () => {
     const summary = buildCriticSummary([stored(SANSONNET.page)], SANSONNET.wine.vintage, undefined, SANSONNET.wine)
     expect(summary.ordered).toEqual([])
   })
 
-  it.failing('the Vieux Télégraphe blanc 2012 does not display the 2023 page (11 years away)', () => {
+  it('the Vieux Télégraphe blanc 2012 does not display the 2023 page (11 years away)', () => {
     const w = VIEUX_TELEGRAPHE_BLANC
     const summary = buildCriticSummary([stored(w.page)], w.wine.vintage, undefined, w.wine)
     expect(summary.ordered.every(s => s.vintage == null || Math.abs(s.vintage - w.wine.vintage!) <= SIMILAR_VINTAGE_YEARS)).toBe(true)
   })
 
-  it('today: both are stored and ranked, never rejected (the pipeline keeps recording every gap)', () => {
+  it('the page is still on the ladder with its gap recorded, but it no longer sets a tier', () => {
     const ladder = buildReviewLadder([stored(VIEUX_TELEGRAPHE_BLANC.page)], VIEUX_TELEGRAPHE_BLANC.wine)
     expect(ladder.pages[0].vintage_delta).toBe(11)
-    expect(ladder.tier).toBe('2')
+    expect(ladder.pages[0].rung).toBe('out')
+    expect(ladder.tier).toBe('none')
+  })
+
+  it('a page exactly 3 vintages away is shown; 4 away is not', () => {
+    const at = (page_vintage: number) => buildCriticSummary([stored({ ...SANSONNET.page, page_vintage })], 2017, undefined, SANSONNET.wine).ordered.length
+    expect(at(2014)).toBe(2)
+    expect(at(2020)).toBe(2)
+    expect(at(2013)).toBe(0)
+    expect(at(2021)).toBe(0)
+  })
+
+  it('price rows: 3 years away shown, 4 hidden, nothing removed from price_data', () => {
+    const data = {
+      price_min: null, price_avg: null, price_max: null, other_vintage_price_range: { min: 90, max: 300 }, nearest_retailer: null, fetched_at: '2026-10-31T00:00:00.000Z',
+      retailers: [
+        { slug: 'near', matched_vintage: 2015, vintage_mismatch: true, price: 90, non_standard_format: false },
+        { slug: 'far', matched_vintage: 2016, vintage_mismatch: true, price: 300, non_standard_format: false },
+        { slug: 'unknown', matched_vintage: null, vintage_mismatch: false, price: 120, non_standard_format: false },
+      ],
+    } as unknown as PriceData
+    expect(priceWindowOf(data, 2012)).toEqual({ hidden: ['far'], other_vintage_price_range: { min: 90, max: 90 } })
+    expect(data.retailers).toHaveLength(3)
+    expect(priceWindowOf(data, null)!.hidden).toEqual([])
   })
 })
 

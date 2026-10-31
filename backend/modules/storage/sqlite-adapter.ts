@@ -15,6 +15,7 @@ import type {
   WineFilter,
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
+import { priceWindowOf } from '@shared/utils/price-window'
 import { buildReviewLadder } from '@shared/utils/review-ladder'
 import { buildBottlingAnswer, buildBottlingPrompt, type PromptInput } from '@shared/utils/bottling-prompt'
 import { bottlingWineOf, type BottlingWine } from '@shared/utils/bottling-difference'
@@ -227,6 +228,7 @@ function rowToWine(row: WineRow): WineEntry {
       review_data: reviewData,
     }),
     price_exclusions: describePriceExclusions(priceData),
+    price_window: priceWindowOf(priceData, row.vintage),
     // Phase 12.2 — the review ladder and the bottling prompt, derived from the
     // stored pages and listings against the wine's current identity.
     review_ladder: reviewLadder,

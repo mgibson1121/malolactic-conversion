@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { RetailerPrice, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
 import { effectivePrice } from '@shared/utils/effective-price'
-import { priceExclusionsOf, staleOf } from '../utils/wineDerived'
+import { priceExclusionsOf, priceWindowOfWine, staleOf } from '../utils/wineDerived'
 import { BADGE_EXPLANATIONS, badgeKindOf, type BadgeKind } from '../utils/verificationCopy'
 import { EnrichmentRow } from './EnrichmentRow'
 import { RetailerViewLink } from './RetailerViewLink'
@@ -243,8 +243,12 @@ function AutomatedPrices({
   const stale = staleOf(wine).price
   const exclusions = priceExclusionsOf(wine)
 
+  // Only listings within ±3 vintages are shown (Phase 12.4 WI-1); the rest stay stored.
+  const window = priceWindowOfWine(wine)
+  const visible = data.retailers.filter((r) => !window?.hidden.includes(r.slug))
+  const otherVintages = window ? window.other_vintage_price_range : data.other_vintage_price_range
   const nearest = data.nearest_retailer
-  const others = data.retailers.filter((r) => !(nearest && r.slug === nearest.slug))
+  const others = visible.filter((r) => !(nearest && r.slug === nearest.slug))
 
   const body = (
     <div className="price-section">
@@ -252,7 +256,7 @@ function AutomatedPrices({
 
       {stale && <p className="stale-notice">Fetched for a different version of this wine — may not match. Refresh.</p>}
 
-      {data.retailers.length === 0 ? (
+      {visible.length === 0 ? (
         <>
           <p className="price-not-found">No matching listings found at the configured retailers.</p>
           <div className="price-fetched-at">Checked {new Date(data.fetched_at).toLocaleDateString()}</div>
@@ -295,9 +299,9 @@ function AutomatedPrices({
             </p>
           )}
 
-          {data.other_vintage_price_range && (
+          {otherVintages && (
             <p className="price-other-vintages">
-              Other vintages: {fmt(data.other_vintage_price_range.min)}–{fmt(data.other_vintage_price_range.max)}
+              Other vintages: {fmt(otherVintages.min)}–{fmt(otherVintages.max)}
             </p>
           )}
 

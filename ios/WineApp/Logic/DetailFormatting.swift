@@ -13,8 +13,19 @@ struct AttributedDrinkingWindow: Hashable {
 
 enum DrinkingWindows {
     static func attributed(_ reviews: [RetailerReview]?) -> [AttributedDrinkingWindow] {
+        group(CriticScores.deduped(reviews).map { ($0.publication, $0.drinkingWindow) })
+    }
+
+    /// "Critic windows (for reference)" from the backend's critic summary
+    /// (Phase 12.4 WI-1): one row per publication, and only pages within ±3
+    /// vintages, so a 2005 critic's window no longer sits under a 2017 wine.
+    static func attributed(summary: CriticSummary?) -> [AttributedDrinkingWindow] {
+        group((summary?.ordered ?? []).map { ($0.publication, $0.drinkingWindow) })
+    }
+
+    private static func group(_ scores: [(publication: String, drinkingWindow: CriticDrinkingWindow?)]) -> [AttributedDrinkingWindow] {
         var grouped: [AttributedDrinkingWindow] = []
-        for score in CriticScores.deduped(reviews) {
+        for score in scores {
             guard let start = score.drinkingWindow?.start, let end = score.drinkingWindow?.end else { continue }
             if let i = grouped.firstIndex(where: { $0.start == start && $0.end == end }) {
                 if !grouped[i].publications.contains(score.publication) {
