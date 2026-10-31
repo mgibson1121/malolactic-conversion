@@ -2319,7 +2319,6 @@ summary.link { display: inline-block; font-size: 12px; }
 }
 .btn-hard-refresh:hover { background: var(--accent-soft); }
 .btn-hard-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-hard-refresh-cost { font-weight: 400; color: var(--text-muted); }
 
 /* Four-state critic and price blocks (WI-4): never a vanishing block. */
 .skeleton-line {

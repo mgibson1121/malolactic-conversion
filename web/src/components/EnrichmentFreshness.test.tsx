@@ -11,7 +11,8 @@ const WINE = { id: 'wine-1' } as WineEntry
 
 /** The button wiring every enrichment section uses, in isolation: one click
  * shows what is stored; a separate bordered Hard refresh button (Phase 12.1
- * WI-7, D6) spends credits and says how many. */
+ * WI-7, D6) forces a new search. Since Phase 12.3 WI-1 it states no credit
+ * figure. */
 function Harness({
   fetcher,
   onWineUpdated = () => {},
@@ -23,7 +24,6 @@ function Harness({
   return (
     <div>
       <EnrichmentRow
-        kind="reviews"
         action={reviews}
         label="Refresh Reviews"
         busyLabel="Fetching…"
@@ -65,7 +65,7 @@ describe('enrichment button — cached response handling', () => {
     expect(fetcher).toHaveBeenCalledWith('wine-1', undefined)
   })
 
-  it('shows a separate Hard refresh button with its credit cost, and it forces', async () => {
+  it('shows a separate Hard refresh button, with no credit figure, and it forces', async () => {
     const fetched_at = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
     const fetcher = vi
       .fn()
@@ -73,9 +73,9 @@ describe('enrichment button — cached response handling', () => {
       .mockResolvedValueOnce({ ...WINE, cached: false })
     render(<Harness fetcher={fetcher} />)
 
-    // The cost is on the button before anything is clicked.
-    const hard = screen.getByRole('button', { name: /Hard refresh/ })
-    expect(hard).toHaveTextContent('about 9 credits (up to 24)')
+    const hard = screen.getByRole('button', { name: 'Hard refresh' })
+    expect(hard).toHaveTextContent(/^Hard refresh$/)
+    expect(hard).not.toHaveTextContent(/credit/)
     // The old text link is gone for good.
     expect(screen.queryByRole('button', { name: 'Refresh anyway' })).not.toBeInTheDocument()
 
@@ -93,19 +93,19 @@ describe('enrichment button — cached response handling', () => {
   it('hides Hard refresh until there is data to refresh', () => {
     function Bare() {
       const a = useEnrichmentAction('wine-1', vi.fn(), () => {}, 'x')
-      return <EnrichmentRow kind="price" action={a} label="Fetch Price & retailers" busyLabel="…" freshnessLabel="Price" hasData={false} />
+      return <EnrichmentRow action={a} label="Fetch Price & retailers" busyLabel="…" freshnessLabel="Price" hasData={false} />
     }
     render(<Bare />)
     expect(screen.queryByRole('button', { name: /Hard refresh/ })).not.toBeInTheDocument()
   })
 
-  it('states the price cost as one credit', () => {
+  it('states no credit figure on the price row either', () => {
     function Priced() {
       const a = useEnrichmentAction('wine-1', vi.fn(), () => {}, 'x')
-      return <EnrichmentRow kind="price" action={a} label="Refresh Price & retailers" busyLabel="…" freshnessLabel="Price" hasData />
+      return <EnrichmentRow action={a} label="Refresh Price & retailers" busyLabel="…" freshnessLabel="Price" hasData />
     }
     render(<Priced />)
-    expect(screen.getByRole('button', { name: /Hard refresh/ })).toHaveTextContent('about 1 credit')
+    expect(screen.getByRole('button', { name: /Hard refresh/ })).not.toHaveTextContent(/credit/)
   })
 
   it('still updates the wine from a cached response, so the data is shown either way', async () => {

@@ -178,7 +178,6 @@ export function DiscoveryReview({
           <h3 className="preview-section-title">Critic reviews</h3>
           <CriticReviewsBlock wine={wine} action={reviews} lookupUnderWay={reviewsUnderWay} onWineUpdated={applyUpdate} />
           <EnrichmentRow
-            kind="reviews"
             action={reviews}
             label={reviewsLabel}
             busyLabel="Fetching…"
