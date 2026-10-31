@@ -71,7 +71,7 @@ enum TierCopy {
     static func meaning(_ tier: String) -> String {
         switch tier {
         case "1": return "We found a score for this exact wine and vintage from a critic we trust."
-        case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Scores and drinking windows from vintages within 3 years are used; further ones are shown for reference."
+        case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Only vintages within 3 years are used or shown."
         case "3": return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide."
         default: return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make."
         }
@@ -80,7 +80,7 @@ enum TierCopy {
     static func effect(_ tier: String) -> String {
         switch tier {
         case "1": return "The card badge and the drinking window come from these scores."
-        case "2": return "Scores within 3 vintages can set the card badge and the drinking window, labelled approximate. A critic's window from further away is shown for reference and never merged into yours."
+        case "2": return "These scores can set the card badge and the drinking window, labelled approximate."
         default: return "The card badge is marked “from a different bottling” and the drinking window is approximate."
         }
     }
@@ -180,13 +180,22 @@ struct BottlingBanner: View {
                 .background(Theme.surface2, in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
                 .accessibilityIdentifier("bottling-banner")
             }
+            // Answered: a quiet row instead of the banner (Phase 12.4 WI-4).
+            if wine.bottlingPrompt == nil, let answer = wine.bottlingAnswer {
+                HStack(spacing: 4) {
+                    Text("Bottling: \(answer.label) ·").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    Button("Change") { showSheet = true }
+                        .buttonStyle(.link).font(AppFont.meta())
+                }
+                .accessibilityIdentifier("bottling-answer")
+            }
             if let resultLine {
                 Text(resultLine).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
         }
         .sheet(isPresented: $showSheet) {
-            if let prompt = wine.bottlingPrompt {
-                BottlingSheet(wine: wine, prompt: prompt) { choice in
+            if let options = wine.bottlingPrompt?.options ?? wine.bottlingAnswer?.options {
+                BottlingSheet(wine: wine, options: options) { choice in
                     let outcome = await choose(choice)
                     if case .done(let line) = outcome {
                         resultLine = line
@@ -202,7 +211,7 @@ struct BottlingBanner: View {
 
 private struct BottlingSheet: View {
     let wine: Wine
-    let prompt: BottlingPrompt
+    let options: [BottlingOption]
     let choose: (BottlingChoice) async -> BottlingOutcome
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
@@ -217,7 +226,7 @@ private struct BottlingSheet: View {
                     Text("The results name more than one bottling. Your answer re-scores what we already found. Nothing is searched again.")
                         .font(AppFont.meta())
                 }
-                ForEach(prompt.options, id: \.name) { option in
+                ForEach(options, id: \.name) { option in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(option.name).font(AppFont.body().bold())

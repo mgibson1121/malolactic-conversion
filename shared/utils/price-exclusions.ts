@@ -33,6 +33,7 @@ export function describePriceExclusions(
   let noPrice = 0
   let largeFormat = 0
   let otherBottling = 0
+  let soldOut = 0
   const formats = new Map<string, number>()
 
   for (const r of retailers) {
@@ -42,6 +43,8 @@ export function describePriceExclusions(
       if (r.matched_vintage != null) years.add(r.matched_vintage)
     } else if (r.outside_bottling) {
       otherBottling++
+    } else if (r.sold_out) {
+      soldOut++
     } else if (r.suspected_large_format) {
       largeFormat++
     } else if (r.non_standard_format && !r.normalized) {
@@ -58,6 +61,7 @@ export function describePriceExclusions(
   for (const [name, n] of formats) reasons.push(`${n} ${n === 1 ? name : pluralize(name)}`)
   if (otherBottling > 0) reasons.push(`${otherBottling} naming a different bottling`)
   if (largeFormat > 0) reasons.push(`${largeFormat} priced like a larger format (size unconfirmed)`)
+  if (soldOut > 0) reasons.push(`${soldOut} sold out`)
   if (searchOnly > 0) reasons.push(`${searchOnly} search-only`)
   if (noPrice > 0) reasons.push(`${noPrice} without a price`)
 

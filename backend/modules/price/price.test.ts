@@ -833,7 +833,8 @@ describe('fetchPriceData', () => {
     }]
     mockRenderPageHtml.mockResolvedValue(DRAPPIER_HTML)
     const result = await fetchPriceData(drappierWine)
-    const astor = result!.retailers.find(r => r.slug === 'astor-wines-spirits')
+    // A configured retailer since Phase 12.4, so Pass 1 claims it under its own slug.
+    const astor = result!.retailers.find(r => r.slug === 'astor')
     expect(astor?.price).toBe(189.99)
   })
 

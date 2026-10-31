@@ -23,9 +23,9 @@ export const TIER_COPY: Record<Exclude<ReviewTierId, 'none'>, TierCopy> = {
   '2': {
     phrase: 'same wine, other vintages',
     meaning:
-      'No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Scores and drinking windows from vintages within 3 years are used; further ones are shown for reference.',
+      'No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Only vintages within 3 years are used or shown.',
     effect:
-      'Scores within 3 vintages can set the card badge and the drinking window, labelled approximate. A critic’s window from further away is shown for reference and never merged into yours.',
+      'These scores can set the card badge and the drinking window, labelled approximate.',
   },
   '3': {
     phrase: 'different bottling, same vintage',

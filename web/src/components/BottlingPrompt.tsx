@@ -25,12 +25,17 @@ function kindOf(option: BottlingOption): 'vineyard' | 'cuvee' {
  * every stored listing and review page on the server with no network call and
  * returns the wine; the result line says what changed. Dismissing ("Not sure")
  * does not ask again until a refresh brings a modifier that was not here.
+ *
+ * Once answered — Plain, or a vineyard / cuvée the wine now records — the
+ * banner gives way to a quiet "Bottling: Les Rugiens · Change" row (Phase 12.4
+ * WI-4, the backend's `bottling_answer`); Change reopens the same sheet.
  */
 export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange }: Props) {
   const prompt = wine.bottling_prompt
+  const answer = prompt ? null : wine.bottling_answer
   const [result, setResult] = useState<string | null>(null)
 
-  if (!prompt && !result) return null
+  if (!prompt && !answer && !result) return null
   return (
     <>
       {prompt && (
@@ -44,10 +49,19 @@ export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange }: Prop
           </button>
         </div>
       )}
+      {answer && (
+        <p className="bottling-answer" data-testid="bottling-answer">
+          Bottling: {answer.label} ·{' '}
+          <button type="button" className="btn-link-inline" onClick={() => onOpenChange(true)}>
+            Change
+          </button>
+        </p>
+      )}
       {result && <p className="bottling-result" role="status">{result}</p>}
-      {open && prompt && (
+      {open && (prompt || answer) && (
         <BottlingSheet
           wine={wine}
+          options={prompt?.options ?? answer?.options ?? []}
           onClose={() => onOpenChange(false)}
           onDone={(updated, line) => {
             onWineUpdated(updated)
@@ -62,14 +76,15 @@ export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange }: Prop
 
 function BottlingSheet({
   wine,
+  options,
   onClose,
   onDone,
 }: {
   wine: WineEntry
+  options: BottlingOption[]
   onClose: () => void
   onDone: (wine: WineEntry, line: string) => void
 }) {
-  const prompt = wine.bottling_prompt!
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [typed, setTyped] = useState('')
@@ -100,7 +115,7 @@ function BottlingSheet({
         already found. Nothing is searched again.
       </p>
       <ul className="bottling-options">
-        {prompt.options.map((o) => (
+        {options.map((o) => (
           <li key={o.name} className="bottling-option">
             <div className="bottling-option-head">
               <strong>{o.name}</strong>

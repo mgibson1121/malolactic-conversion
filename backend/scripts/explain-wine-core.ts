@@ -63,7 +63,8 @@ export function explainWine(wine: WineEntry): string[] {
   // ── Reviews ────────────────────────────────────────────────────────────
   line('## Reviews')
   line('stage 1 — queries a live run would send (primary tier shown first; nothing is sent here):')
-  for (const retailer of RETAILER_CONFIG) {
+  // reviewTier 'none' (price-only shops, Phase 12.4) are never searched for reviews.
+  for (const retailer of RETAILER_CONFIG.filter(r => r.reviewTier !== 'none')) {
     line(`  [${retailer.reviewTier}] ${retailer.name}: ${buildQueryVariants(identity, retailer.domain).join('  ||  ')}`)
   }
   const reviews = wine.review_data

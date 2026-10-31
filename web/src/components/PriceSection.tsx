@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { RetailerPrice, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
 import { effectivePrice } from '@shared/utils/effective-price'
-import { priceExclusionsOf, staleOf } from '../utils/wineDerived'
+import { priceExclusionsOf, priceWindowOfWine, staleOf } from '../utils/wineDerived'
 import { BADGE_EXPLANATIONS, badgeKindOf, type BadgeKind } from '../utils/verificationCopy'
 import { EnrichmentRow } from './EnrichmentRow'
 import { RetailerViewLink } from './RetailerViewLink'
@@ -134,20 +134,31 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
           </span>
         )
       )}
-      {r.outside_bottling ? (
-        <span className="format-badge" title={bottlingBadge({ extra: r.bottling_difference?.extra ?? [], missing: r.bottling_difference?.missing ?? [], tierNote: null }) ?? ''}>
+      {r.outside_bottling && r.bottling_difference?.colour ? (
+        // Phase 12.4: a colour other than the wine's says which, not just "outside".
+        <span className="format-badge" title="Left out of the average">
+          {bottlingBadge(r.bottling_difference)}
+        </span>
+      ) : r.outside_bottling ? (
+        <span className="format-badge" title={bottlingBadge({ extra: r.bottling_difference?.extra ?? [], missing: r.bottling_difference?.missing ?? [], colour: r.bottling_difference?.colour }) ?? ''}>
           outside your bottling
         </span>
       ) : (
-        r.bottling_difference && (r.bottling_difference.extra.length > 0 || r.bottling_difference.missing.length > 0) && (
+        r.bottling_difference && (r.bottling_difference.extra.length > 0 || r.bottling_difference.missing.length > 0 || r.bottling_difference.colour) && (
           <span className="format-badge" title="Counted until you say which bottling is yours">
-            {bottlingBadge({ ...r.bottling_difference, tierNote: null })}
+            {bottlingBadge(r.bottling_difference)}
           </span>
         )
       )}
       {r.suspected_large_format && (
         <span className="format-badge" title="Left out of the average">
           price suggests a larger format — size unconfirmed
+        </span>
+      )}
+      {r.sold_out && (
+        // Phase 12.4: the shop's own page says so — shown with its price, never counted.
+        <span className="format-badge" title="Left out of the average">
+          sold out
         </span>
       )}
       {kind && <BadgePill kind={kind} />}
@@ -237,8 +248,12 @@ function AutomatedPrices({
   const stale = staleOf(wine).price
   const exclusions = priceExclusionsOf(wine)
 
+  // Only listings within ±3 vintages are shown (Phase 12.4 WI-1); the rest stay stored.
+  const window = priceWindowOfWine(wine)
+  const visible = data.retailers.filter((r) => !window?.hidden.includes(r.slug))
+  const otherVintages = window ? window.other_vintage_price_range : data.other_vintage_price_range
   const nearest = data.nearest_retailer
-  const others = data.retailers.filter((r) => !(nearest && r.slug === nearest.slug))
+  const others = visible.filter((r) => !(nearest && r.slug === nearest.slug))
 
   const body = (
     <div className="price-section">
@@ -246,7 +261,7 @@ function AutomatedPrices({
 
       {stale && <p className="stale-notice">Fetched for a different version of this wine — may not match. Refresh.</p>}
 
-      {data.retailers.length === 0 ? (
+      {visible.length === 0 ? (
         <>
           <p className="price-not-found">No matching listings found at the configured retailers.</p>
           <div className="price-fetched-at">Checked {new Date(data.fetched_at).toLocaleDateString()}</div>
@@ -289,9 +304,9 @@ function AutomatedPrices({
             </p>
           )}
 
-          {data.other_vintage_price_range && (
+          {otherVintages && (
             <p className="price-other-vintages">
-              Other vintages: {fmt(data.other_vintage_price_range.min)}–{fmt(data.other_vintage_price_range.max)}
+              Other vintages: {fmt(otherVintages.min)}–{fmt(otherVintages.max)}
             </p>
           )}
 

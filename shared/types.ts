@@ -120,14 +120,35 @@ export interface RetailerPrice {
   // Phase 12.2 WI-6 — a product page from another storefront of the same shop
   // (Flatiron's sf. site). Counted for price, never the nearest store.
   other_storefront?: boolean
+  // Phase 12.4 WI-2 — the shop's own product page says it is sold out (a
+  // price-only shop's discovered page). Shown with its price, never counted.
+  sold_out?: boolean
   // Phase 12.2 WI-2 — the listing title it was judged on, and what that title
   // says about the bottling relative to the wine as recorded (both directions).
   // Labelled but counted until the developer answers "Which bottling is
   // yours?"; then re-scored locally and, when it names a different bottling,
   // kept outside the aggregates (`outside_bottling`).
   listing_title?: string
-  bottling_difference?: { extra: string[]; missing: string[] } | null
+  // Phase 12.4: `colour` when the title states a colour other than the wine's
+  // recorded one (a La Crau *Blanc* listing for the red). Kept outside the
+  // aggregates at once — the wine's colour already answers the question.
+  bottling_difference?: { extra: string[]; missing: string[]; colour?: ColourDifference | null } | null
   outside_bottling?: boolean
+}
+
+/** What the price list displays (Phase 12.4 WI-1) — see shared/utils/price-window.ts. */
+export interface PriceWindow {
+  /** Slugs of listings more than ±3 vintages from the wine: kept in price_data, not shown. */
+  hidden: string[]
+  /** "Other vintages: $x–$y" over the listings still shown. */
+  other_vintage_price_range: PriceRange | null
+}
+
+/** A candidate that states a colour other than the wine's (Phase 12.4). */
+export interface ColourDifference {
+  /** The word the candidate uses: "blanc", "rosé", "red". */
+  stated: string
+  wine: WineColor
 }
 
 /** A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7). */
@@ -158,6 +179,8 @@ export interface PriceExcludedCounts {
   link_only: number
   /** Named a different bottling than the one the developer chose (after "Which bottling is yours?"). */
   outside_bottling: number
+  /** The shop's own page says sold out (Phase 12.4). Optional: blobs stored before it lack the key. */
+  sold_out?: number
   /** Dropped by the interquartile fence as a single-point outlier. */
   outlier: number
 }
@@ -401,6 +424,16 @@ export interface BottlingPrompt {
   signature: string
 }
 
+/**
+ * "Bottling: Les Rugiens · Change" (Phase 12.4 WI-4). Derived on every read;
+ * non-null only when the wine was answered (Plain, or a vineyard / cuvée it
+ * records) and no prompt is showing. `options` lets Change reopen the sheet.
+ */
+export interface BottlingAnswer {
+  label: string
+  options: BottlingOption[]
+}
+
 export type BottlingChoice =
   | { choice: 'plain' }
   | { choice: 'vineyard'; name: string }
@@ -543,6 +576,10 @@ export interface WineEntry {
   // prompt when listings or pages name different bottlings.
   review_ladder?: ReviewLadder
   bottling_prompt?: BottlingPrompt | null
+  // Phase 12.4 WI-4 (derived): the quiet answered row, when there is no prompt.
+  bottling_answer?: BottlingAnswer | null
+  // Phase 12.4 WI-1 (derived): which price rows are outside ±3 vintages.
+  price_window?: PriceWindow | null
   // Phase 12.2 WI-2 (stored, migration 010). `bottling_plain`: the developer
   // answered "Plain / no special bottling", so a later refresh does not ask
   // again. `bottling_prompt_dismissed`: the modifier signature of the last
@@ -604,9 +641,9 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt'>>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window'>>
 // The identity snapshot is copied from the wine by the adapter at save time,
 // never supplied by a client.
 export type CreateTastingNoteInput = Omit<

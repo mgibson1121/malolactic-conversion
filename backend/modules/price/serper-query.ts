@@ -40,7 +40,8 @@ const TARGET_RETAILER_COUNT = 5
 interface SerperShoppingItem {
   title: string
   source: string
-  link: string
+  /** Often absent (29 of 40 items for the 2019 La Crau, 2026-10-31); never read. */
+  link?: string
   price?: string
   priceRaw?: number
 }
@@ -114,7 +115,10 @@ function itemToRetailerResult(
     // Labelled in both directions and counted until the developer answers
     // "Which bottling is yours?" (Phase 12.2 D8/D10).
     listing_title: item.title,
-    bottling_difference: { extra: difference.extra, missing: difference.missing },
+    bottling_difference: { extra: difference.extra, missing: difference.missing, colour: difference.colour ?? null },
+    // A colour other than the wine's leaves the aggregates at once (Phase 12.4):
+    // unlike a vineyard or cuvée, the wine's recorded colour already answers it.
+    ...(difference.colour ? { outside_bottling: true } : {}),
   }
 }
 
@@ -174,7 +178,10 @@ function buildFallbackResult(
     // Labelled in both directions and counted until the developer answers
     // "Which bottling is yours?" (Phase 12.2 D8/D10).
     listing_title: item.title,
-    bottling_difference: { extra: difference.extra, missing: difference.missing },
+    bottling_difference: { extra: difference.extra, missing: difference.missing, colour: difference.colour ?? null },
+    // A colour other than the wine's leaves the aggregates at once (Phase 12.4):
+    // unlike a vineyard or cuvée, the wine's recorded colour already answers it.
+    ...(difference.colour ? { outside_bottling: true } : {}),
   }
 }
 
@@ -359,8 +366,13 @@ export async function querySerper(
     item.source !== undefined &&
     retailers.some(r => alnumOnly(item.source).includes(alnumOnly(r.matchKeyword)))
 
+  // No `link` requirement (Phase 12.4, 2026-10-31): buildFallbackResult never
+  // uses it — the URL is built from the merchant name — and Serper omits it on
+  // most items (29 of 40 for the 2019 La Crau, every exact-vintage listing but
+  // one among them), so requiring it filled the top-up with vintage-unknown
+  // listings while the right ones were thrown away.
   const fallback = nonKlItems
-    .filter(scored => !claimed.has(scored) && scored.item.link && scored.item.source)
+    .filter(scored => !claimed.has(scored) && scored.item.source)
     .filter(scored => !isConfiguredMerchant(scored.item))
     .map(scored => buildFallbackResult(scored, linkQuery, ownNames))
 

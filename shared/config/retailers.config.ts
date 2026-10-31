@@ -20,8 +20,15 @@ export interface RetailerConfig {
    *  Cost, not trust: an extended retailer is fully trusted, just not paid for
    *  up front. See docs/specs/2026-08-12-phase-9.2-enrichment-cost-reduction.md.
    *  Affects modules/reviews/ only — price discovery, retailer links and
-   *  nearest-retailer ranking read the whole list regardless. */
-  reviewTier: 'primary' | 'extended'
+   *  nearest-retailer ranking read the whole list regardless.
+   *  'none' (Phase 12.4) — never searched for reviews: a shop that publishes
+   *  no critic scores, kept for price, availability and its link only. */
+  reviewTier: 'primary' | 'extended' | 'none'
+  /** Phase 12.4 WI-2 (developer option (a), 2026-10-31): Google Shopping does
+   *  not list this shop, so its price is discovered with one `site:` organic
+   *  search per wine (two at most) and a read of the product page — the
+   *  structured price when the page carries one, else one GPT-4o call. */
+  priceDiscovery?: 'organic'
 }
 
 // K&L has a NYC store at 45 W 36th St; all others are their primary locations.
@@ -214,6 +221,40 @@ export const RETAILER_CONFIG: RetailerConfig[] = [
     // consistent with the precision used elsewhere in this file.
     lat: 37.7458,
     lng: -122.1994,
+  },
+  // Added 2026-10-31 (Phase 12.4 WI-2) — two shops the developer buys from
+  // that Google Shopping does not list: the 2019 La Crau's 40-item Shopping
+  // response had no Kermit Lynch at all, though its shop sells that exact
+  // wine. Price, availability and link only — neither publishes critic
+  // scores, so `reviewTier: 'none'` keeps every review pass off them. Neither
+  // has a navigable on-site search (Kermit Lynch's is a client-side Swiftype
+  // widget; Astor's an ASP.NET postback — both live-checked with Puppeteer
+  // 2026-10-31), so their Search link is a Google site: search, as Morrell's.
+  {
+    slug: 'kermitlynch',
+    name: 'Kermit Lynch Wine Merchant',
+    // The shop, not the importer site (kermitlynch.com also hosts producer
+    // profiles, which a site: search would return before any product).
+    domain: 'shop.kermitlynch.com',
+    matchKeyword: 'kermit lynch',
+    reviewTier: 'none',
+    priceDiscovery: 'organic',
+    // 1605 San Pablo Ave, Berkeley, CA — approximate.
+    lat: 37.8716,
+    lng: -122.2955,
+  },
+  {
+    slug: 'astor',
+    name: 'Astor Wines & Spirits',
+    domain: 'astorwines.com',
+    // "astor wines", not "astor": alphanumeric matching against Serper's
+    // `source` would otherwise claim any merchant whose name contains "astor".
+    matchKeyword: 'astor wines',
+    reviewTier: 'none',
+    priceDiscovery: 'organic',
+    // 399 Lafayette St, New York, NY — approximate.
+    lat: 40.729,
+    lng: -73.9922,
   },
 ]
 

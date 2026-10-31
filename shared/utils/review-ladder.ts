@@ -5,6 +5,18 @@ import { bottlingBadge, bottlingDifference, isExactBottling, type BottlingDiffer
 /** "Similar vintage" is one rule everywhere: ±3 years (Phase 12.2 D9). */
 export const SIMILAR_VINTAGE_YEARS = 3
 
+/**
+ * What is *displayed* (Phase 12.4 WI-1, developer 2026-10-31): critic scores,
+ * critic windows, price listings and the ladder's tier show only what is
+ * within ±3 vintages of the wine. Display only — the pipeline still records
+ * every gap and rejects nothing. A side with no stated vintage is never
+ * outside (it can't be judged); an NV wine against a vintaged page neither.
+ */
+export function withinSimilarVintage(candidateVintage: number | null | undefined, wineVintage: number | null | undefined): boolean {
+  if (candidateVintage == null || wineVintage == null) return true
+  return Math.abs(candidateVintage - wineVintage) <= SIMILAR_VINTAGE_YEARS
+}
+
 const RUNG_ORDER: ReviewRung[] = ['1', '2', '3', '4', 'out']
 
 /**
@@ -54,6 +66,8 @@ export function reviewBottlingDifference(review: Pick<RetailerReview, 'product_u
  */
 export function rungOf(args: { exact: boolean; delta: number | null; hasTrustedScore: boolean }): ReviewRung {
   const { exact, delta, hasTrustedScore } = args
+  // Beyond ±3 years nothing is displayed (WI-1), so it can't set the tier.
+  if (exact && delta != null && delta > SIMILAR_VINTAGE_YEARS) return 'out'
   if (exact) return delta === 0 && hasTrustedScore ? '1' : '2'
   if (delta === 0) return '3'
   if (delta != null && delta <= SIMILAR_VINTAGE_YEARS) return '4'

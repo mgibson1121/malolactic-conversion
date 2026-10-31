@@ -13,8 +13,19 @@ struct AttributedDrinkingWindow: Hashable {
 
 enum DrinkingWindows {
     static func attributed(_ reviews: [RetailerReview]?) -> [AttributedDrinkingWindow] {
+        group(CriticScores.deduped(reviews).map { ($0.publication, $0.drinkingWindow) })
+    }
+
+    /// "Critic windows (for reference)" from the backend's critic summary
+    /// (Phase 12.4 WI-1): one row per publication, and only pages within ±3
+    /// vintages, so a 2005 critic's window no longer sits under a 2017 wine.
+    static func attributed(summary: CriticSummary?) -> [AttributedDrinkingWindow] {
+        group((summary?.ordered ?? []).map { ($0.publication, $0.drinkingWindow) })
+    }
+
+    private static func group(_ scores: [(publication: String, drinkingWindow: CriticDrinkingWindow?)]) -> [AttributedDrinkingWindow] {
         var grouped: [AttributedDrinkingWindow] = []
-        for score in CriticScores.deduped(reviews) {
+        for score in scores {
             guard let start = score.drinkingWindow?.start, let end = score.drinkingWindow?.end else { continue }
             if let i = grouped.firstIndex(where: { $0.start == start && $0.end == end }) {
                 if !grouped[i].publications.contains(score.publication) {
@@ -91,8 +102,9 @@ enum DetailFormatting {
     }
 
     /// "Names Monvigliero — yours doesn't" / "Doesn't name X — yours does" (Phase 12.2 D8); nil for the same bottling.
-    static func bottlingBadge(extra: [String], missing: [String]) -> String? {
+    static func bottlingBadge(extra: [String], missing: [String], colour: ColourDifference? = nil) -> String? {
         func titled(_ words: [String]) -> String { words.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ") }
+        if let colour { return "\(titled([colour.stated])) — yours is \(colour.wine)" }
         if !extra.isEmpty { return "Names \(titled(extra)) — yours doesn't" }
         if !missing.isEmpty { return "Doesn't name \(titled(missing)) — yours does" }
         return nil
@@ -187,9 +199,13 @@ enum RetailerTable {
             badges.append(.format(r.formatLabel))
         }
         if r.suspectedLargeFormat == true { badges.append(.format("larger format? size unconfirmed")) }
-        if r.outsideBottling == true {
+        if r.soldOut == true { badges.append(.format("sold out")) }
+        if r.outsideBottling == true, let d = r.bottlingDifference, let colour = d.colour,
+           let text = DetailFormatting.bottlingBadge(extra: d.extra, missing: d.missing, colour: colour) {
+            badges.append(.format(text))
+        } else if r.outsideBottling == true {
             badges.append(.format("outside your bottling"))
-        } else if let d = r.bottlingDifference, let text = DetailFormatting.bottlingBadge(extra: d.extra, missing: d.missing) {
+        } else if let d = r.bottlingDifference, let text = DetailFormatting.bottlingBadge(extra: d.extra, missing: d.missing, colour: d.colour) {
             badges.append(.format(text))
         }
         if r.linkOnly { badges.append(.searchOnly) }

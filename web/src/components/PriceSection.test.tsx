@@ -78,7 +78,7 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
   describe('listings found but none counted — the Marcoux case', () => {
     const data = makeTestPriceData(
       [
-        makeTestRetailer({ slug: 'a', vintage_mismatch: true, matched_vintage: 2020 }),
+        makeTestRetailer({ slug: 'a', vintage_mismatch: true, matched_vintage: 2020, price: 68 }),
         makeTestRetailer({ slug: 'b', non_standard_format: true, bottle_size_ml: 1500, format_label: '1.5L' }),
         makeTestRetailer({ slug: 'c', link_only: true, price: null }),
       ],
@@ -90,12 +90,48 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
       expect(screen.getByText(/3 listings found, none counted toward the average/)).toBeInTheDocument()
       expect(screen.getByText(/1 other vintage \(2020\), 1 magnum, 1 search-only/)).toBeInTheDocument()
       expect(screen.queryByText('—')).not.toBeInTheDocument()
-      expect(screen.getByText('Other vintages: $68–$199')).toBeInTheDocument()
+      // Recomputed over the listings shown (Phase 12.4 WI-1), not the stored range.
+      expect(screen.getByText('Other vintages: $68–$68')).toBeInTheDocument()
     })
 
     it('prefers the sentence the backend sent', () => {
       renderBlock(makeTestWine({ price_data: data, price_exclusions: { found: 3, reasons: [], sentence: 'Backend says hi.' } }))
       expect(screen.getByText('Backend says hi.')).toBeInTheDocument()
+    })
+  })
+
+  it('a sold-out listing from a price-only shop shows its price and says so (Phase 12.4 WI-2)', async () => {
+    const data = makeTestPriceData([
+      makeTestRetailer({ slug: 'a', name: 'A Shop', price: 100 }),
+      makeTestRetailer({ slug: 'kermitlynch', name: 'Kermit Lynch Wine Merchant', price: 105, sold_out: true, is_search_results_page: false }),
+    ])
+    renderBlock(makeTestWine({ price_data: data }))
+    await userEvent.click(screen.getByRole('button', { name: /more retailer/ }))
+    expect(screen.getByText('sold out')).toBeInTheDocument()
+  })
+
+  describe('±3-year window (Phase 12.4 WI-1)', () => {
+    const wine = (retailers: ReturnType<typeof makeTestRetailer>[]) => makeTestWine({ vintage: 2012, price_data: makeTestPriceData(retailers) })
+
+    it('shows a listing exactly 3 years away and hides one 4 years away; the stored data keeps both', async () => {
+      const w = wine([
+        makeTestRetailer({ slug: 'near', name: 'Near Shop', vintage_mismatch: true, matched_vintage: 2015, price: 90 }),
+        makeTestRetailer({ slug: 'far', name: 'Far Shop', vintage_mismatch: true, matched_vintage: 2016, price: 300 }),
+        makeTestRetailer({ slug: 'eleven', name: 'Eleven Shop', vintage_mismatch: true, matched_vintage: 2023, price: 140 }),
+      ])
+      renderBlock(w)
+      // One row in the window, so "1 more retailer" — not 3.
+      await userEvent.click(screen.getByRole('button', { name: '1 more retailer' }))
+      expect(screen.getByText(/Near Shop/)).toBeInTheDocument()
+      expect(screen.queryByText(/Far Shop/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Eleven Shop/)).not.toBeInTheDocument()
+      expect(screen.getByText('Other vintages: $90–$90')).toBeInTheDocument()
+      expect(w.price_data!.retailers).toHaveLength(3)
+    })
+
+    it('a wine whose only listings are outside the window says nothing was found, never a blank area', () => {
+      renderBlock(wine([makeTestRetailer({ slug: 'eleven', name: 'Eleven Shop', vintage_mismatch: true, matched_vintage: 2023 })]))
+      expect(screen.getByText(/No matching listings found/)).toBeInTheDocument()
     })
   })
 

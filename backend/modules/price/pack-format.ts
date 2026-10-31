@@ -66,6 +66,9 @@ function parsePackQuantities(title: string): number[] {
   if (packMatch) found.push(parseInt(packMatch[1], 10))
   const caseOfMatch = title.match(/\bcase of (\d{1,2})\b/i)
   if (caseOfMatch) found.push(parseInt(caseOfMatch[1], 10))
+  // "750 mL | 6 bottles" (BlockCellar, 2026-10-31). Two or more only: "1 bottle" is a single.
+  const bottlesMatch = title.match(/\b(\d{1,2})\s?(?:bottles|btls)\b/i)
+  if (bottlesMatch && parseInt(bottlesMatch[1], 10) >= 2) found.push(parseInt(bottlesMatch[1], 10))
   if (/\bdozen\b/i.test(title)) found.push(12)
   if (/\bhalf[\s-]?case\b/i.test(title)) found.push(6)
   if (/\bfull[\s-]?case\b/i.test(title)) found.push(12)

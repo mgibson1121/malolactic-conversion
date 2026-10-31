@@ -24,6 +24,7 @@ export function isCountable(r: RetailerResult): boolean {
     (!r.non_standard_format || !!r.normalized) &&
     !r.suspected_large_format &&
     !r.outside_bottling &&
+    !r.sold_out &&
     !r.link_only &&
     countedPrice(r) !== null
   )
@@ -125,7 +126,7 @@ export function excludeExtremeOutliers(prices: number[]): number[] {
   return kept.length > 0 ? kept : prices
 }
 
-export type ExclusionReason = keyof Omit<PriceExcludedCounts, 'outlier'> | 'no_price' | 'outside_bottling'
+export type ExclusionReason = keyof Omit<PriceExcludedCounts, 'outlier' | 'sold_out'> | 'no_price' | 'outside_bottling' | 'sold_out'
 
 /**
  * Why a listing is kept out of the headline, in the priority order the counts
@@ -139,6 +140,7 @@ export function exclusionReason(r: RetailerResult): ExclusionReason | null {
   if (r.non_standard_format && !r.normalized) return r.pack_quantity > 1 ? 'pack' : 'non_standard_format'
   if (r.suspected_large_format) return 'suspected_large_format'
   if (r.outside_bottling) return 'outside_bottling'
+  if (r.sold_out) return 'sold_out'
   if (countedPrice(r) === null) return 'no_price'
   return null
 }
@@ -245,11 +247,12 @@ export function aggregatePriceData(retailers: RetailerResult[]): PriceData {
     suspected_large_format: 0,
     link_only: 0,
     outside_bottling: 0,
+    sold_out: 0,
     outlier: outliers,
   }
   for (const r of retailers) {
     const why = exclusionReason(r)
-    if (why && why !== 'no_price') excluded[why]++
+    if (why && why !== 'no_price') excluded[why] = (excluded[why] ?? 0) + 1
   }
 
   // Prices found for a different year of this wine (2026-08-05). Reported

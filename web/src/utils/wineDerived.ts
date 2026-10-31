@@ -1,9 +1,10 @@
-import type { CriticSummary, PriceExclusions, ReviewLadder, WindowStatus, WineEntry } from '@shared/types'
+import type { CriticSummary, PriceExclusions, PriceWindow, ReviewLadder, WindowStatus, WineEntry } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
 import { normalizeLadder } from '@shared/utils/review-ladder'
 import { windowStatusOf } from '@shared/utils/window-status'
+import { priceWindowOf } from '@shared/utils/price-window'
 
 /**
  * The backend computes these on every wine read (Phase 12.1) and the web
@@ -32,4 +33,9 @@ export function priceExclusionsOf(wine: Pick<WineEntry, 'price_exclusions' | 'pr
 /** The review ladder, with tiers under their Phase 12.3 names ('3a'/'3b' from an older backend read as 3/4). */
 export function ladderOf(wine: Pick<WineEntry, 'review_ladder'>): ReviewLadder | null {
   return wine.review_ladder ? normalizeLadder(wine.review_ladder) : null
+}
+
+/** Which price rows are outside ±3 vintages, and the "Other vintages" range over the rest (Phase 12.4 WI-1). */
+export function priceWindowOfWine(wine: Pick<WineEntry, 'price_window' | 'price_data' | 'vintage'>): PriceWindow | null {
+  return wine.price_window !== undefined ? wine.price_window : priceWindowOf(wine.price_data, wine.vintage)
 }

@@ -29,7 +29,8 @@ describe('rungOf (D9)', () => {
   it.each([
     [{ exact: true, delta: 0, hasTrustedScore: true }, '1'],
     [{ exact: true, delta: 0, hasTrustedScore: false }, '2'],
-    [{ exact: true, delta: 4, hasTrustedScore: true }, '2'],
+    // Beyond ±3 years nothing is displayed (Phase 12.4 WI-1), so it sets no tier.
+    [{ exact: true, delta: 4, hasTrustedScore: true }, 'out'],
     [{ exact: true, delta: null, hasTrustedScore: true }, '2'],
     [{ exact: false, delta: 0, hasTrustedScore: true }, '3'],
     [{ exact: false, delta: 1, hasTrustedScore: true }, '4'],

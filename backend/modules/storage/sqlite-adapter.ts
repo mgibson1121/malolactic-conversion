@@ -15,8 +15,9 @@ import type {
   WineFilter,
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
+import { priceWindowOf } from '@shared/utils/price-window'
 import { buildReviewLadder } from '@shared/utils/review-ladder'
-import { buildBottlingPrompt } from '@shared/utils/bottling-prompt'
+import { buildBottlingAnswer, buildBottlingPrompt, type PromptInput } from '@shared/utils/bottling-prompt'
 import { bottlingWineOf, type BottlingWine } from '@shared/utils/bottling-difference'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
@@ -153,10 +154,20 @@ function rowToWine(row: WineRow): WineEntry {
 
   const bottlingWine: BottlingWine = bottlingWineOf({
     ...row,
+    wine_color: (row.wine_color as WineEntry['wine_color']) ?? null,
     grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
     bottling_plain: row.bottling_plain == null ? null : row.bottling_plain === 1,
   })
   const reviewLadder = buildReviewLadder(reviewData, bottlingWine)
+  const promptInput: PromptInput = {
+    wine: bottlingWine,
+    price_data: priceData,
+    review_data: reviewData,
+    review_ladder: reviewLadder,
+    bottling_plain: bottlingWine.bottling_plain,
+    bottling_prompt_dismissed: row.bottling_prompt_dismissed ?? null,
+  }
+  const bottlingPrompt = buildBottlingPrompt(promptInput)
 
   return {
     id: row.id,
@@ -217,17 +228,12 @@ function rowToWine(row: WineRow): WineEntry {
       review_data: reviewData,
     }),
     price_exclusions: describePriceExclusions(priceData),
+    price_window: priceWindowOf(priceData, row.vintage),
     // Phase 12.2 — the review ladder and the bottling prompt, derived from the
     // stored pages and listings against the wine's current identity.
     review_ladder: reviewLadder,
-    bottling_prompt: buildBottlingPrompt({
-      wine: bottlingWine,
-      price_data: priceData,
-      review_data: reviewData,
-      review_ladder: reviewLadder,
-      bottling_plain: bottlingWine.bottling_plain,
-      bottling_prompt_dismissed: row.bottling_prompt_dismissed ?? null,
-    }),
+    bottling_prompt: bottlingPrompt,
+    bottling_answer: buildBottlingAnswer(promptInput, bottlingPrompt),
   }
 }
 

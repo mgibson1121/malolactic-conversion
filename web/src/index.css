@@ -2528,6 +2528,7 @@ summary.link { display: inline-block; font-size: 12px; }
 .critic-different-bottling { font-style: italic; }
 .bottling-banner { background: var(--surface-2, #f3ece3); border-radius: 8px; padding: 8px 12px; margin: 8px 0; font-size: 0.9em; }
 .bottling-result { font-size: 0.85em; margin: 4px 0; }
+.bottling-answer { font-size: 0.85em; margin: 4px 0; color: var(--text-muted); }
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: flex-end; justify-content: center; z-index: 1000; }
 .sheet { background: var(--surface, #fff); width: min(560px, 100%); max-height: 80vh; overflow: auto; border-radius: 16px 16px 0 0; padding: 16px; }
 .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }

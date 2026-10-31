@@ -1,7 +1,7 @@
 import { TRUSTED_CRITICS } from '../config/trusted-critics.config'
 import type { CriticSummary, CriticSummaryItem, RetailerReview } from '../types'
 import { bottlingBadge, isExactBottling, type BottlingWine } from './bottling-difference'
-import { reviewBottlingDifference, rungOf, vintageDelta } from './review-ladder'
+import { reviewBottlingDifference, rungOf, vintageDelta, withinSimilarVintage } from './review-ladder'
 
 /**
  * Orders a wine's critic scores by the developer's trusted-reviewer
@@ -43,6 +43,9 @@ export function buildCriticSummary(
   let order = 0
   for (const review of reviewData ?? []) {
     const pageVintage = review.page_vintage ?? null
+    // Displayed only within ±3 vintages (Phase 12.4 WI-1): Sansonnet 2017 no
+    // longer shows a 2005 page's scores. Still stored, still on the ladder.
+    if (!withinSimilarVintage(pageVintage, wineVintage)) continue
     const sameVintage = wineIsNv ? pageVintage == null : pageVintage != null && pageVintage === wineVintage
     const diff = wine ? reviewBottlingDifference(review, wine) : null
     const exact = diff ? isExactBottling(diff) : true

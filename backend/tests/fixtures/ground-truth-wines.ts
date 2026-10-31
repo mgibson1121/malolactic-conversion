@@ -210,3 +210,125 @@ export const KNOWN_BAD: GroundTruthCase[] = [
     disqualifiedBy: 'producer',
   },
 ]
+
+// ─── Field-test round 2 (Phase 12.4 WI-0, 2026-10-31) ────────────────────────
+//
+// The cases from the developer's 2026-10-31 device test, as stored in the live
+// database that day (read with backend/scripts/explain-wine.ts, zero calls).
+// Unlike the batch above, each is a whole wine with the stored pages or
+// listings that show the defect. Consumed by
+// backend/tests/unit/field-test-round-2.test.ts; a case still open is an
+// `it.failing` there, and turns green when its 12.4 work item lands.
+// Spec: docs/specs/2026-10-31-phase-12.3-to-12.5-field-test-round-2.md.
+
+export interface RoundTwoWine {
+  label: string
+  producer: string
+  denomination: string
+  vintage: number | null
+  cuvee: string | null
+  vineyard: string | null
+  quality_classification: null
+}
+
+const wine = (label: string, w: Omit<RoundTwoWine, 'label' | 'quality_classification'>): RoundTwoWine =>
+  ({ label, quality_classification: null, ...w })
+
+/** WI-1: a 2005 page with two scores, stored against the 2017 (12 years away). */
+export const SANSONNET = {
+  wine: wine('Château Sansonnet · Saint-Émilion 2017', { producer: 'Château Sansonnet', denomination: 'Saint-Émilion', vintage: 2017, cuvee: null, vineyard: null }),
+  page: {
+    slug: 'winelibrary', name: 'Wine Library', page_vintage: 2005,
+    product_url: 'https://winelibrary.com/wines/cabernet-franc/2005-chateau-sansonnet-7252',
+    scores: [{ publication: 'Wine Spectator', score: 92 }, { publication: 'Vinous', score: 89 }],
+  },
+}
+
+/**
+ * WI-1: the blanc, 2012, holds a single page — Woodland's 2023 La Crau
+ * (11 years away, five scores). Also worth knowing: the wine is recorded as
+ * white and the page is almost certainly the rouge; colour is not a matching
+ * dimension today.
+ */
+export const VIEUX_TELEGRAPHE_BLANC = {
+  wine: wine('Domaine Vieux Télégraphe · Châteauneuf-du-Pape La Crau 2012 (blanc)', { producer: 'Domaine Vieux Télégraphe', denomination: 'Châteauneuf-du-Pape', vintage: 2012, cuvee: null, vineyard: 'La Crau' }),
+  page: {
+    slug: 'woodland', name: 'Woodland Hills Wine Co.', page_vintage: 2023,
+    product_url: 'https://whwc.com/vieux-telegraphe-chateauneuf-du-pape-la-crau-2023/',
+    scores: [
+      { publication: 'JamesSuckling.com', score: 98 }, { publication: 'Bettane & Desseauve Guide', score: 96 },
+      { publication: 'Jeb Dunnuck', score: 95 }, { publication: 'Wine Spectator', score: 94 }, { publication: 'Vinous', score: 94 },
+    ],
+  },
+}
+
+/**
+ * WI-4: answered "Albert Bichot" (the owner's name, offered as a modifier
+ * because the Wine Spectator URL and both listing titles carry it). The
+ * answer was saved as the vineyard, the leftover words regrouped into new
+ * options, and the banner came back with no refresh.
+ */
+export const PAVILLON = {
+  wine: wine('Domaine du Pavillon · Pommard 2019', { producer: 'Domaine du Pavillon', denomination: 'Pommard', vintage: 2019, cuvee: null, vineyard: null }),
+  answer: 'Albert Bichot',
+  page: {
+    slug: 'fallback-winespectator-com', name: 'winespectator.com', page_vintage: 2020,
+    product_url: 'https://www.winespectator.com/wine/wine-detail/id/1290660/name/albert-bichot-pommard-les-rugiens-domaine-du-pavillon-2020/guest',
+  },
+  /** As stored by the fetch, including the bottling difference it recorded then. */
+  listings: [
+    { title: 'Albert Bichot Domaine Du Pavillon Les Rugiens Pommard Premier Cru 2020 750ml', extra: ['rugiens'] },
+    { title: 'Albert Bichot Domaine du Pavillon Pommard Premier cru Les Rugiens', extra: ['rugiens'] },
+  ],
+}
+
+/**
+ * WI-5: every stored listing read "12L" — the producer's name. Fixed in code
+ * by #44 (merged 2026-10-05 00:46Z); this wine's price_data was fetched at
+ * 00:25Z, 21 minutes earlier, so the stored blob is stale, not the code. The
+ * title below is reconstructed from Crush's URL slug
+ * (crushwineco.com/products/2022-franck-balthazar-cornas-les-chaillots-1-5-l);
+ * the raw Shopping title is not stored.
+ */
+export const BALTHAZAR = {
+  wine: wine('Franck Balthazar · Cornas Chaillot 2020', { producer: 'Franck Balthazar', denomination: 'Cornas', vintage: 2020, cuvee: null, vineyard: 'Chaillot' }),
+  crushTitle: '2022 Franck Balthazar Cornas Les Chaillots 1.5 L',
+}
+
+/**
+ * WI-2: Kermit Lynch sells this exact wine and vintage
+ * (https://shop.kermitlynch.com/product/detail/19FVT02 — Puppeteer render
+ * 2026-10-31: "2019 Châteauneuf-du-Pape “La Crau” Domaine du Vieux
+ * Télégraphe"), but it is **not in the Shopping response**: one live query
+ * on 2026-10-31 (serper-shopping-la-crau-2019.json, 40 items) has no Kermit
+ * Lynch item at all — cause 1, Google Shopping doesn't list it.
+ *
+ * The same response shows why the stored five were the wrong five: Pass 2
+ * keeps only items with a Serper `link` (which the fallback never uses), and
+ * 29 of 40 items have none — every exact-2019 listing but Benchmark's among
+ * them. The top-up then filled with vintage-unknown listings, one a Blanc.
+ */
+export const LA_CRAU_2019 = {
+  wine: wine('Domaine du Vieux Télégraphe · Châteauneuf-du-Pape La Crau 2019', { producer: 'Domaine du Vieux Télégraphe', denomination: 'Châteauneuf-du-Pape', vintage: 2019, cuvee: 'La Crau', vineyard: null }),
+  kermitLynch: {
+    url: 'https://shop.kermitlynch.com/product/detail/19FVT02',
+    title: '2019 Châteauneuf-du-Pape “La Crau” Domaine du Vieux Télégraphe',
+  },
+  storedListings: 5,
+}
+
+/**
+ * WI-2: Astor item 31372 is "Littorai Pinot Noir, Sonoma Coast — 2025, 750 mL,
+ * $84.99" (Puppeteer render 2026-10-31). The wine in the cellar is recorded as
+ * the Hirsch Vineyard 2024: a different bottling and vintage, so the matcher
+ * labels it rather than counting it. Whether the record or the expectation is
+ * wrong is the developer's call.
+ */
+export const LITTORAI = {
+  wine: wine('Littorai · Sonoma Coast Hirsch Vineyard 2024', { producer: 'Littorai', denomination: 'Sonoma Coast', vintage: 2024, cuvee: null, vineyard: 'Hirsch Vineyard' }),
+  astor: {
+    url: 'https://www.astorwines.com/SearchResultsSingle.aspx?search=31372&searchtype=Contains',
+    title: 'Littorai Pinot Noir, Sonoma Coast 2025',
+    price: 84.99,
+  },
+}

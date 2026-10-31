@@ -1,4 +1,4 @@
-import type { RetailerReview } from '@shared/types'
+import type { CriticSummaryItem, RetailerReview } from '@shared/types'
 import { getDedupedCriticScores } from './criticScores'
 
 // One distinct drinking window, carrying every publication that stated it.
@@ -27,9 +27,23 @@ export interface AttributedDrinkingWindow {
 export function getAttributedDrinkingWindows(
   reviewData: RetailerReview[] | null | undefined
 ): AttributedDrinkingWindow[] {
+  return groupWindows(getDedupedCriticScores(reviewData))
+}
+
+/**
+ * The detail screen's "Critic windows (for reference)" (Phase 12.4 WI-1): from
+ * the backend's critic summary, which is already one row per publication and
+ * holds only pages within ±3 vintages — so a 2005 critic's window no longer
+ * sits under a 2017 wine.
+ */
+export function attributedWindowsOfSummary(items: Array<Pick<CriticSummaryItem, 'publication' | 'drinking_window'>>): AttributedDrinkingWindow[] {
+  return groupWindows(items)
+}
+
+function groupWindows(scores: Array<Pick<CriticSummaryItem, 'publication' | 'drinking_window'>>): AttributedDrinkingWindow[] {
   const grouped: AttributedDrinkingWindow[] = []
 
-  for (const score of getDedupedCriticScores(reviewData)) {
+  for (const score of scores) {
     const w = score.drinking_window
     if (!w || w.start === null || w.end === null) continue
 

@@ -95,3 +95,13 @@ describe('extractPackFormat — the wine\'s own name is never a format', () => {
     expect(pageStatedFormat('<h1>Franck Balthazar Cornas Chaillot 2020 (1.5L)</h1>', balthazar)).toEqual({ pack_quantity: 1, bottle_size_ml: 1500 })
   })
 })
+
+describe('"N bottles" (Phase 12.4, BlockCellar 2026-10-31)', () => {
+  it('reads "750 mL | 6 bottles" as a six-pack of standard bottles', () => {
+    expect(extractPackFormat('Vieux Telegraphe La Crau Rouge Chateauneuf-du-Pape 2019 | 750 mL | 6 bottles')).toEqual({ pack_quantity: 6, bottle_size_ml: 750 })
+  })
+
+  it('a single "1 bottle" stays a single', () => {
+    expect(extractPackFormat('Some Wine 2019 - 1 bottle').pack_quantity).toBe(1)
+  })
+})

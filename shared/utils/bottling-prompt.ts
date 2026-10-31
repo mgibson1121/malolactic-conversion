@@ -1,8 +1,8 @@
-import type { BottlingOption, BottlingPrompt, PriceData, RetailerReview, ReviewLadder } from '../types'
-import { modifierName, type BottlingWine } from './bottling-difference'
+import type { BottlingAnswer, BottlingOption, BottlingPrompt, PriceData, RetailerReview, ReviewLadder } from '../types'
+import { bottlingDifference, modifierName, type BottlingWine } from './bottling-difference'
 import { reviewBottlingDifference } from './review-ladder'
 
-interface PromptInput {
+export interface PromptInput {
   wine: BottlingWine
   price_data: PriceData | null | undefined
   review_data: RetailerReview[] | null | undefined
@@ -35,7 +35,11 @@ export function bottlingOptions(input: Pick<PromptInput, 'wine' | 'price_data' |
   }
 
   for (const r of input.price_data?.retailers ?? []) {
-    const extra = r.bottling_difference?.extra ?? []
+    // Judged against the wine as it is now, like the review pages below — the
+    // difference stored at fetch time goes stale the moment Edit or an answer
+    // changes the vineyard or cuvée (Phase 12.4 WI-4). A listing stored
+    // without its title keeps what it has.
+    const extra = r.listing_title ? bottlingDifference({ title: r.listing_title }, input.wine).extra : (r.bottling_difference?.extra ?? [])
     if (extra.length === 0) continue
     const o = option(extra)
     o.count += 1
@@ -78,12 +82,34 @@ export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
   if (reasons.length === 0) return null
 
   const signature = bottlingSignature(list)
-  // Asked and answered (or dismissed) for these modifiers: quiet until a
-  // refresh brings one that was not among them.
-  if (input.bottling_prompt_dismissed != null) {
-    const known = new Set(input.bottling_prompt_dismissed.split('|').filter(Boolean))
-    if (list.every(o => known.has(o.name.toLowerCase()))) return null
-  }
+  // Asked and answered (or dismissed): quiet until a refresh brings a word that
+  // was not among those shown then. Compared word by word, not by option name
+  // (Phase 12.4 WI-4): an answer changes the wine's identity, which regroups
+  // the same leftover words into differently named options — Domaine du
+  // Pavillon's "Name Albert Bichot Rugiens Guest" came back as "Name Rugiens
+  // Guest" the moment it was answered, and the banner with it.
+  if (answeredFor(input.bottling_prompt_dismissed, list)) return null
 
   return { reasons, options: list, signature }
+}
+
+function answeredFor(dismissed: string | null | undefined, options: BottlingOption[]): boolean {
+  if (dismissed == null) return false
+  const known = new Set(dismissed.split(/[|\s]+/).filter(Boolean))
+  return options.every(o => o.name.toLowerCase().split(/\s+/).every(w => known.has(w)))
+}
+
+/**
+ * The quiet "Bottling: Les Rugiens · Change" row (Phase 12.4 WI-4): the wine
+ * was answered — Plain, or a vineyard / cuvée it now records — and nothing new
+ * is being asked. Carries the current options so Change can reopen the sheet.
+ * "Not sure" leaves no row: it keeps its no-re-ask rule and nothing else.
+ */
+export function buildBottlingAnswer(input: PromptInput, prompt: BottlingPrompt | null): BottlingAnswer | null {
+  if (prompt) return null
+  const answered = input.bottling_plain === true || input.bottling_prompt_dismissed != null
+  if (!answered) return null
+  const label = input.bottling_plain ? 'Plain' : [input.wine.vineyard, input.wine.cuvee].filter(Boolean).join(' · ')
+  if (!label) return null
+  return { label, options: bottlingOptions(input) }
 }

@@ -60,8 +60,9 @@ export function rescoreListings(retailers: RetailerPrice[], wine: BottlingWine, 
   return retailers.map(r => {
     if (!r.listing_title) return r
     const d = bottlingDifference({ title: r.listing_title }, wine)
-    const next: RetailerPrice = { ...r, bottling_difference: { extra: d.extra, missing: d.missing } }
+    const next: RetailerPrice = { ...r, bottling_difference: { extra: d.extra, missing: d.missing, colour: d.colour ?? null } }
     if (mark) next.outside_bottling = !isExactBottling(d)
+    else if (d.colour) next.outside_bottling = true
     return next
   })
 }

@@ -1,5 +1,5 @@
 {
-  "id": "0bed1294-aa0a-45ec-898a-ab4066c3a3ac",
+  "id": "956db807-b64b-48c4-9920-508bf4fa75d9",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -144,7 +144,7 @@
         "missing": []
       }
     },
-    "fetched_at": "2026-10-31T20:02:18.787Z",
+    "fetched_at": "2026-10-31T21:08:11.604Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -152,6 +152,7 @@
       "suspected_large_format": 0,
       "link_only": 0,
       "outside_bottling": 0,
+      "sold_out": 0,
       "outlier": 0
     },
     "normalized": 0,
@@ -272,7 +273,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-10-31T20:02:18.787Z",
+  "date_added": "2026-10-31T21:08:11.603Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -340,6 +341,10 @@
     "reviews": false
   },
   "price_exclusions": null,
+  "price_window": {
+    "hidden": [],
+    "other_vintage_price_range": null
+  },
   "review_ladder": {
     "tier": "1",
     "rungs": [
@@ -485,5 +490,6 @@
       }
     ],
     "signature": "castiglione|monvigliero|rocche"
-  }
+  },
+  "bottling_answer": null
 }
