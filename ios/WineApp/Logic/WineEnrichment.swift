@@ -34,6 +34,7 @@ extension Wine {
             // in a review URL); the answer that arrives carries what the server
             // had when it read the wine, which is the best view there is.
             wine.bottlingPrompt = fresh.bottlingPrompt
+            wine.bottlingAnswer = fresh.bottlingAnswer
             wine.enrichmentStale = EnrichmentStale(
                 price: fresh.enrichmentStale?.price ?? false,
                 reviews: wine.enrichmentStale?.reviews ?? false
@@ -50,6 +51,7 @@ extension Wine {
             wine.criticSummary = fresh.criticSummary
             wine.reviewLadder = fresh.reviewLadder
             wine.bottlingPrompt = fresh.bottlingPrompt
+            wine.bottlingAnswer = fresh.bottlingAnswer
             wine.enrichmentStale = EnrichmentStale(
                 price: wine.enrichmentStale?.price ?? false,
                 reviews: fresh.enrichmentStale?.reviews ?? false

@@ -167,6 +167,14 @@ struct BottlingPrompt: Codable, Hashable {
     var signature: String
 }
 
+/// "Bottling: Les Rugiens · Change" (Phase 12.4 WI-4): non-nil only when the
+/// wine was answered (Plain, or a vineyard / cuvée it records) and no prompt is
+/// showing. `options` lets Change reopen the sheet.
+struct BottlingAnswer: Codable, Hashable {
+    var label: String
+    var options: [BottlingOption]
+}
+
 struct CriticSummary: Codable, Hashable {
     var ordered: [CriticSummaryItem]
 }
@@ -238,6 +246,7 @@ struct Wine: Codable, Identifiable, Hashable {
     var priceExclusions: PriceExclusions?
     var reviewLadder: ReviewLadder?
     var bottlingPrompt: BottlingPrompt?
+    var bottlingAnswer: BottlingAnswer?
     /// The developer answered "Plain / no special bottling".
     var bottlingPlain: Bool?
 
@@ -285,6 +294,7 @@ struct Wine: Codable, Identifiable, Hashable {
         case priceExclusions = "price_exclusions"
         case reviewLadder = "review_ladder"
         case bottlingPrompt = "bottling_prompt"
+        case bottlingAnswer = "bottling_answer"
         case bottlingPlain = "bottling_plain"
         case priceData = "price_data"
         case retailerLinks = "retailer_links"

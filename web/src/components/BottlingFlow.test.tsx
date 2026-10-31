@@ -160,3 +160,31 @@ describe('pages found without a score (Phase 12.2 WI-5)', () => {
     expect(screen.queryByTestId('scoreless-pages')).not.toBeInTheDocument()
   })
 })
+
+describe('Answered: "Bottling: X · Change" (Phase 12.4 WI-4)', () => {
+  const answered = (extra: Record<string, unknown> = {}) =>
+    wineAt('2', {
+      vineyard: 'Les Rugiens',
+      bottling_prompt: null,
+      bottling_answer: { label: 'Les Rugiens', options: [{ name: 'Albert Bichot', words: ['albert', 'bichot'], retailers: ['McScrooges'], critics: [], price_range: null, links: [], count: 2 }] },
+      ...extra,
+    })
+
+  it('shows a quiet row instead of the banner, and Change reopens the sheet with the current options', async () => {
+    render(<CriticReviewsBlock wine={answered()} action={idle} onWineUpdated={() => {}} />)
+    expect(screen.queryByTestId('bottling-banner')).not.toBeInTheDocument()
+    const row = screen.getByTestId('bottling-answer')
+    expect(row).toHaveTextContent('Bottling: Les Rugiens · Change')
+    await userEvent.click(within(row).getByRole('button', { name: 'Change' }))
+    const sheet = screen.getByRole('dialog', { name: 'Which bottling is yours?' })
+    expect(sheet).toHaveTextContent('Albert Bichot')
+    expect(sheet).toHaveTextContent('Plain / no special bottling')
+  })
+
+  it('a prompt, when there is one, wins over the row', () => {
+    const prompt = { reasons: ['modifiers' as const], signature: 'x|y', options: [] }
+    render(<CriticReviewsBlock wine={answered({ bottling_prompt: prompt })} action={idle} onWineUpdated={() => {}} />)
+    expect(screen.getByTestId('bottling-banner')).toBeInTheDocument()
+    expect(screen.queryByTestId('bottling-answer')).not.toBeInTheDocument()
+  })
+})

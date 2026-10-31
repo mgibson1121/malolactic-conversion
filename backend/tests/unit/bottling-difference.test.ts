@@ -117,3 +117,26 @@ describe('bottlingDifference — false positives are costly, so ordinary shop wo
     expect(modifierName(['vieilles', 'vignes'])).toBe('Vieilles Vignes')
   })
 })
+
+describe('URL words come from the product slug only (Phase 12.4, 2026-10-31)', () => {
+  const pavillon = { producer: 'Domaine du Pavillon', denomination: 'Pommard', vintage: 2019, cuvee: null, vineyard: 'Les Rugiens', quality_classification: null }
+
+  it('ignores the path segments around the slug (Wine Spectator /name/…/guest)', () => {
+    const d = bottlingDifference({ url: 'https://www.winespectator.com/wine/wine-detail/id/1290660/name/albert-bichot-pommard-les-rugiens-domaine-du-pavillon-2020/guest' }, pavillon)
+    expect(d.extra).not.toContain('guest')
+    expect(d.extra).not.toContain('name')
+    expect(d.extra).not.toContain('detail')
+    expect(d.missing).toEqual([])
+  })
+
+  it('ignores a folder such as a grape category', () => {
+    const sansonnet = { producer: 'Château Sansonnet', denomination: 'Saint-Émilion', vintage: 2017, cuvee: null, vineyard: null, quality_classification: null }
+    const d = bottlingDifference({ url: 'https://winelibrary.com/wines/cabernet-franc/2005-chateau-sansonnet-7252' }, sansonnet)
+    expect(d.extra).toEqual([])
+  })
+
+  it('still reads a modifier that is in the slug', () => {
+    const vietti = { producer: 'Vietti', denomination: 'Barolo', vintage: 2021, cuvee: null, vineyard: null, quality_classification: null }
+    expect(bottlingDifference({ url: 'https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/' }, vietti).extra).toContain('monvigliero')
+  })
+})

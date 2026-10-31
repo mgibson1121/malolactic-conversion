@@ -74,6 +74,7 @@ const NOT_A_BOTTLING_NAME = new Set([
   'docg', 'doca', 'aoc', 'aop', 'igp', 'igt', 'vdlt', 'vdp', 'vino',
   // colour and style
   'red', 'white', 'rose', 'rosso', 'rouge', 'blanc', 'bianco', 'tinto', 'blanco', 'rosado', 'sparkling', 'still', 'dry', 'sweet', 'brut', 'nature', 'organic', 'biodynamic',
+  'blend', 'blends',
   // grapes
   'nebbiolo', 'sangiovese', 'barbera', 'dolcetto', 'corvina', 'rondinella', 'molinara', 'merlot', 'cabernet', 'sauvignon', 'franc', 'syrah', 'shiraz', 'grenache',
   'mourvedre', 'pinot', 'noir', 'gris', 'grigio', 'chardonnay', 'riesling', 'chenin', 'semillon', 'viognier', 'tempranillo', 'garnacha', 'malbec', 'zinfandel', 'gamay',
@@ -103,11 +104,23 @@ export interface BottlingWine extends WineIdentity {
   bottling_plain?: boolean | null
 }
 
+/**
+ * The words of a URL's product slug — the path segment with the most words —
+ * not of the whole path (Phase 12.4, 2026-10-31). Folders and trailing
+ * segments are site furniture, not the wine: Wine Spectator's
+ * `/wine/wine-detail/id/…/name/<slug>/guest` turned "name" and "guest" into a
+ * bottling the developer was asked to choose, and "/blogs/" and grape folders
+ * ("/wines/cabernet-franc/…") did the same elsewhere.
+ */
 function slugWords(url: string | null | undefined): string {
   if (!url) return ''
   try {
-    const path = decodeURIComponent(new URL(url).pathname)
-    return path.replace(/\.[a-z]{2,5}$/i, ' ').replace(/[/_-]+/g, ' ')
+    const segments = decodeURIComponent(new URL(url).pathname)
+      .split('/')
+      .map(s => s.replace(/\.[a-z]{2,5}$/i, '').split(/[_-]+/).filter(Boolean))
+    // Ties go to the later segment: the product sits after its folders.
+    const slug = segments.reduce<string[]>((best, s) => (s.length >= best.length ? s : best), [])
+    return slug.join(' ')
   } catch {
     return ''
   }

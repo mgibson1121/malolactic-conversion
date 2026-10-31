@@ -17,6 +17,7 @@ import { findDuplicate } from '@shared/utils/duplicate-match'
 import { effectivePrice } from '@shared/utils/effective-price'
 import { aggregatePriceData } from '../modules/price/aggregate'
 import { bottlingDifference } from '@shared/utils/bottling-difference'
+import { bottlingChoiceUpdates } from '@shared/utils/bottling-choice'
 import type { CreateWineInput, PriceData, RetailerPrice, RetailerReview } from '@shared/types'
 
 const OUT_DIR = path.resolve(__dirname, '../../ios/WineAppTests/Fixtures')
@@ -228,6 +229,16 @@ async function main() {
     ],
   })
 
+  // Phase 12.4 WI-4: the same Vietti, answered "Castiglione" the way
+  // POST /:id/choose-bottling answers it — no prompt, the quiet answered row.
+  const viettiRead = (await storage.getWine(vietti.id))!
+  const answeredCopy = await storage.createWine({ ...BASE, producer: 'Vietti', denomination: 'Barolo', vintage: 2021, vineyard: null, quality_classification: null, region: 'Piedmont' })
+  await storage.updateWine(answeredCopy.id, {
+    tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z',
+    price_data: viettiRead.price_data, review_data: viettiRead.review_data,
+    ...bottlingChoiceUpdates(viettiRead, { choice: 'vineyard', name: 'Castiglione' }),
+  })
+
   // A note whose wine was deleted: it outlives the wine (migration 008).
   const doomed = await storage.createWine({ ...BASE, producer: 'Georges Roumier', denomination: 'Chambolle-Musigny', vintage: 2018 })
   await storage.updateWine(doomed.id, { tag_cellar: true, promoted_at: '2026-10-01T00:00:00.000Z' })
@@ -262,6 +273,7 @@ async function main() {
     'wine-price-normalized.json': await storage.getWine(packed.id),
     'wine-price-ambiguous.json': await storage.getWine(split.id),
     'wine-bottling-prompt.json': await storage.getWine(vietti.id),
+    'wine-bottling-answered.json': await storage.getWine(answeredCopy.id),
     'tasting-note-removed.json': await storage.getTastingNote(detached.id),
     'tasting-notes-all.json': await storage.listTastingNotes(),
     'effective-price-cases.json': priceCases,

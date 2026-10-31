@@ -1,5 +1,5 @@
 {
-  "id": "c68e5762-f12b-4e86-bb94-4d0b8d480609",
+  "id": "003b2015-4641-4a7e-8a75-91b33664fcce",
   "producer": "Marcoux",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2019,
@@ -112,7 +112,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-10-11T18:01:07.282Z",
+  "date_added": "2026-10-31T20:28:49.539Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -138,5 +138,6 @@
     "rungs": [],
     "pages": []
   },
-  "bottling_prompt": null
+  "bottling_prompt": null,
+  "bottling_answer": null
 }

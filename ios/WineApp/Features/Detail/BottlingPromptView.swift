@@ -178,13 +178,22 @@ struct BottlingBanner: View {
                 .background(Theme.surface2, in: RoundedRectangle(cornerRadius: Theme.buttonRadius))
                 .accessibilityIdentifier("bottling-banner")
             }
+            // Answered: a quiet row instead of the banner (Phase 12.4 WI-4).
+            if wine.bottlingPrompt == nil, let answer = wine.bottlingAnswer {
+                HStack(spacing: 4) {
+                    Text("Bottling: \(answer.label) ·").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    Button("Change") { showSheet = true }
+                        .buttonStyle(.link).font(AppFont.meta())
+                }
+                .accessibilityIdentifier("bottling-answer")
+            }
             if let resultLine {
                 Text(resultLine).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
         }
         .sheet(isPresented: $showSheet) {
-            if let prompt = wine.bottlingPrompt {
-                BottlingSheet(wine: wine, prompt: prompt) { choice in
+            if let options = wine.bottlingPrompt?.options ?? wine.bottlingAnswer?.options {
+                BottlingSheet(wine: wine, options: options) { choice in
                     let outcome = await choose(choice)
                     if case .done(let line) = outcome {
                         resultLine = line
@@ -200,7 +209,7 @@ struct BottlingBanner: View {
 
 private struct BottlingSheet: View {
     let wine: Wine
-    let prompt: BottlingPrompt
+    let options: [BottlingOption]
     let choose: (BottlingChoice) async -> BottlingOutcome
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
@@ -215,7 +224,7 @@ private struct BottlingSheet: View {
                     Text("The results name more than one bottling. Your answer re-scores what we already found. Nothing is searched again.")
                         .font(AppFont.meta())
                 }
-                ForEach(prompt.options, id: \.name) { option in
+                ForEach(options, id: \.name) { option in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(option.name).font(AppFont.body().bold())

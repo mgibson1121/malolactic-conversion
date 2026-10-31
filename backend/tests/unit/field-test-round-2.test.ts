@@ -8,7 +8,7 @@
  */
 import type { PriceData, RetailerPrice, RetailerReview } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
-import { buildBottlingPrompt, bottlingOptions } from '@shared/utils/bottling-prompt'
+import { buildBottlingAnswer, buildBottlingPrompt, bottlingOptions } from '@shared/utils/bottling-prompt'
 import { bottlingChoiceUpdates, rescoreListings } from '@shared/utils/bottling-choice'
 import { bottlingDifference, isExactBottling } from '@shared/utils/bottling-difference'
 import { buildReviewLadder, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
@@ -68,12 +68,12 @@ describe('WI-4 — a bottling answer sticks (Domaine du Pavillon)', () => {
   const reviews = [stored(PAVILLON.page)]
   const prices = priceData(PAVILLON.listings)
 
-  it('the prompt is raised on the stored data; the owner’s name and the URL’s path words come through as an option', () => {
+  it('the URL’s path words ("name", "guest") no longer become an option; the owner’s name still rides along with the vineyard', () => {
     const names = bottlingOptions({ wine: before, price_data: prices, review_data: reviews }).map(o => o.name.toLowerCase())
-    expect(names.sort()).toEqual(['name albert bichot rugiens guest', 'rugiens'])
+    expect(names).toEqual(['albert bichot rugiens'])
   })
 
-  it.failing('answering does not bring the banner straight back', () => {
+  it('answering does not bring the banner straight back', () => {
     const updates = bottlingChoiceUpdates({ ...before, price_data: prices, review_data: reviews } as never, { choice: 'vineyard', name: PAVILLON.answer })
     const after = { ...before, ...updates }
     // What POST /:id/choose-bottling does next: re-score the stored listings locally.
@@ -84,6 +84,31 @@ describe('WI-4 — a bottling answer sticks (Domaine du Pavillon)', () => {
       bottling_plain: updates.bottling_plain, bottling_prompt_dismissed: updates.bottling_prompt_dismissed,
     })
     expect(prompt).toBeNull()
+  })
+})
+
+describe('WI-4 — Pavillon as it stands after the 2026-10-31 Edit (vineyard Les Rugiens, the old answer kept)', () => {
+  const now = { ...PAVILLON.wine, vineyard: 'Les Rugiens' }
+  const reviews = [stored(PAVILLON.page)]
+  const prices = priceData(PAVILLON.listings)
+  const input = {
+    wine: now, price_data: prices, review_data: reviews, review_ladder: buildReviewLadder(reviews, now),
+    bottling_plain: null, bottling_prompt_dismissed: 'albert bichot|name albert bichot guest|albert bichot',
+  }
+
+  it('asks nothing: the stored listing differences ("rugiens") are re-judged against the wine as it is now', () => {
+    expect(buildBottlingPrompt(input)).toBeNull()
+  })
+
+  it('shows the quiet answered row instead, with the options for Change', () => {
+    const answer = buildBottlingAnswer(input, null)
+    expect(answer?.label).toBe('Les Rugiens')
+    expect(answer?.options.map(o => o.name)).toEqual(['Albert Bichot'])
+  })
+
+  it('no row for a wine that was never answered, or answered "Not sure" with nothing recorded', () => {
+    expect(buildBottlingAnswer({ ...input, bottling_prompt_dismissed: null }, null)).toBeNull()
+    expect(buildBottlingAnswer({ ...input, wine: { ...now, vineyard: null } }, null)).toBeNull()
   })
 })
 
