@@ -126,8 +126,18 @@ export interface RetailerPrice {
   // yours?"; then re-scored locally and, when it names a different bottling,
   // kept outside the aggregates (`outside_bottling`).
   listing_title?: string
-  bottling_difference?: { extra: string[]; missing: string[] } | null
+  // Phase 12.4: `colour` when the title states a colour other than the wine's
+  // recorded one (a La Crau *Blanc* listing for the red). Kept outside the
+  // aggregates at once — the wine's colour already answers the question.
+  bottling_difference?: { extra: string[]; missing: string[]; colour?: ColourDifference | null } | null
   outside_bottling?: boolean
+}
+
+/** A candidate that states a colour other than the wine's (Phase 12.4). */
+export interface ColourDifference {
+  /** The word the candidate uses: "blanc", "rosé", "red". */
+  stated: string
+  wine: WineColor
 }
 
 /** A pack, case or magnum counted at a 750 ml-equivalent price (Phase 12.2 D7). */

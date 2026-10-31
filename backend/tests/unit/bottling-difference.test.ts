@@ -140,3 +140,35 @@ describe('URL words come from the product slug only (Phase 12.4, 2026-10-31)', (
     expect(bottlingDifference({ url: 'https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/' }, vietti).extra).toContain('monvigliero')
   })
 })
+
+describe('Colour is a matching dimension (Phase 12.4, developer 2026-10-31)', () => {
+  const laCrau = { producer: 'Domaine du Vieux Télégraphe', denomination: 'Châteauneuf-du-Pape', vintage: 2019, cuvee: 'La Crau', vineyard: null, quality_classification: null }
+
+  it('a Blanc listing is a different bottling of a red wine, with a badge that says so', () => {
+    const d = bottlingDifference({ title: '2019 Vieux Telegraphe Chateauneuf-du-Pape La Crau Blanc 750ml' }, { ...laCrau, wine_color: 'red' })
+    expect(d.colour).toEqual({ stated: 'blanc', wine: 'red' })
+    expect(isExactBottling(d)).toBe(false)
+    expect(bottlingBadge(d)).toBe('Blanc — yours is red')
+  })
+
+  it('the same colour, or none stated, is not a difference', () => {
+    expect(bottlingDifference({ title: 'Vieux Telegraphe La Crau Rouge Chateauneuf-du-Pape 2019' }, { ...laCrau, wine_color: 'red' }).colour).toBeNull()
+    expect(isExactBottling(bottlingDifference({ title: 'Domaine du Vieux Telegraphe Chateauneuf du Pape La Crau 2019' }, { ...laCrau, wine_color: 'red' }))).toBe(true)
+  })
+
+  it('an unrecorded colour is never judged', () => {
+    expect(bottlingDifference({ title: 'La Crau Blanc 2019 Vieux Telegraphe Chateauneuf-du-Pape' }, laCrau).colour).toBeNull()
+  })
+
+  it('a colour word in the wine’s own name is not a statement about the candidate', () => {
+    const cdrBlanc = { producer: 'E. Guigal', denomination: 'Côtes du Rhône Blanc', vintage: 2022, cuvee: null, vineyard: null, quality_classification: null, wine_color: 'white' as const }
+    expect(bottlingDifference({ title: 'Guigal Cotes du Rhone Blanc 2022' }, cdrBlanc).colour).toBeNull()
+  })
+
+  it('rosé against white is a difference; "Sauvignon Blanc" on a white is not', () => {
+    const champagne = { producer: 'Billecart-Salmon', denomination: 'Champagne', vintage: null, cuvee: null, vineyard: null, quality_classification: null, wine_color: 'white' as const }
+    expect(bottlingDifference({ title: 'Billecart-Salmon Brut Rosé NV' }, champagne).colour?.stated).toBe('rose')
+    const sancerre = { producer: 'Vacheron', denomination: 'Sancerre', vintage: 2022, cuvee: null, vineyard: null, quality_classification: null, wine_color: 'white' as const }
+    expect(bottlingDifference({ title: 'Vacheron Sancerre Sauvignon Blanc 2022' }, sancerre).colour).toBeNull()
+  })
+})

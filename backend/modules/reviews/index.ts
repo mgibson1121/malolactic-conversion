@@ -318,6 +318,7 @@ export async function fetchReviewData(
 
   const identity: BottlingWine = {
     ...identityOf(wine),
+    wine_color: wine.wine_color,
     region: wine.region,
     grape_varieties: wine.grape_varieties,
     bottling_plain: wine.bottling_plain,

@@ -1,5 +1,5 @@
 import type { MatchVerdict } from '@shared/utils/wine-match'
-import type { HeadlineBasis, NormalizedFormat, PriceExcludedCounts, PriceGroup, VerificationState } from '@shared/types'
+import type { ColourDifference, HeadlineBasis, NormalizedFormat, PriceExcludedCounts, PriceGroup, VerificationState } from '@shared/types'
 
 export interface RetailerResult {
   slug: string
@@ -82,7 +82,7 @@ export interface RetailerResult {
   other_storefront?: boolean
   // Phase 12.2 WI-2 — see RetailerPrice in shared/types.ts.
   listing_title?: string
-  bottling_difference?: { extra: string[]; missing: string[] } | null
+  bottling_difference?: { extra: string[]; missing: string[]; colour?: ColourDifference | null } | null
   outside_bottling?: boolean
 }
 

@@ -134,14 +134,19 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
           </span>
         )
       )}
-      {r.outside_bottling ? (
-        <span className="format-badge" title={bottlingBadge({ extra: r.bottling_difference?.extra ?? [], missing: r.bottling_difference?.missing ?? [], tierNote: null }) ?? ''}>
+      {r.outside_bottling && r.bottling_difference?.colour ? (
+        // Phase 12.4: a colour other than the wine's says which, not just "outside".
+        <span className="format-badge" title="Left out of the average">
+          {bottlingBadge(r.bottling_difference)}
+        </span>
+      ) : r.outside_bottling ? (
+        <span className="format-badge" title={bottlingBadge({ extra: r.bottling_difference?.extra ?? [], missing: r.bottling_difference?.missing ?? [], colour: r.bottling_difference?.colour }) ?? ''}>
           outside your bottling
         </span>
       ) : (
-        r.bottling_difference && (r.bottling_difference.extra.length > 0 || r.bottling_difference.missing.length > 0) && (
+        r.bottling_difference && (r.bottling_difference.extra.length > 0 || r.bottling_difference.missing.length > 0 || r.bottling_difference.colour) && (
           <span className="format-badge" title="Counted until you say which bottling is yours">
-            {bottlingBadge({ ...r.bottling_difference, tierNote: null })}
+            {bottlingBadge(r.bottling_difference)}
           </span>
         )
       )}

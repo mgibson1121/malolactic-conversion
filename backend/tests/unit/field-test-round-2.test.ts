@@ -137,6 +137,13 @@ describe('WI-2 — retailers the developer shops at', () => {
       expect(laCrauShopping.shopping.some(i => /kermit/i.test(i.source))).toBe(false)
     })
 
+    it('with the wine’s colour recorded (red), no La Crau Blanc listing is counted', async () => {
+      const { retailers } = await querySerper('Domaine du Vieux Telegraphe Chateauneuf-du-Pape La Crau 2019', RETAILER_CONFIG, 'stub', { ...LA_CRAU_2019.wine, wine_color: 'red' }, 'Domaine du Vieux Telegraphe Chateauneuf-du-Pape La Crau')
+      const blanc = retailers.filter(r => /blanc/i.test(r.listing_title ?? ''))
+      expect(blanc.every(r => r.outside_bottling === true)).toBe(true)
+      expect(retailers.filter(r => !r.outside_bottling).every(r => !/blanc/i.test(r.listing_title ?? ''))).toBe(true)
+    })
+
     it('the top-up keeps exact-vintage listings that Serper sent without a `link` (the fallback never uses it)', async () => {
       const { retailers } = await run()
       expect(retailers.map(r => r.name)).toEqual(expect.arrayContaining(['CaskCartel.com', 'Tribeca Wine Merchants']))

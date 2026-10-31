@@ -153,6 +153,7 @@ function rowToWine(row: WineRow): WineEntry {
 
   const bottlingWine: BottlingWine = bottlingWineOf({
     ...row,
+    wine_color: (row.wine_color as WineEntry['wine_color']) ?? null,
     grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
     bottling_plain: row.bottling_plain == null ? null : row.bottling_plain === 1,
   })

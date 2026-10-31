@@ -115,7 +115,10 @@ function itemToRetailerResult(
     // Labelled in both directions and counted until the developer answers
     // "Which bottling is yours?" (Phase 12.2 D8/D10).
     listing_title: item.title,
-    bottling_difference: { extra: difference.extra, missing: difference.missing },
+    bottling_difference: { extra: difference.extra, missing: difference.missing, colour: difference.colour ?? null },
+    // A colour other than the wine's leaves the aggregates at once (Phase 12.4):
+    // unlike a vineyard or cuvée, the wine's recorded colour already answers it.
+    ...(difference.colour ? { outside_bottling: true } : {}),
   }
 }
 
@@ -175,7 +178,10 @@ function buildFallbackResult(
     // Labelled in both directions and counted until the developer answers
     // "Which bottling is yours?" (Phase 12.2 D8/D10).
     listing_title: item.title,
-    bottling_difference: { extra: difference.extra, missing: difference.missing },
+    bottling_difference: { extra: difference.extra, missing: difference.missing, colour: difference.colour ?? null },
+    // A colour other than the wine's leaves the aggregates at once (Phase 12.4):
+    // unlike a vineyard or cuvée, the wine's recorded colour already answers it.
+    ...(difference.colour ? { outside_bottling: true } : {}),
   }
 }
 

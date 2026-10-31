@@ -8,6 +8,7 @@ import {
   tokenSet,
   type WineIdentity,
 } from './wine-match'
+import type { ColourDifference, WineColor } from '../types'
 
 /**
  * Modifiers count in both directions (Phase 12.2 D8, WI-2).
@@ -33,12 +34,35 @@ export interface BottlingDifference {
   missing: string[]
   /** "Gran Reserva" / "Riserva" … omitted or added; labelled, never a rejection. */
   tierNote: string | null
+  /** The candidate states a colour other than the wine's recorded one (Phase 12.4). Optional: older callers build differences without it. */
+  colour?: ColourDifference | null
+}
+
+/**
+ * Colour words, and the colour each states (Phase 12.4, developer decision
+ * 2026-10-31). Colour was never a naming word — "Blanc" and "Rouge" sit in
+ * NOT_A_BOTTLING_NAME — so a Vieux Télégraphe *La Crau Blanc* listing matched
+ * the red La Crau as the exact wine. Now, when the wine's colour is recorded
+ * and a candidate states a different one, it is a different bottling. A
+ * candidate that states none is not judged on colour.
+ */
+const COLOUR_WORDS: Record<string, WineColor> = {
+  red: 'red', rouge: 'red', rosso: 'red', tinto: 'red',
+  white: 'white', blanc: 'white', bianco: 'white', blanco: 'white', weiss: 'white', branco: 'white',
+  rose: 'rosé', rosato: 'rosé', rosado: 'rosé',
+}
+
+function colourDifference(text: string, own: Set<string>, wineColour: WineColor | null | undefined): ColourDifference | null {
+  if (!wineColour) return null
+  const stated = normalize(text).split(/\s+/).filter(w => COLOUR_WORDS[w] && !own.has(w))
+  if (stated.length === 0 || stated.some(w => COLOUR_WORDS[w] === wineColour)) return null
+  return { stated: stated[0], wine: wineColour }
 }
 
 export const NO_DIFFERENCE: BottlingDifference = { extra: [], missing: [], tierNote: null }
 
-export function isExactBottling(d: BottlingDifference | null | undefined): boolean {
-  return !d || (d.extra.length === 0 && d.missing.length === 0)
+export function isExactBottling(d: Pick<BottlingDifference, 'extra' | 'missing' | 'colour'> | null | undefined): boolean {
+  return !d || (d.extra.length === 0 && d.missing.length === 0 && !d.colour)
 }
 
 /**
@@ -97,6 +121,8 @@ export interface BottlingCandidate {
 
 /** The wine fields this judgement needs. Region and grapes are ignored as naming words. */
 export interface BottlingWine extends WineIdentity {
+  /** The recorded colour; null when unknown, and then colour is never judged. */
+  wine_color?: WineColor | null
   region?: string | null
   grape_varieties?: string[] | null
   /** The developer's answer "Plain / no special bottling": nothing the wine
@@ -183,7 +209,11 @@ export function bottlingDifference(candidate: BottlingCandidate, wine: BottlingW
         ? `Says ${title(added)}`
         : null
 
-  return { extra, missing, tierNote }
+  // A colour word that is part of the wine's own name ("Côtes du Rhône Blanc"
+  // recorded as the denomination) is not a statement about this candidate.
+  const colour = colourDifference(`${text} ${candidate.pageBottling ?? ''}`, ownTokens, wine.wine_color)
+
+  return { extra, missing, tierNote, colour }
 }
 
 function title(words: string[]): string {
@@ -195,8 +225,9 @@ export function modifierName(extra: string[]): string {
   return title(extra)
 }
 
-/** The badge a row carries, in either direction (spec WI-2.2). */
-export function bottlingBadge(d: BottlingDifference): string | null {
+/** The badge a row carries, in either direction (spec WI-2.2); a colour difference first. */
+export function bottlingBadge(d: Pick<BottlingDifference, 'extra' | 'missing' | 'colour'>): string | null {
+  if (d.colour) return `${title([d.colour.stated])} — yours is ${d.colour.wine}`
   if (d.extra.length > 0) return `Names ${modifierName(d.extra)} — yours doesn't`
   if (d.missing.length > 0) return `Doesn't name ${modifierName(d.missing)} — yours does`
   return null
@@ -210,6 +241,7 @@ export function bottlingWineOf(wine: {
   cuvee: string | null
   vineyard: string | null
   quality_classification: string | null
+  wine_color?: WineColor | null
   region?: string | null
   grape_varieties?: string[] | null
   bottling_plain?: boolean | null
@@ -221,6 +253,7 @@ export function bottlingWineOf(wine: {
     cuvee: wine.cuvee,
     vineyard: wine.vineyard,
     quality_classification: wine.quality_classification,
+    wine_color: wine.wine_color ?? null,
     region: wine.region ?? null,
     grape_varieties: wine.grape_varieties ?? null,
     bottling_plain: wine.bottling_plain ?? null,

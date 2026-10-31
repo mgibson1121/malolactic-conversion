@@ -25,3 +25,20 @@ final class BottlingAnswerDecodingTests: XCTestCase {
         XCTAssertEqual(stale.applying(fresh, from: .price).bottlingAnswer, fresh.bottlingAnswer)
     }
 }
+
+/// Phase 12.4: colour is a matching dimension. A La Crau Blanc listing for the red.
+final class ColourBadgeTests: XCTestCase {
+    func testAColourDifferenceSaysWhichColour() {
+        let colour = ColourDifference(stated: "blanc", wine: "red")
+        XCTAssertEqual(DetailFormatting.bottlingBadge(extra: [], missing: [], colour: colour), "Blanc — yours is red")
+        XCTAssertEqual(DetailFormatting.bottlingBadge(extra: ["monvigliero"], missing: []), "Names Monvigliero — yours doesn't")
+    }
+
+    func testTheColourDecodesFromAListing() throws {
+        let json = Data(#"{"extra":[],"missing":[],"colour":{"stated":"blanc","wine":"red"}}"#.utf8)
+        let d = try JSONDecoder().decode(ListingBottlingDifference.self, from: json)
+        XCTAssertEqual(d.colour?.stated, "blanc")
+        let legacy = try JSONDecoder().decode(ListingBottlingDifference.self, from: Data(#"{"extra":["rocche"],"missing":[]}"#.utf8))
+        XCTAssertNil(legacy.colour)
+    }
+}

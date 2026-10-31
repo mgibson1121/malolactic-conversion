@@ -192,6 +192,14 @@ struct PriceExcludedCounts: Codable, Hashable {
 struct ListingBottlingDifference: Codable, Hashable {
     var extra: [String]
     var missing: [String]
+    /// Phase 12.4: the listing states a colour other than the wine's.
+    var colour: ColourDifference?
+}
+
+struct ColourDifference: Codable, Hashable {
+    /// The word the listing uses: "blanc", "rose", "red".
+    var stated: String
+    var wine: String
 }
 
 enum HeadlineBasis: String, Codable {
