@@ -1,5 +1,5 @@
 # CLAUDE.md — Technical Context
-> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-10-05
+> Wine app project | Placeholder name: [APP_NAME] | Last updated: 2026-10-31
 > This file is the technical counterpart to `wine-app-product-context.md`. Read both before making any architectural or implementation decisions.
 
 ---
@@ -378,6 +378,12 @@ Because the repo is authoritative, the Claude.ai project context copies exist on
 (**Note, 2026-08-16:** the Claude.ai project copies of this file and `wine-app-product-context.md` had drifted significantly — describing Phase 1/2-era Google Sheets/Wine-Searcher/Reddit/status-enum design well after the repo had moved through Phase 9.2. Synced back up as part of Phase 9.3's documentation work.)
 
 (**Note, 2026-09-04:** the gap above recurred in a sharper form. A Claude AI session drafted Phase 10.5 as backend-only and held it in Claude.ai project context without pushing it to the repo, while a separate Claude Code session — working from the same original requirements but unable to see that draft — built a materially different (backend + frontend) implementation directly against the repo and merged it as PR #30. Neither side knew about the other's version until the developer's review surfaced the discrepancy. Reviewed and reconciled as Phase 10.6. The Roles section and direct-push workflow above exist specifically to prevent this recurring — the fix is Claude AI publishing to the same repo Claude Code reads, on the same cadence, not a better manual sync habit.)
+
+**Claude AI session startup (added 2026-10-31).** The Project's docs reach every session automatically. The local folder and the repository do not, so a Claude AI planning session connects them itself at the start, before its first doc read or edit, without waiting to be asked:
+1. Call `get_device_info`. If `Wine-Project` is not in `connectedFolders`, request access to `~/Claude_Code_Projects/Wine-Project` with `device_request_folder_access` (the developer approves it each session). Treat that folder as read-only for git; writes follow the doc-commit procedure below.
+2. Where the session offers `add_repo`, attach `mgibson1121/malolactic-conversion` with push access. Where it does not, the scratch-clone push in the procedure below is the route.
+3. Run the drift check (procedure step 1) before editing any planning doc.
+Say in one sentence what was connected and what could not be.
 
 **Claude AI doc-commit procedure (added 2026-10-10).** A planning session's doc edit is not done until it is visible on `origin/main`; the Project copy is refreshed last, never first. In order:
 1. At session start, fetch `origin/main` and diff it against the Project copies of the docs about to change; if the repo is ahead, take the repo version as the base.
