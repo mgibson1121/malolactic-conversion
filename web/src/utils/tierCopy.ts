@@ -27,17 +27,17 @@ export const TIER_COPY: Record<Exclude<ReviewTierId, 'none'>, TierCopy> = {
     effect:
       'These scores can set the card badge and the drinking window, labelled approximate.',
   },
-  '3a': {
+  '3': {
     phrase: 'different bottling, same vintage',
     meaning:
       'We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide.',
-    effect: 'The card badge is marked “from a different bottling?” and the drinking window is approximate.',
+    effect: 'The card badge is marked “from a different bottling” and the drinking window is approximate.',
   },
-  '3b': {
+  '4': {
     phrase: 'different bottling, nearby vintage',
     meaning:
       'We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make.',
-    effect: 'The card badge is marked “from a different bottling?” and the drinking window is approximate.',
+    effect: 'The card badge is marked “from a different bottling” and the drinking window is approximate.',
   },
 }
 

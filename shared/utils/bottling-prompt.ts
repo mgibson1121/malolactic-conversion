@@ -17,7 +17,7 @@ export interface PromptInput {
  *
  * Triggers (any): at least two distinct modifiers appear in the results for
  * the same producer + appellation + vintage; the counted prices split by the
- * 2.5x rule (D10); or review matching reached Tier 3a/3b. It does not show
+ * 2.5x rule (D10); or review matching reached Tier 3 or 4. It does not show
  * when the developer answered "Plain", and "Not sure" / any answer stores the
  * modifier signature so only a refresh that brings *different* modifiers asks
  * again. Presents one option per modifier found, with the evidence for it.
@@ -78,7 +78,7 @@ export function buildBottlingPrompt(input: PromptInput): BottlingPrompt | null {
   const reasons: BottlingPrompt['reasons'] = []
   if (list.length >= 2) reasons.push('modifiers')
   if (input.price_data?.headline_basis === 'ambiguous') reasons.push('price_split')
-  if (input.review_ladder.tier === '3a' || input.review_ladder.tier === '3b') reasons.push('tier3')
+  if (input.review_ladder.tier === '3' || input.review_ladder.tier === '4') reasons.push('different_bottling')
   if (reasons.length === 0) return null
 
   const signature = bottlingSignature(list)

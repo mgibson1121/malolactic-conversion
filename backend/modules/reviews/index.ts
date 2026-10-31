@@ -534,7 +534,7 @@ export async function fetchReviewData(
     if (fallback) results.push(fallback)
   }
 
-  // The last rung (Phase 12.2 D9, T3a/T3b). No page of the exact wine yielded
+  // The last rungs (Phase 12.2 D9, T3/T4). No page of the exact wine yielded
   // a score anywhere, so read the pages of a different bottling that were held
   // back — same vintage first, then the nearest within ±3 years — and stop at
   // the first that gives a score. Each is one local render and one extraction;

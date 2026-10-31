@@ -222,7 +222,6 @@ export function PriceBlock({ wine, action, onWineUpdated, variant = 'detail', lo
       )}
 
       <EnrichmentRow
-        kind="price"
         action={action}
         label={data ? 'Refresh Price & retailers' : 'Fetch Price & retailers'}
         busyLabel={data ? 'Refreshing…' : 'Fetching…'}

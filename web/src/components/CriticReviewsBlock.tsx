@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { CriticSummaryItem, VintageRating, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
-import { criticSummaryOf, staleOf } from '../utils/wineDerived'
+import { criticSummaryOf, ladderOf, staleOf } from '../utils/wineDerived'
 import { formatScore, yearTagOf } from '../utils/criticBadge'
 import { TIER_COPY, tierHeadline } from '../utils/tierCopy'
 import { BottlingBanner } from './BottlingPrompt'
@@ -58,6 +58,7 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
   const [promptOpen, setPromptOpen] = useState(false)
   const [tierOpen, setTierOpen] = useState(false)
   const stale = staleOf(wine).reviews
+  const ladder = ladderOf(wine)
 
   return (
     <div className="critic-reviews-block" data-state={state}>
@@ -102,7 +103,7 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
 
       <ScorelessPages wine={wine} />
 
-      {state === 'found' && wine.review_ladder && wine.review_ladder.tier !== 'none' && (
+      {state === 'found' && ladder && ladder.tier !== 'none' && (
         <TierMarker wine={wine} open={tierOpen} onOpenChange={setTierOpen} onChoose={onWineUpdated ? () => { setTierOpen(false); setPromptOpen(true) } : undefined} />
       )}
 
@@ -125,9 +126,9 @@ function FoundScores({ wine, showAll, onShowAll }: { wine: WineEntry; showAll: b
   return (
     <div className="critic-scores-groups">
       {same.length > 0 && (
-        <ScoreGroup title={nv ? 'This wine' : `Your vintage (${wine.vintage})`} items={same} wineVintage={wine.vintage} />
+        <ScoreGroup title={nv ? 'This wine' : `Your vintage (${wine.vintage})`} items={same} />
       )}
-      {other.length > 0 && <ScoreGroup title="Other vintages" items={other} wineVintage={wine.vintage} />}
+      {other.length > 0 && <ScoreGroup title="Other vintages" items={other} />}
       {!showAll && ordered.length > VISIBLE_SCORES && (
         <button type="button" className="btn-link-inline" onClick={onShowAll}>
           Show all ({ordered.length})
@@ -137,7 +138,7 @@ function FoundScores({ wine, showAll, onShowAll }: { wine: WineEntry; showAll: b
   )
 }
 
-function ScoreGroup({ title, items, wineVintage }: { title: string; items: CriticSummaryItem[]; wineVintage: number | null }) {
+function ScoreGroup({ title, items }: { title: string; items: CriticSummaryItem[] }) {
   return (
     <div className="critic-score-group">
       <h4 className="critic-score-group-title">{title}</h4>
@@ -152,12 +153,11 @@ function ScoreGroup({ title, items, wineVintage }: { title: string; items: Criti
             {yearTagOf(s) && (
               <span className="critic-attribute critic-year-tag" title="The vintage this score is for">
                 {s.vintage}
-                {yearsOff(s, wineVintage)}
               </span>
             )}
             {s.bottling_badge && (
               <span className="critic-attribute critic-different-bottling" title={s.bottling_badge}>
-                different bottling?
+                different bottling
               </span>
             )}
             {s.drinking_window && (s.drinking_window.start != null || s.drinking_window.end != null) && (
@@ -174,13 +174,6 @@ function ScoreGroup({ title, items, wineVintage }: { title: string; items: Criti
       </div>
     </div>
   )
-}
-
-/** " · 2 yrs earlier" — how far a score's page is from the wine's vintage (Phase 12.2). */
-function yearsOff(s: CriticSummaryItem, wineVintage: number | null): string {
-  const delta = s.vintage_delta
-  if (!delta || s.vintage == null || wineVintage == null) return ''
-  return ` · ${delta} ${delta === 1 ? 'yr' : 'yrs'} ${s.vintage < wineVintage ? 'earlier' : 'later'}`
 }
 
 /**
@@ -200,7 +193,7 @@ function TierMarker({
   onOpenChange: (open: boolean) => void
   onChoose?: () => void
 }) {
-  const ladder = wine.review_ladder!
+  const ladder = ladderOf(wine)!
   const tier = ladder.tier
   if (tier === 'none') return null
   const copy = TIER_COPY[tier]
@@ -228,7 +221,7 @@ function TierMarker({
               </li>
             ))}
           </ul>
-          {(tier === '3a' || tier === '3b') && onChoose && (
+          {(tier === '3' || tier === '4') && onChoose && (
             <button type="button" className="btn-secondary" onClick={onChoose}>
               Which bottling is yours?
             </button>
@@ -246,7 +239,7 @@ function TierMarker({
  * read. Says which page, with a link, so the developer can look.
  */
 function ScorelessPages({ wine }: { wine: WineEntry }) {
-  const pages = (wine.review_ladder?.pages ?? []).filter((p) => p.scores === 0)
+  const pages = (ladderOf(wine)?.pages ?? []).filter((p) => p.scores === 0)
   if (pages.length === 0) return null
   return (
     <p className="scoreless-pages" data-testid="scoreless-pages">

@@ -56,7 +56,7 @@ async function main() {
       })()
       const top = w.critic_summary?.ordered[0]
       const tier = w.review_ladder?.tier ?? '—'
-      const afterReviews = `${tier === 'none' ? 'none' : `Tier ${tier}`}${top ? ` · ${top.score} ${top.publication}${top.bottling_badge ? ' (different bottling?)' : ''}` : ''}`
+      const afterReviews = `${tier === 'none' ? 'none' : `Tier ${tier}`}${top ? ` · ${top.score} ${top.publication}${top.bottling_badge ? ' (different bottling)' : ''}` : ''}`
       const prompt = w.bottling_prompt ? w.bottling_prompt.options.map(o => o.name).join(', ') || w.bottling_prompt.reasons.join('+') : '—'
       console.log(`| ${w.producer} ${w.denomination} ${w.vintage ?? 'NV'} | ${before} | ${after} | ${first} | ${afterReviews} | ${prompt} |`)
     }

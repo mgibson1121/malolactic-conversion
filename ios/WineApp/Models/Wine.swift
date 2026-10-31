@@ -79,8 +79,8 @@ struct CriticSummaryItem: Codable, Hashable {
     var drinkingWindow: CriticDrinkingWindow?
     var vintageCharacter: VintageRating?
     var deal: Bool
-    /// Phase 12.2: where this score sits on the review ladder ("1", "2", "3a",
-    /// "3b", "out"), how many years its page is from the wine, and the badge
+    /// Phase 12.2: where this score sits on the review ladder ("1", "2", "3",
+    /// "4", "out"), how many years its page is from the wine, and the badge
     /// when the page names a different bottling. Absent on older backends.
     var rung: String?
     var vintageDelta: Int?
@@ -131,12 +131,47 @@ struct ReviewLadderPage: Codable, Hashable {
     }
 }
 
-/// The tier a wine's reviews were matched at ("1", "2", "3a", "3b", "none"),
+/// The tier a wine's reviews were matched at ("1", "2", "3", "4", "none"),
 /// computed once in the backend. The app renders it and never re-derives it.
 struct ReviewLadder: Codable, Hashable {
     var tier: String
     var rungs: [ReviewLadderRung]
     var pages: [ReviewLadderPage]?
+}
+
+/// Tiers 3 and 4 were "3a" and "3b" until Phase 12.3 (mirrors `normalizeTier`
+/// in `shared/utils/review-ladder.ts`). Nothing stored holds a tier, but a
+/// backend not restarted since the rename still sends the old names, so they
+/// are mapped as they are decoded.
+enum LadderTier {
+    static func normalize(_ tier: String) -> String {
+        switch tier {
+        case "3a": return "3"
+        case "3b": return "4"
+        default: return tier
+        }
+    }
+}
+
+extension ReviewLadder {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tier = LadderTier.normalize(try c.decode(String.self, forKey: .tier))
+        rungs = try c.decode([ReviewLadderRung].self, forKey: .rungs)
+        pages = try c.decodeIfPresent([ReviewLadderPage].self, forKey: .pages)
+    }
+}
+
+extension ReviewLadderRung {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tier = LadderTier.normalize(try c.decode(String.self, forKey: .tier))
+        pages = try c.decode(Int.self, forKey: .pages)
+        scores = try c.decode(Int.self, forKey: .scores)
+        trustedScores = try c.decode(Int.self, forKey: .trustedScores)
+        critics = try c.decode([String].self, forKey: .critics)
+        vintages = try c.decode([Int].self, forKey: .vintages)
+    }
 }
 
 struct BottlingOption: Codable, Hashable {

@@ -360,14 +360,16 @@ export interface CriticSummary {
 /**
  * A page's rung on the review ladder (D9). '1' exact wine, same vintage, a
  * trusted critic · '2' exact wine, any other score (other vintages, nearest
- * first) · '3a' a different bottling, same vintage · '3b' a different bottling,
+ * first) · '3' a different bottling, same vintage · '4' a different bottling,
  * ±1–3 vintages · 'out' a different bottling further than that, or whose
- * vintage is unstated.
+ * vintage is unstated. Tiers 3 and 4 were sub-tiers of 3 until Phase 12.3;
+ * nothing stored holds a rung (the ladder is derived on read), and both
+ * clients map the old names if they ever meet them (`normalizeTier`).
  */
-export type ReviewRung = '1' | '2' | '3a' | '3b' | 'out'
+export type ReviewRung = '1' | '2' | '3' | '4' | 'out'
 
 /** The tier a wine's reviews were matched at: its best rung with a score, or 'none'. */
-export type ReviewTierId = '1' | '2' | '3a' | '3b' | 'none'
+export type ReviewTierId = '1' | '2' | '3' | '4' | 'none'
 
 export interface ReviewLadderPage {
   slug: string
@@ -416,7 +418,7 @@ export interface BottlingOption {
  * or dismissed it for exactly these modifiers.
  */
 export interface BottlingPrompt {
-  reasons: Array<'modifiers' | 'price_split' | 'tier3'>
+  reasons: Array<'modifiers' | 'price_split' | 'different_bottling'>
   options: BottlingOption[]
   /** The modifiers it was raised for; storing it as dismissed stops re-asking until a refresh brings others. */
   signature: string

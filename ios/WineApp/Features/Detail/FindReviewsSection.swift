@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The detail screen's "Find reviews" card — search a retailer, save a link,
+/// The detail screen's "Trusted Retailers" card, renamed in Phase 12.3 — search a retailer, save a link,
 /// or (guided) pick the product page in the in-app browser and extract from
 /// it. A fallback for wines where automated review sourcing found nothing at
 /// a shop the developer trusts; automated results stay first.
@@ -11,7 +11,7 @@ struct FindReviewsSection: View {
 
     var body: some View {
         WidgetCard {
-            SectionLabel("Find reviews")
+            SectionLabel("Trusted Retailers")
             switch model.links {
             case .idle:
                 Button("Search retailers") { Task { await model.load() } }

@@ -12,7 +12,9 @@ enum ScanTiming {
 
 /// What a hard refresh costs, in Serper credits (Phase 12.1 WI-7, D6) — the
 /// measured Phase 9.2 figures, mirrored from
-/// `shared/config/enrichment-costs.config.ts`. Change both together.
+/// `shared/config/enrichment-costs.config.ts`. Change both together. Since
+/// Phase 12.3 WI-1 the Hard refresh buttons don't show them; the Edit
+/// screen's "Refresh searches now?" prompt still does.
 enum EnrichmentCosts {
     enum Kind {
         case reviews
@@ -20,15 +22,6 @@ enum EnrichmentCosts {
 
         var typical: Int { self == .reviews ? 9 : 1 }
         var worstCase: Int { self == .reviews ? 24 : 1 }
-    }
-
-    /// "about 9 credits (up to 24)" / "about 1 credit".
-    static func label(_ kind: Kind) -> String {
-        func unit(_ n: Int) -> String { n == 1 ? "credit" : "credits" }
-        if kind.worstCase > kind.typical {
-            return "about \(kind.typical) \(unit(kind.typical)) (up to \(kind.worstCase))"
-        }
-        return "about \(kind.typical) \(unit(kind.typical))"
     }
 }
 

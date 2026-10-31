@@ -17,7 +17,7 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
     renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer()]) }))
     expect(screen.getByRole('heading', { name: 'Price & retailers' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh Price & retailers' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Hard refresh/ })).toHaveTextContent('about 1 credit')
+    expect(screen.getByRole('button', { name: 'Hard refresh' })).not.toHaveTextContent(/credit/)
   })
 
   it('shows Avg · High · Low spelled out', () => {

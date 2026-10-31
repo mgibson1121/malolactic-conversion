@@ -1,5 +1,5 @@
 import type { PriceData, RetailerPrice, RetailerReview } from '@shared/types'
-import { buildReviewLadder, rungOf, vintageDelta } from '@shared/utils/review-ladder'
+import { buildReviewLadder, normalizeLadder, normalizeTier, rungOf, vintageDelta } from '@shared/utils/review-ladder'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { buildBottlingPrompt } from '@shared/utils/bottling-prompt'
 import type { BottlingWine } from '@shared/utils/bottling-difference'
@@ -32,9 +32,9 @@ describe('rungOf (D9)', () => {
     // Beyond ±3 years nothing is displayed (Phase 12.4 WI-1), so it sets no tier.
     [{ exact: true, delta: 4, hasTrustedScore: true }, 'out'],
     [{ exact: true, delta: null, hasTrustedScore: true }, '2'],
-    [{ exact: false, delta: 0, hasTrustedScore: true }, '3a'],
-    [{ exact: false, delta: 1, hasTrustedScore: true }, '3b'],
-    [{ exact: false, delta: 3, hasTrustedScore: true }, '3b'],
+    [{ exact: false, delta: 0, hasTrustedScore: true }, '3'],
+    [{ exact: false, delta: 1, hasTrustedScore: true }, '4'],
+    [{ exact: false, delta: 3, hasTrustedScore: true }, '4'],
     [{ exact: false, delta: 4, hasTrustedScore: true }, 'out'],
     [{ exact: false, delta: null, hasTrustedScore: true }, 'out'],
   ])('%j -> %s', (args, rung) => {
@@ -55,16 +55,16 @@ describe('buildReviewLadder — Vietti Barolo 2021 (WI-2 acceptance 2)', () => {
     expect(ladder.tier).toBe('2')
     const byslug = Object.fromEntries(ladder.pages.map(p => [p.slug, p]))
     expect(byslug.winelibrary.rung).toBe('2')
-    expect(byslug.woodland.rung).toBe('3a')
-    expect(byslug.jjbuckley.rung).toBe('3a')
+    expect(byslug.woodland.rung).toBe('3')
+    expect(byslug.jjbuckley.rung).toBe('3')
     expect(byslug.woodland.badge).toBe("Names Castiglione — yours doesn't")
     expect(byslug.jjbuckley.badge).toBe("Names Monvigliero — yours doesn't")
   })
 
-  it('with only the named bottlings the wine is matched at Tier 3a', () => {
+  it('with only the named bottlings the wine is matched at Tier 3', () => {
     const ladder = buildReviewLadder([CASTIGLIONE, MONVIGLIERO], vietti)
-    expect(ladder.tier).toBe('3a')
-    expect(ladder.rungs.map(r => r.tier)).toEqual(['3a'])
+    expect(ladder.tier).toBe('3')
+    expect(ladder.rungs.map(r => r.tier)).toEqual(['3'])
     expect(ladder.rungs[0].pages).toBe(2)
   })
 
@@ -73,7 +73,7 @@ describe('buildReviewLadder — Vietti Barolo 2021 (WI-2 acceptance 2)', () => {
     expect(ladder.tier).toBe('1')
     expect(ladder.pages.find(p => p.slug === 'woodland')!.rung).toBe('1')
     // The plain page now omits the name the wine records, and Monvigliero names another.
-    expect(ladder.pages.find(p => p.slug === 'winelibrary')!.rung).toBe('3a')
+    expect(ladder.pages.find(p => p.slug === 'winelibrary')!.rung).toBe('3')
     expect(ladder.pages.find(p => p.slug === 'winelibrary')!.badge).toBe("Doesn't name Castiglione — yours does")
   })
 
@@ -101,7 +101,7 @@ describe('buildCriticSummary — a different bottling ranks below the exact wine
     expect(summary.ordered[0].bottling_badge).toBeNull()
     const monv = summary.ordered.filter(i => i.bottling_badge)
     expect(monv.map(i => i.publication)).toEqual(['Wine Advocate', 'Wine Spectator'])
-    expect(monv[0].rung).toBe('3a')
+    expect(monv[0].rung).toBe('3')
   })
 
   it('without the wine the 12.1 ordering is untouched', () => {
@@ -149,7 +149,7 @@ describe('buildBottlingPrompt (WI-2.5)', () => {
 
   it('is raised by Tier 3 alone', () => {
     const prompt = buildBottlingPrompt({ wine: vietti, price_data: null, review_data: [CASTIGLIONE], review_ladder: buildReviewLadder([CASTIGLIONE], vietti) })!
-    expect(prompt.reasons).toEqual(['tier3'])
+    expect(prompt.reasons).toEqual(['different_bottling'])
   })
 
   it('is not raised for one modifier on an otherwise healthy wine', () => {
@@ -164,5 +164,27 @@ describe('buildBottlingPrompt (WI-2.5)', () => {
     const first = buildBottlingPrompt(base)!
     expect(buildBottlingPrompt({ ...base, bottling_prompt_dismissed: first.signature })).toBeNull()
     expect(buildBottlingPrompt({ ...base, bottling_prompt_dismissed: 'castiglione' })).not.toBeNull()
+  })
+})
+
+describe('Tier 3a/3b → 3/4 (Phase 12.3 WI-4)', () => {
+  it('names the different-bottling rungs 3 and 4', () => {
+    expect(buildReviewLadder([CASTIGLIONE, MONVIGLIERO], vietti).tier).toBe('3')
+    expect(rungOf({ exact: false, delta: 2, hasTrustedScore: true })).toBe('4')
+  })
+
+  it('maps the legacy names from an older backend, and leaves current names alone', () => {
+    expect(normalizeTier('3a')).toBe('3')
+    expect(normalizeTier('3b')).toBe('4')
+    for (const t of ['1', '2', '3', '4', 'out', 'none']) expect(normalizeTier(t)).toBe(t)
+    const legacy = {
+      tier: '3a',
+      rungs: [{ tier: '3a', pages: 1, scores: 1, trusted_scores: 1, critics: [], vintages: [] }, { tier: '3b', pages: 1, scores: 1, trusted_scores: 0, critics: [], vintages: [] }],
+      pages: [{ rung: '3b' }, { rung: null }],
+    } as unknown as Parameters<typeof normalizeLadder>[0]
+    const ladder = normalizeLadder(legacy)
+    expect(ladder.tier).toBe('3')
+    expect(ladder.rungs.map(r => r.tier)).toEqual(['3', '4'])
+    expect(ladder.pages.map(p => p.rung)).toEqual(['4', null])
   })
 })

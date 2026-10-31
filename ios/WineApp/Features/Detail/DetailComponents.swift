@@ -80,14 +80,13 @@ struct DisclosureCard<Content: View>: View {
 /// A metered Fetch/Refresh button (implementation spec §9), with a separate
 /// bordered Hard refresh beside it (Phase 12.1 D6, WI-7). The normal button is
 /// TTL-guarded: when the server answered from its cache, the freshness line
-/// says so. Hard refresh sends `force`, spends credits, and says how many —
-/// on the button and again in the confirmation, since it costs money. It
-/// replaces the old "Refresh anyway" text link.
+/// says so. Hard refresh sends `force` and spends credits, so it asks for a
+/// second tap; since Phase 12.3 WI-1 neither the button nor the confirmation
+/// quotes a credit figure. It replaces the old "Refresh anyway" text link.
 struct EnrichmentButton: View {
     let title: String
     /// "Reviews" / "Price" — for "Reviews updated 3 days ago."
     let label: String
-    let kind: EnrichmentCosts.Kind
     let control: EnrichmentControl
     /// Hard refresh needs data to refresh; shown once any exists.
     let hasData: Bool
@@ -109,23 +108,17 @@ struct EnrichmentButton: View {
                 Button {
                     confirmingHardRefresh = true
                 } label: {
-                    VStack(spacing: 0) {
-                        Text("Hard refresh")
-                        Text(EnrichmentCosts.label(kind))
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.textMuted)
-                    }
-                    .frame(minHeight: Theme.minHitTarget)
+                    Text("Hard refresh")
+                        .frame(minHeight: Theme.minHitTarget)
                 }
                 .buttonStyle(.bordered)
                 .tint(Theme.accent)
                 .disabled(control.isBusy)
-                .accessibilityLabel("Hard refresh, \(EnrichmentCosts.label(kind))")
                 .confirmationDialog("Hard refresh \(label)?", isPresented: $confirmingHardRefresh,
                                     titleVisibility: .visible) {
-                    Button("Hard refresh · \(EnrichmentCosts.label(kind))") { run(true) }
+                    Button("Hard refresh") { run(true) }
                 } message: {
-                    Text("This ignores what's stored and runs the search again — \(EnrichmentCosts.label(kind)).")
+                    Text("This ignores what's stored and runs the search again.")
                 }
             }
 

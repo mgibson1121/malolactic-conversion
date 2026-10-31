@@ -235,7 +235,6 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           </button>
         )}
         <EnrichmentRow
-          kind="reviews"
           action={reviews}
           label={wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
           busyLabel="Fetching…"
