@@ -299,9 +299,14 @@ export const BALTHAZAR = {
  * WI-2: Kermit Lynch sells this exact wine and vintage
  * (https://shop.kermitlynch.com/product/detail/19FVT02 — Puppeteer render
  * 2026-10-31: "2019 Châteauneuf-du-Pape “La Crau” Domaine du Vieux
- * Télégraphe"). The stored price_data (2026-10-13) holds five listings and
- * no Kermit Lynch — exactly TARGET_RETAILER_COUNT, so the top-up cap may have
- * cut it. Only the raw Shopping response can say.
+ * Télégraphe"), but it is **not in the Shopping response**: one live query
+ * on 2026-10-31 (serper-shopping-la-crau-2019.json, 40 items) has no Kermit
+ * Lynch item at all — cause 1, Google Shopping doesn't list it.
+ *
+ * The same response shows why the stored five were the wrong five: Pass 2
+ * keeps only items with a Serper `link` (which the fallback never uses), and
+ * 29 of 40 items have none — every exact-2019 listing but Benchmark's among
+ * them. The top-up then filled with vintage-unknown listings, one a Blanc.
  */
 export const LA_CRAU_2019 = {
   wine: wine('Domaine du Vieux Télégraphe · Châteauneuf-du-Pape La Crau 2019', { producer: 'Domaine du Vieux Télégraphe', denomination: 'Châteauneuf-du-Pape', vintage: 2019, cuvee: 'La Crau', vineyard: null }),

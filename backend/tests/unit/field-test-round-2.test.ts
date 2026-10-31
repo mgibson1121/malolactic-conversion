@@ -12,7 +12,11 @@ import { buildBottlingPrompt, bottlingOptions } from '@shared/utils/bottling-pro
 import { bottlingChoiceUpdates, rescoreListings } from '@shared/utils/bottling-choice'
 import { bottlingDifference, isExactBottling } from '@shared/utils/bottling-difference'
 import { buildReviewLadder, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
+import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { extractPackFormat } from '../../modules/price/pack-format'
+import { querySerper } from '../../modules/price/serper-query'
+import fs from 'fs'
+import path from 'path'
 import { BALTHAZAR, LA_CRAU_2019, LITTORAI, PAVILLON, SANSONNET, VIEUX_TELEGRAPHE_BLANC } from '../fixtures/ground-truth-wines'
 
 type Page = { slug: string; name: string; page_vintage: number; product_url: string; scores?: Array<{ publication: string; score: number }> }
@@ -36,6 +40,9 @@ function priceData(listings: Array<{ title: string; extra: string[] }>): PriceDa
     }) as unknown as RetailerPrice),
   } as PriceData
 }
+
+const laCrauShopping: { shopping: Array<{ title: string; source: string; price?: string; link?: string }> } =
+  JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/serper-shopping-la-crau-2019.json'), 'utf8'))
 
 describe('WI-1 — one ±3-year window for what is displayed', () => {
   it.failing('Sansonnet 2017 does not display the 2005 page’s scores', () => {
@@ -93,7 +100,29 @@ describe('WI-2 — retailers the developer shops at', () => {
     expect(isExactBottling(d)).toBe(true)
   })
 
-  it.todo('2019 La Crau: name the stage that dropped Kermit Lynch — needs the raw Shopping response (one live query, ~1 credit)')
+  describe('2019 La Crau — the live Shopping response (2026-10-31, one query)', () => {
+    const realFetch = global.fetch
+    beforeEach(() => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ shopping: laCrauShopping.shopping }) }) as never
+    })
+    afterEach(() => { global.fetch = realFetch })
+    const run = () => querySerper('Domaine du Vieux Telegraphe Chateauneuf-du-Pape La Crau 2019', RETAILER_CONFIG, 'stub', LA_CRAU_2019.wine, 'Domaine du Vieux Telegraphe Chateauneuf-du-Pape La Crau')
+
+    it('Kermit Lynch is not in the response at all (cause 1): nothing in the app dropped it', () => {
+      expect(laCrauShopping.shopping.some(i => /kermit/i.test(i.source))).toBe(false)
+    })
+
+    it.failing('the top-up keeps exact-vintage listings that Serper sent without a `link` (the fallback never uses it)', async () => {
+      const { retailers } = await run()
+      expect(retailers.map(r => r.name)).toEqual(expect.arrayContaining(['CaskCartel.com', 'Tribeca Wine Merchants']))
+      expect(retailers.filter(r => r.matched_vintage == null)).toEqual([])
+    })
+  })
+
+  it.failing('"750 mL | 6 bottles" is read as a six-pack (BlockCellar, same response)', () => {
+    const f = extractPackFormat('Vieux Telegraphe La Crau Rouge Chateauneuf-du-Pape 2019 | 750 mL | 6 bottles', [LA_CRAU_2019.wine.producer, LA_CRAU_2019.wine.cuvee])
+    expect(f.pack_quantity).toBe(6)
+  })
 
   it('Astor’s Littorai is the plain Sonoma Coast, a different bottling from the Hirsch Vineyard recorded', () => {
     const d = bottlingDifference({ title: LITTORAI.astor.title }, LITTORAI.wine)
