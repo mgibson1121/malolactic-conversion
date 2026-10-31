@@ -32,7 +32,7 @@ function hostnameMatches(a: string, b: string): boolean {
 }
 
 /**
- * "Find Reviews" section (Phase 6.6). Generated search URLs are computed by
+ * "Trusted Retailers" section (Phase 6.6, renamed in Phase 12.3). Generated search URLs are computed by
  * the backend on every expand — never stored. Saving a link (the search URL
  * as-is, or a specific product page URL the user navigated to) persists it
  * to `wine.retailer_links`, keyed by slug.
