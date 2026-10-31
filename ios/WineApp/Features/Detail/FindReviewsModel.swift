@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// "Find reviews" on the detail screen — the port of `RetailerLinksSection`
+/// "Trusted Retailers" on the detail screen — the port of `RetailerLinksSection`
 /// (web Phase 6.6, guided flow Phase 7.2). Search links are built by the
 /// backend on request and never stored; a link is persisted only when the
 /// user saves one.

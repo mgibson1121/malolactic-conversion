@@ -735,9 +735,12 @@ final class ScanHoldTests: XCTestCase {
 // MARK: - Wording and affordances (WI-7, WI-8)
 
 final class WordingTests: XCTestCase {
-    func testHardRefreshStatesItsCostFromTheMeasuredFigures() {
-        XCTAssertEqual(EnrichmentCosts.label(.reviews), "about 9 credits (up to 24)")
-        XCTAssertEqual(EnrichmentCosts.label(.price), "about 1 credit")
+    /// The measured figures stay (the Edit prompt quotes them); the Hard
+    /// refresh buttons no longer do (Phase 12.3 WI-1).
+    func testTheMeasuredHardRefreshFiguresStay() {
+        XCTAssertEqual(EnrichmentCosts.Kind.reviews.typical, 9)
+        XCTAssertEqual(EnrichmentCosts.Kind.reviews.worstCase, 24)
+        XCTAssertEqual(EnrichmentCosts.Kind.price.typical, 1)
     }
 
     func testTheThreeBadgesExplainThemselvesAndTheOthersDoNot() {

@@ -1,7 +1,8 @@
-import type { CriticSummary, PriceExclusions, WindowStatus, WineEntry } from '@shared/types'
+import type { CriticSummary, PriceExclusions, ReviewLadder, WindowStatus, WineEntry } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { describePriceExclusions } from '@shared/utils/price-exclusions'
 import { enrichmentStale } from '@shared/utils/enrichment-stale'
+import { normalizeLadder } from '@shared/utils/review-ladder'
 import { windowStatusOf } from '@shared/utils/window-status'
 
 /**
@@ -26,4 +27,9 @@ export function staleOf(wine: WineEntry): { price: boolean; reviews: boolean } {
 
 export function priceExclusionsOf(wine: Pick<WineEntry, 'price_exclusions' | 'price_data'>): PriceExclusions | null {
   return wine.price_exclusions !== undefined ? wine.price_exclusions : describePriceExclusions(wine.price_data)
+}
+
+/** The review ladder, with tiers under their Phase 12.3 names ('3a'/'3b' from an older backend read as 3/4). */
+export function ladderOf(wine: Pick<WineEntry, 'review_ladder'>): ReviewLadder | null {
+  return wine.review_ladder ? normalizeLadder(wine.review_ladder) : null
 }

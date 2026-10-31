@@ -1,5 +1,5 @@
 {
-  "id": "b1d1eb35-1e9a-4c48-ad25-b59fe7ec47b5",
+  "id": "0bed1294-aa0a-45ec-898a-ab4066c3a3ac",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -144,7 +144,7 @@
         "missing": []
       }
     },
-    "fetched_at": "2026-10-11T18:01:07.283Z",
+    "fetched_at": "2026-10-31T20:02:18.787Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -272,7 +272,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-10-11T18:01:07.283Z",
+  "date_added": "2026-10-31T20:02:18.787Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -311,7 +311,7 @@
         },
         "vintage_character": null,
         "deal": false,
-        "rung": "3a",
+        "rung": "3",
         "vintage_delta": 0,
         "bottling_badge": "Names Castiglione — yours doesn't"
       },
@@ -329,7 +329,7 @@
         },
         "vintage_character": null,
         "deal": false,
-        "rung": "3a",
+        "rung": "3",
         "vintage_delta": 0,
         "bottling_badge": "Names Monvigliero — yours doesn't"
       }
@@ -356,7 +356,7 @@
         ]
       },
       {
-        "tier": "3a",
+        "tier": "3",
         "pages": 2,
         "scores": 2,
         "trusted_scores": 2,
@@ -386,7 +386,7 @@
         "slug": "woodland",
         "name": "woodland",
         "product_url": "https://whwc.com/vietti-barolo-castiglione-2021/",
-        "rung": "3a",
+        "rung": "3",
         "page_vintage": 2021,
         "vintage_delta": 0,
         "scores": 1,
@@ -398,7 +398,7 @@
         "slug": "jjbuckley",
         "name": "jjbuckley",
         "product_url": "https://www.jjbuckley.com/wine/2021-vietti-barolo-monvigliero/2021-1879291-1500/",
-        "rung": "3a",
+        "rung": "3",
         "page_vintage": 2021,
         "vintage_delta": 0,
         "scores": 1,

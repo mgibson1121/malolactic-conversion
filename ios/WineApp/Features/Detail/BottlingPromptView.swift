@@ -51,13 +51,15 @@ enum BottlingOutcome: Equatable {
 }
 
 /// What each tier means (seed copy from the spec, mirrored by the web's `tierCopy.ts`).
+/// Takes the tier as decoded — `LadderTier.normalize` has already mapped any
+/// pre-12.3 name.
 enum TierCopy {
     static func phrase(_ tier: String) -> String? {
         switch tier {
         case "1": return "exact wine and vintage"
         case "2": return "same wine, other vintages"
-        case "3a": return "different bottling, same vintage"
-        case "3b": return "different bottling, nearby vintage"
+        case "3": return "different bottling, same vintage"
+        case "4": return "different bottling, nearby vintage"
         default: return nil
         }
     }
@@ -70,7 +72,7 @@ enum TierCopy {
         switch tier {
         case "1": return "We found a score for this exact wine and vintage from a critic we trust."
         case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Scores and drinking windows from vintages within 3 years are used; further ones are shown for reference."
-        case "3a": return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide."
+        case "3": return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide."
         default: return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make."
         }
     }
@@ -79,7 +81,7 @@ enum TierCopy {
         switch tier {
         case "1": return "The card badge and the drinking window come from these scores."
         case "2": return "Scores within 3 vintages can set the card badge and the drinking window, labelled approximate. A critic's window from further away is shown for reference and never merged into yours."
-        default: return "The card badge is marked “from a different bottling?” and the drinking window is approximate."
+        default: return "The card badge is marked “from a different bottling” and the drinking window is approximate."
         }
     }
 
@@ -141,7 +143,7 @@ private struct TierSheet: View {
                         Text("Tier \(rung.tier): \(rung.pages) \(rung.pages == 1 ? "page" : "pages"), \(rung.scores) \(rung.scores == 1 ? "score" : "scores")\(critics)\(years)")
                             .font(AppFont.meta())
                     }
-                    if ladder.tier == "3a" || ladder.tier == "3b" {
+                    if ladder.tier == "3" || ladder.tier == "4" {
                         Button("Which bottling is yours?", action: choose)
                             .buttonStyle(.borderedProminent).tint(Theme.accent2)
                     }

@@ -292,7 +292,6 @@ struct WineDetailView: View {
                 EnrichmentButton(
                     title: wine.reviewData == nil ? "Fetch Reviews" : "Refresh Reviews",
                     label: "Reviews",
-                    kind: .reviews,
                     control: model.reviews,
                     hasData: wine.reviewData != nil,
                     run: { force in Task { await model.fetchReviews(force: force); setExpanded(.criticReviews, true) } }
@@ -319,7 +318,6 @@ struct WineDetailView: View {
                 EnrichmentButton(
                     title: wine.priceData == nil ? "Fetch Price & retailers" : "Refresh Price & retailers",
                     label: "Price & retailers",
-                    kind: .price,
                     control: model.price,
                     hasData: wine.priceData != nil,
                     run: { force in Task { await model.fetchPrice(force: force); setExpanded(.priceRetailers, true) } }

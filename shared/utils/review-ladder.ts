@@ -5,7 +5,29 @@ import { bottlingBadge, bottlingDifference, isExactBottling, type BottlingDiffer
 /** "Similar vintage" is one rule everywhere: ±3 years (Phase 12.2 D9). */
 export const SIMILAR_VINTAGE_YEARS = 3
 
-const RUNG_ORDER: ReviewRung[] = ['1', '2', '3a', '3b', 'out']
+const RUNG_ORDER: ReviewRung[] = ['1', '2', '3', '4', 'out']
+
+/**
+ * Tiers 3 and 4 were called '3a' and '3b' until Phase 12.3. Nothing stored
+ * holds a tier — the ladder is derived on every read — but a response from a
+ * backend that has not been restarted since the rename still carries the old
+ * names, so a client maps them rather than showing "Tier 3a".
+ */
+const LEGACY_TIERS: Record<string, ReviewRung> = { '3a': '3', '3b': '4' }
+
+export function normalizeTier<T extends string>(tier: T): T {
+  return (LEGACY_TIERS[tier] as T | undefined) ?? tier
+}
+
+/** The ladder with every tier and rung under its current name (see `normalizeTier`). */
+export function normalizeLadder(ladder: ReviewLadder): ReviewLadder {
+  return {
+    ...ladder,
+    tier: normalizeTier(ladder.tier),
+    rungs: ladder.rungs.map(r => ({ ...r, tier: normalizeTier(r.tier) })),
+    pages: ladder.pages.map(p => (p.rung ? { ...p, rung: normalizeTier(p.rung) } : p)),
+  }
+}
 
 export function isTrustedPublication(
   score: { publication: string; known_publication?: boolean },
@@ -33,8 +55,8 @@ export function reviewBottlingDifference(review: Pick<RetailerReview, 'product_u
 export function rungOf(args: { exact: boolean; delta: number | null; hasTrustedScore: boolean }): ReviewRung {
   const { exact, delta, hasTrustedScore } = args
   if (exact) return delta === 0 && hasTrustedScore ? '1' : '2'
-  if (delta === 0) return '3a'
-  if (delta != null && delta <= SIMILAR_VINTAGE_YEARS) return '3b'
+  if (delta === 0) return '3'
+  if (delta != null && delta <= SIMILAR_VINTAGE_YEARS) return '4'
   return 'out'
 }
 

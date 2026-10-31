@@ -246,7 +246,7 @@ export function WineDetailModal({
           </section>
 
           {/* Review links — saved retailer URLs only; generated search links
-              live in the Find Reviews section below Pricing. Omitted entirely
+              live in the Trusted Retailers section below Pricing. Omitted entirely
               if nothing has been saved. */}
           {wine.retailer_links && Object.keys(wine.retailer_links).length > 0 && (
             <section className="detail-section">
@@ -278,7 +278,6 @@ export function WineDetailModal({
             <h3 className="detail-section-title">Critic reviews</h3>
             <CriticReviewsBlock wine={wine} action={reviews} onWineUpdated={applyUpdate} />
             <EnrichmentRow
-              kind="reviews"
               action={reviews}
               label={wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'}
               busyLabel="Fetching…"
@@ -292,9 +291,9 @@ export function WineDetailModal({
             <PriceBlock wine={wine} action={price} onWineUpdated={applyUpdate} variant="detail" />
           </section>
 
-          {/* Find / save retailer review links */}
+          {/* Trusted Retailers — search a shop, save a link */}
           <section className="detail-section">
-            <h3 className="detail-section-title">Find Reviews</h3>
+            <h3 className="detail-section-title">Trusted Retailers</h3>
             <RetailerLinksSection wine={wine} onWineUpdated={(updated) => { setWine(updated); onWineUpdated(updated) }} guided />
           </section>
 

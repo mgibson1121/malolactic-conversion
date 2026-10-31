@@ -11,20 +11,11 @@
  *    Puppeteer listing check is local).
  *
  * One file so a re-measurement is a one-line change. The iOS app mirrors it in
- * `EnrichmentCosts.swift` — change both.
+ * `Constants.swift` (`EnrichmentCosts`) — change both. Since Phase 12.3 WI-1
+ * the Hard refresh buttons no longer show these figures; the Edit screen's
+ * "Refresh searches now?" prompt still does.
  */
 export const HARD_REFRESH_CREDITS = {
   reviews: { typical: 9, worstCase: 24 },
   price: { typical: 1, worstCase: 1 },
 } as const
-
-export type HardRefreshKind = keyof typeof HARD_REFRESH_CREDITS
-
-/** "about 9 credits (up to 24)" / "about 1 credit". */
-export function creditsLabel(kind: HardRefreshKind): string {
-  const { typical, worstCase } = HARD_REFRESH_CREDITS[kind]
-  const unit = (n: number) => (n === 1 ? 'credit' : 'credits')
-  return worstCase > typical
-    ? `about ${typical} ${unit(typical)} (up to ${worstCase})`
-    : `about ${typical} ${unit(typical)}`
-}
