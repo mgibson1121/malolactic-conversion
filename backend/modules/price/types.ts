@@ -84,6 +84,9 @@ export interface RetailerResult {
   listing_title?: string
   bottling_difference?: { extra: string[]; missing: string[]; colour?: ColourDifference | null } | null
   outside_bottling?: boolean
+  // Phase 12.4 WI-2 — the shop's own product page says it is sold out: shown
+  // with its price, never counted.
+  sold_out?: boolean
 }
 
 /**

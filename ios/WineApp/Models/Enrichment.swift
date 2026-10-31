@@ -232,9 +232,12 @@ struct RetailerPrice: Codable, Hashable {
     var listingTitle: String?
     var bottlingDifference: ListingBottlingDifference?
     var outsideBottling: Bool?
+    /// Phase 12.4: the shop's own page says sold out — shown, never counted.
+    var soldOut: Bool?
 
     enum CodingKeys: String, CodingKey {
         case slug, name, price, url, normalized
+        case soldOut = "sold_out"
         case listingTitle = "listing_title"
         case bottlingDifference = "bottling_difference"
         case outsideBottling = "outside_bottling"
@@ -312,6 +315,7 @@ struct RetailerPrice: Codable, Hashable {
         listingTitle = try c.decodeIfPresent(String.self, forKey: .listingTitle)
         bottlingDifference = try c.decodeIfPresent(ListingBottlingDifference.self, forKey: .bottlingDifference)
         outsideBottling = try c.decodeIfPresent(Bool.self, forKey: .outsideBottling)
+        soldOut = try c.decodeIfPresent(Bool.self, forKey: .soldOut)
     }
 }
 

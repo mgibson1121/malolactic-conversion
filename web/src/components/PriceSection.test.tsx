@@ -100,6 +100,16 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
     })
   })
 
+  it('a sold-out listing from a price-only shop shows its price and says so (Phase 12.4 WI-2)', async () => {
+    const data = makeTestPriceData([
+      makeTestRetailer({ slug: 'a', name: 'A Shop', price: 100 }),
+      makeTestRetailer({ slug: 'kermitlynch', name: 'Kermit Lynch Wine Merchant', price: 105, sold_out: true, is_search_results_page: false }),
+    ])
+    renderBlock(makeTestWine({ price_data: data }))
+    await userEvent.click(screen.getByRole('button', { name: /more retailer/ }))
+    expect(screen.getByText('sold out')).toBeInTheDocument()
+  })
+
   describe('±3-year window (Phase 12.4 WI-1)', () => {
     const wine = (retailers: ReturnType<typeof makeTestRetailer>[]) => makeTestWine({ vintage: 2012, price_data: makeTestPriceData(retailers) })
 

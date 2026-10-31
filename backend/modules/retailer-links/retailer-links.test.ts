@@ -1,14 +1,16 @@
 import { getRetailerLinks } from './index'
 
 describe('getRetailerLinks', () => {
-  it('returns one link per configured retailer, all twelve slugs present (updated 2026-08-02 — JJ Buckley added to close a user-reported coverage gap)', () => {
+  it('returns one link per configured retailer, all fourteen slugs present (JJ Buckley added 2026-08-02; Kermit Lynch and Astor 2026-10-31, Phase 12.4)', () => {
     const links = getRetailerLinks({ producer: 'Roumier', denomination: 'Chambolle-Musigny', vintage: 2019, cuvee: null, vineyard: null })
     expect(links.map((l) => l.slug).sort()).toEqual([
       'acker',
+      'astor',
       'benchmark',
       'crush',
       'flatiron',
       'jjbuckley',
+      'kermitlynch',
       'kl',
       'morrell',
       'sokolin',
@@ -17,6 +19,12 @@ describe('getRetailerLinks', () => {
       'woodland',
       'zachys',
     ])
+  })
+
+  it('gives Kermit Lynch and Astor a Google site: search — neither has a navigable on-site search (Phase 12.4)', () => {
+    const links = getRetailerLinks({ producer: 'Littorai', denomination: 'Sonoma Coast', vintage: 2024, cuvee: null, vineyard: null })
+    expect(links.find((l) => l.slug === 'kermitlynch')!.url).toMatch(/^https:\/\/www\.google\.com\/search\?q=site%3Ashop\.kermitlynch\.com%20/)
+    expect(links.find((l) => l.slug === 'astor')!.url).toMatch(/^https:\/\/www\.google\.com\/search\?q=site%3Aastorwines\.com%20Littorai/)
   })
 
   it('builds a query from producer + denomination only, URL-encoded — no vintage token', () => {

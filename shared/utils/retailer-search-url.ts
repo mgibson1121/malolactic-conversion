@@ -76,6 +76,13 @@ export function buildRetailerSearchUrl(retailer: RetailerConfig, query: string):
     // fallback retailers in price/serper-query.ts's buildFallbackUrl.
     case 'morrell':
       return `https://www.google.com/search?q=${encodeURIComponent(`site:morrellwine.com ${query}`)}`
+    // Phase 12.4 (2026-10-31): neither has a navigable search URL — Kermit
+    // Lynch's is a client-side Swiftype widget (`/search?q=` 404s) and
+    // Astor's an ASP.NET postback (every GET guess renders its error page).
+    case 'kermitlynch':
+      return `https://www.google.com/search?q=${encodeURIComponent(`site:shop.kermitlynch.com ${query}`)}`
+    case 'astor':
+      return `https://www.google.com/search?q=${encodeURIComponent(`site:astorwines.com ${query}`)}`
     default:
       // Verified 2026-07-30 for Crush, Flatiron, and Thatcher's — see the
       // file-level comment above. Still an unverified guess for any

@@ -110,6 +110,7 @@ describe('aggregatePriceData — Marcoux (Phase 12.2 WI-1 acceptance)', () => {
       suspected_large_format: 0,
       link_only: 1,
       outside_bottling: 0,
+      sold_out: 0,
       outlier: 0,
     })
   })

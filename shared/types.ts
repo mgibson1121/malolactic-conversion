@@ -120,6 +120,9 @@ export interface RetailerPrice {
   // Phase 12.2 WI-6 — a product page from another storefront of the same shop
   // (Flatiron's sf. site). Counted for price, never the nearest store.
   other_storefront?: boolean
+  // Phase 12.4 WI-2 — the shop's own product page says it is sold out (a
+  // price-only shop's discovered page). Shown with its price, never counted.
+  sold_out?: boolean
   // Phase 12.2 WI-2 — the listing title it was judged on, and what that title
   // says about the bottling relative to the wine as recorded (both directions).
   // Labelled but counted until the developer answers "Which bottling is
@@ -176,6 +179,8 @@ export interface PriceExcludedCounts {
   link_only: number
   /** Named a different bottling than the one the developer chose (after "Which bottling is yours?"). */
   outside_bottling: number
+  /** The shop's own page says sold out (Phase 12.4). Optional: blobs stored before it lack the key. */
+  sold_out?: number
   /** Dropped by the interquartile fence as a single-point outlier. */
   outlier: number
 }

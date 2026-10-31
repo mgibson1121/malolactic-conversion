@@ -44,7 +44,11 @@ config({ path: path.resolve(__dirname, '../../.env') })
 
 import fs from 'fs'
 import OpenAI from 'openai'
-import { RETAILER_CONFIG } from '@shared/config/retailers.config'
+import { RETAILER_CONFIG as ALL_RETAILERS } from '@shared/config/retailers.config'
+
+// Price-only shops (reviewTier 'none', Phase 12.4) publish no critic scores;
+// probing them would only spend credits.
+const RETAILER_CONFIG = ALL_RETAILERS.filter(r => r.reviewTier !== 'none')
 import {
   findProductPageDetailed,
   findFallbackProductPage,

@@ -250,10 +250,14 @@ export async function findProductPageDetailed(
   /** Serper accounting tag (Phase 9.2) — the caller supplies which pass this
    * search belongs to, since the same retailer is reachable from more than
    * one. See shared/utils/serper-client.ts. */
-  label = `reviews:configured:${retailer.slug}`
+  label = `reviews:configured:${retailer.slug}`,
+  /** At most this many variants are sent (Phase 12.4: price discovery stops
+   * at two — the full identity and the relaxed producer — so a price-only
+   * shop costs one search a wine, two at worst). */
+  maxVariants = Number.POSITIVE_INFINITY
 ): Promise<Step1Outcome> {
   try {
-    const variants = buildQueryVariants(wine, retailer.domain)
+    const variants = buildQueryVariants(wine, retailer.domain).slice(0, maxVariants)
     let sawAnyResults = false
     let variantsTried = 0
     for (const query of variants) {

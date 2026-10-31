@@ -751,7 +751,7 @@ describe('fetchReviewData — primary and extended review tiers', () => {
     expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(true)
   })
 
-  it('searches every configured retailer except the unrenderable ones when the primary tier finds nothing', async () => {
+  it('searches every configured retailer except the unrenderable and price-only ones when the primary tier finds nothing', async () => {
     const queries = recordQueries({})
 
     await fetchReviewData(makeWine())
@@ -760,7 +760,8 @@ describe('fetchReviewData — primary and extended review tiers', () => {
       const searched = queries.some(q => q.includes(`site:${retailer.domain}`))
       expect({ slug: retailer.slug, searched }).toEqual({
         slug: retailer.slug,
-        searched: !isUnrenderableDomain(retailer.domain),
+        // reviewTier 'none' (Kermit Lynch, Astor — Phase 12.4) publish no critic scores.
+        searched: !isUnrenderableDomain(retailer.domain) && retailer.reviewTier !== 'none',
       })
     }
   })
@@ -770,7 +771,7 @@ describe('fetchReviewData — primary and extended review tiers', () => {
   it('has retailers in both tiers', () => {
     expect(primarySlugs.length).toBeGreaterThan(0)
     expect(extendedSlugs.length).toBeGreaterThan(0)
-    expect([...primarySlugs, ...extendedSlugs].sort()).toEqual(RETAILER_CONFIG.map(r => r.slug).sort())
+    expect([...primarySlugs, ...extendedSlugs].sort()).toEqual(RETAILER_CONFIG.filter(r => r.reviewTier !== 'none').map(r => r.slug).sort())
   })
 
   // Phase 9.4, WI-3 — bounded to the primary tier, even when it finds
@@ -785,7 +786,7 @@ describe('fetchReviewData — primary and extended review tiers', () => {
 
       for (const retailer of RETAILER_CONFIG) {
         const searched = queries.some(q => q.includes(`site:${retailer.domain}`))
-        if (retailer.reviewTier === 'extended') {
+        if (retailer.reviewTier === 'extended' || retailer.reviewTier === 'none') {
           expect(searched).toBe(false)
         } else if (!isUnrenderableDomain(retailer.domain)) {
           expect(searched).toBe(true)
@@ -926,7 +927,7 @@ describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () =
     await fetchReviewData(makeWine(), { probeLogSink: sink as never })
 
     const primaryAndExtendedSlugs = RETAILER_CONFIG
-      .filter(r => !isUnrenderableDomain(r.domain))
+      .filter(r => !isUnrenderableDomain(r.domain) && r.reviewTier !== 'none')
       .map(r => r.slug)
     expect(sink.map(e => e.slug).sort()).toEqual(primaryAndExtendedSlugs.sort())
     expect(sink.every(e => e.stage === 'zero_results')).toBe(true)

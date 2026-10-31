@@ -155,6 +155,12 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
           price suggests a larger format — size unconfirmed
         </span>
       )}
+      {r.sold_out && (
+        // Phase 12.4: the shop's own page says so — shown with its price, never counted.
+        <span className="format-badge" title="Left out of the average">
+          sold out
+        </span>
+      )}
       {kind && <BadgePill kind={kind} />}
     </>
   )

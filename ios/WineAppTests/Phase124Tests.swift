@@ -58,3 +58,13 @@ final class SimilarVintageWindowTests: XCTestCase {
         XCTAssertEqual(Set(fromSummary.flatMap(\.publications)).isSubset(of: Set(wine.criticSummary?.ordered.map(\.publication) ?? [])), true)
     }
 }
+
+/// Phase 12.4 WI-2: a price-only shop's page that says sold out.
+final class SoldOutListingTests: XCTestCase {
+    func testASoldOutListingDecodesAndSaysSo() throws {
+        let json = Data(#"{"slug":"kermitlynch","name":"Kermit Lynch Wine Merchant","price":105,"url":"https://shop.kermitlynch.com/product/detail/19FVT02","sold_out":true}"#.utf8)
+        let r = try JSONDecoder().decode(RetailerPrice.self, from: json)
+        XCTAssertEqual(r.soldOut, true)
+        XCTAssertEqual(r.price, 105)
+    }
+}

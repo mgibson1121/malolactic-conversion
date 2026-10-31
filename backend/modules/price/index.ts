@@ -10,6 +10,8 @@ import { haversineDistanceMiles } from './proximity'
 import type { ConfirmedProductPage, PriceData, RetailerResult } from './types'
 import { aggregatePriceData } from './aggregate'
 import { checkHeadlineFormats } from './large-format'
+import { discoverPriceOnlyRetailers } from './discover-price-only'
+import OpenAI from 'openai'
 
 export { aggregatePriceData, excludeOutliers, excludeExtremeOutliers } from './aggregate'
 
@@ -300,11 +302,12 @@ export async function fetchPriceData(
   const linkQuery = buildLinkQuery(wine)
 
   // Step 1 — Serper query: discover retailer URLs + prices (K&L excluded — see querySerper)
+  const bottlingWine = { ...identityOf(wine), wine_color: wine.wine_color, region: wine.region, grape_varieties: wine.grape_varieties, bottling_plain: wine.bottling_plain }
   const { retailers: baseResults, klItemSeen, requestFailed } = await querySerper(
     searchQuery,
     RETAILER_CONFIG,
     serperKey,
-    { ...identityOf(wine), wine_color: wine.wine_color, region: wine.region, grape_varieties: wine.grape_varieties, bottling_plain: wine.bottling_plain },
+    bottlingWine,
     linkQuery
   )
 
@@ -334,6 +337,18 @@ export async function fetchPriceData(
   // shops this run's Serper pass didn't surface — see confirmedPageResults.
   const confirmed = confirmedPageResults(opts.confirmedProductPages ?? [], verified)
 
+  // Shops Google Shopping does not list (Kermit Lynch, Astor — Phase 12.4
+  // WI-2): a site: search and a read of their own product page, unless the
+  // Shopping pass or a review page already brought them in.
+  const discovered = await discoverPriceOnlyRetailers(
+    bottlingWine,
+    RETAILER_CONFIG,
+    new Set([...verified, ...confirmed].map(r => r.slug)),
+    serperKey,
+    new OpenAI({ apiKey }),
+    renderPageHtml
+  )
+
   // K&L's link-only entry, offered only when there is a reason to (Phase
   // 9.1) — see buildKlLinkOnlyResult.
   const klLink = klItemSeen ? buildKlLinkOnlyResult(wine) : null
@@ -349,7 +364,7 @@ export async function fetchPriceData(
   // than a search for it.
   const allRetailers: RetailerResult[] = []
   const seenSlugs = new Set<string>()
-  for (const r of [...verified, ...confirmed, ...(klLink ? [klLink] : [])]) {
+  for (const r of [...verified, ...confirmed, ...discovered, ...(klLink ? [klLink] : [])]) {
     if (seenSlugs.has(r.slug)) continue
     seenSlugs.add(r.slug)
     allRetailers.push(r)
