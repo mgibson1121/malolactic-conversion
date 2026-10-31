@@ -1,14 +1,18 @@
 import type OpenAI from 'openai'
 import { NYC, type RetailerConfig } from '@shared/config/retailers.config'
-import { bottlingDifference, type BottlingWine } from '@shared/utils/bottling-difference'
-import { findProductPageDetailed } from '../reviews/find-product-page'
+import { bottlingDifference, isExactBottling, type BottlingWine } from '@shared/utils/bottling-difference'
+import { isAcceptableMatch, scoreMatch, type MatchVerdict } from '@shared/utils/wine-match'
+import { findProductPageDetailed, type RejectedCandidate } from '../reviews/find-product-page'
 import { describeFormat, extractPackFormat, isNonStandardFormat, normalizationFor } from './pack-format'
 import { haversineDistanceMiles } from './proximity'
-import { readListingPrice } from './listing-price'
+import { pageTitle, readListingPrice } from './listing-price'
 import type { RetailerResult } from './types'
 
 /** Query variants a price-only shop may spend: the full identity, then the relaxed producer. */
 export const PRICE_DISCOVERY_MAX_VARIANTS = 2
+
+/** Pages on the shop's own site re-judged on their own title when Google's title dropped the producer. */
+export const TITLE_RECHECK_LIMIT = 2
 
 /**
  * Price for configured shops Google Shopping does not list (Phase 12.4 WI-2,
@@ -49,15 +53,18 @@ async function discoverOne(
   render: (url: string) => Promise<string | null>
 ): Promise<RetailerResult | null> {
   const outcome = await findProductPageDetailed(wine, shop, serperKey, `price:discovery:${shop.slug}`, PRICE_DISCOVERY_MAX_VARIANTS)
-  if (!outcome.url || !outcome.match) return null
-  const verdict = outcome.match
+  let page: { url: string; verdict: MatchVerdict; html: string | null } | null =
+    outcome.url && outcome.match ? { url: outcome.url, verdict: outcome.match, html: null } : null
+  if (!page) page = await recheckOnPageTitle(wine, outcome.rejected, render)
+  if (!page) return null
+  const verdict = page.verdict
 
-  const html = await render(outcome.url)
+  const html = page.html ?? (await render(page.url))
   const listing = html ? await readListingPrice(html, openai) : { price: null, sold_out: false, title: null, source: 'none' as const }
   const title = listing.title ?? undefined
   const ownNames = [wine.producer, wine.cuvee, wine.vineyard]
   const format = extractPackFormat(title ?? '', ownNames)
-  const difference = bottlingDifference({ title, url: outcome.url }, wine)
+  const difference = bottlingDifference({ title, url: page.url }, wine)
 
   return {
     slug: shop.slug,
@@ -65,7 +72,7 @@ async function discoverOne(
     price: listing.price,
     // The shop's own product page — better than a search link, and the page
     // the price was read from.
-    url: outcome.url,
+    url: page.url,
     is_preferred_retailer: true,
     distance_miles: Math.round(haversineDistanceMiles(NYC.lat, NYC.lng, shop.lat, shop.lng)),
     is_search_results_page: false,
@@ -88,3 +95,34 @@ async function discoverOne(
   }
 }
 
+
+/**
+ * Google shortens titles, and not consistently (live, 2026-10-31): the same
+ * Kermit Lynch page came back once as "2019 Châteauneuf-du-Pape “La Crau”
+ * Domaine du Vieux Télégraphe" and a minute later as "2019 Châteauneuf-du-Pape
+ * “La Crau”" — no producer, so the matcher rightly turned it down. On a shop's
+ * own site the page is the better witness than Google's summary of it: a
+ * candidate rejected *only* for the producer (the appellation matched) is
+ * rendered and judged again on the page's own `<title>`, exact bottling and
+ * same vintage first. At most TITLE_RECHECK_LIMIT renders; no Serper call.
+ */
+async function recheckOnPageTitle(
+  wine: BottlingWine,
+  rejected: RejectedCandidate[],
+  render: (url: string) => Promise<string | null>
+): Promise<{ url: string; verdict: MatchVerdict; html: string } | null> {
+  const rank = (c: RejectedCandidate) =>
+    (isExactBottling(bottlingDifference({ title: c.title, url: c.url }, wine)) ? 0 : 2) + (c.verdict?.vintage === 'match' ? 0 : 1)
+  const retry = rejected
+    .filter(c => c.verdict && c.verdict.producer !== 'match' && c.verdict.denomination === 'match')
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, TITLE_RECHECK_LIMIT)
+  for (const c of retry) {
+    const html = await render(c.url)
+    const title = html ? pageTitle(html) : null
+    if (!html || !title) continue
+    const verdict = scoreMatch({ title, url: c.url }, wine)
+    if (isAcceptableMatch(verdict)) return { url: c.url, verdict, html }
+  }
+  return null
+}
