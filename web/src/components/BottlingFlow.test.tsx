@@ -11,13 +11,13 @@ const mockChoose = chooseBottling as unknown as ReturnType<typeof vi.fn>
 
 const idle: EnrichmentAction = { busy: false, error: null, cachedAt: null, run: vi.fn() }
 
-const ladder = (tier: '1' | '2' | '3a' | '3b') => ({
+const ladder = (tier: '1' | '2' | '3' | '4') => ({
   tier,
   pages: [],
   rungs: [{ tier, pages: 2, scores: 3, trusted_scores: 1, critics: ['Vinous', 'Decanter'], vintages: [2021, 2019] }],
 })
 
-function wineAt(tier: '1' | '2' | '3a', extra: Record<string, unknown> = {}) {
+function wineAt(tier: '1' | '2' | '3', extra: Record<string, unknown> = {}) {
   return makeTestWine({
     vintage: 2021,
     critic_summary: { ordered: [makeSummaryItem({ publication: 'Vinous', score: 94 })] },
@@ -52,7 +52,7 @@ describe('Tier marker and explainer sheet (Phase 12.2 WI-2.3)', () => {
   })
 
   it('offers "Which bottling is yours?" from a Tier 3 sheet', async () => {
-    render(<CriticReviewsBlock wine={wineAt('3a')} action={idle} onWineUpdated={() => {}} />)
+    render(<CriticReviewsBlock wine={wineAt('3')} action={idle} onWineUpdated={() => {}} />)
     await userEvent.click(screen.getByRole('button', { name: 'What does this tier mean?' }))
     expect(screen.getByRole('button', { name: 'Which bottling is yours?' })).toBeInTheDocument()
   })
@@ -65,11 +65,25 @@ describe('Tier marker and explainer sheet (Phase 12.2 WI-2.3)', () => {
           makeSummaryItem({ publication: 'Decanter', score: 95, same_vintage: false, vintage: 2019, vintage_delta: 2, bottling_badge: "Names Castiglione — yours doesn't" }),
         ],
       },
-      review_ladder: ladder('3b'),
+      review_ladder: ladder('4'),
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getByText(/2019 · 2 yrs earlier/)).toBeInTheDocument()
-    expect(screen.getByTitle("Names Castiglione — yours doesn't")).toHaveTextContent('different bottling?')
+    // The year only, never the distance (Phase 12.3 WI-3), and no "?" on the tag (WI-2).
+    expect(screen.getByTitle('The vintage this score is for')).toHaveTextContent(/^2019$/)
+    expect(screen.queryByText(/yrs? (earlier|later)/)).not.toBeInTheDocument()
+    expect(screen.getByTitle("Names Castiglione — yours doesn't")).toHaveTextContent(/^different bottling$/)
+  })
+
+  it('reads a ladder from a backend older than the Phase 12.3 rename, mapping 3a/3b to Tier 3/4', async () => {
+    const legacy = (tier: string) => ({ ...ladder('1'), tier, rungs: [{ ...ladder('1').rungs[0], tier }] }) as unknown as ReturnType<typeof ladder>
+    const { unmount } = render(<CriticReviewsBlock wine={wineAt('1', { review_ladder: legacy('3a') })} action={idle} onWineUpdated={() => {}} />)
+    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Matched at Tier 3 · different bottling, same vintage')
+    await userEvent.click(screen.getByRole('button', { name: 'What does this tier mean?' }))
+    expect(screen.getByRole('dialog', { name: 'Tier 3' })).toHaveTextContent('Tier 3: 2 pages')
+    expect(screen.getByRole('button', { name: 'Which bottling is yours?' })).toBeInTheDocument()
+    unmount()
+    render(<CriticReviewsBlock wine={wineAt('1', { review_ladder: legacy('3b') })} action={idle} />)
+    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Matched at Tier 4 · different bottling, nearby vintage')
   })
 })
 

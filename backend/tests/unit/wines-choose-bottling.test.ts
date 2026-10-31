@@ -168,7 +168,7 @@ describe('POST /:id/choose-bottling', () => {
     const w = await viettiWine()
     const body = await asJson(await choose(w.id, { choice: 'cuvee', name: 'Zzyzx' }))
     expect(body.wine.cuvee).toBe('Zzyzx')
-    expect(body.result.tier).toBe('3a')
+    expect(body.result.tier).toBe('3')
     expect(body.wine.price_data.headline_basis).toBe('none')
   })
 

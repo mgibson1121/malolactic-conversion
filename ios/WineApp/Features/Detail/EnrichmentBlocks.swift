@@ -140,12 +140,12 @@ struct CriticSummaryRow: View {
                     Pill(text: "Trusted", fg: Theme.green, bg: Theme.greenSoft)
                 }
                 if !item.sameVintage, let vintage = item.vintage {
-                    let off = item.vintageDelta.flatMap { $0 > 0 ? " · \($0) \($0 == 1 ? "yr" : "yrs")" : nil } ?? ""
-                    Pill(text: String(vintage) + off, fg: Theme.textMuted, bg: Theme.surface2)
+                    // The year only, never the distance from the wine's (Phase 12.3 WI-3).
+                    Pill(text: String(vintage), fg: Theme.textMuted, bg: Theme.surface2)
                         .accessibilityLabel("Score is for the \(vintage) vintage")
                 }
                 if item.bottlingBadge != nil {
-                    Pill(text: "different bottling?", fg: Theme.textMuted, bg: Theme.surface2)
+                    Pill(text: "different bottling", fg: Theme.textMuted, bg: Theme.surface2)
                         .accessibilityLabel(item.bottlingBadge ?? "")
                 }
             }

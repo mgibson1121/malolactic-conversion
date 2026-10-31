@@ -59,7 +59,7 @@ final class BottlingPromptDecodingTests: XCTestCase {
         let ladder = try XCTUnwrap(wine.reviewLadder)
         XCTAssertEqual(ladder.tier, "1")
         XCTAssertEqual(ladder.rungs.first { $0.tier == "1" }?.critics, ["Vinous"])
-        XCTAssertEqual(ladder.rungs.first { $0.tier == "3a" }?.pages, 2)
+        XCTAssertEqual(ladder.rungs.first { $0.tier == "3" }?.pages, 2)
         let prompt = try XCTUnwrap(wine.bottlingPrompt)
         XCTAssertEqual(prompt.options.map(\.name), ["Castiglione", "Monvigliero", "Rocche"])
         XCTAssertEqual(Set(prompt.reasons), ["modifiers", "price_split"])
@@ -106,7 +106,8 @@ final class TierCopyTests: XCTestCase {
     func testTheHeadlineNamesTheTierInWords() {
         XCTAssertEqual(TierCopy.headline("1"), "Matched at Tier 1 · exact wine and vintage")
         XCTAssertEqual(TierCopy.headline("2"), "Matched at Tier 2 · same wine, other vintages")
-        XCTAssertEqual(TierCopy.headline("3a"), "Matched at Tier 3a · different bottling, same vintage")
+        XCTAssertEqual(TierCopy.headline("3"), "Matched at Tier 3 · different bottling, same vintage")
+        XCTAssertEqual(TierCopy.headline("4"), "Matched at Tier 4 · different bottling, nearby vintage")
         XCTAssertNil(TierCopy.headline("none"))
     }
 
@@ -178,5 +179,21 @@ final class ScorelessPagesTests: XCTestCase {
     func testALadderFromAnOlderBackendWithNoPagesStillDecodes() throws {
         let ladder = try JSONDecoder().decode(ReviewLadder.self, from: Data(#"{"tier":"2","rungs":[]}"#.utf8))
         XCTAssertNil(ladder.pages)
+    }
+}
+
+/// Phase 12.3 WI-4: Tier 3a/3b became 3/4. A ladder from a backend that has
+/// not been restarted since the rename still decodes, under the new names.
+final class LegacyTierDecodingTests: XCTestCase {
+    func testTheOldTierNamesDecodeAsTier3And4() throws {
+        let json = Data("""
+        {"tier":"3a","rungs":[{"tier":"3a","pages":2,"scores":3,"trusted_scores":1,"critics":["Vinous"],"vintages":[2021]},
+                              {"tier":"3b","pages":1,"scores":1,"trusted_scores":0,"critics":[],"vintages":[2019]}]}
+        """.utf8)
+        let ladder = try JSONDecoder().decode(ReviewLadder.self, from: json)
+        XCTAssertEqual(ladder.tier, "3")
+        XCTAssertEqual(ladder.rungs.map(\.tier), ["3", "4"])
+        XCTAssertEqual(TierCopy.headline(ladder.tier), "Matched at Tier 3 · different bottling, same vintage")
+        XCTAssertEqual(LadderTier.normalize("2"), "2")
     }
 }
