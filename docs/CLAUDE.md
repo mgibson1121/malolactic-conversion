@@ -12,7 +12,7 @@ A personal wine companion app with two frontends (iOS and web) sharing a single 
 
 ## 2. Repository Structure
 
-Monorepo. All code lives in a single repository. Capabilities are implemented as isolated modules — each with its own interface — but deployed together. Do not scaffold separate services or Docker containers.
+Monorepo. All code lives in a single repository. Capabilities are implemented as isolated modules — each with its own interface — but deployed together. Do not scaffold separate services or Docker containers. (**Amended 2026-11-01, Phase 13:** one root `Dockerfile` builds the single container that runs this same monolith — API plus built web app — on Fly.io. That is the only container: no per-module images, no separate services.)
 
 ```
 /
@@ -26,9 +26,13 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 ├── shared/           # Shared types, constants, validation schemas, retailer config (Phase 7+)
 ├── docs/
 │   ├── product-context.md   # Product PRD — source of truth for features
-│   └── specs/               # Per-feature spec files (added as features are built)
+│   ├── specs/               # Per-feature spec files (added as features are built)
+│   └── ops/runbook.md       # Phase 13 — deploy, rollback, backup/restore, tokens, testers
 ├── .github/
 │   └── workflows/           # GitHub Actions CI workflow files
+├── Dockerfile        # Phase 13 — the one production image (API + built web app)
+├── fly.toml          # Phase 13 — Fly.io app: one machine, volume at /data, idle auto-stop
+├── .dockerignore     # Keeps .env and every *.db out of the image
 ├── .env.example      # Template — never commit .env
 ├── .env              # Local secrets — gitignored
 └── CLAUDE.md         # This file
@@ -153,7 +157,18 @@ Built on `feature/phase-12.5-price-critic-redesign` (spec: the round-2 spec, 12.
 - **Critic scores are never collapsed** (developer 2026-10-31): flat, backend order, one line each (score, critic, year if another vintage), "different bottling" only on Tier 3/4 rows. Tier header: Tier 1 is the badge, others "Tier N · <phrase>"; the explainer sheet is one sentence plus the counts. Supersedes the 12.1 "first six, then Show all".
 - **Copy pass applied** (WI-5, all 44 accepted 2026-11-01): one short sentence, explanations behind a tap. Errors read "Couldn't <do it>. Is the backend running?"; reviews' states mirror price's ("Checking reviews…", "Couldn't check reviews. Retry", "No critic scores found."). The record is `docs/specs/2026-11-01-phase-12.5-copy-audit.md` (+ the full CSV); new copy follows the same rule.
 
-### Phase 13 and beyond
+### Phase 13 — Production deployment and distribution (in progress)
+Fly.io container, TestFlight distribution (spec: `docs/specs/2026-10-10-phase-13-production-deployment.md`; operations: `docs/ops/runbook.md`). Rules an agent must obey, as built so far (WI-1, WI-2, 2026-11-01):
+- **Production runs compiled JavaScript, never `ts-node`.** `npm run build -w backend` is `tsc` → `tsc-alias` (rewrites `@shared/*` to relative paths; Node cannot resolve the alias) → `scripts/copy-build-assets.js` (copies `db/schema.sql` and `db/migrations/` next to the compiled `migrate.js`, which silently skips migrations when that directory is missing — so the copy step fails the build instead). Entry: `node backend/dist/backend/server.js`. A new runtime file read via `__dirname` needs adding to that copy step. CI runs the build and boots the result.
+- **`backend/app.ts` builds the Express app; `server.ts` only listens and owns the lifecycle** (draft sweep, SIGTERM/SIGINT drain, WAL checkpoint via `closeStorage()`). Route tests can call `createApp(...)` without opening the database.
+- **Environment, not code, carries deployment differences:** `PORT`, `HOST` (default `0.0.0.0`), `WINE_DB_PATH` (`/data/wine.db` on Fly), `CORS_ORIGINS` (comma-separated; unset = `http://localhost:5173`), `WEB_DIST_DIR` (set = this process serves `web/dist`, one origin; unset locally, where Vite serves it), `RENDER_CONCURRENCY`, `SHUTDOWN_GRACE_MS` (must stay below `fly.toml`'s `kill_timeout`).
+- **`GET /healthz` is unauthenticated and never touches the database** (`/health` is an alias). Keep it that way when WI-3 adds the token middleware.
+- **Every Chromium launch takes a slot from `shared/utils/render-gate.ts`** (`withRenderSlot`, `CHROMIUM_ARGS`). Both `renderPageHtml` copies go through it, so the cap holds across price and reviews. Unset `RENDER_CONCURRENCY` = uncapped (local behaviour unchanged); `fly.toml` sets 2 at 1 GB until WI-5 measures. A new render path must use the gate too.
+- **Puppeteer is a production dependency** (it was a devDependency; the image installs with `--omit=dev`). Puppeteer 25 needs Node ≥ 22.12, so the image is Node 22; CI's Node 20 is fine because tests mock Puppeteer (§4).
+- **`web`'s `build` script is `tsc --noEmit && vite build`.** Plain `tsc` there (no `outDir`) wrote a `.js` beside every `.ts` in `web/src` and `shared/`, and ts-jest then picked up `shared/validation.js` and failed.
+- **Never put a database in the image.** `.dockerignore` excludes every `*.db*`; the collection reaches the cloud only through WI-4's one-time `sqlite3 .backup` upload (spec R7).
+
+### Phase 14 and beyond
 Defined in `docs/build-phases.md`.
 
 ---
@@ -162,13 +177,13 @@ Defined in `docs/build-phases.md`.
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Backend | Node.js + Express + TypeScript | Local API server |
+| Backend | Node.js + Express + TypeScript | API server — local in development; one Fly.io container in production (Phase 13), compiled to JavaScript |
 | iOS | Swift + SwiftUI | Native iOS app — primary capture surface |
 | Web | React + TypeScript | Management and research surface |
 | Database | SQLite via `better-sqlite3` | Phase 5 onward |
 | Sheets adapter | Google Sheets API v4 via `googleapis` | Phases 1–4 only — retained for reference, not active |
 | SERP data | Serper.dev | Shopping endpoint (Phase 6, price discovery) and organic `/search` endpoint (Phase 7, product page discovery for review sourcing) — different endpoints for different purposes; Shopping links are never trustworthy product URLs, organic links are. |
-| Headless browser | Puppeteer | Phase 6: renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Phase 7: renders a single confirmed *product* page (found via Serper organic search, not by rendering the retailer's own on-site search) for GPT-4o critic-score extraction. Do not run in CI; mock with HTML fixtures in tests. |
+| Headless browser | Puppeteer | Phase 6: renders each retailer's search-results page to verify it still shows a result before its price is trusted (`verify-listing.ts`). Phase 7: renders a single confirmed *product* page (found via Serper organic search, not by rendering the retailer's own on-site search) for GPT-4o critic-score extraction. Phase 13: every launch waits for a slot from `shared/utils/render-gate.ts` (`RENDER_CONCURRENCY`; unset = uncapped). Do not run in CI; mock with HTML fixtures in tests. |
 | Shared types | TypeScript interfaces in `/shared` | Used by both backend and web |
 | Shared config | `shared/config/retailers.config.ts` (Phase 7) | Retailer slug/name/domain/coordinates/`reviewTier` (Phase 9.2). Moved from `backend/modules/price/` in Phase 7 because both `price` and `reviews` need it and modules cannot import from each other. |
 | Shared query/matching utils | `shared/utils/wine-match.ts`, `shared/utils/retailer-search-url.ts`, `shared/utils/serper-client.ts` (Phase 9.2) | `normalize`/`significantWords`/`isRelevantMatch`/`buildDistinguishingQuery`, `buildRetailerSearchUrl`, and the single wrapped path to every outbound Serper call (call/attempt accounting, Phase 9.2 WI-1). Same reasoning as `retailers.config.ts` above. **Phase 9.1** replaced the boolean `isRelevantMatch` with a graded `scoreMatch` — see §5's note on wine identity. |
@@ -304,7 +319,7 @@ Offline mode is out of scope for v1.
 
 ### GitHub Actions (CI)
 
-CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to `main`: install → lint (`tsc --noEmit` + ESLint) → backend tests (`jest`) → frontend tests → build. A separate `ios` job (Phase 12) builds the app and runs XCTest on a macOS runner. It uses the latest installed Xcode and the first available iPhone simulator, not a pinned model name. It is a separate job so a macOS runner problem never hides the backend/web result.
+CI workflow lives in `.github/workflows/ci.yml`, running on every PR and push to `main`: install → lint (`tsc --noEmit` + ESLint) → backend tests (`jest`) → frontend tests → build (backend `npm run build`, web `npm run build`) → smoke-start the compiled backend against a temp database and check `/healthz`, `/api/wines` and the served web page (Phase 13). A separate `ios` job (Phase 12) builds the app and runs XCTest on a macOS runner. It uses the latest installed Xcode and the first available iPhone simulator, not a pinned model name. It is a separate job so a macOS runner problem never hides the backend/web result.
 
 ---
 
@@ -459,7 +474,7 @@ Written to `docs/sessions/<YYYY-MM-DD>-<phase-or-topic>.md` at the end of every 
 These are hard constraints. Do not violate them without explicit instruction.
 
 - Do not store API keys, credentials, or secrets in the database, in code, or in version control
-- Do not build a hosted backend or cloud database — everything runs locally (flagged for a future reversal, 2026-09-21: Phase 12's D5 decision parks cloud-hosting the backend, for off-LAN mobile access, as its own future phase — this constraint will need to be revisited then, not before)
+- Do not build a hosted backend or cloud database — everything runs locally (flagged for a future reversal, 2026-09-21: Phase 12's D5 decision parks cloud-hosting the backend, for off-LAN mobile access, as its own future phase — this constraint will need to be revisited then, not before). **Reversed 2026-11-01 by Phase 13 (spec approved by the developer) for the backend and its SQLite file only:** one Fly.io machine with the database on a volume. Still no Postgres and no separate cloud database service, and still exactly one machine (SQLite is single-writer).
 - Do not use Postgres — use SQLite (Phase 5+) or Google Sheets (Phases 1–4, reference only)
 - Do not scrape CellarTracker or WineBerserkers — both prohibit automated access in their ToS
 - The retailer links module (Phase 6.6) constructs URL strings only — it never fetches or parses retailer pages.

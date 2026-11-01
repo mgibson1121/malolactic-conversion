@@ -1,6 +1,6 @@
 # Phase 13 — Production deployment and distribution
 
-> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; not started — built after Phase 12.5.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1 and WI-2 built 2026-11-01 (see `docs/build-phases.md`), WI-5 next.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
 > **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
