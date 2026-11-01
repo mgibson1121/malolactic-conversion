@@ -206,7 +206,7 @@ describe('LabelScanFlow — free duplicate check (WI-4)', () => {
     render(<LabelScanFlow wines={[existing]} onReview={() => {}} onDone={() => {}} />)
     await uploadAFile()
 
-    await waitFor(() => expect(screen.getByText(/Yours is the Magistra/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/doesn’t name Magistra/)).toBeInTheDocument())
     expect(mockCreateWine).not.toHaveBeenCalled()
   })
 

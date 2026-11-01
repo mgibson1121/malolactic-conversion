@@ -100,7 +100,7 @@ export default function App() {
       // running" actually answers (gap-doc §3).
       setError(
         err instanceof TypeError || !(err instanceof Error)
-          ? 'Could not load wines — is the backend running on port 3000?'
+          ? 'Couldn’t load wines. Is the backend running?'
           : err.message
       )
     } finally {

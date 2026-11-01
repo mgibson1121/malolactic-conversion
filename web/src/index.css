@@ -2544,3 +2544,20 @@ summary.link { display: inline-block; font-size: 12px; }
 .bottling-else { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
 .scoreless-pages { font-size: 0.85em; margin: 6px 0; opacity: 0.85; }
+
+/* Phase 12.5 WI-1 / WI-4 — the price block's one line, and the Exact match badge. */
+.price-state-line { margin: 4px 0 8px; font-size: 1rem; }
+.price-state-line .price-value { font-size: 1.15rem; }
+.price-state-range { color: var(--text-muted); }
+.price-state-line--nothing_found, .price-state-line--no_average, .price-state-line--similar_vintages { color: var(--text-muted); }
+.exact-match-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+  color: var(--green, #2f6b3a); background: var(--green-soft, #e6f1e7); vertical-align: middle;
+}
+
+/* Phase 12.5 WI-3 — one compact line per critic score, all of them. */
+.critic-score-lines { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.critic-score-line { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.critic-score-line .critic-score { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 2.2em; }
+.critic-score-line .critic-publication { overflow: hidden; text-overflow: ellipsis; }
+.critic-score-line--other { opacity: 0.85; }

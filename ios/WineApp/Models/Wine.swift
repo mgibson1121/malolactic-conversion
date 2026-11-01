@@ -226,6 +226,27 @@ struct PriceWindow: Codable, Hashable {
     }
 }
 
+/// The price block's one state and line (Phase 12.5 WI-1), computed in the
+/// backend. "Checking prices…" and "Couldn't check prices" are request
+/// states this app owns; they are never stored.
+struct PriceState: Codable, Hashable {
+    enum Kind: String, Codable {
+        case priced, estimated
+        case wideRange = "wide_range"
+        case similarVintages = "similar_vintages"
+        case noAverage = "no_average"
+        case nothingFound = "nothing_found"
+    }
+    var kind: Kind
+    var line: String
+    var avg: Double?
+    var range: PriceRange?
+    /// Slugs the price list shows: priced, within ±3 vintages, in display order.
+    var priced: [String]
+    /// Slugs that are the exact wine and vintage (WI-4 "Exact match").
+    var exact: [String]
+}
+
 struct CriticSummary: Codable, Hashable {
     var ordered: [CriticSummaryItem]
 }
@@ -301,6 +322,7 @@ struct Wine: Codable, Identifiable, Hashable {
     var bottlingPrompt: BottlingPrompt?
     var bottlingAnswer: BottlingAnswer?
     var priceWindow: PriceWindow?
+    var priceState: PriceState?
     /// The developer answered "Plain / no special bottling".
     var bottlingPlain: Bool?
 
@@ -351,6 +373,7 @@ struct Wine: Codable, Identifiable, Hashable {
         case bottlingPrompt = "bottling_prompt"
         case bottlingAnswer = "bottling_answer"
         case priceWindow = "price_window"
+        case priceState = "price_state"
         case bottlingPlain = "bottling_plain"
         case priceData = "price_data"
         case retailerLinks = "retailer_links"

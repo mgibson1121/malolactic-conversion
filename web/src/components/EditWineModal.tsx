@@ -107,7 +107,7 @@ export function EditWineModal({ wine, onClose, onSaved, onDeleted }: Props) {
       // not imported: that file pulls zod into the browser bundle.
       const value = Number(priceText.replace(/^\$/, ''))
       if (!Number.isFinite(value) || value <= 0 || Math.abs(value * 100 - Math.round(value * 100)) > 1e-6) {
-        return { error: 'Your price must be a positive amount with at most two decimals.' }
+        return { error: 'Enter a price like 45 or 45.50.' }
       }
       if (value !== wine.manual_price) patch.manual_price = value
     }
@@ -124,7 +124,7 @@ export function EditWineModal({ wine, onClose, onSaved, onDeleted }: Props) {
       } else if (/^\d{4}$/.test(s) && /^\d{4}$/.test(e) && Number(s) <= Number(e)) {
         patch.drinking_window = { start: `${s}-01-01`, end: `${e}-12-31` }
       } else {
-        return { error: 'Drinking window needs a start and end year (start no later than end), or both blank.' }
+        return { error: 'Enter both years, start first — or leave both blank.' }
       }
     }
 
@@ -241,7 +241,7 @@ export function EditWineModal({ wine, onClose, onSaved, onDeleted }: Props) {
           placeholder="Optional — overrides the automated price"
         />
         <p className="edit-hint">
-          When set, this is the price shown everywhere; the automated prices stay as reference. No search ever changes it.
+          Shown everywhere instead of the automated prices. Searches never change it.
         </p>
 
         <label>Drinking window</label>
@@ -294,7 +294,7 @@ export function EditWineModal({ wine, onClose, onSaved, onDeleted }: Props) {
           <div className="edit-refresh-prompt" role="alertdialog" aria-label="Refresh searches now?">
             <h3>Refresh searches now?</h3>
             <p>
-              You changed what this wine is. Its stored prices and critic scores were found for the old version.
+              Prices and scores were found for the old details.
               Refreshing runs both searches again: {refreshCost}.
             </p>
             <div className="form-actions">

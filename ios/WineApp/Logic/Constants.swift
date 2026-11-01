@@ -41,13 +41,11 @@ enum BadgeExplanation {
     static func text(for badge: RetailerBadge) -> String? {
         switch badge {
         case .verified:
-            return "We opened this shop's own search page and it mentions this producer. "
-                + "That does not confirm the vintage or the exact bottling — those have their own badges."
+            return "Shop page mentions this producer."
         case .unverified:
-            return "We couldn't confirm this listing (the shop's page didn't load in time, or no producer is recorded). "
-                + "The price is from Google Shopping and may be out of date."
+            return "Couldn't confirm. Price may be outdated."
         case .searchOnly:
-            return "A link to the shop's search page; no price was found."
+            return "Search link, no price."
         default:
             return nil
         }

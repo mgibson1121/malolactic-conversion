@@ -58,7 +58,7 @@ final class ScanFailureTests: XCTestCase {
 
     func testUnsupportedFormatUsesTheWebsCopy() {
         let step = ScanFlowModel.scanFailureStep(.server(status: 400, message: "IMAGE_FORMAT_UNSUPPORTED"))
-        XCTAssertEqual(step, .error("This image format couldn't be processed. Please save the photo as a JPEG and try again."))
+        XCTAssertEqual(step, .error("Couldn't read this image. Try a JPEG."))
     }
 
     func testOtherFailuresArePrefixedScanFailed() {

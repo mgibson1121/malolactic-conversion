@@ -10,6 +10,8 @@ interface Props {
   onWineUpdated: (wine: WineEntry) => void
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The scan's draft review: the one place the "check the bottle" hint shows (12.5 copy pass). */
+  draft?: boolean
 }
 
 const fmt = (n: number) => `$${n.toFixed(0)}`
@@ -20,7 +22,7 @@ function kindOf(option: BottlingOption): 'vineyard' | 'cuvee' {
 }
 
 /**
- * "Listings name different bottlings — which is yours?" (Phase 12.2 WI-2.5): a
+ * "Different bottlings found. Which is yours?" (Phase 12.2 WI-2.5): a
  * non-blocking banner on the detail card, opening a sheet. Answering re-scores
  * every stored listing and review page on the server with no network call and
  * returns the wine; the result line says what changed. Dismissing ("Not sure")
@@ -30,7 +32,7 @@ function kindOf(option: BottlingOption): 'vineyard' | 'cuvee' {
  * banner gives way to a quiet "Bottling: Les Rugiens · Change" row (Phase 12.4
  * WI-4, the backend's `bottling_answer`); Change reopens the same sheet.
  */
-export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange }: Props) {
+export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange, draft = false }: Props) {
   const prompt = wine.bottling_prompt
   const answer = prompt ? null : wine.bottling_answer
   const [result, setResult] = useState<string | null>(null)
@@ -41,8 +43,8 @@ export function BottlingBanner({ wine, onWineUpdated, open, onOpenChange }: Prop
       {prompt && (
         <div className="bottling-banner" role="note" data-testid="bottling-banner">
           <span>
-            Listings name different bottlings — which is yours?
-            {!wine.vineyard && !wine.cuvee && ' The label may name a vineyard or special bottling — check the bottle.'}
+            Different bottlings found. Which is yours?
+            {draft && !wine.vineyard && !wine.cuvee && ' Check the bottle for a vineyard or cuvée.'}
           </span>{' '}
           <button type="button" className="btn-link-inline" onClick={() => onOpenChange(true)}>
             Choose
@@ -97,7 +99,7 @@ function BottlingSheet({
       const { wine: updated, result } = await chooseBottling(wine.id, choice)
       const line =
         choice.choice === 'not_sure'
-          ? 'Left as it was. We’ll ask again only if a refresh brings other bottlings.'
+          ? 'Left as it was. We’ll ask again if new bottlings turn up.'
           : tierResultLine(result.tier, result.scores, result.trusted_scores)
       const dup = result.duplicate && result.duplicate.kind !== 'none' ? ' This may match another wine in your cellar.' : ''
       onDone(updated, line + dup)

@@ -97,7 +97,7 @@ final class EditWineModel {
             if original.manualPrice != nil { edit.manualPrice = .clear }
         } else {
             guard let value = Double(priceText), value > 0, abs(value * 100 - (value * 100).rounded()) < 1e-6 else {
-                return .failure(.message("Your price must be a positive amount with at most two decimals."))
+                return .failure(.message("Enter a price like 45 or 45.50."))
             }
             if value != original.manualPrice { edit.manualPrice = .set(value) }
         }
@@ -114,7 +114,7 @@ final class EditWineModel {
             } else if let start = Int(s), let end = Int(e), s.count == 4, e.count == 4, start <= end {
                 edit.drinkingWindow = .set(DrinkingWindow(start: "\(s)-01-01", end: "\(e)-12-31"))
             } else {
-                return .failure(.message("Drinking window needs a start and end year (start no later than end), or both blank."))
+                return .failure(.message("Enter both years, start first — or leave both blank."))
             }
         }
 
@@ -166,10 +166,10 @@ final class EditWineModel {
                 }
                 return saved
             } catch let apiError as APIError {
-                error = apiError.message(networkMessage: "Could not save — is the backend running?")
+                error = apiError.message(networkMessage: "Couldn't save. Is the backend running?")
                 return nil
             } catch {
-                self.error = "Could not save — is the backend running?"
+                self.error = "Couldn't save. Is the backend running?"
                 return nil
             }
         }
@@ -205,7 +205,7 @@ final class EditWineModel {
         do {
             deletePreview = try await api.notesKeptOnDelete(id: original.id)
         } catch let apiError as APIError {
-            error = apiError.message(networkMessage: "Could not check this wine's notes — is the backend running?")
+            error = apiError.message(networkMessage: "Couldn't check this wine's notes. Is the backend running?")
         } catch {}
     }
 
@@ -219,7 +219,7 @@ final class EditWineModel {
             try await api.deleteWine(id: original.id)
             return true
         } catch let apiError as APIError {
-            error = apiError.message(networkMessage: "Could not delete — is the backend running?")
+            error = apiError.message(networkMessage: "Couldn't delete. Is the backend running?")
             return false
         } catch {
             return false

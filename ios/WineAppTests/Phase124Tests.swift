@@ -127,3 +127,22 @@ final class WineColourSourceTests: XCTestCase {
         XCTAssertEqual(raw?["wine_color_source"] as? String, "derived")
     }
 }
+
+/// Phase 12.5 WI-1: the price state decodes, and the line is the backend's —
+/// so web and iOS say the same words.
+final class PriceStateDecodingTests: XCTestCase {
+    func testEveryKindDecodes() throws {
+        for (raw, kind) in [("priced", PriceState.Kind.priced), ("estimated", .estimated), ("wide_range", .wideRange),
+                            ("similar_vintages", .similarVintages), ("no_average", .noAverage), ("nothing_found", .nothingFound)] {
+            let json = Data(#"{"kind":"\#(raw)","line":"L","avg":null,"range":null,"priced":[],"exact":[]}"#.utf8)
+            XCTAssertEqual(try JSONDecoder().decode(PriceState.self, from: json).kind, kind)
+        }
+    }
+
+    func testTheFullFixtureCarriesTheBackendsLine() throws {
+        let wine = try Fixture.fullWine
+        let state = try XCTUnwrap(wine.priceState)
+        XCTAssertFalse(state.line.isEmpty)
+        XCTAssertEqual(Set(state.priced).isSubset(of: Set(wine.priceData?.retailers.map(\.slug) ?? [])), true)
+    }
+}

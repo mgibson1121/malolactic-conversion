@@ -104,10 +104,10 @@ final class BottlingPromptDecodingTests: XCTestCase {
 
 final class TierCopyTests: XCTestCase {
     func testTheHeadlineNamesTheTierInWords() {
-        XCTAssertEqual(TierCopy.headline("1"), "Matched at Tier 1 · exact wine and vintage")
-        XCTAssertEqual(TierCopy.headline("2"), "Matched at Tier 2 · same wine, other vintages")
-        XCTAssertEqual(TierCopy.headline("3"), "Matched at Tier 3 · different bottling, same vintage")
-        XCTAssertEqual(TierCopy.headline("4"), "Matched at Tier 4 · different bottling, nearby vintage")
+        XCTAssertEqual(TierCopy.headline("1"), "Tier 1 · exact wine and vintage")
+        XCTAssertEqual(TierCopy.headline("2"), "Tier 2 · other vintages")
+        XCTAssertEqual(TierCopy.headline("3"), "Tier 3 · different bottling")
+        XCTAssertEqual(TierCopy.headline("4"), "Tier 4 · different bottling, other vintage")
         XCTAssertNil(TierCopy.headline("none"))
     }
 
@@ -193,7 +193,7 @@ final class LegacyTierDecodingTests: XCTestCase {
         let ladder = try JSONDecoder().decode(ReviewLadder.self, from: json)
         XCTAssertEqual(ladder.tier, "3")
         XCTAssertEqual(ladder.rungs.map(\.tier), ["3", "4"])
-        XCTAssertEqual(TierCopy.headline(ladder.tier), "Matched at Tier 3 · different bottling, same vintage")
+        XCTAssertEqual(TierCopy.headline(ladder.tier), "Tier 3 · different bottling")
         XCTAssertEqual(LadderTier.normalize("2"), "2")
     }
 }

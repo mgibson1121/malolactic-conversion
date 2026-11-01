@@ -108,7 +108,7 @@ export function WineDetailModal({
   }
 
   const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
-  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Review lookup failed')
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Couldn’t check reviews')
 
   // Fetch-once price rule (developer decision 2026-09-26, utils/priceOnce.ts):
   // a wine that has never been priced is priced on open; one that has is not
@@ -197,7 +197,7 @@ export function WineDetailModal({
               {wine.vintage_rating && (
                 <span
                   className={`vintage-rating-badge vintage-rating-${wine.vintage_rating}`}
-                  title="Vintage character, from professional review extraction — never blended across disagreeing critics"
+                  title="Vintage character, from critics"
                 >
                   Year: {VINTAGE_RATING_LABELS[wine.vintage_rating]}
                   {wine.vintage_rating_source === 'derived' && (

@@ -11,26 +11,26 @@ const summary = (...items: ReturnType<typeof makeSummaryItem>[]) => ({ ordered: 
 describe('CriticReviewsBlock — four explicit states (Phase 12.1 WI-4)', () => {
   it('Looking: skeleton lines and "Looking for critic scores…" while a lookup is running', () => {
     render(<CriticReviewsBlock wine={makeTestWine()} action={{ ...idle, busy: true }} />)
-    expect(screen.getByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(screen.getByText('Checking reviews…')).toBeInTheDocument()
   })
 
   it('Looking: a fresh scan whose lookup has not reported yet is Looking, not empty', () => {
     render(<CriticReviewsBlock wine={makeTestWine()} action={idle} lookupUnderWay />)
-    expect(screen.getByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(screen.getByText('Checking reviews…')).toBeInTheDocument()
     expect(screen.queryByText(/No critic scores found/)).not.toBeInTheDocument()
   })
 
   it('Nothing found: says so rather than disappearing', () => {
     render(<CriticReviewsBlock wine={makeTestWine({ review_data: [] })} action={idle} />)
     expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
-    expect(screen.queryByText('Looking for critic scores…')).not.toBeInTheDocument()
+    expect(screen.queryByText('Checking reviews…')).not.toBeInTheDocument()
   })
 
-  it('Failed: names the failure and offers Try again, which re-runs', async () => {
+  it('Failed: neutral, and offers Retry, which re-runs', async () => {
     const run = vi.fn()
     render(<CriticReviewsBlock wine={makeTestWine()} action={{ ...idle, error: 'Review lookup failed', run }} />)
-    expect(screen.getByText(/Review lookup failed —/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(screen.getByText(/Couldn’t check reviews\./)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(run).toHaveBeenCalled()
   })
 
@@ -47,8 +47,8 @@ describe('CriticReviewsBlock — four explicit states (Phase 12.1 WI-4)', () => 
   })
 })
 
-describe('CriticReviewsBlock — found (WI-10, D10)', () => {
-  it('groups under "Your vintage (2019)" and "Other vintages", in the backend order', () => {
+describe('CriticReviewsBlock — found (Phase 12.5 WI-3: every score, one compact line each)', () => {
+  it('lists every score flat, in the backend order — trusted first, same vintage first', () => {
     const wine = makeTestWine({
       critic_summary: summary(
         makeSummaryItem({ publication: 'Burghound', score: 91 }),
@@ -57,51 +57,43 @@ describe('CriticReviewsBlock — found (WI-10, D10)', () => {
       ),
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-
-    expect(screen.getByText('Your vintage (2019)')).toBeInTheDocument()
-    expect(screen.getByText('Other vintages')).toBeInTheDocument()
     const order = screen.getAllByText(/^(Burghound|Jeb Dunnuck|Wine Spectator)$/).map((n) => n.textContent)
     expect(order).toEqual(['Burghound', 'Jeb Dunnuck', 'Wine Spectator'])
+    expect(screen.queryByText('Your vintage (2019)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Other vintages')).not.toBeInTheDocument()
   })
 
-  it('marks trusted sources, and tags a score from another vintage with its year', () => {
+  it('a line is score, critic and — for another vintage — its year; nothing else', () => {
     const wine = makeTestWine({
       critic_summary: summary(
-        makeSummaryItem({ publication: 'Vinous', score: 93, vintage: 2017, same_vintage: false, tier: 3 }),
-        makeSummaryItem({ publication: 'Jeb Dunnuck', score: 95, trusted: false, tier: 2 }),
+        makeSummaryItem({ publication: 'Vinous', score: 93, vintage: 2017, same_vintage: false, tier: 3, drinking_window: { start: 2028, end: 2045 }, vintage_character: 'very_good', deal: true }),
       ),
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getAllByText('Trusted')).toHaveLength(1)
-    expect(screen.getByText('2017')).toBeInTheDocument()
+    const line = screen.getByTestId('critic-score-lines').querySelector('li')!
+    expect(line).toHaveTextContent(/^93\s*Vinous\s*2017$/)
+    expect(screen.queryByText('Trusted')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Drink 2028/)).not.toBeInTheDocument()
   })
 
-  it('shows the citation attributes the source stated', () => {
-    const wine = makeTestWine({
-      critic_summary: summary(
-        makeSummaryItem({ drinking_window: { start: 2028, end: 2045 }, vintage_character: 'very_good', deal: true }),
-      ),
-    })
-    render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getByText('Drink 2028–2045')).toBeInTheDocument()
-    expect(screen.getByText('Very good vintage')).toBeInTheDocument()
-    expect(screen.getByText('Value pick')).toBeInTheDocument()
-  })
-
-  it('shows the first six, then "Show all (N)"', async () => {
-    const items = Array.from({ length: 8 }, (_, i) =>
-      makeSummaryItem({ publication: `Critic ${i}`, score: 90 - i, trusted: false, tier: 2, known_publication: false })
+  it('never collapses: all twelve scores are on screen, no "Show all"', () => {
+    const items = Array.from({ length: 12 }, (_, i) =>
+      makeSummaryItem({ publication: `Critic ${i}`, score: 95 - i, trusted: false, tier: 2, known_publication: false })
     )
     render(<CriticReviewsBlock wine={makeTestWine({ critic_summary: summary(...items) })} action={idle} />)
-    expect(screen.queryByText('Critic 7')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Show all (8)' }))
-    expect(screen.getByText('Critic 7')).toBeInTheDocument()
+    expect(screen.getByText('Critic 11')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument()
   })
 
-  it('NV wines group under "This wine"', () => {
-    const wine = makeTestWine({ vintage: null, critic_summary: summary(makeSummaryItem({ vintage: null })) })
+  it('the "different bottling" tag only on a Tier 3/4 row', () => {
+    const wine = makeTestWine({
+      critic_summary: summary(
+        makeSummaryItem({ publication: 'Decanter', score: 95, rung: '3', bottling_badge: "Names Castiglione — yours doesn't" }),
+        makeSummaryItem({ publication: 'Vinous', score: 93, rung: '2', bottling_badge: null }),
+      ),
+    })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getByText('This wine')).toBeInTheDocument()
+    expect(screen.getAllByText('different bottling')).toHaveLength(1)
   })
 
   it('says when the scores were fetched for a different version of the wine', () => {
@@ -110,7 +102,7 @@ describe('CriticReviewsBlock — found (WI-10, D10)', () => {
       enrichment_stale: { price: false, reviews: true },
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getByText(/Fetched for a different version of this wine/)).toBeInTheDocument()
+    expect(screen.getByText(/Found for an earlier version of this wine/)).toBeInTheDocument()
   })
 
   it('falls back to the shared ordering when an older backend sends no critic_summary', () => {
@@ -124,6 +116,5 @@ describe('CriticReviewsBlock — found (WI-10, D10)', () => {
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
     expect(screen.getByText('Burghound')).toBeInTheDocument()
-    expect(screen.getByText('Trusted')).toBeInTheDocument()
   })
 })

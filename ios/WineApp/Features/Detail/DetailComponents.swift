@@ -166,6 +166,19 @@ struct CriticScoreRow: View {
     }
 }
 
+/// "Exact match" (Phase 12.5 WI-4): the exact wine and the exact vintage — nothing looser.
+struct ExactMatchBadge: View {
+    var body: some View {
+        Text("Exact match")
+            .font(AppFont.badge())
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .foregroundStyle(Theme.green)
+            .background(Theme.greenSoft, in: Capsule())
+            .accessibilityLabel("Exact match: this wine and vintage")
+    }
+}
+
 /// A retailer as two lines, not a table row (§7.3): name and price, then the
 /// badge line, which drops right-to-left — distance first, verification never.
 /// The name is the tappable link (underlined, D9). Verified / Unverified /
@@ -174,6 +187,8 @@ struct RetailerRow: View {
     let retailer: RetailerPrice
     let isNearest: Bool
     let isResolving: Bool
+    /// The exact wine and the exact vintage (Phase 12.5 WI-4).
+    var isExact = false
     let open: () -> Void
     @State private var explained: RetailerBadge?
 
@@ -214,15 +229,19 @@ struct RetailerRow: View {
                                ? "Opens a search at \(retailer.name), not a direct product page"
                                : "Opens the product page")
 
-            ViewThatFits(in: .horizontal) {
-                let badges = RetailerTable.badges(retailer)
-                ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
-                    HStack(spacing: 6) {
-                        ForEach(badges.prefix(count), id: \.self) { badge in
-                            RetailerBadgeView(badge: badge, explained: $explained)
+            // Exact match leads the badge line (Phase 12.5 WI-4); the rest drop right-to-left as before.
+            HStack(spacing: 6) {
+                if isExact { ExactMatchBadge().fixedSize() }
+                ViewThatFits(in: .horizontal) {
+                    let badges = RetailerTable.badges(retailer)
+                    ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
+                        HStack(spacing: 6) {
+                            ForEach(badges.prefix(count), id: \.self) { badge in
+                                RetailerBadgeView(badge: badge, explained: $explained)
+                            }
                         }
+                        .fixedSize()
                     }
-                    .fixedSize()
                 }
             }
 

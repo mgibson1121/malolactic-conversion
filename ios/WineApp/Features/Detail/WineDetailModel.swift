@@ -103,8 +103,8 @@ final class WineDetailModel {
             onChanged()
         } catch {
             rollback(&wine)
-            actionError = (error as? APIError)?.message(networkMessage: "Could not update — is the backend running?")
-                ?? "Could not update — is the backend running?"
+            actionError = (error as? APIError)?.message(networkMessage: "Couldn't update. Is the backend running?")
+                ?? "Couldn't update. Is the backend running?"
         }
     }
 
@@ -154,7 +154,7 @@ final class WineDetailModel {
                 wine = wine.applying(fresh, from: .reviews)
                 onChanged()
             } else {
-                reviews.error = "Review lookup failed"
+                reviews.error = "Couldn't check reviews"
             }
         }
     }
@@ -188,7 +188,7 @@ final class WineDetailModel {
     }
 
     static func line(for choice: BottlingChoice, _ response: BottlingChoiceResponse) -> String {
-        if choice == .notSure { return "Left as it was. We'll ask again only if a refresh brings other bottlings." }
+        if choice == .notSure { return "Left as it was. We'll ask again if new bottlings turn up." }
         let line = TierCopy.resultLine(tier: response.result.tier, scores: response.result.scores, trusted: response.result.trustedScores)
         let dup = response.result.duplicate.map { $0.kind != "none" } ?? false
         return dup ? line + " This may match another wine in your cellar." : line

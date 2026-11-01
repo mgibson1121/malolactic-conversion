@@ -1895,7 +1895,7 @@ action available on the web is reachable on the phone.
 
 ## Phase 12.5 — Field-test round 2: price and critic redesign, copy pass
 
-**Status:** Not started; depends on 12.4 WI-1, WI-2 and WI-7. Spec as above. Web + iOS.
+**Status:** In progress (2026-11-01) on `feature/phase-12.5-price-critic-redesign`. Built: WI-1 (backend `price_state`, one line per state on both clients), WI-2 (priced rows only; search links under Trusted Retailers), WI-3 (every critic score, one compact line each, short tier header, one-sentence sheet — checked on the iPhone 17 Pro simulator against the real data), WI-4 (Exact match). WI-5 steps 1–2 done: `docs/specs/2026-11-01-phase-12.5-copy-audit.md` (44 proposals) and the full 714-string CSV — the developer accepted all 44 on 2026-11-01 and they are applied on web and iOS (WI-5 complete). Session record: `docs/sessions/2026-11-01-phase-12.5.md`. Spec as above. Web + iOS.
 
 **Goal:** Make the price and critic blocks readable at a glance on a phone, and cut the app's copy to what a reader needs. **Deliverables:** WI-1 backend `price_state` (eight states, one line each) · WI-2 Trusted Retailers is the only home for search links · WI-3 critic declutter (one compact line per score, every score visible, no collapse) · WI-4 "Exact match" badge (Tier 1 header, exact-identity same-vintage retailer rows) · WI-5 copy audit (extract → propose → developer vetoes → change) · WI-6 docs.
 

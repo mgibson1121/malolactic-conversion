@@ -14,19 +14,15 @@ export type BadgeKind = 'verified' | 'unverified' | 'search_only'
 export const BADGE_EXPLANATIONS: Record<BadgeKind, { title: string; text: string }> = {
   verified: {
     title: 'Verified',
-    text:
-      "We opened this shop's own search page and it mentions this producer. " +
-      'That does not confirm the vintage or the exact bottling — those have their own badges.',
+    text: 'Shop page mentions this producer.',
   },
   unverified: {
     title: 'Unverified',
-    text:
-      "We couldn't confirm this listing (the shop's page didn't load in time, or no producer is recorded). " +
-      'The price is from Google Shopping and may be out of date.',
+    text: 'Couldn’t confirm. Price may be outdated.',
   },
   search_only: {
     title: 'Search only',
-    text: 'A link to the shop’s search page; no price was found.',
+    text: 'Search link, no price.',
   },
 }
 

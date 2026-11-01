@@ -62,7 +62,7 @@ struct RetailerBrowser: View {
                         Task { if await model.confirm(url, for: link) { dismiss() } }
                     }
                 } message: {
-                    Text("Saves the link and reads its price and critic scores (one extraction).")
+                    Text("Saves the link and reads its price and scores.")
                 }
                 .alert("Couldn't save", isPresented: Binding(get: { model.confirmError != nil },
                                                              set: { if !$0 { model.clearConfirmError() } })) {

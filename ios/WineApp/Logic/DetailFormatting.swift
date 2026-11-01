@@ -198,7 +198,7 @@ enum RetailerTable {
         } else if r.nonStandardFormat, !r.formatLabel.isEmpty {
             badges.append(.format(r.formatLabel))
         }
-        if r.suspectedLargeFormat == true { badges.append(.format("larger format? size unconfirmed")) }
+        if r.suspectedLargeFormat == true { badges.append(.format("Size unconfirmed")) }
         if r.soldOut == true { badges.append(.format("sold out")) }
         if r.outsideBottling == true, let d = r.bottlingDifference, let colour = d.colour,
            let text = DetailFormatting.bottlingBadge(extra: d.extra, missing: d.missing, colour: colour) {

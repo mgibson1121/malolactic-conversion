@@ -1,0 +1,715 @@
+platform,file,line,surface,text,proposed,decision
+web,web/src/App.tsx,41,App shell,Tasting Notes,,keep
+web,web/src/App.tsx,103,App shell,Could not load wines — is the backend running on port 3000?,Couldn't load wines. Is the backend running?,accept
+web,web/src/App.tsx,246,App shell,My Wine,,keep
+web,web/src/App.tsx,246,App shell,Collection,,keep
+web,web/src/App.tsx,263,App shell,My Wine Collection,,keep
+web,web/src/App.tsx,267,App shell,Scan Label,,keep
+web,web/src/App.tsx,284,App shell,Search wines,,keep
+web,web/src/App.tsx,292,App shell,Filter by rating,,keep
+web,web/src/App.tsx,294,App shell,All ratings,,keep
+web,web/src/App.tsx,387,App shell,Loading…,,keep
+web,web/src/components/AddWineForm.tsx,5,Add wine,Promise,,keep
+web,web/src/components/AddWineForm.tsx,61,Add wine,Failed to save. Is the backend running?,Couldn't save. Is the backend running?,accept
+web,web/src/components/AddWineForm.tsx,69,Add wine,Add Wine,,keep
+web,web/src/components/AddWineForm.tsx,71,Add wine,Producer *,,keep
+web,web/src/components/AddWineForm.tsx,76,Add wine,e.g. Roumier,,keep
+web,web/src/components/AddWineForm.tsx,80,Add wine,Denomination *,,keep
+web,web/src/components/AddWineForm.tsx,85,Add wine,"e.g. Chambolle-Musigny, Barolo, Rioja DOCa",,keep
+web,web/src/components/AddWineForm.tsx,88,Add wine,Vintage,,keep
+web,web/src/components/AddWineForm.tsx,94,Add wine,e.g. 2019 — leave blank for NV,,keep
+web,web/src/components/AddWineForm.tsx,99,Add wine,Region,,keep
+web,web/src/components/AddWineForm.tsx,104,Add wine,e.g. Burgundy,,keep
+web,web/src/components/AddWineForm.tsx,107,Add wine,Quality Classification,,keep
+web,web/src/components/AddWineForm.tsx,107,Add wine,(Tier 2),,keep
+web,web/src/components/AddWineForm.tsx,112,Add wine,"e.g. Premier Cru, Grand Cru, Riserva, Gran Reserva",,keep
+web,web/src/components/AddWineForm.tsx,115,Add wine,Vineyard / Lieu-dit,,keep
+web,web/src/components/AddWineForm.tsx,120,Add wine,"e.g. Les Amoureuses, Clos Saint-Jacques",,keep
+web,web/src/components/AddWineForm.tsx,123,Add wine,Cuvée,,keep
+web,web/src/components/AddWineForm.tsx,128,Add wine,"e.g. Cristal, Belle Époque, Opus One",,keep
+web,web/src/components/AddWineForm.tsx,131,Add wine,Grape Varieties,,keep
+web,web/src/components/AddWineForm.tsx,131,Add wine,(Tier 2 — comma-separated),(comma-separated),accept
+web,web/src/components/AddWineForm.tsx,136,Add wine,e.g. Pinot Noir,,keep
+web,web/src/components/AddWineForm.tsx,139,Add wine,Color,,keep
+web,web/src/components/AddWineForm.tsx,145,Add wine,Unspecified,,keep
+web,web/src/components/AddWineForm.tsx,146,Add wine,Red,,keep
+web,web/src/components/AddWineForm.tsx,147,Add wine,White,,keep
+web,web/src/components/AddWineForm.tsx,148,Add wine,Rosé,,keep
+web,web/src/components/AddWineForm.tsx,158,Add wine,Save Wine,,keep
+web,web/src/components/BottlingPrompt.tsx,44,Bottling prompt,Listings name different bottlings — which is yours?,Different bottlings found. Which is yours? (seed list),accept
+web,web/src/components/BottlingPrompt.tsx,45,Bottling prompt,The label may name a vineyard or special bottling — check the bottle.,"Critics screen: remove (the banner already asks). Draft review: ""Check the bottle for a vineyard or cuvée."" (seed list)",accept
+web,web/src/components/BottlingPrompt.tsx,100,Bottling prompt,Left as it was. We’ll ask again only if a refresh brings other bottlings.,Left as it was. We’ll ask again if new bottlings turn up.,accept
+web,web/src/components/BottlingPrompt.tsx,102,Bottling prompt,This may match another wine in your cellar.,,keep
+web,web/src/components/BottlingPrompt.tsx,111,Bottling prompt,Which bottling is yours?,,keep
+web,web/src/components/BottlingPrompt.tsx,114,Bottling prompt,${wine.vintage},,keep
+web,web/src/components/BottlingPrompt.tsx,123,Bottling prompt,This one,,keep
+web,web/src/components/BottlingPrompt.tsx,146,Bottling prompt,Plain / no special bottling,,keep
+web,web/src/components/BottlingPrompt.tsx,153,Bottling prompt,Something else,,keep
+web,web/src/components/BottlingPrompt.tsx,163,Bottling prompt,Name,,keep
+web,web/src/components/BottlingPrompt.tsx,166,Bottling prompt,Name on the label,,keep
+web,web/src/components/BottlingPrompt.tsx,174,Bottling prompt,Use this,,keep
+web,web/src/components/BottlingPrompt.tsx,181,Bottling prompt,Not sure,,keep
+web,web/src/components/CellarStats.tsx,8,Cellar,Promise,,keep
+web,web/src/components/CellarStats.tsx,65,Cellar,bottles in cellar,,keep
+web,web/src/components/CellarStats.tsx,75,Cellar,Total slots,,keep
+web,web/src/components/CellarStats.tsx,76,Cellar,Cellar capacity,,keep
+web,web/src/components/CellarStats.tsx,78,Cellar,Save,,keep
+web,web/src/components/CellarStats.tsx,93,Cellar,Set cellar capacity,,keep
+web,web/src/components/CellarStats.tsx,100,Cellar,By region,,keep
+web,web/src/components/CellarStats.tsx,104,Cellar,${region}: ${total} bottles,,keep
+web,web/src/components/CellarStats.tsx,110,Cellar,${(counts[color] / total) * 100}%,,keep
+web,web/src/components/CellarStats.tsx,111,Cellar,${COLOR_LABELS[color]}: ${counts[color]},,keep
+web,web/src/components/CriticReviewsBlock.tsx,56,Critic reviews,Fetched for a different version of this wine — may not match. Refresh.,Found for an earlier version of this wine. Refresh.,accept
+web,web/src/components/CriticReviewsBlock.tsx,63,Critic reviews,Looking for critic scores…,"Checking reviews… (matches ""Checking prices…"")",accept
+web,web/src/components/CriticReviewsBlock.tsx,71,Critic reviews,Try again,,keep
+web,web/src/components/CriticReviewsBlock.tsx,79,Critic reviews,No critic scores found yet,,keep
+web,web/src/components/CriticReviewsBlock.tsx,83,Critic reviews,Search more retailers,,keep
+web,web/src/components/CriticReviewsBlock.tsx,92,Critic reviews,Critic scores haven’t been looked up yet.,,keep
+web,web/src/components/CriticReviewsBlock.tsx,134,Critic reviews,The vintage this score is for,,keep
+web,web/src/components/CriticReviewsBlock.tsx,174,Critic reviews,What does this tier mean?,,keep
+web,web/src/components/CriticReviewsBlock.tsx,179,Critic reviews,Tier ${tier},,keep
+web,web/src/components/CriticReviewsBlock.tsx,181,Critic reviews,What was found,,keep
+web,web/src/components/CriticReviewsBlock.tsx,187,Critic reviews,"(${r.critics.join(', ')})",,keep
+web,web/src/components/CriticReviewsBlock.tsx,188,Critic reviews,"· vintages ${[...r.vintages].sort().join(', ')}",,keep
+web,web/src/components/CriticReviewsBlock.tsx,194,Critic reviews,Which bottling is yours?,,keep
+web,web/src/components/CriticReviewsBlock.tsx,214,Critic reviews,A page was found but no score could be read from it:,,keep
+web,web/src/components/CriticReviewsBlock.tsx,214,Critic reviews,${pages.length} pages were found but no score could be read from them:,Pages with no readable score:,accept
+web,web/src/components/CriticReviewsBlock.tsx,220,Critic reviews,(${p.page_vintage}),,keep
+web,web/src/components/DiscoveryReview.tsx,50,Scan preview,Promise,,keep
+web,web/src/components/DiscoveryReview.tsx,89,Scan preview,Price lookup failed,,keep
+web,web/src/components/DiscoveryReview.tsx,90,Scan preview,Review lookup failed,Couldn't check reviews,accept
+web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Refresh Reviews,,keep
+web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Search more retailers,,keep
+web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Fetch Reviews,,keep
+web,web/src/components/DiscoveryReview.tsx,160,Scan preview,Not yet saved — pick a list below,,keep
+web,web/src/components/DiscoveryReview.tsx,162,Scan preview,✓ Saved to Collection,,keep
+web,web/src/components/DiscoveryReview.tsx,178,Scan preview,Critic reviews,,keep
+web,web/src/components/DiscoveryReview.tsx,201,Scan preview,Not yet seen at a preferred retailer,,keep
+web,web/src/components/DiscoveryReview.tsx,222,Scan preview,Add to which list?,,keep
+web,web/src/components/DiscoveryReview.tsx,225,Scan preview,Discovered,,keep
+web,web/src/components/DiscoveryReview.tsx,236,Scan preview,Pick at least one list to save.,,keep
+web,web/src/components/DiscoveryReview.tsx,251,Scan preview,Save to Collection,,keep
+web,web/src/components/DrinkingWindowSection.tsx,28,Drinking window,Drinking Window,,keep
+web,web/src/components/DrinkingWindowSection.tsx,33,Drinking window,Your window,,keep
+web,web/src/components/DrinkingWindowSection.tsx,33,Drinking window,Window (from critics),,keep
+web,web/src/components/DrinkingWindowSection.tsx,38,Drinking window,Sourced,,keep
+web,web/src/components/DrinkingWindowSection.tsx,38,Drinking window,"From automated review extraction, not manually entered",,keep
+web,web/src/components/DrinkingWindowSection.tsx,45,Drinking window,The critics disagree. Set your own window in Edit.,,keep
+web,web/src/components/DrinkingWindowSection.tsx,51,Drinking window,reference only,,keep
+web,web/src/components/EditWineModal.tsx,78,Edit,about ${typical} credits (up to ${worst}),,keep
+web,web/src/components/EditWineModal.tsx,94,Edit,"Vintage must be a four-digit year, or blank for NV.",,keep
+web,web/src/components/EditWineModal.tsx,110,Edit,Your price must be a positive amount with at most two decimals.,Enter a price like 45 or 45.50.,accept
+web,web/src/components/EditWineModal.tsx,127,Edit,"Drinking window needs a start and end year (start no later than end), or both blank.","Enter both years, start first — or leave both blank.",accept
+web,web/src/components/EditWineModal.tsx,133,Edit,"Bottle quantity must be a whole number, 0 or more.",,keep
+web,web/src/components/EditWineModal.tsx,141,Edit,"Saving, then refreshing searches…",,keep
+web,web/src/components/EditWineModal.tsx,152,Edit,Save failed,,keep
+web,web/src/components/EditWineModal.tsx,177,Edit,Could not check this wine’s notes,,keep
+web,web/src/components/EditWineModal.tsx,187,Edit,Delete failed,,keep
+web,web/src/components/EditWineModal.tsx,196,Edit,Edit wine,,keep
+web,web/src/components/EditWineModal.tsx,197,Edit,Edit Wine,,keep
+web,web/src/components/EditWineModal.tsx,200,Edit,Producer,,keep
+web,web/src/components/EditWineModal.tsx,203,Edit,Denomination,,keep
+web,web/src/components/EditWineModal.tsx,206,Edit,Vintage,,keep
+web,web/src/components/EditWineModal.tsx,212,Edit,Leave blank for NV,,keep
+web,web/src/components/EditWineModal.tsx,215,Edit,Region,,keep
+web,web/src/components/EditWineModal.tsx,218,Edit,Quality classification,,keep
+web,web/src/components/EditWineModal.tsx,221,Edit,Vineyard / Lieu-dit,,keep
+web,web/src/components/EditWineModal.tsx,224,Edit,Cuvée,,keep
+web,web/src/components/EditWineModal.tsx,227,Edit,Colour,,keep
+web,web/src/components/EditWineModal.tsx,229,Edit,Unspecified,,keep
+web,web/src/components/EditWineModal.tsx,230,Edit,Red,,keep
+web,web/src/components/EditWineModal.tsx,231,Edit,White,,keep
+web,web/src/components/EditWineModal.tsx,232,Edit,Rosé,,keep
+web,web/src/components/EditWineModal.tsx,235,Edit,Your price (per 750 ml bottle),,keep
+web,web/src/components/EditWineModal.tsx,241,Edit,Optional — overrides the automated price,,keep
+web,web/src/components/EditWineModal.tsx,247,Edit,Drinking window,,keep
+web,web/src/components/EditWineModal.tsx,250,Edit,Window start year,,keep
+web,web/src/components/EditWineModal.tsx,255,Edit,From (year),,keep
+web,web/src/components/EditWineModal.tsx,259,Edit,Window end year,,keep
+web,web/src/components/EditWineModal.tsx,264,Edit,To (year),,keep
+web,web/src/components/EditWineModal.tsx,267,Edit,From critics. Change it to make it yours.,,keep
+web,web/src/components/EditWineModal.tsx,269,Edit,The critics disagree on this wine’s window — enter your own.,,keep
+web,web/src/components/EditWineModal.tsx,272,Edit,Lists,,keep
+web,web/src/components/EditWineModal.tsx,288,Edit,Bottles in the cellar,,keep
+web,web/src/components/EditWineModal.tsx,294,Edit,Refresh searches now?,,keep
+web,web/src/components/EditWineModal.tsx,297,Edit,You changed what this wine is. Its stored prices and critic scores were found for the old version.,Prices and scores were found for the old details.,accept
+web,web/src/components/EditWineModal.tsx,302,Edit,Not now,,keep
+web,web/src/components/EditWineModal.tsx,305,Edit,Refresh now,,keep
+web,web/src/components/EditWineModal.tsx,308,Edit,“Not now” keeps the old data and marks it as possibly out of date.,,keep
+web,web/src/components/EditWineModal.tsx,313,Edit,Delete this wine?,,keep
+web,web/src/components/EditWineModal.tsx,317,Edit,"Its ${deleteNotes} tasting ${deleteNotes === 1 ? 'note stays' : 'notes stay'} in Notes, marked “wine removed”.",,keep
+web,web/src/components/EditWineModal.tsx,318,Edit,This can’t be undone.,,keep
+web,web/src/components/EditWineModal.tsx,322,Edit,Keep it,,keep
+web,web/src/components/EditWineModal.tsx,325,Edit,Delete wine,,keep
+web,web/src/components/EnrichmentFreshness.tsx,34,Other,${days} days ago,,keep
+web,web/src/components/EnrichmentFreshness.tsx,36,Other,${Math.floor(days / 7)} weeks ago,,keep
+web,web/src/components/EnrichmentFreshness.tsx,37,Other,${Math.floor(days / 30)} months ago,,keep
+web,web/src/components/EvaluateForm.tsx,33,Tasting note,Promise,,keep
+web,web/src/components/EvaluateForm.tsx,41,Tasting note,Red fruit,,keep
+web,web/src/components/EvaluateForm.tsx,42,Tasting note,Black fruit,,keep
+web,web/src/components/EvaluateForm.tsx,43,Tasting note,Stone fruit,,keep
+web,web/src/components/EvaluateForm.tsx,44,Tasting note,Tropical fruit,,keep
+web,web/src/components/EvaluateForm.tsx,45,Tasting note,Citrus fruit,,keep
+web,web/src/components/EvaluateForm.tsx,53,Tasting note,crème fraîche,,keep
+web,web/src/components/EvaluateForm.tsx,54,Tasting note,Other fermentation,,keep
+web,web/src/components/EvaluateForm.tsx,60,Tasting note,Bottle age (red),,keep
+web,web/src/components/EvaluateForm.tsx,61,Tasting note,Bottle age (white),,keep
+web,web/src/components/EvaluateForm.tsx,74,Tasting note,Color Intensity,,keep
+web,web/src/components/EvaluateForm.tsx,76,Tasting note,Nose Condition,,keep
+web,web/src/components/EvaluateForm.tsx,77,Tasting note,Nose Intensity,,keep
+web,web/src/components/EvaluateForm.tsx,78,Tasting note,Primary Aromas,,keep
+web,web/src/components/EvaluateForm.tsx,79,Tasting note,Secondary Aromas,,keep
+web,web/src/components/EvaluateForm.tsx,80,Tasting note,Tertiary Aromas,,keep
+web,web/src/components/EvaluateForm.tsx,84,Tasting note,Flavour Intensity,,keep
+web,web/src/components/EvaluateForm.tsx,86,Tasting note,Quality Assessment,,keep
+web,web/src/components/EvaluateForm.tsx,143,Tasting note,"e.g. raspberry, rose, black pepper",,keep
+web,web/src/components/EvaluateForm.tsx,150,Tasting note,Show descriptor examples,,keep
+web,web/src/components/EvaluateForm.tsx,298,Tasting note,Failed to save. Is the backend running?,Couldn't save. Is the backend running?,accept
+web,web/src/components/EvaluateForm.tsx,318,Tasting note,", medium_minus:",,keep
+web,web/src/components/EvaluateForm.tsx,318,Tasting note,", medium:",,keep
+web,web/src/components/EvaluateForm.tsx,318,Tasting note,", medium_plus:",,keep
+web,web/src/components/EvaluateForm.tsx,318,Tasting note,", high:",,keep
+web,web/src/components/EvaluateForm.tsx,321,Tasting note,", off_dry:",,keep
+web,web/src/components/EvaluateForm.tsx,321,Tasting note,", medium_dry:",,keep
+web,web/src/components/EvaluateForm.tsx,326,Tasting note,Very Good,,keep
+web,web/src/components/EvaluateForm.tsx,337,Tasting note,Note Saved,,keep
+web,web/src/components/EvaluateForm.tsx,339,Tasting note,Review your list tags for this wine. Add or remove any that apply.,Add or remove list tags.,accept
+web,web/src/components/EvaluateForm.tsx,371,Tasting note,Tasting Note,,keep
+web,web/src/components/EvaluateForm.tsx,376,Tasting note,Appearance,,keep
+web,web/src/components/EvaluateForm.tsx,408,Tasting note,"e.g. ruby, garnet, lemon, gold",,keep
+web,web/src/components/EvaluateForm.tsx,415,Tasting note,Nose,,keep
+web,web/src/components/EvaluateForm.tsx,442,Tasting note,"— fruit, floral, herbaceous, spice",,keep
+web,web/src/components/EvaluateForm.tsx,454,Tasting note,— fermentation-derived,,keep
+web,web/src/components/EvaluateForm.tsx,466,Tasting note,— oak and bottle age,,keep
+web,web/src/components/EvaluateForm.tsx,479,Tasting note,Palate,,keep
+web,web/src/components/EvaluateForm.tsx,506,Tasting note,(reds only — optional),,keep
+web,web/src/components/EvaluateForm.tsx,553,Tasting note,Conclusions,,keep
+web,web/src/components/EvaluateForm.tsx,567,Tasting note,Notes,,keep
+web,web/src/components/EvaluateForm.tsx,567,Tasting note,(optional),,keep
+web,web/src/components/EvaluateForm.tsx,573,Tasting note,"Open tasting notes, drinking window observations, food pairing ideas…",,keep
+web,web/src/components/EvaluateForm.tsx,592,Tasting note,Save Note,,keep
+web,web/src/components/HardRefreshButton.tsx,17,Other,Hard refresh,,keep
+web,web/src/components/LabelScanFlow.tsx,117,Scan,Please select an image file.,,keep
+web,web/src/components/LabelScanFlow.tsx,140,Scan,Label scanning is unavailable — OPENAI_API_KEY is not configured on the backend.,Scanning needs an OpenAI key on the backend.,accept
+web,web/src/components/LabelScanFlow.tsx,145,Scan,This image format couldn't be processed. Please save the photo as a JPEG and try again.,Couldn't read this image. Try a JPEG.,accept
+web,web/src/components/LabelScanFlow.tsx,148,Scan,Scan failed: ${msg},,keep
+web,web/src/components/LabelScanFlow.tsx,166,Scan,You already have the ${distinctFrom.vintage ?? 'NV'} — this looks like the ${scan.vintage ?? 'NV'}.,,keep
+web,web/src/components/LabelScanFlow.tsx,219,Scan,Scan Wine Label,,keep
+web,web/src/components/LabelScanFlow.tsx,221,Scan,Upload a photo of the bottle label — GPT-4o will extract the details.,Upload a photo of the label.,accept
+web,web/src/components/LabelScanFlow.tsx,232,Scan,Upload wine label photo,,keep
+web,web/src/components/LabelScanFlow.tsx,235,Scan,Click to select a photo,,keep
+web,web/src/components/LabelScanFlow.tsx,235,Scan,or drag and drop here,,keep
+web,web/src/components/LabelScanFlow.tsx,245,Scan,Cancel,,keep
+web,web/src/components/LabelScanFlow.tsx,258,Scan,Scanning label…,,keep
+web,web/src/components/LabelScanFlow.tsx,259,Scan,GPT-4o is reading the label. This usually takes 5–15 seconds.,Reading the label… (5–15 seconds),accept
+web,web/src/components/LabelScanFlow.tsx,272,Scan,Scan successful,,keep
+web,web/src/components/LabelScanFlow.tsx,274,Scan,Pulling details…,,keep
+web,web/src/components/LabelScanFlow.tsx,285,Scan,Scan Unavailable,,keep
+web,web/src/components/LabelScanFlow.tsx,287,Scan,You can still add wines manually using the,,keep
+web,web/src/components/LabelScanFlow.tsx,287,Scan,+ Add Wine,,keep
+web,web/src/components/LabelScanFlow.tsx,287,Scan,button.,,keep
+web,web/src/components/LabelScanFlow.tsx,289,Scan,Close,,keep
+web,web/src/components/LabelScanFlow.tsx,301,Scan,Scan Failed,,keep
+web,web/src/components/LabelScanFlow.tsx,304,Scan,Try Again,,keep
+web,web/src/components/LabelScanFlow.tsx,334,Scan,Same Wine?,,keep
+web,web/src/components/LabelScanFlow.tsx,335,Scan,This label looks like a wine you already have. Is it the same wine?,,keep
+web,web/src/components/LabelScanFlow.tsx,338,Scan,You have,,keep
+web,web/src/components/LabelScanFlow.tsx,343,Scan,This label,,keep
+web,web/src/components/LabelScanFlow.tsx,351,Scan,"Yours is the ${bottling.existing}. This label doesn't mention ${bottling.existing} — if it's a different bottling, add it.","This label doesn't name ${bottling.existing}. If it's a different bottling, add it.",accept
+web,web/src/components/LabelScanFlow.tsx,352,Scan,"This label says ${bottling.scanned}; the wine you have doesn't. If they're different bottlings, add it.","This label says ${bottling.scanned}; yours doesn't. If they differ, add it.",accept
+web,web/src/components/LabelScanFlow.tsx,357,Scan,Same wine — open it,,keep
+web,web/src/components/LabelScanFlow.tsx,360,Scan,Different wine — add it,,keep
+web,web/src/components/LabelScanFlow.tsx,364,Scan,No search has been run yet. Adding it creates a separate wine.,,keep
+web,web/src/components/LabelScanFlow.tsx,428,Scan,Promise,,keep
+web,web/src/components/LabelScanFlow.tsx,475,Scan,Scan Result,,keep
+web,web/src/components/LabelScanFlow.tsx,477,Scan,Scan Again,,keep
+web,web/src/components/LabelScanFlow.tsx,487,Scan,Wine,,keep
+web,web/src/components/LabelScanFlow.tsx,508,Scan,Producer,,keep
+web,web/src/components/LabelScanFlow.tsx,513,Scan,e.g. Domaine Leroy,,keep
+web,web/src/components/LabelScanFlow.tsx,519,Scan,Denomination,,keep
+web,web/src/components/LabelScanFlow.tsx,523,Scan,e.g. Gevrey-Chambertin,,keep
+web,web/src/components/LabelScanFlow.tsx,529,Scan,Vintage,,keep
+web,web/src/components/LabelScanFlow.tsx,542,Scan,Region,,keep
+web,web/src/components/LabelScanFlow.tsx,546,Scan,e.g. Burgundy,,keep
+web,web/src/components/LabelScanFlow.tsx,555,Scan,Edit Details,,keep
+web,web/src/components/LabelScanFlow.tsx,631,Scan,Failed to save. Is the backend running?,Couldn't save. Is the backend running?,accept
+web,web/src/components/LabelScanFlow.tsx,640,Scan,← Back,,keep
+web,web/src/components/LabelScanFlow.tsx,651,Scan,Needs review,,keep
+web,web/src/components/LabelScanFlow.tsx,660,Scan,"e.g. Chambolle-Musigny, Barolo",,keep
+web,web/src/components/LabelScanFlow.tsx,674,Scan,Grape Varieties,,keep
+web,web/src/components/LabelScanFlow.tsx,674,Scan,(comma-separated),,keep
+web,web/src/components/LabelScanFlow.tsx,676,Scan,e.g. Pinot Noir,,keep
+web,web/src/components/LabelScanFlow.tsx,678,Scan,Quality Classification,,keep
+web,web/src/components/LabelScanFlow.tsx,678,Scan,(Tier 2),,keep
+web,web/src/components/LabelScanFlow.tsx,680,Scan,"e.g. Premier Cru, Riserva",,keep
+web,web/src/components/LabelScanFlow.tsx,682,Scan,Vineyard / Lieu-dit,,keep
+web,web/src/components/LabelScanFlow.tsx,684,Scan,e.g. Les Amoureuses,,keep
+web,web/src/components/LabelScanFlow.tsx,686,Scan,Cuvée,,keep
+web,web/src/components/LabelScanFlow.tsx,688,Scan,"e.g. Cristal, Opus One",,keep
+web,web/src/components/LabelScanFlow.tsx,690,Scan,Color,,keep
+web,web/src/components/LabelScanFlow.tsx,693,Scan,Unspecified,,keep
+web,web/src/components/LabelScanFlow.tsx,694,Scan,Red,,keep
+web,web/src/components/LabelScanFlow.tsx,695,Scan,White,,keep
+web,web/src/components/LabelScanFlow.tsx,696,Scan,Rosé,,keep
+web,web/src/components/LabelScanFlow.tsx,702,Scan,Back,,keep
+web,web/src/components/PriceSection.tsx,48,Price & retailers,What is the 2.5× rule?,,keep
+web,web/src/components/PriceSection.tsx,53,Price & retailers,Why there is no single average,,keep
+web,web/src/components/PriceSection.tsx,74,Price & retailers,This exact wine and vintage,,keep
+web,web/src/components/PriceSection.tsx,75,Price & retailers,Exact match,,keep
+web,web/src/components/PriceSection.tsx,118,Price & retailers,Price shown is for a different vintage than this wine entry,A different vintage,accept
+web,web/src/components/PriceSection.tsx,119,Price & retailers,Vintage confirmed from the matched listing,,keep
+web,web/src/components/PriceSection.tsx,128,Price & retailers,${fmt(r.price_per_750)} per 750 ml bottle: the ${fmt(r.normalized.shelf_price)} shelf price divided by ${r.normalized.divisor},,keep
+web,web/src/components/PriceSection.tsx,130,Price & retailers,÷${r.normalized.divisor} ${r.normalized.kind},,keep
+web,web/src/components/PriceSection.tsx,134,Price & retailers,"Price is for this format, not a single standard 750ml bottle",Not a 750 ml bottle,accept
+web,web/src/components/PriceSection.tsx,141,Price & retailers,Left out of the average,,keep
+web,web/src/components/PriceSection.tsx,150,Price & retailers,Counted until you say which bottling is yours,,keep
+web,web/src/components/PriceSection.tsx,193,Price & retailers,Price &amp; retailers,,keep
+web,web/src/components/PriceSection.tsx,197,Price & retailers,Your price (per 750 ml bottle),,keep
+web,web/src/components/PriceSection.tsx,207,Price & retailers,Checking prices…,,keep
+web,web/src/components/PriceSection.tsx,221,Price & retailers,No price data yet.,,keep
+web,web/src/components/PriceSection.tsx,229,Price & retailers,Refresh Price & retailers,,keep
+web,web/src/components/PriceSection.tsx,229,Price & retailers,Fetch Price & retailers,,keep
+web,web/src/components/PriceSection.tsx,265,Price & retailers,Retailer prices (automated),,keep
+web,web/src/components/PriceSection.tsx,267,Price & retailers,Fetched for a different version of this wine — may not match. Refresh.,Found for an earlier version of this wine. Refresh.,accept
+web,web/src/components/PriceSection.tsx,286,Price & retailers,Nearest,,keep
+web,web/src/components/PriceSection.tsx,308,Price & retailers,${others.length} more ${others.length === 1 ? 'retailer' : 'retailers'},,keep
+web,web/src/components/PriceSection.tsx,332,Price & retailers,What do these badges mean?,,keep
+web,web/src/components/RemovedWineNotes.tsx,17,Notes,Notes from removed wines,,keep
+web,web/src/components/RemovedWineNotes.tsx,18,Notes,From removed wines,,keep
+web,web/src/components/RemovedWineNotes.tsx,32,Notes,Wine removed,,keep
+web,web/src/components/RetailerLinksSection.tsx,108,Trusted Retailers,Could not generate retailer links,,keep
+web,web/src/components/RetailerLinksSection.tsx,144,Trusted Retailers,Could not save and extract from that link,,keep
+web,web/src/components/RetailerLinksSection.tsx,165,Trusted Retailers,Save failed,,keep
+web,web/src/components/RetailerLinksSection.tsx,180,Trusted Retailers,Could not remove saved link,,keep
+web,web/src/components/RetailerLinksSection.tsx,189,Trusted Retailers,Hide Retailers,,keep
+web,web/src/components/RetailerLinksSection.tsx,189,Trusted Retailers,Search Retailers,,keep
+web,web/src/components/RetailerLinksSection.tsx,194,Trusted Retailers,Generating search links…,,keep
+web,web/src/components/RetailerLinksSection.tsx,198,Trusted Retailers,Need a producer or denomination to search for reviews.,,keep
+web,web/src/components/RetailerLinksSection.tsx,217,Trusted Retailers,Automated review sourcing already found scores here,,keep
+web,web/src/components/RetailerLinksSection.tsx,231,Trusted Retailers,"The product page the price lookup found, without a price",,keep
+web,web/src/components/RetailerLinksSection.tsx,232,Trusted Retailers,Product page,,keep
+web,web/src/components/RetailerLinksSection.tsx,241,Trusted Retailers,Saved link,,keep
+web,web/src/components/RetailerLinksSection.tsx,251,Trusted Retailers,Save link,,keep
+web,web/src/components/RetailerLinksSection.tsx,272,Trusted Retailers,Paste the review or product page URL,,keep
+web,web/src/components/RetailerLinksSection.tsx,295,Trusted Retailers,Found a ${pendingSearch!.name} link on your clipboard — save it for this wine?,,keep
+web,web/src/components/RetailerLinksSection.tsx,296,Trusted Retailers,Paste the ${pendingSearch!.name} product page URL you found:,,keep
+web,web/src/components/RetailerLinksSection.tsx,304,Trusted Retailers,Paste the product page URL,,keep
+web,web/src/components/RetailerLinksSection.tsx,311,Trusted Retailers,Saving & extracting…,,keep
+web,web/src/components/RetailerLinksSection.tsx,311,Trusted Retailers,Save & Extract,,keep
+web,web/src/components/RetailerViewLink.tsx,23,Price & retailers,(promise: Promise,,keep
+web,web/src/components/RetailerViewLink.tsx,23,Price & retailers,", ms: number): Promise",,keep
+web,web/src/components/RetailerViewLink.tsx,114,Price & retailers,Opens a search at ${retailer.name} — not a direct product page,,keep
+web,web/src/components/TastingNoteHistory.tsx,14,Notes,Very Good,,keep
+web,web/src/components/TastingNoteHistory.tsx,19,Notes,Flawed ⚠️,,keep
+web,web/src/components/TastingNoteHistory.tsx,35,Notes,"Primary: ${note.nose_primary_aromas.join(', ')}",,keep
+web,web/src/components/TastingNoteHistory.tsx,36,Notes,"Secondary: ${note.nose_secondary_aromas.join(', ')}",,keep
+web,web/src/components/TastingNoteHistory.tsx,37,Notes,"Tertiary: ${note.nose_tertiary_aromas.join(', ')}",,keep
+web,web/src/components/TastingNoteHistory.tsx,51,Notes,acidity ${note.palate_acidity},,keep
+web,web/src/components/TastingNoteHistory.tsx,51,Notes,tannin ${note.palate_tannin},,keep
+web,web/src/components/TastingNoteHistory.tsx,51,Notes,finish ${note.palate_finish},,keep
+web,web/src/components/TastingNoteHistory.tsx,75,Notes,My Review,,keep
+web,web/src/components/TastingNoteHistory.tsx,79,Notes,No notes recorded yet.,,keep
+web,web/src/components/TastingNoteHistory.tsx,96,Notes,⚠️ Fault,,keep
+web,web/src/components/WineCard.tsx,33,List card,Very Good,,keep
+web,web/src/components/WineCard.tsx,40,List card,Below Average,,keep
+web,web/src/components/WineCard.tsx,47,List card,Price lookup failed,,keep
+web,web/src/components/WineCard.tsx,48,List card,Review lookup failed,Couldn't check reviews,accept
+web,web/src/components/WineCard.tsx,91,List card,"Vintage character, from professional review extraction — never blended across disagreeing critics","Vintage character, from critics",accept
+web,web/src/components/WineCard.tsx,95,List card,Sourced,,keep
+web,web/src/components/WineCard.tsx,95,List card,"From automated review extraction, not manually entered",,keep
+web,web/src/components/WineCard.tsx,118,List card,Remove one bottle,,keep
+web,web/src/components/WineCard.tsx,126,List card,Add one bottle,,keep
+web,web/src/components/WineCard.tsx,136,List card,My Review,,keep
+web,web/src/components/WineCard.tsx,193,List card,Check window,,keep
+web,web/src/components/WineCard.tsx,208,List card,The critics disagree on this wine,,keep
+web,web/src/components/WineCard.tsx,221,List card,Critic reviews,,keep
+web,web/src/components/WineCard.tsx,239,List card,Refresh Reviews,,keep
+web,web/src/components/WineCard.tsx,239,List card,Fetch Reviews,,keep
+web,web/src/components/WineDetailModal.tsx,41,Wine detail,Very Good,,keep
+web,web/src/components/WineDetailModal.tsx,48,Wine detail,Below Average,,keep
+web,web/src/components/WineDetailModal.tsx,110,Wine detail,Price lookup failed,,keep
+web,web/src/components/WineDetailModal.tsx,111,Wine detail,Review lookup failed,Couldn't check reviews,accept
+web,web/src/components/WineDetailModal.tsx,163,Wine detail,Edit,,keep
+web,web/src/components/WineDetailModal.tsx,164,Wine detail,Close,,keep
+web,web/src/components/WineDetailModal.tsx,173,Wine detail,Wine label,,keep
+web,web/src/components/WineDetailModal.tsx,184,Wine detail,Sourced,,keep
+web,web/src/components/WineDetailModal.tsx,184,Wine detail,Colour inferred from the appellation and grapes — no label was scanned,,keep
+web,web/src/components/WineDetailModal.tsx,200,Wine detail,"Vintage character, from professional review extraction — never blended across disagreeing critics","Vintage character, from critics",accept
+web,web/src/components/WineDetailModal.tsx,204,Wine detail,"From automated review extraction, not manually entered",,keep
+web,web/src/components/WineDetailModal.tsx,213,Wine detail,Lists,,keep
+web,web/src/components/WineDetailModal.tsx,240,Wine detail,Cellar quantity,,keep
+web,web/src/components/WineDetailModal.tsx,246,Wine detail,Remove one bottle,,keep
+web,web/src/components/WineDetailModal.tsx,252,Wine detail,Add one bottle,,keep
+web,web/src/components/WineDetailModal.tsx,264,Wine detail,Review Links,,keep
+web,web/src/components/WineDetailModal.tsx,289,Wine detail,Critic reviews,,keep
+web,web/src/components/WineDetailModal.tsx,293,Wine detail,Refresh Reviews,,keep
+web,web/src/components/WineDetailModal.tsx,293,Wine detail,Fetch Reviews,,keep
+web,web/src/components/WineDetailModal.tsx,307,Wine detail,Trusted Retailers,,keep
+web,web/src/components/WineDetailModal.tsx,317,Wine detail,Loading notes…,,keep
+web,web/src/components/WineDetailModal.tsx,354,Wine detail,No tasting notes yet.,,keep
+web,web/src/components/WineDetailModal.tsx,364,Wine detail,Evaluate This Wine,,keep
+web,web/src/components/WineList.tsx,18,Lists,No wines here yet.,,keep
+web,web/src/utils/criticBadge.ts,31,Other,"${raw.slice(0, UNKNOWN_MAX_LENGTH)}…",,keep
+web,web/src/utils/tierCopy.ts,20,Tier explainer,A critic you trust scored this exact wine and vintage.,,keep
+web,web/src/utils/tierCopy.ts,24,Tier explainer,"No trusted score for this vintage, so these are the same wine’s nearest vintages, within 3 years.",,keep
+web,web/src/utils/tierCopy.ts,28,Tier explainer,"Nothing for this exact bottling, so these are a different bottling of the same producer and vintage.",,keep
+web,web/src/utils/tierCopy.ts,31,Tier explainer,"different bottling, other vintage",,keep
+web,web/src/utils/tierCopy.ts,32,Tier explainer,"Nothing for this exact bottling, so these are a different bottling within 3 vintages — the loosest match.",,keep
+web,web/src/utils/tierCopy.ts,37,Tier explainer,Tier ${tier} · ${TIER_COPY[tier].phrase},,keep
+web,web/src/utils/tierCopy.ts,42,Tier explainer,Saved. Nothing found for this bottling yet; the wine has no matched scores.,Saved. No scores for this bottling yet.,accept
+web,web/src/utils/tierCopy.ts,45,Tier explainer,Now matched at Tier ${tier} — ${n} ${kind}${n === 1 ? 'score' : 'scores'},,keep
+web,web/src/utils/verificationCopy.ts,18,Retailer badges,We opened this shop's own search page and it mentions this producer.,Shop page mentions this producer. (seed list: Verified),accept
+web,web/src/utils/verificationCopy.ts,19,Retailer badges,That does not confirm the vintage or the exact bottling — those have their own badges.,Remove (the vintage and Exact match badges say it).,accept
+web,web/src/utils/verificationCopy.ts,24,Retailer badges,"We couldn't confirm this listing (the shop's page didn't load in time, or no producer is recorded).",Couldn't confirm. Price may be outdated. (seed list: Unverified — replaces both sentences),accept
+web,web/src/utils/verificationCopy.ts,25,Retailer badges,The price is from Google Shopping and may be out of date.,(folded into the line above),accept
+web,web/src/utils/verificationCopy.ts,28,Retailer badges,Search only,,keep
+web,web/src/utils/verificationCopy.ts,29,Retailer badges,A link to the shop’s search page; no price was found.,,keep
+ios,ios/WineApp/App/RootTabView.swift,86,Other,Scan a label,,keep
+ios,ios/WineApp/App/ServerSettingsView.swift,20,Settings,Backend address,,keep
+ios,ios/WineApp/App/ServerSettingsView.swift,22,Settings,"The Mac running the wine backend, on this Wi-Fi network. Port 3000 unless you changed it.",The Mac running the backend on this Wi-Fi (port 3000).,accept
+ios,ios/WineApp/App/ServerSettingsView.swift,27,Settings,Server,,keep
+ios,ios/WineApp/App/ServerSettingsView.swift,31,Settings,Cancel,,keep
+ios,ios/WineApp/App/ServerSettingsView.swift,35,Settings,Save,,keep
+ios,ios/WineApp/Design/Theme.swift,54,Other,Work Sans,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardModel.swift,81,Cellar,Could not save — is the backend running?,Couldn't save. Is the backend running?,accept
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,32,Cellar,Cellar,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,33,Cellar,Search Cellar,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,39,Cellar,Add wine manually,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,87,Cellar,Change server,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,104,Cellar,Nothing in the cellar yet.,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,131,Cellar,No wines here yet.,,keep
+ios,ios/WineApp/Features/Cellar/CellarDashboardView.swift,131,Cellar,Scan a label,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,39,Cellar,Scan a label,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,40,Cellar,Photograph a bottle to add it,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,94,Cellar,Over capacity,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,107,Cellar,Save,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,110,Cellar,Cancel,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,114,Cellar,Set cellar capacity,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,114,Cellar,Edit capacity,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,156,Cellar,Ready to drink,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,189,Cellar,Filtering the list,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,201,Cellar,By region,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,220,Cellar,Show fewer,,keep
+ios,ios/WineApp/Features/Cellar/CellarWidgets.swift,235,Cellar,Colour split,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,61,Bottling prompt,exact wine and vintage,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,62,Bottling prompt,other vintages,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,63,Bottling prompt,different bottling,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,64,Bottling prompt,"different bottling, other vintage",,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,75,Bottling prompt,A critic you trust scored this exact wine and vintage.,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,76,Bottling prompt,"No trusted score for this vintage, so these are the same wine's nearest vintages, within 3 years.",,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,77,Bottling prompt,"Nothing for this exact bottling, so these are a different bottling of the same producer and vintage.",,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,78,Bottling prompt,"Nothing for this exact bottling, so these are a different bottling within 3 vintages — the loosest match.",,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,84,Bottling prompt,Saved. Nothing found for this bottling yet; the wine has no matched scores.,Saved. No scores for this bottling yet.,accept
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,137,Bottling prompt,What was found,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,145,Bottling prompt,Which bottling is yours?,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,153,Bottling prompt,Done,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,171,Bottling prompt,Listings name different bottlings — which is yours?,Different bottlings found. Which is yours? (seed list),accept
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,171,Bottling prompt,The label may name a vineyard or special bottling — check the bottle.,"Critics screen: remove (the banner already asks). Draft review: ""Check the bottle for a vineyard or cuvée."" (seed list)",accept
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,173,Bottling prompt,Choose,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,185,Bottling prompt,Change,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,224,Bottling prompt,The results name more than one bottling. Your answer re-scores what we already found. Nothing is searched again.,Your answer re-scores what was found. Nothing is searched again.,accept
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,232,Bottling prompt,This one,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,252,Bottling prompt,Plain / no special bottling,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,257,Bottling prompt,Something else,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,258,Bottling prompt,Kind,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,259,Bottling prompt,Vineyard,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,260,Bottling prompt,Cuvée,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,264,Bottling prompt,Use this,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,271,Bottling prompt,Not sure,,keep
+ios,ios/WineApp/Features/Detail/BottlingPromptView.swift,277,Bottling prompt,Close,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,25,Wine detail,Sourced from review extraction,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,28,Wine detail,Sourced,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,103,Wine detail,Fetching…,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,113,Wine detail,Hard refresh,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,123,Wine detail,This ignores what's stored and runs the search again.,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,157,Wine detail,Value pick,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,172,Wine detail,Exact match,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,178,Wine detail,Exact match: this wine and vintage,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,205,Wine detail,Nearest,,keep
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,230,Wine detail,Opens the product page,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,51,Critic reviews / Price,Looking for critic scores…,"Checking reviews… (matches ""Checking prices…"")",accept
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,57,Critic reviews / Price,Review lookup failed —,"Couldn't check reviews. (+ Retry, matching ""Couldn't check prices"")",accept
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,58,Critic reviews / Price,Try again,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,61,Critic reviews / Price,No critic scores found yet for this wine.,"No critic scores found. (matches ""No prices found"")",accept
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,63,Critic reviews / Price,Search more retailers,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,66,Critic reviews / Price,Critic scores haven't been looked up yet.,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,75,Critic reviews / Price,A page was found but no score could be read from it. It may carry a review without a score.,A page with no readable score: (link follows),accept
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,132,Critic reviews / Price,different bottling,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,143,Critic reviews / Price,Fetched for a different version of this wine — may not match. Refresh.,Found for an earlier version of this wine. Refresh.,accept
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,172,Critic reviews / Price,Your price (per 750 ml bottle),,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,185,Critic reviews / Price,"The highest price is 2.5 times the lowest or more, which usually means more than one bottling. Nothing was dropped.",,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,190,Critic reviews / Price,Why no single average,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,192,Critic reviews / Price,Done,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,201,Critic reviews / Price,Retailer prices (automated),,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,209,Critic reviews / Price,Split by the 2.5× rule,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,215,Critic reviews / Price,What is the 2.5× rule?,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,230,Critic reviews / Price,Checking prices…,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,237,Critic reviews / Price,Couldn't check prices.,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,238,Critic reviews / Price,Retry,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,241,Critic reviews / Price,No price data yet.,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,294,Critic reviews / Price,Hide,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsModel.swift,56,Trusted Retailers,Save failed,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsModel.swift,62,Trusted Retailers,Could not remove saved link,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsModel.swift,96,Trusted Retailers,Could not save and extract from that link,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,14,Trusted Retailers,Trusted Retailers,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,17,Trusted Retailers,Search retailers,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,21,Trusted Retailers,Generating search links…,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,23,Trusted Retailers,Need a producer or denomination to search for reviews.,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,26,Trusted Retailers,Could not generate retailer links,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,27,Trusted Retailers,Try again,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,53,Trusted Retailers,) found,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,58,Trusted Retailers,Search,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,65,Trusted Retailers,✓ Saved,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,71,Trusted Retailers,Product page,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,73,Trusted Retailers,Save link,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,75,Trusted Retailers,Remove,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,88,Trusted Retailers,Saving…,,keep
+ios,ios/WineApp/Features/Detail/FindReviewsSection.swift,90,Trusted Retailers,Cancel,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,31,Trusted Retailers,Close,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,36,Trusted Retailers,Back,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,41,Trusted Retailers,Saving & extracting…,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,41,Trusted Retailers,Use this page,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,60,Trusted Retailers,Save & Extract,,keep
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,65,Trusted Retailers,Saves the link and reads its price and critic scores (one extraction).,Saves the link and reads its price and scores.,accept
+ios,ios/WineApp/Features/Detail/RetailerBrowser.swift,67,Trusted Retailers,Couldn't save,,keep
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,106,Wine detail,Could not update — is the backend running?,Couldn't update. Is the backend running?,accept
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,138,Wine detail,Price lookup failed,,keep
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,157,Wine detail,Review lookup failed,Couldn't check reviews,accept
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,186,Wine detail,Couldn't save your answer. Try again.,,keep
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,191,Wine detail,Left as it was. We'll ask again only if a refresh brings other bottlings.,Left as it was. We'll ask again if new bottlings turn up.,accept
+ios,ios/WineApp/Features/Detail/WineDetailModel.swift,194,Wine detail,This may match another wine in your cellar.,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,52,Wine detail,Wine,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,68,Wine detail,Edit,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,107,Wine detail,Colour inferred from the appellation and grapes,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,144,Wine detail,Lists,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,146,Wine detail,Discovered,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,147,Wine detail,Wishlist,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,148,Wine detail,Cellar,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,149,Wine detail,Consumed,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,153,Wine detail,Cellar quantity,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,161,Wine detail,Remove one bottle,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,170,Wine detail,Add one bottle,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,210,Wine detail,Your window,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,210,Wine detail,Window (from critics),,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,217,Wine detail,Drinking window,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,218,Wine detail,The critics disagree. Set your own window in Edit.,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,223,Wine detail,Critic windows (for reference),,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,224,Wine detail,reference only,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,252,Wine detail,Latest note,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,281,Wine detail,Evaluate this wine,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,292,Wine detail,Not fetched,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,292,Wine detail,None found,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,293,Wine detail,Critic reviews,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,299,Wine detail,Fetch Reviews,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,299,Wine detail,Refresh Reviews,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,312,Wine detail,No listings,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,315,Wine detail,Price & retailers,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,325,Wine detail,Fetch Price & retailers,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,325,Wine detail,Refresh Price & retailers,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,339,Wine detail,My Review,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,339,Wine detail,No notes,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,343,Wine detail,Could not load tasting notes.,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,345,Wine detail,No tasting notes yet.,,keep
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,372,Wine detail,Review links,,keep
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,81,Edit,"Vintage must be a four-digit year, or blank for NV.",,keep
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,100,Edit,Your price must be a positive amount with at most two decimals.,Enter a price like 45 or 45.50.,accept
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,117,Edit,"Drinking window needs a start and end year (start no later than end), or both blank.","Enter both years, start first — or leave both blank.",accept
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,169,Edit,Could not save — is the backend running?,Couldn't save. Is the backend running?,accept
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,183,Edit,Refreshing searches…,,keep
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,208,Edit,Could not check this wine's notes — is the backend running?,Couldn't check this wine's notes. Is the backend running?,accept
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,222,Edit,Could not delete — is the backend running?,Couldn't delete. Is the backend running?,accept
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,232,Edit,This can't be undone.,,keep
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,233,Edit,tasting note stays,,keep
+ios,ios/WineApp/Features/Edit/EditWineModel.swift,233,Edit,tasting notes stay,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,27,Edit,Refresh searches now?,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,31,Edit,Refresh now,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,35,Edit,Not now,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,48,Edit,Your price (per 750 ml bottle),,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,50,Edit,"When set, this is the price shown everywhere; the automated prices stay as reference. No search ever changes it.",Shown everywhere instead of the automated prices. Searches never change it.,accept
+ios,ios/WineApp/Features/Edit/EditWineView.swift,60,Edit,Drinking window,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,63,Edit,From critics. Change it to make it yours.,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,65,Edit,The critics disagree on this wine's window — enter your own.,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,87,Edit,Delete wine,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,94,Edit,Edit wine,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,98,Edit,Cancel,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,101,Edit,Save,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,106,Edit,Delete this wine?,,keep
+ios,ios/WineApp/Features/Edit/EditWineView.swift,118,Edit,Keep it,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,26,Tasting note,Tasting Note,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,26,Tasting note,Note Saved,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,30,Tasting note,Cancel,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,51,Tasting note,Color intensity,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,52,Tasting note,"e.g. ruby, garnet, lemon, gold",,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,58,Tasting note,Primary aromas,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,59,Tasting note,Secondary aromas,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,60,Tasting note,Tertiary aromas,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,66,Tasting note,Tannin · optional,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,68,Tasting note,Flavour intensity,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,75,Tasting note,Notes · optional,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,83,Tasting note,Still needed:,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,93,Tasting note,Saving…,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,93,Tasting note,Save note,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,166,Tasting note,Review your list tags for this wine. Add or remove any that apply.,Add or remove list tags.,accept
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,171,Tasting note,Discovered,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,172,Tasting note,Wishlist,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,173,Tasting note,Cellar,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateFormView.swift,174,Tasting note,Consumed,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,32,Tasting note,Very Good,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,38,Tasting note,Red fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,38,Tasting note,red cherry,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,39,Tasting note,Black fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,39,Tasting note,black cherry,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,40,Tasting note,Stone fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,41,Tasting note,Tropical fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,41,Tasting note,passion fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,42,Tasting note,Citrus fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,42,Tasting note,orange zest,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,43,Tasting note,orange blossom,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,44,Tasting note,green pepper,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,44,Tasting note,tomato leaf,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,45,Tasting note,black pepper,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,45,Tasting note,white pepper,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,49,Tasting note,crème fraîche,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,50,Tasting note,Other fermentation,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,50,Tasting note,cheese rind,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,50,Tasting note,nail polish,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,54,Tasting note,dried fruit,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,55,Tasting note,Bottle age (red),,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,55,Tasting note,forest floor,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,55,Tasting note,dried herbs,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,56,Tasting note,Bottle age (white),,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,92,Tasting note,Color Intensity,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,93,Tasting note,Nose Intensity,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,94,Tasting note,Secondary Aromas,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,94,Tasting note,Tertiary Aromas,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,96,Tasting note,Quality Assessment,,keep
+ios,ios/WineApp/Features/Evaluate/EvaluateModel.swift,234,Tasting note,Failed to save. Is the backend running?,Couldn't save. Is the backend running?,accept
+ios,ios/WineApp/Features/Lists/RemovedNotes.swift,14,Notes,From removed wines,,keep
+ios,ios/WineApp/Features/Lists/RemovedNotes.swift,24,Notes,Wine removed,,keep
+ios,ios/WineApp/Features/Lists/RemovedNotes.swift,93,Notes,Tasting note,,keep
+ios,ios/WineApp/Features/Lists/RemovedNotes.swift,95,Notes,Close,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,53,Other,Could not delete — is the backend running?,Couldn't delete. Is the backend running?,accept
+ios,ios/WineApp/Features/Lists/RowActions.swift,68,Other,Could not update — is the backend running?,Couldn't update. Is the backend running?,accept
+ios,ios/WineApp/Features/Lists/RowActions.swift,124,Other,Evaluate,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,144,Other,Edit,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,145,Other,Delete,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,168,Other,Wishlist,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,172,Other,Cellar,,keep
+ios,ios/WineApp/Features/Lists/RowActions.swift,175,Other,Remove,,keep
+ios,ios/WineApp/Features/Lists/StateViews.swift,22,App shell,Try again,,keep
+ios,ios/WineApp/Features/Lists/StateViews.swift,26,App shell,Still can't reach it.,,keep
+ios,ios/WineApp/Features/Lists/StateViews.swift,68,App shell,Offline — showing your last loaded collection.,,keep
+ios,ios/WineApp/Features/Lists/WineListModel.swift,12,Lists,Tasting Notes,,keep
+ios,ios/WineApp/Features/Lists/WineListModel.swift,112,Lists,Could not load wines — is the backend running on port 3000?,Couldn't load wines. Is the backend running?,accept
+ios,ios/WineApp/Features/Lists/WineListView.swift,119,Lists,Delete,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,128,Lists,Checking its tasting notes…,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,130,Lists,Couldn't delete,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,173,Lists,Change server,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,200,Lists,Clear search,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,203,Lists,Show all ratings,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,205,Lists,No wines here yet.,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,207,Lists,Scan a label,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,217,Lists,Rating,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,218,Lists,All ratings,,keep
+ios,ios/WineApp/Features/Lists/WineListView.swift,227,Lists,Filter by rating,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,93,List row,check drinking window,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,173,List row,Check window,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,202,List row,Red wine,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,203,List row,White wine,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,204,List row,Rosé wine,,keep
+ios,ios/WineApp/Features/Lists/WineRowView.swift,205,List row,Colour unknown,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,37,Scan,Critic reviews,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,45,Scan,Price & retailers,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,58,Scan,Pick at least one list to save.,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,68,Scan,Add to which list?,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,88,Scan,Discard this wine?,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,89,Scan,Discard,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,136,Scan,Saving…,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,136,Scan,Save to collection,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,149,Scan,Pick at least one list first,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,172,Scan,e.g. Domaine Leroy,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,173,Scan,e.g. Gevrey-Chambertin,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,174,Scan,e.g. 2019 — blank for NV,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,176,Scan,"Enter a year, or leave blank for NV.",,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,180,Scan,e.g. Burgundy,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,183,Scan,e.g. Premier Cru,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,186,Scan,Colour,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,187,Scan,Unknown,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,188,Scan,Red,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,189,Scan,White,,keep
+ios,ios/WineApp/Features/Scan/DraftReviewView.swift,190,Scan,Rosé,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,186,Scan,Please select an image file.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,242,Scan,Label scanning is unavailable — OPENAI_API_KEY is not configured on the backend.,Scanning needs an OpenAI key on the backend.,accept
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,244,Scan,This image format couldn't be processed. Please save the photo as a JPEG and try again.,Couldn't read this image. Try a JPEG.,accept
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,323,Scan,Failed to save. Is the backend running?,Couldn't save. Is the backend running?,accept
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,354,Scan,Review lookup failed,Couldn't check reviews,accept
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,378,Scan,Price lookup failed,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,400,Scan,Nothing to save the answer to yet.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,407,Scan,Couldn't save your answer. Try again.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowModel.swift,474,Scan,Could not update — is the backend running?,Couldn't update. Is the backend running?,accept
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,28,Scan,Done,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,55,Scan,Camera access is off,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,56,Scan,Open Settings,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,61,Scan,Choose photo,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,62,Scan,Cancel,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,64,Scan,"Turn it on in Settings to scan labels, or choose a photo from your library.",,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,84,Scan,Scan a label,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,87,Scan,Add wine,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,90,Scan,Scanning,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,93,Scan,Scan successful,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,102,Scan,Same wine?,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,105,Scan,Review,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,105,Scan,In your collection,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,107,Scan,Scan Unavailable,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,108,Scan,Enter manually,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,112,Scan,Scan Failed,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,113,Scan,Retake,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,164,Scan,Photograph the front label.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,170,Scan,Take photo,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,176,Scan,Choose from library,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,209,Scan,Pulling details…,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,237,Scan,Reading the label…,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,241,Scan,Still going — labels with a lot of text take longer.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,267,Scan,This label looks like a wine you already have. Is it the same wine?,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,272,Scan,You have,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,279,Scan,This label,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,296,Scan,Same wine — open it,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,300,Scan,Different wine — add it,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,303,Scan,No search has been run yet. Adding it creates a separate wine.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,326,Scan,The bottlings may differ.,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,396,Scan,Continuing…,,keep
+ios,ios/WineApp/Logic/Constants.swift,36,Retailer badges,Search only,,keep
+ios,ios/WineApp/Logic/Constants.swift,44,Retailer badges,We opened this shop's own search page and it mentions this producer.,Shop page mentions this producer. (seed list: Verified),accept
+ios,ios/WineApp/Logic/Constants.swift,45,Retailer badges,That does not confirm the vintage or the exact bottling — those have their own badges.,Remove (the vintage and Exact match badges say it).,accept
+ios,ios/WineApp/Logic/Constants.swift,47,Retailer badges,"We couldn't confirm this listing (the shop's page didn't load in time, or no producer is recorded).",Couldn't confirm. Price may be outdated. (seed list: Unverified — replaces both sentences),accept
+ios,ios/WineApp/Logic/Constants.swift,48,Retailer badges,The price is from Google Shopping and may be out of date.,(folded into the line above),accept
+ios,ios/WineApp/Logic/Constants.swift,50,Retailer badges,A link to the shop's search page; no price was found.,"Search link, no price. (seed list: Search only)",accept
+ios,ios/WineApp/Logic/CriticScores.swift,75,Other,Wine Advocate,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,78,Other,Wine Spectator,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,79,Other,Wine Enthusiast,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,81,Other,James Suckling,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,82,Other,Jeb Dunnuck,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,83,Other,Tim Atkin,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,84,Other,Gambero Rosso,,keep
+ios,ios/WineApp/Logic/CriticScores.swift,85,Other,Guía Peñín,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,54,Wine detail,Below Average,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,57,Wine detail,Very Good,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,65,Wine detail,Below-avg vintage,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,66,Wine detail,Average vintage,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,67,Wine detail,Good vintage,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,68,Wine detail,Very good vintage,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,129,Wine detail,last week,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,201,Wine detail,larger format? size unconfirmed,Size unconfirmed (seed list),accept
+ios,ios/WineApp/Logic/DetailFormatting.swift,202,Wine detail,sold out,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,207,Wine detail,outside your bottling,,keep
+ios,ios/WineApp/Logic/DetailFormatting.swift,230,Wine detail,Search only,,keep
+ios,ios/WineApp/Logic/DrinkReadiness.swift,76,Other,Ready now,,keep
+ios,ios/WineApp/Logic/DrinkReadiness.swift,77,Other,Needs more time,,keep
+ios,ios/WineApp/Logic/DrinkReadiness.swift,78,Other,Check window,,keep
+ios,ios/WineApp/Logic/DrinkReadiness.swift,79,Other,No window,,keep
+ios,ios/WineApp/Logic/WineFormatting.swift,30,Other,Check window,,keep
+ios,ios/WineApp/Logic/WineFormatting.swift,62,Other,Very Good,,keep
+ios,ios/WineApp/Models/TastingNote.swift,80,Notes,Unknown wine,,keep
+ios,ios/WineApp/Networking/APIClient.swift,74,Other,Content-Type: image/jpeg\r\n\r\n,,keep
+ios,ios/WineApp/Networking/APIClient.swift,210,Other,No HTTP response,,keep
+ios,ios/WineApp/Networking/APIError.swift,27,Errors,The backend sent a response this app doesn't understand. Is it up to date?,Unexpected reply from the server. Is the backend up to date?,accept

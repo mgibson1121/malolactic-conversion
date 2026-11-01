@@ -206,6 +206,9 @@ export function RetailerLinksSection({ wine, onWineUpdated, guided = false }: Pr
                 const reviewResult = wine.review_data?.find((r) => r.slug === link.slug)
                 const hasScores = (reviewResult?.critic_scores.length ?? 0) > 0
                 const isPending = pendingSearch?.slug === link.slug
+                // Phase 12.5 WI-2: a product page the price lookup found but could
+                // read no price from lives here, not in the price list.
+                const foundPage = wine.price_data?.retailers.find((r) => r.slug === link.slug && r.link_only && !r.is_search_results_page)
                 return (
                   <div key={link.slug} className="retailer-link-row">
                     <div className="retailer-link-row-main">
@@ -224,6 +227,11 @@ export function RetailerLinksSection({ wine, onWineUpdated, guided = false }: Pr
                       >
                         Search
                       </a>
+                      {foundPage && (
+                        <a href={foundPage.url} target="_blank" rel="noopener noreferrer" className="retailer-link-saved link" title="The product page the price lookup found, without a price">
+                          Product page
+                        </a>
+                      )}
                       {saved && !isEditing && (
                         <a
                           href={saved}

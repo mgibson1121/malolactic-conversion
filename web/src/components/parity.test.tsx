@@ -50,7 +50,7 @@ describe('preview / list / detail parity', () => {
     expect(within(card.container).getByText('91')).toBeInTheDocument()
     expect(within(card.container).getByText('BH')).toBeInTheDocument()
     expect(within(card.container).getByRole('link', { name: 'Nearest Shop' })).toBeInTheDocument()
-    expect(within(card.container).getByText('$120')).toBeInTheDocument() // avg
+    expect(within(card.container).getByText('$120 avg')).toBeInTheDocument() // the one price line, Phase 12.5 WI-1
     card.unmount()
 
     const detail = render(
@@ -60,7 +60,7 @@ describe('preview / list / detail parity', () => {
     const scores = within(detail.container).getAllByText(/^(Burghound|Jeb Dunnuck)$/).map((n) => n.textContent)
     expect(scores[0]).toBe('Burghound') // same first score
     expect(within(detail.container).getByRole('link', { name: 'Nearest Shop' })).toBeInTheDocument()
-    expect(within(detail.container).getByText('$120')).toBeInTheDocument()
+    expect(within(detail.container).getByText('$120 avg')).toBeInTheDocument()
     detail.unmount()
 
     const preview = render(
@@ -69,7 +69,7 @@ describe('preview / list / detail parity', () => {
     const pscores = within(preview.container).getAllByText(/^(Burghound|Jeb Dunnuck)$/).map((n) => n.textContent)
     expect(pscores[0]).toBe('Burghound')
     expect(within(preview.container).getByRole('link', { name: 'Nearest Shop' })).toBeInTheDocument()
-    expect(within(preview.container).getByText('$120')).toBeInTheDocument()
+    expect(within(preview.container).getByText('$120 avg')).toBeInTheDocument()
   })
 
   it('a wine that gains scores after the preview was drawn shows them on the next render of every surface', () => {

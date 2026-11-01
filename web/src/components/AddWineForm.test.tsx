@@ -104,7 +104,7 @@ describe('AddWineForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save Wine' }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to save/)).toBeInTheDocument()
+      expect(screen.getByText(/Couldn’t save/)).toBeInTheDocument()
     })
   })
 })

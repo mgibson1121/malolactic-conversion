@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { RetailerPrice, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
 import { effectivePrice } from '@shared/utils/effective-price'
-import { priceExclusionsOf, priceWindowOfWine, staleOf } from '../utils/wineDerived'
+import { priceStateOfWine, staleOf } from '../utils/wineDerived'
 import { BADGE_EXPLANATIONS, badgeKindOf, type BadgeKind } from '../utils/verificationCopy'
 import { EnrichmentRow } from './EnrichmentRow'
 import { RetailerViewLink } from './RetailerViewLink'
@@ -43,23 +43,15 @@ function PriceGroups({ data }: { data: NonNullable<WineEntry['price_data']> }) {
   const range = (g: { min: number; max: number }) => (g.min === g.max ? fmt(g.min) : `${fmt(g.min)}–${fmt(g.max)}`)
   return (
     <div className="price-groups" data-testid="price-groups">
-      <p className="price-no-average">
-        These prices are too far apart for one average — this may be more than one bottling.
-      </p>
       <p className="tier-marker">
-        Prices: split by the 2.5× rule{' '}
+        Split by the 2.5× rule{' '}
         <button type="button" className="link info-badge" aria-label="What is the 2.5× rule?" onClick={() => setExplain(true)}>
           ⓘ
         </button>
       </p>
       {explain && (
         <Sheet title="Why there is no single average" onClose={() => setExplain(false)}>
-          <p>
-            When the highest price we counted is 2.5 times the lowest or more, one average would be a number nobody is
-            actually offered. Usually that means the listings are not all the same bottling — a plain wine and a named
-            vineyard, say.
-          </p>
-          <p>Nothing was dropped. Both groups are shown, and every listing is still listed below. If you tell us which bottling is yours, we recompute from the listings that name it.</p>
+          <p>The highest price is 2.5 times the lowest or more, which usually means more than one bottling: {groups.length} groups, nothing dropped.</p>
         </Sheet>
       )}
       <ul className="price-group-list">
@@ -67,12 +59,21 @@ function PriceGroups({ data }: { data: NonNullable<WineEntry['price_data']> }) {
           <li key={i} className="price-group">
             <span className="price-value">{range(g)}</span>
             <span className="price-group-count">
-              {g.retailers.length} {g.retailers.length === 1 ? 'listing' : 'listings'}
+              {g.retailers.length} {g.retailers.length === 1 ? 'shop' : 'shops'}
             </span>
           </li>
         ))}
       </ul>
     </div>
+  )
+}
+
+/** "Exact match" (Phase 12.5 WI-4): the exact wine and the exact vintage — nothing looser. */
+export function ExactMatchBadge() {
+  return (
+    <span className="exact-match-badge" title="This exact wine and vintage">
+      Exact match
+    </span>
   )
 }
 
@@ -104,16 +105,17 @@ function BadgePill({ kind }: { kind: BadgeKind }) {
   )
 }
 
-function RetailerBadges({ r }: { r: RetailerPrice }) {
+function RetailerBadges({ r, exact = false }: { r: RetailerPrice; exact?: boolean }) {
   const kind = badgeKindOf(r)
   return (
     <>
+      {exact && <ExactMatchBadge />}
       {r.matched_vintage != null && (
         <span
           className={r.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
           title={
             r.vintage_mismatch
-              ? 'Price shown is for a different vintage than this wine entry'
+              ? 'A different vintage'
               : 'Vintage confirmed from the matched listing'
           }
         >
@@ -123,13 +125,13 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
       {r.normalized ? (
         <span
           className="format-badge format-badge--counted"
-          title={`Counted at ${fmt(r.price_per_750)} per 750 ml bottle: the ${fmt(r.normalized.shelf_price)} shelf price divided by ${r.normalized.divisor}`}
+          title={`${fmt(r.price_per_750)} per 750 ml bottle: the ${fmt(r.normalized.shelf_price)} shelf price divided by ${r.normalized.divisor}`}
         >
           {`÷${r.normalized.divisor} ${r.normalized.kind}`}
         </span>
       ) : (
         r.non_standard_format && (
-          <span className="format-badge" title="Price is for this format, not a single standard 750ml bottle">
+          <span className="format-badge" title="Not a 750 ml bottle">
             {r.format_label}
           </span>
         )
@@ -152,7 +154,7 @@ function RetailerBadges({ r }: { r: RetailerPrice }) {
       )}
       {r.suspected_large_format && (
         <span className="format-badge" title="Left out of the average">
-          price suggests a larger format — size unconfirmed
+          Size unconfirmed
         </span>
       )}
       {r.sold_out && (
@@ -202,15 +204,16 @@ export function PriceBlock({ wine, action, onWineUpdated, variant = 'detail', lo
         <div className="price-looking" role="status">
           <span className="skeleton-line" aria-hidden="true" />
           <span className="skeleton-line skeleton-line--short" aria-hidden="true" />
-          <span className="critic-reviews-looking-text">Looking up prices…</span>
+          <span className="critic-reviews-looking-text">Checking prices…</span>
         </div>
       )}
 
       {failed && (
+        // Phase 12.5 WI-1: an error or timeout only (12.4 WI-7) — neutral, not alarming.
         <p className="price-failed">
-          Price lookup failed —{' '}
+          Couldn’t check prices.{' '}
           <button type="button" className="btn-link-inline" onClick={() => action.run()}>
-            Try again
+            Retry
           </button>
         </p>
       )}
@@ -246,133 +249,98 @@ function AutomatedPrices({
   const data = wine.price_data!
   const [showMore, setShowMore] = useState(false)
   const stale = staleOf(wine).price
-  const exclusions = priceExclusionsOf(wine)
-
-  // Only listings within ±3 vintages are shown (Phase 12.4 WI-1); the rest stay stored.
-  const window = priceWindowOfWine(wine)
-  // One display order, from the backend (WI-3): nearest, preferred A–Z, others A–Z.
-  const visible = window?.order
-    ? window.order.map((slug) => data.retailers.find((r) => r.slug === slug)).filter((r): r is RetailerPrice => r !== undefined)
-    : data.retailers.filter((r) => !window?.hidden.includes(r.slug))
-  const otherVintages = window ? window.other_vintage_price_range : data.other_vintage_price_range
-  const nearest = data.nearest_retailer
-  const others = visible.filter((r) => !(nearest && r.slug === nearest.slug))
+  // One state and one line, from the backend (Phase 12.5 WI-1).
+  const state = priceStateOfWine(wine)
+  // Priced rows only, within ±3 vintages, in the one display order (12.4 WI-1/WI-3).
+  // Search-only links live under Trusted Retailers (WI-2).
+  const rows = (state?.priced ?? []).map((slug) => data.retailers.find((r) => r.slug === slug)).filter((r): r is RetailerPrice => r !== undefined)
+  const exact = new Set(state?.exact ?? [])
+  const nearest = data.nearest_retailer && rows.some((r) => r.slug === data.nearest_retailer!.slug) ? rows.find((r) => r.slug === data.nearest_retailer!.slug)! : null
+  const others = rows.filter((r) => !(nearest && r.slug === nearest.slug))
+  const range = state?.range
+  const showRange = range && (state?.kind === 'priced' || state?.kind === 'estimated') && range.min !== range.max
 
   const body = (
-    <div className="price-section">
+    <div className="price-section" data-state={state?.kind}>
       {manual && <div className="price-section-header"><span className="price-source-label">Retailer prices (automated)</span></div>}
 
-      {stale && <p className="stale-notice">Fetched for a different version of this wine — may not match. Refresh.</p>}
+      {stale && <p className="stale-notice">Found for an earlier version of this wine. Refresh.</p>}
 
-      {visible.length === 0 ? (
-        <>
-          <p className="price-not-found">No matching listings found at the configured retailers.</p>
-          <div className="price-fetched-at">Checked {new Date(data.fetched_at).toLocaleDateString()}</div>
-        </>
-      ) : (
-        <>
-          {data.headline_basis === 'ambiguous' && data.price_groups ? (
-            <PriceGroups data={data} />
-          ) : data.price_avg != null ? (
-            <div className="price-range">
-              <span className="price-stat">
-                <span className="price-label">Avg</span>
-                <span className="price-value">{fmt(data.price_avg)}</span>
-              </span>
-              <span className="price-divider">·</span>
-              <span className="price-stat">
-                <span className="price-label">High</span>
-                <span className="price-value">{fmt(data.price_max)}</span>
-              </span>
-              <span className="price-divider">·</span>
-              <span className="price-stat">
-                <span className="price-label">Low</span>
-                <span className="price-value">{fmt(data.price_min)}</span>
-              </span>
-              {data.headline_estimated && (
-                <span className="price-estimated" title="A pack, case or magnum price divided down to a single 750 ml bottle">
-                  estimated
-                </span>
-              )}
-            </div>
-          ) : (
-            exclusions && <p className="price-no-average">{exclusions.sentence}</p>
-          )}
-
-          {data.headline_basis === 'single_listing' && data.price_avg != null && (
-            <p className="price-single-listing">
-              {data.headline_estimated
-                ? 'Based on a single listing, counted at a per-bottle price.'
-                : 'Based on a single listing — size not confirmed.'}
-            </p>
-          )}
-
-          {otherVintages && (
-            <p className="price-other-vintages">
-              Other vintages: {fmt(otherVintages.min)}–{fmt(otherVintages.max)}
-            </p>
-          )}
-
-          {nearest && (
-            <div className="nearest-retailer">
-              <span className="nearest-label">Nearest</span>
-              <RetailerViewLink
-                wineId={wine.id}
-                retailer={nearest}
-                onWineUpdated={onWineUpdated}
-                className="retailer-link link nearest-name"
-                label={nearest.name}
-              />
-              {nearest.price != null && <RowPrice r={nearest} />}
-              <RetailerBadges r={nearest} />
-              <span className="nearest-distance">{nearest.distance_miles} mi</span>
-            </div>
-          )}
-
-          {others.length > 0 && (
+      {state && (
+        <p className={`price-state-line price-state-line--${state.kind}`} data-testid="price-state-line">
+          {state.kind === 'priced' || state.kind === 'estimated' ? <strong className="price-value">{state.line}</strong> : state.line}
+          {showRange && <span className="price-state-range"> · {fmt(range!.min)}–{fmt(range!.max)}</span>}
+          {(state.kind === 'priced' || state.kind === 'estimated') && state.exact.length > 0 && (
             <>
-              <button
-                type="button"
-                className="btn-link-inline more-retailers-toggle"
-                aria-expanded={showMore}
-                onClick={() => setShowMore((o) => !o)}
-              >
-                {showMore ? 'Hide' : `${others.length} more ${others.length === 1 ? 'retailer' : 'retailers'}`}
-              </button>
-              {showMore && (
-                <div className="retailer-list">
-                  {others.map((r) => (
-                    <div key={r.slug} className="retailer-row">
-                      <span className="retailer-name">{r.name}</span>
-                      <RowPrice r={r} />
-                      <RetailerBadges r={r} />
-                      <RetailerViewLink
-                        wineId={wine.id}
-                        retailer={r}
-                        onWineUpdated={onWineUpdated}
-                        className="retailer-link link"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {' '}
+              <ExactMatchBadge />
             </>
           )}
+        </p>
+      )}
 
-          <details className="badge-legend">
-            <summary className="link">What do these badges mean?</summary>
-            <ul>
-              {(Object.keys(BADGE_EXPLANATIONS) as BadgeKind[]).map((k) => (
-                <li key={k}>
-                  <strong>{BADGE_EXPLANATIONS[k].title}</strong> — {BADGE_EXPLANATIONS[k].text}
-                </li>
+      {state?.kind === 'wide_range' && data.price_groups && <PriceGroups data={data} />}
+
+      {nearest && (
+        <div className="nearest-retailer">
+          <span className="nearest-label">Nearest</span>
+          <RetailerViewLink
+            wineId={wine.id}
+            retailer={nearest}
+            onWineUpdated={onWineUpdated}
+            className="retailer-link link nearest-name"
+            label={nearest.name}
+          />
+          <RowPrice r={nearest} />
+          <RetailerBadges r={nearest} exact={exact.has(nearest.slug)} />
+          <span className="nearest-distance">{nearest.distance_miles} mi</span>
+        </div>
+      )}
+
+      {others.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="btn-link-inline more-retailers-toggle"
+            aria-expanded={showMore}
+            onClick={() => setShowMore((o) => !o)}
+          >
+            {showMore ? 'Hide' : `${others.length} more ${others.length === 1 ? 'retailer' : 'retailers'}`}
+          </button>
+          {showMore && (
+            <div className="retailer-list">
+              {others.map((r) => (
+                <div key={r.slug} className="retailer-row">
+                  <span className="retailer-name">{r.name}</span>
+                  <RowPrice r={r} />
+                  <RetailerBadges r={r} exact={exact.has(r.slug)} />
+                  <RetailerViewLink
+                    wineId={wine.id}
+                    retailer={r}
+                    onWineUpdated={onWineUpdated}
+                    className="retailer-link link"
+                  />
+                </div>
               ))}
-            </ul>
-          </details>
-
-          <div className="price-fetched-at">Updated {new Date(data.fetched_at).toLocaleDateString()}</div>
+            </div>
+          )}
         </>
       )}
+
+      {rows.length > 0 && (
+        <details className="badge-legend">
+          <summary className="link">What do these badges mean?</summary>
+          <ul>
+            {(Object.keys(BADGE_EXPLANATIONS) as BadgeKind[]).map((k) => (
+              <li key={k}>
+                <strong>{BADGE_EXPLANATIONS[k].title}</strong> — {BADGE_EXPLANATIONS[k].text}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <div className="price-fetched-at">Updated {new Date(data.fetched_at).toLocaleDateString()}</div>
     </div>
   )
 

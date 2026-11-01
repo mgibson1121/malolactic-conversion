@@ -133,7 +133,7 @@ describe('EditWineModal — Your price (D12)', () => {
     setup()
     await userEvent.type(screen.getByLabelText(/Your price/), bad)
     await save()
-    expect(await screen.findByText(/positive amount with at most two decimals/)).toBeInTheDocument()
+    expect(await screen.findByText(/Enter a price like 45 or 45\.50/)).toBeInTheDocument()
     expect(mUpdate).not.toHaveBeenCalled()
   })
 })
@@ -174,7 +174,7 @@ describe('EditWineModal — drinking window (D2)', () => {
     await userEvent.type(screen.getByLabelText('Window start year'), '2040')
     await userEvent.type(screen.getByLabelText('Window end year'), '2030')
     await save()
-    expect(await screen.findByText(/start no later than end/)).toBeInTheDocument()
+    expect(await screen.findByText(/Enter both years, start first/)).toBeInTheDocument()
     expect(mUpdate).not.toHaveBeenCalled()
   })
 
