@@ -250,7 +250,10 @@ function AutomatedPrices({
 
   // Only listings within ±3 vintages are shown (Phase 12.4 WI-1); the rest stay stored.
   const window = priceWindowOfWine(wine)
-  const visible = data.retailers.filter((r) => !window?.hidden.includes(r.slug))
+  // One display order, from the backend (WI-3): nearest, preferred A–Z, others A–Z.
+  const visible = window?.order
+    ? window.order.map((slug) => data.retailers.find((r) => r.slug === slug)).filter((r): r is RetailerPrice => r !== undefined)
+    : data.retailers.filter((r) => !window?.hidden.includes(r.slug))
   const otherVintages = window ? window.other_vintage_price_range : data.other_vintage_price_range
   const nearest = data.nearest_retailer
   const others = visible.filter((r) => !(nearest && r.slug === nearest.slug))
