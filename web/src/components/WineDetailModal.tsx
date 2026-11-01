@@ -174,7 +174,18 @@ export function WineDetailModal({
             )}
             <div className="detail-identity-text">
               <h2 className="detail-wine-name">{primaryLine || '—'}</h2>
-              {identityMeta && <p className="detail-identity-meta">{identityMeta}</p>}
+              {identityMeta && (
+                <p className="detail-identity-meta">
+                  {identityMeta}
+                  {/* Phase 12.4 WI-6: an imported wine's colour inferred from its identity. */}
+                  {wine.wine_color_source === 'derived' && (
+                    <>
+                      {' '}
+                      <span className="badge-tier badge-tier--derived" title="Colour inferred from the appellation and grapes — no label was scanned">Sourced</span>
+                    </>
+                  )}
+                </p>
+              )}
               {tier2.map((v, i) => (
                 <p key={i} className="detail-tier2-field">{v}</p>
               ))}

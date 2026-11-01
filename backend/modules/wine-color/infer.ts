@@ -39,6 +39,9 @@ const SYSTEM = [
   'Return null when the appellation permits more than one colour and nothing else in the identity decides which',
   '(e.g. Châteauneuf-du-Pape with no stated grape or colour), or when the producer or appellation is not one you know.',
   'Do not guess from what is most common. Sparkling wines take the colour of the wine (Champagne without "Rosé" → white).',
+  // The 2026-10-31 dry run returned null for Saint-Émilion and Médoc while
+  // giving "permits red wines only" as the reason.
+  'Your colour and your reason must agree: if the reason is that the appellation permits only one colour, return that colour, never null.',
   'Reply with JSON only: {"wines":[{"id":"…","wine_color":"red"|"white"|"rosé"|null,"reason":"one short clause"}]}',
 ].join(' ')
 

@@ -1,5 +1,5 @@
 {
-  "id": "37542a4e-6048-431d-bdcb-e820bc8e1f08",
+  "id": "cbe5c950-d176-43da-b258-f80ebf6c2a00",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": false,
@@ -144,7 +145,7 @@
         "missing": []
       }
     },
-    "fetched_at": "2026-10-31T21:08:11.604Z",
+    "fetched_at": "2026-11-01T15:42:57.856Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -273,7 +274,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-10-31T21:08:11.611Z",
+  "date_added": "2026-11-01T15:42:57.856Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -343,7 +344,16 @@
   "price_exclusions": null,
   "price_window": {
     "hidden": [],
-    "other_vintage_price_range": null
+    "other_vintage_price_range": null,
+    "order": [
+      "zachys",
+      "sokolin",
+      "thatchers"
+    ]
+  },
+  "enrichment_outcome": {
+    "price": "found",
+    "reviews": "found"
   },
   "review_ladder": {
     "tier": "1",

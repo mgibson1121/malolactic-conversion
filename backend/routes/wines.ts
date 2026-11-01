@@ -205,6 +205,8 @@ router.patch(
       updates.drinking_window_source = req.body.drinking_window ? 'manual' : null
     }
     if ('vintage_rating' in req.body) updates.vintage_rating_source = 'manual'
+    // Phase 12.4 WI-6: a colour set in Edit is the developer's — never inferred over.
+    if ('wine_color' in req.body) updates.wine_color_source = req.body.wine_color ? 'manual' : null
 
     // Phase 12.1 (WI-1) — editing a saved wine's identity while it carries
     // enrichment. Whatever the developer answers to "Refresh searches now?",
@@ -475,7 +477,7 @@ router.post(
           return {
             ok: false,
             status: 503,
-            error: 'Price data unavailable — OPENAI_API_KEY or SERPER_API_KEY not configured, or no retailer results found',
+            error: 'Price lookup failed — the search could not run (OPENAI_API_KEY or SERPER_API_KEY not configured, or Serper errored or timed out). Nothing was stored.',
           }
         }
 
@@ -488,13 +490,14 @@ router.post(
 
         const updates: UpdateWineInput = {
           price_data: {
-            price_min: priceData.price_min,
-            price_avg: priceData.price_avg,
-            price_max: priceData.price_max,
-            other_vintage_price_range: priceData.other_vintage_price_range,
-            retailers: priceData.retailers,
-            nearest_retailer: priceData.nearest_retailer,
-            fetched_at: priceData.fetched_at,
+            // The whole aggregate (Phase 12.4 fix, 2026-11-01). This used to
+            // copy seven named fields, so everything Phase 12.2 added —
+            // headline_basis, price_groups, excluded, normalized,
+            // headline_estimated — was dropped on every fetch: only 2 of 66
+            // stored blobs had them (both written by choose-bottling, which
+            // spreads). The 2.5× "too far apart for one average" rule and the
+            // "estimated" marker never reached a client from a fetch.
+            ...priceData,
             // Phase 12.1 — what this was fetched for; see enrichmentStale.
             enriched_for: identityKey(wine),
           },
@@ -504,7 +507,8 @@ router.post(
     )
 
     if (!outcome.ok) {
-      res.status(outcome.status).json({ error: outcome.error })
+      // The one place a lookup is 'failed' (Phase 12.4 WI-7): an error, never a search that found nothing.
+      res.status(outcome.status).json({ error: outcome.error, outcome: 'failed' })
       return
     }
     res.json(outcome.wine)
@@ -599,7 +603,8 @@ router.post(
     )
 
     if (!outcome.ok) {
-      res.status(outcome.status).json({ error: outcome.error })
+      // The one place a lookup is 'failed' (Phase 12.4 WI-7): an error, never a search that found nothing.
+      res.status(outcome.status).json({ error: outcome.error, outcome: 'failed' })
       return
     }
     res.json(outcome.wine)
@@ -662,12 +667,8 @@ router.post(
 
     const updated = await getStorage().updateWine(req.params.id, {
       price_data: {
-        price_min: priceData.price_min,
-        price_avg: priceData.price_avg,
-        price_max: priceData.price_max,
-        other_vintage_price_range: priceData.other_vintage_price_range,
-        retailers: priceData.retailers,
-        nearest_retailer: priceData.nearest_retailer,
+        // The whole aggregate, as fetch-price stores it (Phase 12.4 fix).
+        ...priceData,
         // Deliberately not priceData.fetched_at (WI-4 vs WI-6 note): resolving
         // one link is not a re-check of every retailer's price, and stamping
         // "now" here would silently extend fetch-price's freshness TTL on the

@@ -67,6 +67,25 @@ describe('fetch routes stamp the identity they were fetched for', () => {
     expect(body.enrichment_stale.price).toBe(false)
   })
 
+  it('fetch-price stores the whole aggregate — headline_basis, price_groups, excluded survive the write (Phase 12.4 fix)', async () => {
+    const wine = await storage.createWine(WINE)
+    const listing = (slug: string, price: number) => ({
+      slug, name: slug, price, url: `https://example.com/${slug}`, is_preferred_retailer: false, distance_miles: 0,
+      is_search_results_page: true, matched_vintage: 2019, vintage_mismatch: false, vintage_verdict: 'match',
+      pack_quantity: 1, bottle_size_ml: null, non_standard_format: false, format_label: '', link_only: false, verification: 'unverified',
+    })
+    // $74.99 vs $245: ≥ 2.5×, so no single average (12.2 D10).
+    mockFetchPriceData.mockResolvedValue({ retailers: [listing('a', 74.99), listing('b', 149), listing('c', 245)] })
+
+    const res = await fetch(`${base}/${wine.id}/fetch-price?force=true`, { method: 'POST' })
+    expect(res.status).toBe(200)
+    const stored = (await storage.getWine(wine.id))!.price_data!
+    expect(stored.headline_basis).toBe('ambiguous')
+    expect(stored.price_groups).toHaveLength(2)
+    expect(stored.excluded).toBeDefined()
+    expect(stored.enriched_for).toBe(identityKey(wine))
+  })
+
   it('fetch-reviews stamps every review_data entry, and derives the critic order', async () => {
     const wine = await storage.createWine(WINE)
     mockFetchReviewData.mockResolvedValue([review('a', 2019, [score('Burghound', 91)]), review('b', 2019, [score('Vinous', 93)])])
@@ -94,5 +113,25 @@ describe('fetch routes stamp the identity they were fetched for', () => {
     const body = (await res.json()) as { price_data: { enriched_for?: string }; enrichment_stale: { price: boolean } }
     expect(body.price_data.enriched_for).toBe(identityKey(wine))
     expect(body.enrichment_stale.price).toBe(false)
+  })
+})
+
+describe('Colour provenance (Phase 12.4 WI-6, migration 011)', () => {
+  it('a colour set in Edit is manual; clearing it clears the provenance; a new wine starts unknown', async () => {
+    const wine = await storage.createWine({ ...WINE, wine_color: null })
+    expect((await storage.getWine(wine.id))!.wine_color_source).toBeNull()
+
+    const patch = (body: unknown) => fetch(`${base}/${wine.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect((await patch({ wine_color: 'white' })).status).toBe(200)
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: 'white', wine_color_source: 'manual' })
+
+    await patch({ wine_color: null })
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: null, wine_color_source: null })
+  })
+
+  it('a derived colour round-trips through storage', async () => {
+    const wine = await storage.createWine({ ...WINE, wine_color: null })
+    await storage.updateWine(wine.id, { wine_color: 'red', wine_color_source: 'derived' })
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: 'red', wine_color_source: 'derived' })
   })
 })

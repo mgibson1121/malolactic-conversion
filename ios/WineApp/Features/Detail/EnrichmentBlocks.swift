@@ -302,6 +302,11 @@ struct PriceRetailersBlock: View {
     /// Listings within ±3 vintages, in display order (Phase 12.4 WI-1). The
     /// backend names the rest in `price_window`; they stay in `price_data`.
     private func visibleRows(_ price: PriceData) -> [RetailerPrice] {
+        // The backend's one display order (WI-3); an older backend's data
+        // falls back to nearest-first in stored order.
+        if let order = wine.priceWindow?.order {
+            return order.compactMap { slug in price.retailers.first { $0.slug == slug } }
+        }
         let hidden = Set(wine.priceWindow?.hidden ?? [])
         return RetailerTable.ordered(price).filter { !hidden.contains($0.slug) }
     }

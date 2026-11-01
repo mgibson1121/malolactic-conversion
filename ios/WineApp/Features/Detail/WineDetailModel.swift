@@ -129,7 +129,14 @@ final class WineDetailModel {
             price.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
             onChanged()
         } catch {
-            price.error = "Price lookup failed"
+            // The request can fail after the server finished and stored (a
+            // dropped connection, a timeout): look before saying "failed".
+            if let fresh = await storedSince(price: wine.priceData) {
+                wine = wine.applying(fresh, from: .price)
+                onChanged()
+            } else {
+                price.error = "Price lookup failed"
+            }
         }
     }
 
@@ -143,8 +150,28 @@ final class WineDetailModel {
             reviews.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
             onChanged()
         } catch {
-            reviews.error = "Review lookup failed"
+            if let fresh = await storedSince(reviews: wine.reviewData) {
+                wine = wine.applying(fresh, from: .reviews)
+                onChanged()
+            } else {
+                reviews.error = "Review lookup failed"
+            }
         }
+    }
+
+    /// The wine as the server now has it, when its stored price changed since
+    /// the request went out — i.e. the lookup completed even though the
+    /// response never arrived (Phase 12.4 WI-7). Nil otherwise: then it failed.
+    private func storedSince(price before: PriceData?) async -> Wine? {
+        guard let fresh = try? await api.getWine(id: wine.id),
+              let after = fresh.priceData, after.fetchedAt != before?.fetchedAt else { return nil }
+        return fresh
+    }
+
+    private func storedSince(reviews before: [RetailerReview]?) async -> Wine? {
+        guard let fresh = try? await api.getWine(id: wine.id),
+              fresh.reviewData != nil, fresh.reviewData != before else { return nil }
+        return fresh
     }
 
     /// Saves the answer to "Which bottling is yours?" and takes the re-scored

@@ -110,6 +110,23 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
     expect(screen.getByText('sold out')).toBeInTheDocument()
   })
 
+  it('lists retailers in the backend’s one order — nearest, preferred A–Z, others A–Z (Phase 12.4 WI-3)', async () => {
+    const rows = [
+      makeTestRetailer({ slug: 'z', name: 'Zed Shop', is_preferred_retailer: false }),
+      makeTestRetailer({ slug: 'k', name: 'Kermit Lynch Wine Merchant', is_preferred_retailer: true }),
+      makeTestRetailer({ slug: 'a', name: 'Astor Wines & Spirits', is_preferred_retailer: true }),
+      makeTestRetailer({ slug: 'b', name: 'BlockCellar', is_preferred_retailer: false }),
+    ]
+    const wine = makeTestWine({
+      price_data: makeTestPriceData(rows, { nearest_retailer: null }),
+      price_window: { hidden: [], other_vintage_price_range: null, order: ['a', 'k', 'b', 'z'] },
+    })
+    const { container } = renderBlock(wine)
+    await userEvent.click(screen.getByRole('button', { name: /more retailers/ }))
+    const names = [...container.querySelectorAll('.retailer-list .retailer-name')].map((n) => n.textContent)
+    expect(names).toEqual(['Astor Wines & Spirits', 'Kermit Lynch Wine Merchant', 'BlockCellar', 'Zed Shop'])
+  })
+
   describe('±3-year window (Phase 12.4 WI-1)', () => {
     const wine = (retailers: ReturnType<typeof makeTestRetailer>[]) => makeTestWine({ vintage: 2012, price_data: makeTestPriceData(retailers) })
 

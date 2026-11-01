@@ -98,9 +98,15 @@ struct WineDetailView: View {
                         .font(AppFont.detailTitle())
                         .foregroundStyle(Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(identityMeta)
-                        .font(AppFont.meta())
-                        .foregroundStyle(Theme.textMuted)
+                    HStack(spacing: 6) {
+                        Text(identityMeta)
+                            .font(AppFont.meta())
+                            .foregroundStyle(Theme.textMuted)
+                        // Phase 12.4 WI-6: an imported wine's colour inferred from its identity.
+                        if wine.wineColorSource == .derived {
+                            SourcedMarker(accessibility: "Colour inferred from the appellation and grapes")
+                        }
+                    }
                     ForEach(tier2, id: \.self) { value in
                         Text(value).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                     }
