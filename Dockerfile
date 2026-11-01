@@ -32,10 +32,14 @@ ENV NODE_ENV=production \
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/
 COPY web/package.json web/
-# The Chrome build Puppeteer pins, plus the system libraries it needs (apt).
-RUN npm ci --omit=dev -w backend \
+RUN npm ci --omit=dev -w backend && npm cache clean --force
+# The Chrome build Puppeteer pins, plus the system libraries it needs.
+# `--install-deps` runs `apt-get satisfy` but never `apt-get update`, and the
+# slim image ships with an empty package index, so update first (the first
+# deploy failed here, 2026-11-01). Separate RUN steps so a failure names its
+# command.
+RUN apt-get update \
  && npx puppeteer browsers install chrome --install-deps \
- && npm cache clean --force \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/backend/dist backend/dist
