@@ -97,7 +97,7 @@
 - Multiple tasting notes per wine entry are supported. All notes retained. Most recent rating displayed in list views.
 
 **UI notes:**
-- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 12 (mobile) / Phase 13 (web)
+- HTML is sufficient for this phase — visual design and interaction polish deferred to Phase 12 (mobile) / Phase 14 (web)
 - The `flawed` WSET conclusion indicates a technical wine fault and should trigger a distinct fault indicator — not treated as the lowest point on the `my_rating` scale
 
 **Notes:**
@@ -1343,7 +1343,7 @@ gap-analysis doc's "recommended order of work" section item by item.
   actually run under `npm test` or CI, silently, since it was written.
 
 **Explicitly out of scope:** allocation-drift-vs-target (needs a target-allocation field
-that doesn't exist and is Phase 13/15 scope, not in the gap doc); the SensorPush
+that doesn't exist and is Phase 14/16 scope, not in the gap doc); the SensorPush
 environment widget (§2.6, no integration exists — already flagged elsewhere); the
 six-hotspot sidebar nav from the original Phase 10 canvas; a new route-level test harness
 (no `supertest`/route tests exist anywhere in this codebase — not introduced here, stayed
@@ -1426,7 +1426,7 @@ backend-only plan. Reviewing the merged PR against that original plan found:
    design that screen now) is unchanged.
 3. **This entry** — recording the reconciliation itself, so a future session reading
    Phase 10.5 isn't left wondering why its own deliverable 5 doesn't match reality.
-4. **Phase 13 note (below):** what Phase 10.5 already shipped, so Phase 13 doesn't
+4. **Phase 14 note (below):** what Phase 10.5 already shipped, so Phase 14 doesn't
    re-implement it.
 
 **Explicitly not changed:** no code. The `PUT`-vs-`PATCH` naming on `/api/settings` is
@@ -1453,7 +1453,7 @@ contradicts merged code.
 - Reconcile branch state: Phase 10's "context found" note flagged `main` as 39 commits behind `feature/discovery-review-ui` and missing Phase 9.3/9.4 entirely. Confirm `main` reflects the actually-running app (merge if it still doesn't) so "what's on `main`" and "what's running locally" stop being two different answers.
 
 **Notes:**
-- This phase is verification and integration against what already exists, not new feature construction — the six-hotspot navigation restructure is closed (see "Open questions affecting phases"), the native iOS app is Phase 12 (Mobile build), and the SensorPush environment module and allocation-drift view remain Phase 13 (Remaining frontend surfaces) scope.
+- This phase is verification and integration against what already exists, not new feature construction — the six-hotspot navigation restructure is closed (see "Open questions affecting phases"), the native iOS app is Phase 12 (Mobile build), and the SensorPush environment module and allocation-drift view remain Phase 14 (Remaining frontend surfaces) scope.
 - Any gap found here that needs net-new backend capability (not just wiring or display) belongs in a later phase, not squeezed into this one.
 
 **Milestone:** Every feature shipped through Phase 10.5 runs correctly end-to-end against the real backend on localhost, the running app matches the finalized Phase 10 design wherever they'd diverged, and `main` reflects the app that was actually tested.
@@ -1566,7 +1566,7 @@ no widgets, no offline mode, no push.
 - The web app goes **desktop-only** going forward. Phase 11.1's 860px
   sidebar→top-bar mobile collapse is retired rather than maintained — the iOS
   app is now the phone experience, and there's no longer a good reason to pay
-  the design/testing cost of two responsive targets. See Phase 13's own entry
+  the design/testing cost of two responsive targets. See Phase 14's own entry
   for the follow-up work this implies.
 - Manual **+ Add Wine** lives behind a small "+" in the Cellar tab's nav bar,
   plus an "Enter manually" link on the scan screen — available in two natural
@@ -1901,7 +1901,36 @@ action available on the web is reachable on the phone.
 
 ---
 
-## Phase 13 — Remaining frontend surfaces (web + iOS extras)
+## Phase 13 — Production deployment and distribution
+
+**Status:** Spec approved 2026-11-01 (`docs/specs/2026-10-10-phase-13-production-deployment.md`, v2). Not started. Built **after** Phase 12.5. WI-0 prerequisites are partly done — see the spec.
+
+> **Renumbering (2026-11-01, developer):** this phase takes number 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now **14, 15 and 16**. Specs and session notes dated before 2026-11-01 still use the old numbers (13 = remaining frontend surfaces, 14 = learning, 15 = open source). Phases 12.3–12.5 are the 2026-10-31 field-test round 2, so the spec's original "call it 12.3" alternative no longer applied.
+
+**Goal:** Move the app from "backend on the developer's laptop, phone on the same LAN" to a cloud deployment that the developer and his wife use daily from anywhere (Wi-Fi or cellular), with iPhone updates arriving through TestFlight and the backend shipping on merge to `main`.
+
+**Decisions (fixed 2026-10-10, spec §2):**
+- One shared cellar; both users on iPhone; no per-person ratings or notes.
+- Fly.io container (Ashburn), exactly one machine, SQLite on a Fly volume. One container serves the API and the built web app on the default `*.fly.dev` hostname (no custom domain). Idle auto-stop (scale to zero), starting at 1 GB. Fallbacks if WI-5 fails: Cloud Run + Litestream, or a home machine behind a Cloudflare Tunnel.
+- TestFlight internal testers through the paid Apple Developer Program, built by Xcode Cloud. Two groups: Developer (every build) and Household (promoted builds only).
+- Security: HTTPS only, per-device bearer tokens (iOS Keychain), rate limits on metered routes, no accounts or passwords.
+- Backend auto-deploys on merge to `main` once CI is green; iOS builds on merges that touch `ios/**`; promotion to Household is a git tag (`ios-v*`) or one click.
+
+**WI-5 go/no-go gate — pass rule (confirmed by the developer 2026-11-01):** the cloud finds a trusted-critic score on at least as many of the 14 ground-truth wines as the stored laptop baseline minus one (`validate-reviews-results.json`); peak memory per scan fits the chosen machine size; and cold-start time is acceptable to the developer (no numeric threshold fixed — judged from the measured figure).
+
+**Deliverables (work items):** WI-0 prerequisites · WI-1 backend production readiness · WI-2 container and Fly configuration · WI-3 authentication and abuse protection · WI-4 data safety and migration (backups; one-time upload via `sqlite3 .backup`) · **WI-5 deployment test (gate)** · WI-6 backend CI/CD · WI-7 iOS production configuration · WI-8 version compatibility (`426` with the minimum build) · WI-9 Xcode Cloud and TestFlight · WI-10 household onboarding · WI-11 documentation. Sequence: WI-0 → WI-1, WI-2 → WI-5 → WI-3, WI-4 → WI-6 → WI-7, WI-8, WI-9 → WI-10 → WI-11.
+
+**Constraints amended (applied to `CLAUDE.md` in WI-11):** §15 "no hosted backend or cloud database" is reversed for the backend and its SQLite file (still no Postgres, no separate database service); "no multi-user authentication" stands (a device token identifies a device, not a person); API keys move from `.env` to Fly secrets; Phase 12 D5 "LAN-only" is superseded for Release builds only.
+
+**Rules carried forward:** metered enrichment stays user-initiated and no new automatic metered call is introduced. WI-5 spends a one-time ~280–410 Serper credits (about $0.40) plus a small amount of GPT-4o usage. No secrets, tokens or signing material in version control. Each migration file runs once.
+
+**Out of scope:** custom domain, a staging environment beyond WI-5's test app, push notifications, per-person ratings or notes, Android, public App Store release, the iOS share extension, Cloud Run (fallback only).
+
+**Milestone:** The developer and his wife use the app daily from anywhere; shipping an enhancement is a merge, and consuming it is a TestFlight update. Acceptance criteria are in the spec, §10.
+
+---
+
+## Phase 14 — Remaining frontend surfaces (web + iOS extras)
 
 **Goal:** Everything the validated data model and scan pipeline still need that
 isn't the core mobile app (Phase 12) or already shipped: web parity with what
@@ -1947,7 +1976,7 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 
 ---
 
-## Phase 14 — Learning features
+## Phase 15 — Learning features
 
 **Goal:** Build the compounding knowledge layer. Requires sufficient data in the system to make quizzes and pattern surfaces meaningful.
 
@@ -1966,7 +1995,7 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 
 ---
 
-## Phase 15 — Open source release
+## Phase 16 — Open source release
 
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
@@ -2003,4 +2032,4 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
 - [x] Reddit community-sentiment layer: closed off 2026-07-28. Self-service Data API registration ended under Reddit's Responsible Builder Policy; the unofficial `.json` fallback was itself shut down 2026-05-28; the official commercial tier requires a contract at a four-to-five-figure annual minimum; third-party resellers are unlicensed scraping, inconsistent with the project's own CellarTracker/WineBerserkers principle (`CLAUDE.md` §15). Superseded by Phase 8's professional-review-extraction approach; a YouTube-based alternative is a separate, optional PoC — see Phase 8.5.
 - [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 — less cleanly fact-based than a date range, enum, or boolean; risks drifting into stored prose. Revisit only if a reliably structured (non-prose) capture method is found.
-- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 14's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 15's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.

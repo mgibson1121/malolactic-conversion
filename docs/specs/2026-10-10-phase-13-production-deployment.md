@@ -1,8 +1,8 @@
-# Phase 13 (proposed number) — Production deployment and distribution
+# Phase 13 — Production deployment and distribution
 
-> v1 — 2026-10-10. Status: **proposed, awaiting developer approval.** Written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; not started — built after Phase 12.5.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
-> **Numbering:** this takes "Phase 13". The existing Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) would shift to 14–16. Alternative: call this Phase 12.3 to avoid renumbering. Developer to choose before it lands in `build-phases.md`.
+> **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
 ---
 
@@ -65,6 +65,8 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 
 **WI-0 — Prerequisites (developer; start now, Apple enrollment can take days).** Enroll in the Apple Developer Program. Create a Fly.io account. Get the wife's Apple ID for the TestFlight invite. Set a monthly usage cap on the OpenAI account.
 
+**WI-0 status (2026-11-01):** Apple Developer Program is active (Individual; Team ID `8PZC3RCML7`, the team the iOS project already signs with; renews 2027-10-31; auto-renew is currently off — turn it on or set a reminder, or TestFlight distribution stops). Xcode shows the paid team. Fly.io account created (confirm a payment card is on file). OpenAI monthly spend cap: skipped by developer decision — WI-3's per-device tokens and rate limits are the main control. **Still to do:** create the App Store Connect app record (bundle ID `com.mgibson.WineApp`, Full Access) and add the wife as an App Store Connect user — both before WI-9; Cloudflare R2 account, bucket and scoped API token — before WI-4; `FLY_API_TOKEN` as a GitHub Actions secret — before WI-6; authorize Xcode Cloud's access to the GitHub repo (a UI step) — at WI-9.
+
 **WI-1 — Backend production readiness.** Build step compiling TypeScript to JavaScript and run with `node` (no `ts-node` in production). Bind `0.0.0.0` and read `PORT`/DB path from env. `GET /healthz` (unauthenticated, no DB write). CORS allowlist from env instead of the hard-coded `localhost:5173`. Express serves the built `web/` bundle. Chromium launched lazily with container-safe flags; render concurrency capped by config. Graceful shutdown on SIGTERM: finish in-flight work, checkpoint the WAL, close the DB. Trust the proxy headers.
 
 **WI-2 — Container and Fly configuration.** `Dockerfile` (Node plus Chromium), `fly.toml` (Ashburn, volume mount, one machine, auto-stop/auto-start, minimum machines 0), Fly secrets for the API keys and tokens. Verify the idle-stop behaviour with a volume attached (not yet confirmed). Confirm the draft sweep (runs on start and every 24 h) still behaves under auto-stop.
@@ -73,7 +75,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 
 **WI-4 — Data safety and migration.** Automatic backup before any schema migration. Nightly off-box backup to Cloudflare R2 (Litestream or a scheduled `.backup`). One-time upload of the local database using `sqlite3 .backup`; verify row counts for wines, tasting notes and settings against the local copy before cutover. Restore drill documented and performed once. Local `wine.db` kept until the developer signs off.
 
-**WI-5 — Deployment test (go/no-go gate).** Deploy the container to a staging Fly app. Replay the 14-wine ground-truth set from the cloud and compare against the stored laptop baseline (`validate-reviews-results.json`). Record per-retailer yield, peak memory per scan, and cold-start time. **Proposed pass rule (developer to confirm):** the cloud finds a trusted-critic score on at least as many of the 14 wines as the baseline minus one; peak memory fits the chosen size; cold start is acceptable to the developer. **Metered-call arithmetic (CLAUDE.md §15):** about 20–29 Serper credits per wine at first enrichment (Phase 9.2) × 14 wines is roughly 280–410 credits, about $0.40 at $50 per 50,000 credits, plus a small GPT-4o amount. One time; no new metered call is added to the product. **If it fails:** run the same container on a home machine behind a Cloudflare Tunnel, or revisit the host; the remaining work items are unchanged.
+**WI-5 — Deployment test (go/no-go gate).** Deploy the container to a staging Fly app. Replay the 14-wine ground-truth set from the cloud and compare against the stored laptop baseline (`validate-reviews-results.json`). Record per-retailer yield, peak memory per scan, and cold-start time. **Pass rule (confirmed by the developer 2026-11-01; no numeric cold-start threshold is fixed — the developer judges it from the measured figure):** the cloud finds a trusted-critic score on at least as many of the 14 wines as the baseline minus one; peak memory fits the chosen size; cold start is acceptable to the developer. **Metered-call arithmetic (CLAUDE.md §15):** about 20–29 Serper credits per wine at first enrichment (Phase 9.2) × 14 wines is roughly 280–410 credits, about $0.40 at $50 per 50,000 credits, plus a small GPT-4o amount. One time; no new metered call is added to the product. **If it fails:** run the same container on a home machine behind a Cloudflare Tunnel, or revisit the host; the remaining work items are unchanged.
 
 **WI-6 — Backend CI/CD.** GitHub Actions job: after CI is green on `main`, `flyctl deploy` using a `FLY_API_TOKEN` secret; post-deploy smoke test against `/healthz` and one authenticated read. Rollback documented as redeploying the previous release. Existing CI jobs unchanged.
 
@@ -97,8 +99,8 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 
 ## 9. Open items before building
 
-1. Phase number (13 with renumbering, or 12.3).
-2. Confirm WI-5's pass rule.
+1. ~~Phase number~~ — resolved 2026-11-01: Phase 13; the former 13–15 are now 14–16.
+2. ~~Confirm WI-5's pass rule~~ — confirmed 2026-11-01 (see WI-5).
 3. Confirm idle-stop works with a volume attached and the draft sweep (WI-2).
 4. Confirm internal TestFlight testers skip Beta App Review as expected (first build).
 
