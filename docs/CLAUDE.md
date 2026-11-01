@@ -158,11 +158,14 @@ Built on `feature/phase-12.5-price-critic-redesign` (spec: the round-2 spec, 12.
 - **Copy pass applied** (WI-5, all 44 accepted 2026-11-01): one short sentence, explanations behind a tap. Errors read "Couldn't <do it>. Is the backend running?"; reviews' states mirror price's ("Checking reviews…", "Couldn't check reviews. Retry", "No critic scores found."). The record is `docs/specs/2026-11-01-phase-12.5-copy-audit.md` (+ the full CSV); new copy follows the same rule.
 
 ### Phase 13 — Production deployment and distribution (in progress)
-Fly.io container, TestFlight distribution (spec: `docs/specs/2026-10-10-phase-13-production-deployment.md`; operations: `docs/ops/runbook.md`). Rules an agent must obey, as built so far (WI-1, WI-2, 2026-11-01):
+Fly.io container, TestFlight distribution (spec: `docs/specs/2026-10-10-phase-13-production-deployment.md`; operations: `docs/ops/runbook.md`). Rules an agent must obey, as built so far (WI-1, WI-2, WI-3, 2026-11-01):
 - **Production runs compiled JavaScript, never `ts-node`.** `npm run build -w backend` is `tsc` → `tsc-alias` (rewrites `@shared/*` to relative paths; Node cannot resolve the alias) → `scripts/copy-build-assets.js` (copies `db/schema.sql` and `db/migrations/` next to the compiled `migrate.js`, which silently skips migrations when that directory is missing — so the copy step fails the build instead). Entry: `node backend/dist/backend/server.js`. A new runtime file read via `__dirname` needs adding to that copy step. CI runs the build and boots the result.
 - **`backend/app.ts` builds the Express app; `server.ts` only listens and owns the lifecycle** (draft sweep, SIGTERM/SIGINT drain, WAL checkpoint via `closeStorage()`). Route tests can call `createApp(...)` without opening the database.
-- **Environment, not code, carries deployment differences:** `PORT`, `HOST` (default `0.0.0.0`), `WINE_DB_PATH` (`/data/wine.db` on Fly), `CORS_ORIGINS` (comma-separated; unset = `http://localhost:5173`), `WEB_DIST_DIR` (set = this process serves `web/dist`, one origin; unset locally, where Vite serves it), `RENDER_CONCURRENCY`, `SHUTDOWN_GRACE_MS` (must stay below `fly.toml`'s `kill_timeout`).
-- **`GET /healthz` is unauthenticated and never touches the database** (`/health` is an alias). Keep it that way when WI-3 adds the token middleware.
+- **Environment, not code, carries deployment differences:** `PORT`, `HOST` (default `0.0.0.0`), `WINE_DB_PATH` (`/data/wine.db` on Fly), `CORS_ORIGINS` (comma-separated; unset = `http://localhost:5173`), `WEB_DIST_DIR` (set = this process serves `web/dist`, one origin; unset locally, where Vite serves it), `RENDER_CONCURRENCY`, `SHUTDOWN_GRACE_MS` (must stay below `fly.toml`'s `kill_timeout`), `DEVICE_TOKENS`, `METERED_LIMIT_PER_HOUR`/`_PER_DAY`.
+- **`GET /healthz` is unauthenticated and never touches the database** (`/health` is an alias).
+- **Every `/api` route needs a device token (WI-3).** `backend/middleware/device-auth.ts`: `DEVICE_TOKENS` is one secret of comma-separated `name:token` pairs (tokens ≥ 32 characters, unique); `Authorization: Bearer <token>`, compared in constant time against every entry; the device name lands in `res.locals.device` and logs, never the token. Revoking a device = removing its pair. A token identifies a device, not a person (§15 "no multi-user authentication" stands). **Empty `DEVICE_TOKENS` turns auth off, and `NODE_ENV=production` then refuses to start** — fail closed. The token check runs after CORS (preflights need no token) and before `express.json()`. The served web bundle is public: it holds no secret, and the browser must load it to ask for the key.
+- **Metered routes are capped per device (WI-3).** `backend/middleware/metered-rate-limit.ts`, `METERED_ROUTES`: `POST /api/label-scan`, `POST /api/tasting-notes` (GPT tag extraction, not in the spec's list but it spends OpenAI), and `POST /api/wines/:id/{fetch-price,fetch-reviews,resolve-retailer-url,confirm-retailer-link}`. Defaults are 60 an hour and 200 a day per device (`METERED_LIMIT_PER_HOUR`, `METERED_LIMIT_PER_DAY`); over the limit is `429` with `Retry-After`. The counts are kept in memory, so a restart or idle stop resets them. The limit is active only when tokens are configured. **A new route that reaches OpenAI, Serper or a render must be added to `METERED_ROUTES`.** It adds no metered call; it only refuses some.
+- **The web app's key never enters the bundle.** `web/src/access-key.ts` (`apiFetch`, which every `api.ts` call uses) attaches a key stored in `localStorage`. `AccessKeyGate` asks for the key after the first 401, and drops a stored key that the server refuses. To run the web app locally against the cloud backend, set `WINE_API_TARGET` and `WINE_ACCESS_KEY` in the repo `.env`; `vite.config.ts` adds the header in the dev proxy. Neither has the `VITE_` prefix, so neither reaches the bundle.
 - **Every Chromium launch takes a slot from `shared/utils/render-gate.ts`** (`withRenderSlot`, `CHROMIUM_ARGS`). Both `renderPageHtml` copies go through it, so the cap holds across price and reviews. Unset `RENDER_CONCURRENCY` = uncapped (local behaviour unchanged); `fly.toml` sets 2 at 1 GB until WI-5 measures. A new render path must use the gate too.
 - **Puppeteer is a production dependency** (it was a devDependency; the image installs with `--omit=dev`). Puppeteer 25 needs Node ≥ 22.12, so the image is Node 22; CI's Node 20 is fine because tests mock Puppeteer (§4).
 - **`web`'s `build` script is `tsc --noEmit && vite build`.** Plain `tsc` there (no `outDir`) wrote a `.js` beside every `.ts` in `web/src` and `shared/`, and ts-jest then picked up `shared/validation.js` and failed.
@@ -247,10 +250,10 @@ Rules for all modules:
 ## 6. API Key Management
 
 ### iOS
-All credentials stored in iOS Keychain. Never stored on device filesystem or transmitted to backend.
+All credentials stored in iOS Keychain. Never stored on device filesystem or transmitted to backend. (**Phase 13:** the only credential the app holds is its own device token for the cloud backend — sent as `Authorization: Bearer`, which is its purpose — kept in the Keychain (WI-7). The OpenAI and Serper keys never reach the phone.)
 
 ### Web + Backend
-All credentials stored in a local `.env` file at the project root.
+All credentials stored in a local `.env` file at the project root. (**Phase 13:** in the cloud deployment, `OPENAI_API_KEY`, `SERPER_API_KEY` and `DEVICE_TOKENS` are Fly secrets instead; `.env` stays for local development. See `docs/ops/runbook.md`.)
 
 - `.env` is gitignored — never commit it
 - `.env.example` is committed with all required variable names and empty values — keep it up to date
@@ -265,7 +268,12 @@ SENSORPUSH_EMAIL=
 SENSORPUSH_PASSWORD=
 GOOGLE_SHEETS_CREDENTIALS=
 GOOGLE_SHEETS_SPREADSHEET_ID=
+DEVICE_TOKENS=
+WINE_API_TARGET=
+WINE_ACCESS_KEY=
 ```
+
+The last three are Phase 13 and optional locally. Leave `DEVICE_TOKENS` empty so the local backend needs no token; set it only to try the token check locally. `WINE_API_TARGET`/`WINE_ACCESS_KEY` point the Vite dev server at the cloud backend with this machine's key (see §3 "Phase 13").
 
 The `GOOGLE_SHEETS_*` variables are Phase 1–4 only. They can be left empty from Phase 5 onward. `SERPER_API_KEY` is used by both `modules/price/` (Shopping endpoint) and `modules/reviews/` (organic search endpoint, Phase 7) — one key covers both. **`SENSORPUSH_EMAIL`/`SENSORPUSH_PASSWORD` are not read by any code yet** (Phase 11, 2026-09-04) — `modules/environment/` doesn't exist (see §5). Listed here for the Phase 14 module that will consume them; safe to leave empty until then.
 
@@ -482,7 +490,7 @@ These are hard constraints. Do not violate them without explicit instruction.
 - Do not blend or synthesise data across sources — each data source speaks in its own voice on the wine entry card
 - Extraction from third-party review/retail text must produce structured facts only — scores, dates, enum values, booleans. Never store or reproduce source prose (copyright boundary). Store the source URL instead.
 - Do not add microservice infrastructure — modular code in a monorepo is sufficient
-- Do not build multi-user authentication — v1 is single user
+- Do not build multi-user authentication — v1 is single user. (**Phase 13, 2026-11-01:** stands. Per-device bearer tokens identify a device, not a person; there are no accounts, passwords, roles or per-person data.)
 - Do not merge a PR while CI is red
 - Do not add a new retailer, query variant, fallback pass, or per-item probe that multiplies outbound Serper calls without stating the calls-per-wine cost before and after — see "Metered-API cost is a design constraint" below
 

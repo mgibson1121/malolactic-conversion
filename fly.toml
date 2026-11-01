@@ -2,8 +2,9 @@
 #
 # `app` is a placeholder until the app exists on Fly (names are global); WI-5's
 # staging run overrides it with `fly deploy -a <staging-app>`.
-# Secrets are never in this file: OPENAI_API_KEY, SERPER_API_KEY (and the WI-3
-# device tokens) are set with `fly secrets set`.
+# Secrets are never in this file: OPENAI_API_KEY, SERPER_API_KEY and
+# DEVICE_TOKENS (WI-3; production refuses to start without it) are set with
+# `fly secrets set`.
 
 app = "malolactic-wine"
 primary_region = "iad" # Ashburn, nearest NYC
