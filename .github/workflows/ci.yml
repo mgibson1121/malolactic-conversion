@@ -41,9 +41,26 @@ jobs:
         working-directory: web
         run: npx vitest run
 
+      # Phase 13 WI-1: the production build (tsc, path-alias rewrite, SQL
+      # assets) and a start of the compiled server, so a build that compiles
+      # but cannot boot fails here rather than on deploy.
       - name: Build backend
         working-directory: backend
-        run: npx tsc
+        run: npm run build
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+
+      - name: Smoke-start compiled backend
+        run: |
+          PORT=3999 WINE_DB_PATH="$RUNNER_TEMP/smoke.db" WEB_DIST_DIR="$PWD/web/dist" \
+            node backend/dist/backend/server.js &
+          for i in $(seq 1 30); do curl -sf localhost:3999/healthz && break; sleep 1; done
+          curl -sf localhost:3999/healthz
+          curl -sf localhost:3999/api/wines
+          curl -sf localhost:3999/ | grep -q '<div id="root">'
+          kill -TERM %1 && wait %1
 
   ios:
     name: iOS · Build · Test
