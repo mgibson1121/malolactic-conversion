@@ -1,0 +1,20 @@
+# Phase 13 WI-2 — keep the build context small and keep secrets and the
+# developer's database out of the image (spec R8). The database reaches the
+# cloud only through the one-time `sqlite3 .backup` upload (WI-4).
+**/node_modules
+**/dist
+.git
+.github
+.claude
+.env
+.env.*
+**/*.db
+**/*.db-*
+**/*.db.*
+backend/db/wine.db*
+ios
+docs
+Claude outputs
+validate-reviews-results.json
+**/__fixtures__/adhoc-*.html
+**/.DS_Store

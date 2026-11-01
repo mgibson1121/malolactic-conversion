@@ -484,6 +484,11 @@ body {
   margin-bottom: 4px;
 }
 
+.access-key-hint {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
 .add-wine-form label {
   font-size: 13px;
   font-weight: 600;

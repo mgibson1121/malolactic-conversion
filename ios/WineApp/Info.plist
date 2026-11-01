@@ -3,10 +3,12 @@
 <plist version="1.0">
 <dict>
 	<!-- Merged with the build-setting-generated Info.plist (GENERATE_INFOPLIST_FILE).
-	     Only keys with no INFOPLIST_KEY_ equivalent live here. -->
+	     Only keys with no INFOPLIST_KEY_ equivalent live here
+	     (NSLocalNetworkUsageDescription is INFOPLIST_KEY_ in the project file). -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<!-- Phase 12 is LAN-only (D5): the backend is plain HTTP on the local network. -->
+		<!-- Phase 12 is LAN-only (D5): the backend is plain HTTP on the local network.
+		     Phase 13 WI-7 will limit this to Debug, with Release on HTTPS to Fly only. -->
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
@@ -17,7 +19,5 @@
 		<string>Domine-Variable.ttf</string>
 		<string>WorkSans-Variable.ttf</string>
 	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>The app talks to your wine backend running on this network.</string>
 </dict>
 </plist>

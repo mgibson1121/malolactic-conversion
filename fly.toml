@@ -1,0 +1,60 @@
+# Phase 13 WI-2 — Fly.io configuration (spec D2–D5). Operations: docs/ops/runbook.md.
+#
+# `app` is a placeholder until the app exists on Fly (names are global); WI-5's
+# staging run overrides it with `fly deploy -a <staging-app>`.
+# Secrets are never in this file: OPENAI_API_KEY, SERPER_API_KEY and
+# DEVICE_TOKENS (WI-3; production refuses to start without it) are set with
+# `fly secrets set`.
+
+app = "malolactic-wine"
+primary_region = "iad" # Ashburn, nearest NYC
+
+# server.ts drains in-flight requests on SIGTERM for up to SHUTDOWN_GRACE_MS
+# (55 s), then checkpoints the WAL; kill_timeout must stay above that.
+kill_signal = "SIGTERM"
+kill_timeout = "60s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  WINE_DB_PATH = "/data/wine.db"
+  WEB_DIST_DIR = "/app/web/dist"
+  # Concurrent Chromium renders across price and reviews (shared/utils/render-gate.ts).
+  # Starting value for 1 GB; right-size from the WI-5 peak-memory measurement.
+  RENDER_CONCURRENCY = "2"
+  SHUTDOWN_GRACE_MS = "55000"
+
+# SQLite is single-writer (D4): exactly one machine, with this one volume.
+[mounts]
+  source = "wine_data"
+  destination = "/data"
+  initial_size = "3gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Idle auto-stop (D5): stop when no requests are in flight, start on the next one.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+  # /healthz is unauthenticated and never opens the database (WI-1).
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

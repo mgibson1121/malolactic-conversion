@@ -1,6 +1,6 @@
 # Phase 13 — Production deployment and distribution
 
-> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; not started — built after Phase 12.5.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open; WI-5 next.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
 > **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
@@ -72,6 +72,8 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 **WI-2 — Container and Fly configuration.** `Dockerfile` (Node plus Chromium), `fly.toml` (Ashburn, volume mount, one machine, auto-stop/auto-start, minimum machines 0), Fly secrets for the API keys and tokens. Verify the idle-stop behaviour with a volume attached (not yet confirmed). Confirm the draft sweep (runs on start and every 24 h) still behaves under auto-stop.
 
 **WI-3 — Authentication and abuse protection.** Bearer-token middleware (constant-time compare) on every route except `/healthz`. Tokens held as a Fly secret list so each device's token can be revoked independently; issue two (developer, wife) plus one for the web app. Rate limit on the metered routes (`fetch-price`, `fetch-reviews`, `label-scan`, `confirm-retailer-link`, `resolve-retailer-url`). Tests: missing, wrong, and revoked token; `/healthz` stays open. Web app reads its token from local config, never from the bundle.
+
+**WI-3 as built (2026-11-01), differences from the text above:** (1) built **before** WI-5 by developer decision, so the staging app is never unauthenticated; a production start without `DEVICE_TOKENS` refuses to run. (2) `POST /api/tasting-notes` is also rate-limited — it calls GPT for tag extraction. (3) "Every route except `/healthz`" is every `/api` route: the static web bundle stays public, since it holds no secret and a browser must load it to ask for the key. (4) The web app's "local config" is either the browser's `localStorage` (typed once into a prompt) or, for Vite against the cloud, `WINE_ACCESS_KEY` in `.env` added by the dev proxy. Limits: 60/hour, 200/day per device, in memory.
 
 **WI-4 — Data safety and migration.** Automatic backup before any schema migration. Nightly off-box backup to Cloudflare R2 (Litestream or a scheduled `.backup`). One-time upload of the local database using `sqlite3 .backup`; verify row counts for wines, tasting notes and settings against the local copy before cutover. Restore drill documented and performed once. Local `wine.db` kept until the developer signs off.
 

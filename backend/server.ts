@@ -1,39 +1,28 @@
 import { config } from 'dotenv'
 import path from 'path'
-config({ path: path.resolve(__dirname, '../.env') })
-import express, { Request, Response, NextFunction } from 'express'
-import cors from 'cors'
-import winesRouter from './routes/wines'
-import tastingNotesRouter from './routes/tasting-notes'
-import adviceRouter from './routes/advice'
-import labelScanRouter from './routes/label-scan'
-import debugRouter from './routes/debug'
-import settingsRouter from './routes/settings'
-import { getStorage } from './modules/storage'
+// The repo-root .env, from source (backend/server.ts) or from the compiled
+// build (backend/dist/backend/server.js). Missing files are skipped; in the
+// cloud there is no .env and the keys arrive as Fly secrets (Phase 13).
+config({ path: [path.resolve(__dirname, '../.env'), path.resolve(__dirname, '../../../.env')] })
+import { createApp, optionsFromEnv } from './app'
+import { getStorage, closeStorage } from './modules/storage'
+import { activeRenders } from '@shared/utils/render-gate'
 
-const app = express()
-app.use(cors({ origin: 'http://localhost:5173' }))
-app.use(express.json())
-
-app.use('/api/wines', winesRouter)
-app.use('/api/tasting-notes', tastingNotesRouter)
-app.use('/api/advice', adviceRouter)
-app.use('/api/label-scan', labelScanRouter)
-app.use('/api/debug', debugRouter)
-app.use('/api/settings', settingsRouter)
-
-app.get('/health', (_req, res) => res.json({ status: 'ok' }))
-
-// Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.message)
-  res.status(500).json({ error: err.message })
-})
+const options = optionsFromEnv()
+const app = createApp(options)
+const devices = options.deviceTokens ?? []
+console.log(
+  devices.length > 0
+    ? `Device tokens: ${devices.length} (${devices.map(d => d.name).join(', ')})`
+    : 'Authentication is OFF (no DEVICE_TOKENS) — local development only'
+)
 
 // Phase 9.4, WI-7 — drafts (promoted_at NULL) older than 24h are deleted, on
 // server start and once per 24h thereafter. A swept draft takes its
 // review_data with it; re-scanning that wine later costs a fresh fetch. See
 // CLAUDE.md §15's billing note for why that trade is fine at current volume.
+// Under Fly's idle auto-stop (Phase 13) the process rarely lives 24h, so in
+// practice the sweep runs on each wake-up; it is idempotent, so that is fine.
 const DRAFT_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
@@ -47,11 +36,54 @@ function sweepStaleDrafts() {
     .catch((err) => console.error('Draft sweep failed:', err))
 }
 
-const PORT = process.env.PORT ?? 3000
-app.listen(PORT, () => {
-  console.log(`Wine app backend listening on port ${PORT}`)
+const PORT = Number(process.env.PORT ?? 3000)
+// All interfaces: the phone reaches a laptop backend over the LAN, and Fly's
+// proxy reaches the container on its private address.
+const HOST = process.env.HOST ?? '0.0.0.0'
+let sweepTimer: NodeJS.Timeout | undefined
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Wine app backend listening on ${HOST}:${PORT}`)
   sweepStaleDrafts()
-  setInterval(sweepStaleDrafts, DRAFT_SWEEP_INTERVAL_MS).unref()
+  sweepTimer = setInterval(sweepStaleDrafts, DRAFT_SWEEP_INTERVAL_MS)
+  sweepTimer.unref()
 })
+
+// Phase 13 WI-1 — graceful shutdown. Fly sends SIGTERM (fly.toml kill_signal)
+// when it stops an idle machine or replaces it on deploy. Stop accepting
+// connections, let in-flight requests finish (an enrichment fetch can run
+// for a minute), then checkpoint the WAL and close the database. Must stay
+// under fly.toml's kill_timeout, after which the machine is killed outright.
+// A second signal (Ctrl-C twice locally) skips the wait.
+const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS ?? 55_000)
+let shuttingDown = false
+
+function finish(code: number): never {
+  try {
+    closeStorage()
+  } catch (err) {
+    console.error('Closing the database failed:', err)
+    code = 1
+  }
+  process.exit(code)
+}
+
+function shutdown(signal: string) {
+  if (shuttingDown) {
+    console.log(`${signal} again: closing now`)
+    finish(1)
+  }
+  shuttingDown = true
+  console.log(`${signal}: no new connections; waiting for in-flight requests (${activeRenders()} render(s) running)`)
+  if (sweepTimer) clearInterval(sweepTimer)
+  setTimeout(() => {
+    console.error(`Shutdown: requests still open after ${SHUTDOWN_GRACE_MS}ms; closing anyway`)
+    finish(1)
+  }, SHUTDOWN_GRACE_MS).unref()
+  server.close(() => finish(0))
+  server.closeIdleConnections()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
 
 export default app
