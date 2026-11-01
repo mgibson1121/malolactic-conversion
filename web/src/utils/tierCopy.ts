@@ -10,39 +10,31 @@ export interface TierCopy {
   phrase: string
   /** (a) what this tier means. */
   meaning: string
-  /** (b) what it does to the card badge and drinking window. */
-  effect: string
 }
 
 export const TIER_COPY: Record<Exclude<ReviewTierId, 'none'>, TierCopy> = {
+  // Phase 12.5 WI-3: one short line on the marker, one sentence in the sheet
+  // (plus the counts). Tier 1 shows the Exact match badge instead of a line.
   '1': {
     phrase: 'exact wine and vintage',
-    meaning: 'We found a score for this exact wine and vintage from a critic we trust.',
-    effect: 'The card badge and the drinking window come from these scores.',
+    meaning: 'A critic you trust scored this exact wine and vintage.',
   },
   '2': {
-    phrase: 'same wine, other vintages',
-    meaning:
-      'No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Only vintages within 3 years are used or shown.',
-    effect:
-      'These scores can set the card badge and the drinking window, labelled approximate.',
+    phrase: 'other vintages',
+    meaning: 'No trusted score for this vintage, so these are the same wine’s nearest vintages, within 3 years.',
   },
   '3': {
-    phrase: 'different bottling, same vintage',
-    meaning:
-      'We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide.',
-    effect: 'The card badge is marked “from a different bottling” and the drinking window is approximate.',
+    phrase: 'different bottling',
+    meaning: 'Nothing for this exact bottling, so these are a different bottling of the same producer and vintage.',
   },
   '4': {
-    phrase: 'different bottling, nearby vintage',
-    meaning:
-      'We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make.',
-    effect: 'The card badge is marked “from a different bottling” and the drinking window is approximate.',
+    phrase: 'different bottling, other vintage',
+    meaning: 'Nothing for this exact bottling, so these are a different bottling within 3 vintages — the loosest match.',
   },
 }
 
 export function tierHeadline(tier: ReviewTierId): string | null {
-  return tier === 'none' ? null : `Matched at Tier ${tier} · ${TIER_COPY[tier].phrase}`
+  return tier === 'none' ? null : `Tier ${tier} · ${TIER_COPY[tier].phrase}`
 }
 
 /** "Now matched at Tier 1 — 3 trusted scores" (the one-line result after an answer). */

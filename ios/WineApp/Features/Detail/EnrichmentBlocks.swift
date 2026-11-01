@@ -38,9 +38,6 @@ struct CriticReviewsBlock: View {
     var searchMore: (() -> Void)?
     /// "Which bottling is yours?" (Phase 12.2). Absent where the answer cannot be saved.
     var chooseBottling: ((BottlingChoice) async -> BottlingOutcome)?
-    @State private var showAll = false
-
-    private let visibleScores = 6
 
     var body: some View {
         let state = CriticReviewsState.of(wine: wine, control: control)
@@ -99,65 +96,41 @@ struct CriticReviewsBlock: View {
                 CriticScoreRow(score: score)
             }
         } else {
-            let shown = showAll ? ordered : Array(ordered.prefix(visibleScores))
-            let same = shown.filter(\.sameVintage)
-            let other = shown.filter { !$0.sameVintage }
-            if !same.isEmpty {
-                group(wine?.vintage.map { "Your vintage (\($0))" } ?? "This wine", same)
+            // Every score, never collapsed, in the backend's order — trusted
+            // first, same vintage first (Phase 12.5 WI-3).
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(ordered, id: \.publication) { CriticSummaryRow(item: $0) }
             }
-            if !other.isEmpty { group("Other vintages", other) }
-            if ordered.count > visibleScores {
-                Button(showAll ? "Show fewer" : "Show all \(ordered.count) scores") { showAll.toggle() }
-                    .buttonStyle(.link)
-                    .font(AppFont.meta())
-            }
-        }
-    }
-
-    private func group(_ title: String, _ items: [CriticSummaryItem]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(AppFont.sectionLabel()).foregroundStyle(Theme.textMuted)
-            ForEach(items, id: \.publication) { CriticSummaryRow(item: $0) }
+            .accessibilityIdentifier("critic-score-lines")
         }
     }
 }
 
-/// One score in the backend's order: number, source, a Trusted marker, the
-/// vintage it applies to (D10) and the Phase 8 attributes when stated.
+/// One score as one compact line (Phase 12.5 WI-3): the number, the critic,
+/// and the year when it is not the wine's. A "different bottling" tag only on
+/// a Tier 3/4 row. No per-row explanation — drinking windows have their own
+/// section.
 struct CriticSummaryRow: View {
     let item: CriticSummaryItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(CriticScores.format(item.score))
-                    .font(AppFont.cardTitle().monospacedDigit())
-                    .foregroundStyle(Theme.text)
-                Text(item.publication)
-                    .font(AppFont.body())
-                    .foregroundStyle(item.knownPublication ? Theme.text : Theme.textMuted)
-                if item.trusted {
-                    Pill(text: "Trusted", fg: Theme.green, bg: Theme.greenSoft)
-                }
-                if !item.sameVintage, let vintage = item.vintage {
-                    // The year only, never the distance from the wine's (Phase 12.3 WI-3).
-                    Pill(text: String(vintage), fg: Theme.textMuted, bg: Theme.surface2)
-                        .accessibilityLabel("Score is for the \(vintage) vintage")
-                }
-                if item.bottlingBadge != nil {
-                    Pill(text: "different bottling", fg: Theme.textMuted, bg: Theme.surface2)
-                        .accessibilityLabel(item.bottlingBadge ?? "")
-                }
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(CriticScores.format(item.score))
+                .font(AppFont.cardTitle().monospacedDigit())
+                .foregroundStyle(Theme.text)
+                .frame(minWidth: 30, alignment: .leading)
+            Text(item.publication)
+                .font(AppFont.body())
+                .foregroundStyle(item.knownPublication ? Theme.text : Theme.textMuted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if !item.sameVintage, let vintage = item.vintage {
+                Pill(text: String(vintage), fg: Theme.textMuted, bg: Theme.surface2)
+                    .accessibilityLabel("Score is for the \(vintage) vintage")
             }
-            let attributes = [
-                DetailFormatting.criticWindow(item.drinkingWindow),
-                item.vintageCharacter.map(DetailFormatting.vintageCharacter),
-                item.deal ? "Value pick" : nil,
-            ].compactMap { $0 }
-            if !attributes.isEmpty {
-                Text(attributes.joined(separator: " · "))
-                    .font(AppFont.meta())
-                    .foregroundStyle(Theme.textMuted)
+            if item.rung == "3" || item.rung == "4", item.bottlingBadge != nil {
+                Pill(text: "different bottling", fg: Theme.textMuted, bg: Theme.surface2)
+                    .accessibilityLabel(item.bottlingBadge ?? "")
             }
         }
         .opacity(item.sameVintage ? 1 : 0.85)

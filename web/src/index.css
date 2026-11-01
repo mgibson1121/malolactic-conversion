@@ -2554,3 +2554,10 @@ summary.link { display: inline-block; font-size: 12px; }
   display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
   color: var(--green, #2f6b3a); background: var(--green-soft, #e6f1e7); vertical-align: middle;
 }
+
+/* Phase 12.5 WI-3 — one compact line per critic score, all of them. */
+.critic-score-lines { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.critic-score-line { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.critic-score-line .critic-score { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 2.2em; }
+.critic-score-line .critic-publication { overflow: hidden; text-overflow: ellipsis; }
+.critic-score-line--other { opacity: 0.85; }

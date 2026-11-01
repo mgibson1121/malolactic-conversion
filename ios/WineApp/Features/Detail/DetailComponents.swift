@@ -229,17 +229,19 @@ struct RetailerRow: View {
                                ? "Opens a search at \(retailer.name), not a direct product page"
                                : "Opens the product page")
 
-            if isExact { ExactMatchBadge() }
-
-            ViewThatFits(in: .horizontal) {
-                let badges = RetailerTable.badges(retailer)
-                ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
-                    HStack(spacing: 6) {
-                        ForEach(badges.prefix(count), id: \.self) { badge in
-                            RetailerBadgeView(badge: badge, explained: $explained)
+            // Exact match leads the badge line (Phase 12.5 WI-4); the rest drop right-to-left as before.
+            HStack(spacing: 6) {
+                if isExact { ExactMatchBadge().fixedSize() }
+                ViewThatFits(in: .horizontal) {
+                    let badges = RetailerTable.badges(retailer)
+                    ForEach(Array(stride(from: badges.count, through: 1, by: -1)), id: \.self) { count in
+                        HStack(spacing: 6) {
+                            ForEach(badges.prefix(count), id: \.self) { badge in
+                                RetailerBadgeView(badge: badge, explained: $explained)
+                            }
                         }
+                        .fixedSize()
                     }
-                    .fixedSize()
                 }
             }
 

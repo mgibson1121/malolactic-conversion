@@ -30,22 +30,23 @@ describe('Tier marker and explainer sheet (Phase 12.2 WI-2.3)', () => {
   it('names the tier in words, with an underlined, tappable ⓘ', () => {
     render(<CriticReviewsBlock wine={wineAt('2')} action={idle} />)
     const marker = screen.getByTestId('tier-marker')
-    expect(marker).toHaveTextContent('Matched at Tier 2 · same wine, other vintages')
+    expect(marker).toHaveTextContent('Tier 2 · other vintages')
     const info = within(marker).getByRole('button', { name: 'What does this tier mean?' })
     expect(info.className).toMatch(/\blink\b/)
   })
 
-  it('shows Tier 1 too, in the quiet style', () => {
+  it('Tier 1 is the Exact match badge, in the quiet style (Phase 12.5 WI-3/WI-4)', () => {
     render(<CriticReviewsBlock wine={wineAt('1')} action={idle} />)
-    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Matched at Tier 1 · exact wine and vintage')
+    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Exact match')
+    expect(screen.getByTestId('tier-marker')).not.toHaveTextContent('Tier 1')
     expect(screen.getByTestId('tier-marker').className).toMatch(/quiet/)
   })
 
-  it('opens a sheet that says what the tier means, what it does, and what was found at each rung', async () => {
+  it('opens a sheet: one sentence on what the tier means, then what was found at each rung', async () => {
     render(<CriticReviewsBlock wine={wineAt('2')} action={idle} />)
     await userEvent.click(screen.getByRole('button', { name: 'What does this tier mean?' }))
     const sheet = screen.getByRole('dialog', { name: 'Tier 2' })
-    expect(sheet).toHaveTextContent('looked at other vintages of the same wine, nearest first')
+    expect(sheet).toHaveTextContent('the same wine’s nearest vintages, within 3 years')
     expect(sheet).toHaveTextContent('Tier 2: 2 pages, 3 scores (Vinous, Decanter)')
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -62,7 +63,7 @@ describe('Tier marker and explainer sheet (Phase 12.2 WI-2.3)', () => {
       vintage: 2021,
       critic_summary: {
         ordered: [
-          makeSummaryItem({ publication: 'Decanter', score: 95, same_vintage: false, vintage: 2019, vintage_delta: 2, bottling_badge: "Names Castiglione — yours doesn't" }),
+          makeSummaryItem({ publication: 'Decanter', score: 95, same_vintage: false, vintage: 2019, vintage_delta: 2, rung: '4', bottling_badge: "Names Castiglione — yours doesn't" }),
         ],
       },
       review_ladder: ladder('4'),
@@ -77,13 +78,13 @@ describe('Tier marker and explainer sheet (Phase 12.2 WI-2.3)', () => {
   it('reads a ladder from a backend older than the Phase 12.3 rename, mapping 3a/3b to Tier 3/4', async () => {
     const legacy = (tier: string) => ({ ...ladder('1'), tier, rungs: [{ ...ladder('1').rungs[0], tier }] }) as unknown as ReturnType<typeof ladder>
     const { unmount } = render(<CriticReviewsBlock wine={wineAt('1', { review_ladder: legacy('3a') })} action={idle} onWineUpdated={() => {}} />)
-    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Matched at Tier 3 · different bottling, same vintage')
+    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Tier 3 · different bottling')
     await userEvent.click(screen.getByRole('button', { name: 'What does this tier mean?' }))
     expect(screen.getByRole('dialog', { name: 'Tier 3' })).toHaveTextContent('Tier 3: 2 pages')
     expect(screen.getByRole('button', { name: 'Which bottling is yours?' })).toBeInTheDocument()
     unmount()
     render(<CriticReviewsBlock wine={wineAt('1', { review_ladder: legacy('3b') })} action={idle} />)
-    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Matched at Tier 4 · different bottling, nearby vintage')
+    expect(screen.getByTestId('tier-marker')).toHaveTextContent('Tier 4 · different bottling, other vintage')
   })
 })
 

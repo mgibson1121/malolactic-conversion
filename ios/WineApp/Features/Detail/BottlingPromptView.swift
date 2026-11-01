@@ -54,34 +54,28 @@ enum BottlingOutcome: Equatable {
 /// Takes the tier as decoded — `LadderTier.normalize` has already mapped any
 /// pre-12.3 name.
 enum TierCopy {
+    /// Phase 12.5 WI-3: one short line on the marker (Tier 1 shows the Exact
+    /// match badge instead), one sentence in the sheet, then the counts.
     static func phrase(_ tier: String) -> String? {
         switch tier {
         case "1": return "exact wine and vintage"
-        case "2": return "same wine, other vintages"
-        case "3": return "different bottling, same vintage"
-        case "4": return "different bottling, nearby vintage"
+        case "2": return "other vintages"
+        case "3": return "different bottling"
+        case "4": return "different bottling, other vintage"
         default: return nil
         }
     }
 
     static func headline(_ tier: String) -> String? {
-        phrase(tier).map { "Matched at Tier \(tier) · \($0)" }
+        phrase(tier).map { "Tier \(tier) · \($0)" }
     }
 
     static func meaning(_ tier: String) -> String {
         switch tier {
-        case "1": return "We found a score for this exact wine and vintage from a critic we trust."
-        case "2": return "No trusted score for this vintage, so we looked at other vintages of the same wine, nearest first. Only vintages within 3 years are used or shown."
-        case "3": return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and vintage (for example a named vineyard or special cuvée). Treat these scores as a guide."
-        default: return "We found nothing for this exact bottling, so we widened to a different bottling of the same producer and then to a nearby vintage (within 3 years). This is the loosest match we make."
-        }
-    }
-
-    static func effect(_ tier: String) -> String {
-        switch tier {
-        case "1": return "The card badge and the drinking window come from these scores."
-        case "2": return "These scores can set the card badge and the drinking window, labelled approximate."
-        default: return "The card badge is marked “from a different bottling” and the drinking window is approximate."
+        case "1": return "A critic you trust scored this exact wine and vintage."
+        case "2": return "No trusted score for this vintage, so these are the same wine's nearest vintages, within 3 years."
+        case "3": return "Nothing for this exact bottling, so these are a different bottling of the same producer and vintage."
+        default: return "Nothing for this exact bottling, so these are a different bottling within 3 vintages — the loosest match."
         }
     }
 
@@ -104,7 +98,12 @@ struct TierMarker: View {
     var body: some View {
         if let headline = TierCopy.headline(ladder.tier) {
             HStack(spacing: 4) {
-                Text(headline).font(AppFont.meta()).foregroundStyle(ladder.tier == "1" ? Theme.textMuted.opacity(0.8) : Theme.textMuted)
+                // Tier 1 is the Exact match badge (Phase 12.5 WI-3/WI-4).
+                if ladder.tier == "1" {
+                    ExactMatchBadge()
+                } else {
+                    Text(headline).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                }
                 Button {
                     showSheet = true
                 } label: {
@@ -135,7 +134,6 @@ private struct TierSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(TierCopy.meaning(ladder.tier)).font(AppFont.body())
-                    Text(TierCopy.effect(ladder.tier)).font(AppFont.body())
                     Text("What was found").font(AppFont.sectionLabel()).foregroundStyle(Theme.textMuted)
                     ForEach(ladder.rungs, id: \.tier) { rung in
                         let critics = rung.critics.isEmpty ? "" : " (\(rung.critics.joined(separator: ", ")))"
