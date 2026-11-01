@@ -4,11 +4,18 @@ import path from 'path'
 // build (backend/dist/backend/server.js). Missing files are skipped; in the
 // cloud there is no .env and the keys arrive as Fly secrets (Phase 13).
 config({ path: [path.resolve(__dirname, '../.env'), path.resolve(__dirname, '../../../.env')] })
-import { createApp } from './app'
+import { createApp, optionsFromEnv } from './app'
 import { getStorage, closeStorage } from './modules/storage'
 import { activeRenders } from '@shared/utils/render-gate'
 
-const app = createApp()
+const options = optionsFromEnv()
+const app = createApp(options)
+const devices = options.deviceTokens ?? []
+console.log(
+  devices.length > 0
+    ? `Device tokens: ${devices.length} (${devices.map(d => d.name).join(', ')})`
+    : 'Authentication is OFF (no DEVICE_TOKENS) — local development only'
+)
 
 // Phase 9.4, WI-7 — drafts (promoted_at NULL) older than 24h are deleted, on
 // server start and once per 24h thereafter. A swept draft takes its

@@ -8,6 +8,8 @@ import adviceRouter from './routes/advice'
 import labelScanRouter from './routes/label-scan'
 import debugRouter from './routes/debug'
 import settingsRouter from './routes/settings'
+import { parseDeviceTokens, requireDeviceToken, type DeviceToken } from './middleware/device-auth'
+import { METERED_ROUTES, meteredLimitsFromEnv, meteredRateLimit, type MeteredLimits } from './middleware/metered-rate-limit'
 
 // Phase 13 WI-1 — the Express app, split from server.ts so it can be built
 // and exercised without listening, opening the database or starting the
@@ -22,6 +24,13 @@ export interface AppOptions {
    * locally, where Vite serves the web app and proxies `/api`.
    */
   webDistDir?: string | null
+  /**
+   * Devices allowed to call `/api` (WI-3). Empty turns authentication and the
+   * metered rate limit off — local development only; `optionsFromEnv`
+   * refuses an empty list in production.
+   */
+  deviceTokens?: DeviceToken[]
+  meteredLimits?: MeteredLimits
 }
 
 /** `CORS_ORIGINS` is a comma-separated list; unset keeps the Vite dev origin. */
@@ -30,8 +39,19 @@ export function corsOriginsFromEnv(value: string | undefined = process.env.CORS_
   return origins.length > 0 ? origins : ['http://localhost:5173']
 }
 
-export function optionsFromEnv(): AppOptions {
-  return { corsOrigins: corsOriginsFromEnv(), webDistDir: process.env.WEB_DIST_DIR || null }
+export function optionsFromEnv(env = process.env): AppOptions {
+  const deviceTokens = parseDeviceTokens(env.DEVICE_TOKENS)
+  // Fail closed: a production start without tokens would put the metered
+  // routes, and the keys behind them, on the open internet.
+  if (deviceTokens.length === 0 && env.NODE_ENV === 'production') {
+    throw new Error('DEVICE_TOKENS is not set; refusing to start in production without device tokens')
+  }
+  return {
+    corsOrigins: corsOriginsFromEnv(env.CORS_ORIGINS),
+    webDistDir: env.WEB_DIST_DIR || null,
+    deviceTokens,
+    meteredLimits: meteredLimitsFromEnv(env),
+  }
 }
 
 export function createApp(opts: AppOptions = optionsFromEnv()): express.Express {
@@ -46,6 +66,19 @@ export function createApp(opts: AppOptions = optionsFromEnv()): express.Express 
   app.get(['/healthz', '/health'], (_req, res) => res.json({ status: 'ok' }))
 
   app.use(cors({ origin: opts.corsOrigins }))
+
+  // WI-3 — every /api route needs a device token, and the routes that spend
+  // metered APIs are capped per device. Before express.json(), so an
+  // unauthenticated request is refused without its body being read. The web
+  // bundle served below stays public: it holds no secret, and a browser has
+  // to load it to ask for the access key.
+  const tokens = opts.deviceTokens ?? []
+  if (tokens.length > 0) {
+    app.use('/api', requireDeviceToken(tokens))
+    const limit = meteredRateLimit(opts.meteredLimits ?? meteredLimitsFromEnv())
+    for (const route of METERED_ROUTES) app[route.method](route.path, limit)
+  }
+
   app.use(express.json())
 
   app.use('/api/wines', winesRouter)
