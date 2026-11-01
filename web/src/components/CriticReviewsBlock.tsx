@@ -20,6 +20,8 @@ interface Props {
   extendedRetailerCount?: number
   /** Enables "Which bottling is yours?" (Phase 12.2), which saves the answer. */
   onWineUpdated?: (wine: WineEntry) => void
+  /** The scan's draft review (DiscoveryReview) rather than a saved wine. */
+  draft?: boolean
 }
 
 export type CriticReviewsState = 'looking' | 'found' | 'none' | 'failed' | 'idle'
@@ -43,7 +45,7 @@ export function criticReviewsState(wine: WineEntry, action: EnrichmentAction, lo
   return lookupUnderWay ? 'looking' : 'idle'
 }
 
-export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore, extendedRetailerCount, onWineUpdated }: Props) {
+export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore, extendedRetailerCount, onWineUpdated, draft = false }: Props) {
   const state = criticReviewsState(wine, action, lookupUnderWay)
   const [promptOpen, setPromptOpen] = useState(false)
   const [tierOpen, setTierOpen] = useState(false)
@@ -53,22 +55,22 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
   return (
     <div className="critic-reviews-block" data-state={state}>
       {stale && (
-        <p className="stale-notice">Fetched for a different version of this wine — may not match. Refresh.</p>
+        <p className="stale-notice">Found for an earlier version of this wine. Refresh.</p>
       )}
 
       {state === 'looking' && (
         <div className="critic-reviews-looking" role="status">
           <span className="skeleton-line" aria-hidden="true" />
           <span className="skeleton-line skeleton-line--short" aria-hidden="true" />
-          <span className="critic-reviews-looking-text">Looking for critic scores…</span>
+          <span className="critic-reviews-looking-text">Checking reviews…</span>
         </div>
       )}
 
       {state === 'failed' && (
         <p className="critic-reviews-failed">
-          Review lookup failed —{' '}
+          Couldn’t check reviews.{' '}
           <button type="button" className="btn-link-inline" onClick={() => action.run()}>
-            Try again
+            Retry
           </button>
         </p>
       )}
@@ -100,7 +102,7 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
       {state === 'found' && <FoundScores wine={wine} />}
 
       {onWineUpdated && (
-        <BottlingBanner wine={wine} onWineUpdated={onWineUpdated} open={promptOpen} onOpenChange={setPromptOpen} />
+        <BottlingBanner wine={wine} onWineUpdated={onWineUpdated} open={promptOpen} onOpenChange={setPromptOpen} draft={draft} />
       )}
     </div>
   )
@@ -211,7 +213,7 @@ function ScorelessPages({ wine }: { wine: WineEntry }) {
   if (pages.length === 0) return null
   return (
     <p className="scoreless-pages" data-testid="scoreless-pages">
-      {pages.length === 1 ? 'A page was found but no score could be read from it: ' : `${pages.length} pages were found but no score could be read from them: `}
+      {pages.length === 1 ? 'A page with no readable score: ' : 'Pages with no readable score: '}
       {pages.map((p, i) => (
         <span key={p.product_url}>
           {i > 0 && ', '}
@@ -221,7 +223,6 @@ function ScorelessPages({ wine }: { wine: WineEntry }) {
           </a>
         </span>
       ))}
-      . It may carry a review without a score.
     </p>
   )
 }

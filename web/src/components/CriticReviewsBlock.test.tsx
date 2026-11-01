@@ -11,26 +11,26 @@ const summary = (...items: ReturnType<typeof makeSummaryItem>[]) => ({ ordered: 
 describe('CriticReviewsBlock — four explicit states (Phase 12.1 WI-4)', () => {
   it('Looking: skeleton lines and "Looking for critic scores…" while a lookup is running', () => {
     render(<CriticReviewsBlock wine={makeTestWine()} action={{ ...idle, busy: true }} />)
-    expect(screen.getByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(screen.getByText('Checking reviews…')).toBeInTheDocument()
   })
 
   it('Looking: a fresh scan whose lookup has not reported yet is Looking, not empty', () => {
     render(<CriticReviewsBlock wine={makeTestWine()} action={idle} lookupUnderWay />)
-    expect(screen.getByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(screen.getByText('Checking reviews…')).toBeInTheDocument()
     expect(screen.queryByText(/No critic scores found/)).not.toBeInTheDocument()
   })
 
   it('Nothing found: says so rather than disappearing', () => {
     render(<CriticReviewsBlock wine={makeTestWine({ review_data: [] })} action={idle} />)
     expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
-    expect(screen.queryByText('Looking for critic scores…')).not.toBeInTheDocument()
+    expect(screen.queryByText('Checking reviews…')).not.toBeInTheDocument()
   })
 
-  it('Failed: names the failure and offers Try again, which re-runs', async () => {
+  it('Failed: neutral, and offers Retry, which re-runs', async () => {
     const run = vi.fn()
     render(<CriticReviewsBlock wine={makeTestWine()} action={{ ...idle, error: 'Review lookup failed', run }} />)
-    expect(screen.getByText(/Review lookup failed —/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(screen.getByText(/Couldn’t check reviews\./)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(run).toHaveBeenCalled()
   })
 
@@ -102,7 +102,7 @@ describe('CriticReviewsBlock — found (Phase 12.5 WI-3: every score, one compac
       enrichment_stale: { price: false, reviews: true },
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
-    expect(screen.getByText(/Fetched for a different version of this wine/)).toBeInTheDocument()
+    expect(screen.getByText(/Found for an earlier version of this wine/)).toBeInTheDocument()
   })
 
   it('falls back to the shared ordering when an older backend sends no critic_summary', () => {

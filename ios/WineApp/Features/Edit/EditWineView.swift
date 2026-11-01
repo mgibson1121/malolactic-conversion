@@ -25,7 +25,7 @@ struct EditWineView: View {
                 if model.pendingRefresh != nil {
                     Section {
                         Text("Refresh searches now?").font(AppFont.cardTitle())
-                        Text("You changed what this wine is. Its stored prices and critic scores were found for the old version. Refreshing runs both searches again: \(EditWineModel.refreshCostLabel). “Not now” keeps them and marks them as possibly out of date.")
+                        Text("Prices and scores were found for the old details. Refreshing runs both searches again: \(EditWineModel.refreshCostLabel). “Not now” keeps them and marks them as possibly out of date.")
                             .font(AppFont.meta())
                             .foregroundStyle(Theme.textMuted)
                         Button("Refresh now") {
@@ -47,7 +47,7 @@ struct EditWineView: View {
                 } header: {
                     Text("Your price (per 750 ml bottle)")
                 } footer: {
-                    Text("When set, this is the price shown everywhere; the automated prices stay as reference. No search ever changes it.")
+                    Text("Shown everywhere instead of the automated prices. Searches never change it.")
                 }
 
                 Section {

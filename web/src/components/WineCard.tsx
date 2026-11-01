@@ -45,7 +45,7 @@ const VINTAGE_RATING_LABELS: Record<string, string> = {
 
 export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail, onEdit }: Props) {
   const price = useEnrichmentAction(wine.id, fetchWinePrice, onWineUpdated, 'Price lookup failed')
-  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Review lookup failed')
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Couldn’t check reviews')
 
   const badge = cardBadge(criticSummaryOf(wine))
   const windowStatus = windowStatusOfWine(wine)
@@ -88,7 +88,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
         {wine.vintage_rating && (
           <span
             className={`vintage-rating-badge vintage-rating-${wine.vintage_rating}`}
-            title="Vintage character, from professional review extraction — never blended across disagreeing critics"
+            title="Vintage character, from critics"
           >
             Year: {VINTAGE_RATING_LABELS[wine.vintage_rating]}
             {wine.vintage_rating_source === 'derived' && (

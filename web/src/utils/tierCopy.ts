@@ -39,7 +39,7 @@ export function tierHeadline(tier: ReviewTierId): string | null {
 
 /** "Now matched at Tier 1 — 3 trusted scores" (the one-line result after an answer). */
 export function tierResultLine(tier: ReviewTierId, scores: number, trustedScores: number): string {
-  if (tier === 'none') return 'Saved. Nothing found for this bottling yet; the wine has no matched scores.'
+  if (tier === 'none') return 'Saved. No scores for this bottling yet.'
   const n = trustedScores > 0 ? trustedScores : scores
   const kind = trustedScores > 0 ? 'trusted ' : ''
   return `Now matched at Tier ${tier} — ${n} ${kind}${n === 1 ? 'score' : 'scores'}`

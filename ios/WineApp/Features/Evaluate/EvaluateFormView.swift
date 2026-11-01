@@ -163,7 +163,7 @@ struct EvaluateFormView: View {
         @Bindable var model = model
         return Form {
             Section {
-                Text("Review your list tags for this wine. Add or remove any that apply.")
+                Text("Add or remove list tags.")
                     .font(AppFont.body())
                     .foregroundStyle(Theme.textMuted)
             }

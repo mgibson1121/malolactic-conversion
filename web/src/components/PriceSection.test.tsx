@@ -203,7 +203,7 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
 
   it('says when the prices were fetched for a different version of the wine', () => {
     renderBlock(makeTestWine({ price_data: makeTestPriceData([makeTestRetailer()]), enrichment_stale: { price: true, reviews: false } }))
-    expect(screen.getByText(/Fetched for a different version of this wine — may not match\. Refresh\./)).toBeInTheDocument()
+    expect(screen.getByText(/Found for an earlier version of this wine\. Refresh\./)).toBeInTheDocument()
   })
 })
 
@@ -217,14 +217,13 @@ describe('badge explanations (WI-8)', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Verified' }))
     const note = screen.getByRole('note')
-    expect(note).toHaveTextContent(/opened this shop’s own search page|opened this shop's own search page/)
-    expect(note).toHaveTextContent(/does not confirm the vintage or the exact bottling/)
+    expect(note).toHaveTextContent('Shop page mentions this producer.')
   })
 
   it('Unverified explains itself', async () => {
     await open({ verification: 'unverified' })
     await userEvent.click(screen.getByRole('button', { name: 'Unverified' }))
-    expect(screen.getByRole('note')).toHaveTextContent(/couldn't confirm this listing/)
+    expect(screen.getByRole('note')).toHaveTextContent('Couldn’t confirm. Price may be outdated.')
   })
 
   it('unchecked shows no badge at all', async () => {

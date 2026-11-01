@@ -151,7 +151,7 @@ Built on `feature/phase-12.5-price-critic-redesign` (spec: the round-2 spec, 12.
 - **The price list shows priced rows only** (within ±3 vintages, in `price_window.order`). A search-only entry lives under Trusted Retailers; a product page found without a price shows there as "Product page".
 - **"Exact match"** = exact bottling, no other colour, vintage confirmed (`isExactMatch`) — on the price line, on each such row, and as the Tier 1 critic header. Nothing looser earns it.
 - **Critic scores are never collapsed** (developer 2026-10-31): flat, backend order, one line each (score, critic, year if another vintage), "different bottling" only on Tier 3/4 rows. Tier header: Tier 1 is the badge, others "Tier N · <phrase>"; the explainer sheet is one sentence plus the counts. Supersedes the 12.1 "first six, then Show all".
-- **Copy changes wait for the developer** (WI-5): `docs/specs/2026-11-01-phase-12.5-copy-audit.md` holds the proposals; strings outside WI-1–WI-4 change only after its Decision column is filled.
+- **Copy pass applied** (WI-5, all 44 accepted 2026-11-01): one short sentence, explanations behind a tap. Errors read "Couldn't <do it>. Is the backend running?"; reviews' states mirror price's ("Checking reviews…", "Couldn't check reviews. Retry", "No critic scores found."). The record is `docs/specs/2026-11-01-phase-12.5-copy-audit.md` (+ the full CSV); new copy follows the same rule.
 
 ### Phase 13 and beyond
 Defined in `docs/build-phases.md`.

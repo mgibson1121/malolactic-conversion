@@ -115,7 +115,7 @@ function RetailerBadges({ r, exact = false }: { r: RetailerPrice; exact?: boolea
           className={r.vintage_mismatch ? 'vintage-mismatch-badge' : 'vintage-match-badge'}
           title={
             r.vintage_mismatch
-              ? 'Price shown is for a different vintage than this wine entry'
+              ? 'A different vintage'
               : 'Vintage confirmed from the matched listing'
           }
         >
@@ -131,7 +131,7 @@ function RetailerBadges({ r, exact = false }: { r: RetailerPrice; exact?: boolea
         </span>
       ) : (
         r.non_standard_format && (
-          <span className="format-badge" title="Price is for this format, not a single standard 750ml bottle">
+          <span className="format-badge" title="Not a 750 ml bottle">
             {r.format_label}
           </span>
         )
@@ -154,7 +154,7 @@ function RetailerBadges({ r, exact = false }: { r: RetailerPrice; exact?: boolea
       )}
       {r.suspected_large_format && (
         <span className="format-badge" title="Left out of the average">
-          price suggests a larger format — size unconfirmed
+          Size unconfirmed
         </span>
       )}
       {r.sold_out && (
@@ -264,7 +264,7 @@ function AutomatedPrices({
     <div className="price-section" data-state={state?.kind}>
       {manual && <div className="price-section-header"><span className="price-source-label">Retailer prices (automated)</span></div>}
 
-      {stale && <p className="stale-notice">Fetched for a different version of this wine — may not match. Refresh.</p>}
+      {stale && <p className="stale-notice">Found for an earlier version of this wine. Refresh.</p>}
 
       {state && (
         <p className={`price-state-line price-state-line--${state.kind}`} data-testid="price-state-line">

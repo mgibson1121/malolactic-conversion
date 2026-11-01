@@ -744,9 +744,10 @@ final class WordingTests: XCTestCase {
     }
 
     func testTheThreeBadgesExplainThemselvesAndTheOthersDoNot() {
-        XCTAssertTrue(BadgeExplanation.text(for: .verified)!.contains("does not confirm the vintage or the exact bottling"))
-        XCTAssertTrue(BadgeExplanation.text(for: .unverified)!.contains("couldn't confirm this listing"))
-        XCTAssertTrue(BadgeExplanation.text(for: .searchOnly)!.contains("no price was found"))
+        // Phase 12.5 copy pass (accepted 2026-11-01): one short sentence each.
+        XCTAssertEqual(BadgeExplanation.text(for: .verified), "Shop page mentions this producer.")
+        XCTAssertEqual(BadgeExplanation.text(for: .unverified), "Couldn't confirm. Price may be outdated.")
+        XCTAssertEqual(BadgeExplanation.text(for: .searchOnly), "Search link, no price.")
         XCTAssertNil(BadgeExplanation.text(for: .distance(3)))
         XCTAssertNil(BadgeExplanation.text(for: .vintage(2019)))
     }

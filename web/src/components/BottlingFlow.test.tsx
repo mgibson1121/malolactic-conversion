@@ -98,11 +98,18 @@ describe('"Which bottling is yours?" (Phase 12.2 WI-2.5)', () => {
     ],
   }
 
-  it('shows a non-blocking banner (with the check-the-bottle hint when the wine names no vineyard) that opens a sheet with the evidence', async () => {
+  it('the "check the bottle" hint shows on the draft review only (12.5 copy pass)', () => {
+    const { unmount } = render(<CriticReviewsBlock wine={wineAt('2', { bottling_prompt: prompt })} action={idle} onWineUpdated={() => {}} draft />)
+    expect(screen.getByTestId('bottling-banner')).toHaveTextContent('Check the bottle for a vineyard or cuvée.')
+    unmount()
+    render(<CriticReviewsBlock wine={wineAt('2', { bottling_prompt: prompt })} action={idle} onWineUpdated={() => {}} />)
+    expect(screen.getByTestId('bottling-banner')).not.toHaveTextContent(/check the bottle/i)
+  })
+
+  it('shows a non-blocking banner that opens a sheet with the evidence', async () => {
     render(<CriticReviewsBlock wine={wineAt('2', { bottling_prompt: prompt })} action={idle} onWineUpdated={() => {}} />)
     const banner = screen.getByTestId('bottling-banner')
-    expect(banner).toHaveTextContent('Listings name different bottlings — which is yours?')
-    expect(banner).toHaveTextContent('check the bottle')
+    expect(banner).toHaveTextContent('Different bottlings found. Which is yours?')
     await userEvent.click(within(banner).getByRole('button', { name: 'Choose' }))
     const sheet = screen.getByRole('dialog', { name: 'Which bottling is yours?' })
     expect(sheet).toHaveTextContent('Castiglione')
@@ -166,7 +173,7 @@ describe('pages found without a score (Phase 12.2 WI-5)', () => {
     })
     render(<CriticReviewsBlock wine={wine} action={idle} />)
     const note = screen.getByTestId('scoreless-pages')
-    expect(note).toHaveTextContent('A page was found but no score could be read from it')
+    expect(note).toHaveTextContent('A page with no readable score:')
     expect(within(note).getByRole('link', { name: 'Woodland Hills (2023)' })).toHaveAttribute('href', 'https://whwc.com/x-2023/')
   })
 

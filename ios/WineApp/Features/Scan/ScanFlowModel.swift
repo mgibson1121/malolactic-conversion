@@ -239,9 +239,9 @@ final class ScanFlowModel {
     nonisolated static func scanFailureStep(_ error: APIError) -> Step {
         switch error {
         case .server(503, _):
-            return .unavailable("Label scanning is unavailable — OPENAI_API_KEY is not configured on the backend.")
+            return .unavailable("Scanning needs an OpenAI key on the backend.")
         case .server(_, let message) where message.contains("IMAGE_FORMAT_UNSUPPORTED"):
-            return .error("This image format couldn't be processed. Please save the photo as a JPEG and try again.")
+            return .error("Couldn't read this image. Try a JPEG.")
         default:
             return .error("Scan failed: \(error.message(networkMessage: error.networkDetail))")
         }
@@ -320,7 +320,7 @@ final class ScanFlowModel {
             step = .review
             fetchPriceOnce(draft)
         } catch let error as APIError {
-            actionError = error.message(networkMessage: "Failed to save. Is the backend running?")
+            actionError = error.message(networkMessage: "Couldn't save. Is the backend running?")
         } catch {}
     }
 
@@ -351,7 +351,7 @@ final class ScanFlowModel {
             } catch {
                 guard wine?.id == id else { return }
                 reviews.isBusy = false
-                reviews.error = "Review lookup failed"
+                reviews.error = "Couldn't check reviews"
             }
         }
     }
@@ -447,7 +447,7 @@ final class ScanFlowModel {
             wine = try await api.promoteWine(id: draft.id, tags: tags)
             return true
         } catch let error as APIError {
-            actionError = error.message(networkMessage: "Failed to save. Is the backend running?")
+            actionError = error.message(networkMessage: "Couldn't save. Is the backend running?")
             return false
         } catch {
             return false
@@ -471,7 +471,7 @@ final class ScanFlowModel {
             wine = try await api.updateWine(id: current.id, tag.patch(!previous))
         } catch let error as APIError {
             wine?[keyPath: tag.wineKeyPath] = previous
-            actionError = error.message(networkMessage: "Could not update — is the backend running?")
+            actionError = error.message(networkMessage: "Couldn't update. Is the backend running?")
         } catch {
             wine?[keyPath: tag.wineKeyPath] = previous
         }

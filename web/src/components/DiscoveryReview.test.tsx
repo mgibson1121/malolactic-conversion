@@ -424,7 +424,7 @@ describe('DiscoveryReview — states (WI-4)', () => {
         onWineUpdated={() => {}}
       />
     )
-    expect(await screen.findByText('Looking for critic scores…')).toBeInTheDocument()
+    expect(await screen.findByText('Checking reviews…')).toBeInTheDocument()
     expect(await screen.findByText('Checking prices…')).toBeInTheDocument()
   })
 
@@ -434,7 +434,7 @@ describe('DiscoveryReview — states (WI-4)', () => {
     expect(screen.getByRole('button', { name: 'Search more retailers' })).toBeInTheDocument()
   })
 
-  it('a failed review lookup says so and offers Try again', async () => {
+  it('a failed review lookup says so and offers Retry', async () => {
     mockFetchReviews.mockRejectedValue(new Error('Review lookup failed'))
     render(
       <DiscoveryReview
@@ -445,8 +445,8 @@ describe('DiscoveryReview — states (WI-4)', () => {
         onWineUpdated={() => {}}
       />
     )
-    expect(await screen.findByText(/Review lookup failed —/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(await screen.findByText(/Couldn’t check reviews\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
   it('shows Price & retailers with the nearest retailer as a link and the rest collapsed', async () => {

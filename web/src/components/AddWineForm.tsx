@@ -58,7 +58,7 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
     try {
       await onSubmit(data)
     } catch {
-      setError('Failed to save. Is the backend running?')
+      setError('Couldn’t save. Is the backend running?')
       setSubmitting(false)
     }
   }
@@ -128,7 +128,7 @@ export function AddWineForm({ onSubmit, onCancel }: Props) {
           placeholder="e.g. Cristal, Belle Époque, Opus One"
         />
 
-        <label htmlFor="wf-grapes">Grape Varieties <span className="scan-field-tier2">(Tier 2 — comma-separated)</span></label>
+        <label htmlFor="wf-grapes">Grape Varieties <span className="scan-field-tier2">(comma-separated)</span></label>
         <input
           id="wf-grapes"
           value={grapeVarieties}

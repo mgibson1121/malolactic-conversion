@@ -24,7 +24,7 @@ enum APIError: Error, Hashable {
         switch self {
         case .network: return networkMessage
         case .server(_, let message): return message
-        case .decoding: return "The backend sent a response this app doesn't understand. Is it up to date?"
+        case .decoding: return "Unexpected reply from the server. Is the backend up to date?"
         }
     }
 

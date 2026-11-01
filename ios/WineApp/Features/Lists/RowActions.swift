@@ -50,7 +50,7 @@ struct RowActions {
             collectionChanged()
             return nil
         } catch let error as APIError {
-            return error.message(networkMessage: "Could not delete — is the backend running?")
+            return error.message(networkMessage: "Couldn't delete. Is the backend running?")
         } catch {
             return nil
         }
@@ -65,8 +65,8 @@ struct RowActions {
             collectionChanged()
         } catch {
             target.replace(original)
-            target.rowActionError = (error as? APIError)?.message(networkMessage: "Could not update — is the backend running?")
-                ?? "Could not update — is the backend running?"
+            target.rowActionError = (error as? APIError)?.message(networkMessage: "Couldn't update. Is the backend running?")
+                ?? "Couldn't update. Is the backend running?"
         }
     }
 }

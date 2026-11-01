@@ -231,7 +231,7 @@ final class EvaluateModel {
             _ = try await api.createTastingNote(draft.noteInput(wineID: wine.id))
             step = .tagReview
         } catch {
-            self.error = "Failed to save. Is the backend running?"
+            self.error = "Couldn't save. Is the backend running?"
         }
     }
 

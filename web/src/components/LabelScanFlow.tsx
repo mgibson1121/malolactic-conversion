@@ -137,12 +137,12 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
       if (msg.toLowerCase().includes('openai_api_key') || msg.toLowerCase().includes('unavailable')) {
         setFlow({
           step: 'unavailable',
-          reason: 'Label scanning is unavailable — OPENAI_API_KEY is not configured on the backend.',
+          reason: 'Scanning needs an OpenAI key on the backend.',
         })
       } else if (msg.includes('IMAGE_FORMAT_UNSUPPORTED')) {
         setFlow({
           step: 'error',
-          message: "This image format couldn't be processed. Please save the photo as a JPEG and try again.",
+          message: "Couldn’t read this image. Try a JPEG.",
         })
       } else {
         setFlow({ step: 'error', message: `Scan failed: ${msg}` })
@@ -218,7 +218,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
         <div className="scan-flow">
           <h2>Scan Wine Label</h2>
           <p className="scan-subtitle">
-            Upload a photo of the bottle label — GPT-4o will extract the details.
+            Upload a photo of the label.
           </p>
           <div
             className={`scan-dropzone${dragOver ? ' drag-over' : ''}`}
@@ -256,7 +256,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
         <div className="scan-flow scan-flow--scanning">
           <span className="scan-spinner" aria-hidden="true">🔍</span>
           <h2>Scanning label…</h2>
-          <p>GPT-4o is reading the label. This usually takes 5–15 seconds.</p>
+          <p>Reading the label… (5–15 seconds)</p>
         </div>
       </div>
     )
@@ -348,8 +348,8 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
           {bottling && (
             <p className="scan-missing-notice">
               {bottling.existing && !bottling.scanned
-                ? `Yours is the ${bottling.existing}. This label doesn't mention ${bottling.existing} — if it's a different bottling, add it.`
-                : `This label says ${bottling.scanned}; the wine you have doesn't. If they're different bottlings, add it.`}
+                ? `This label doesn’t name ${bottling.existing}. If it’s a different bottling, add it.`
+                : `This label says ${bottling.scanned}; yours doesn’t. If they differ, add it.`}
             </p>
           )}
           <div className="form-actions">
@@ -628,7 +628,7 @@ function ScanEditForm({ wine, scan, vintageNotice, onContinue, onBack, onCancel 
     try {
       await onContinue(edits)
     } catch {
-      setError('Failed to save. Is the backend running?')
+      setError('Couldn’t save. Is the backend running?')
       setSubmitting(false)
     }
   }

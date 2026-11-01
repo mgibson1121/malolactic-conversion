@@ -38,6 +38,8 @@ struct CriticReviewsBlock: View {
     var searchMore: (() -> Void)?
     /// "Which bottling is yours?" (Phase 12.2). Absent where the answer cannot be saved.
     var chooseBottling: ((BottlingChoice) async -> BottlingOutcome)?
+    /// The scan's draft review rather than a saved wine.
+    var draft = false
 
     var body: some View {
         let state = CriticReviewsState.of(wine: wine, control: control)
@@ -48,17 +50,17 @@ struct CriticReviewsBlock: View {
                 VStack(alignment: .leading, spacing: 8) {
                     RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 180, height: 12)
                     RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 120, height: 12)
-                    Text("Looking for critic scores…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    Text("Checking reviews…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                 }
                 .padding(.vertical, 4)
                 .accessibilityElement(children: .combine)
             case .failed:
                 HStack(spacing: 4) {
-                    Text("Review lookup failed —").font(.system(size: 12)).foregroundStyle(Theme.redPill)
-                    if let retry { Button("Try again", action: retry).buttonStyle(.link).font(.system(size: 12)) }
+                    Text("Couldn't check reviews.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    if let retry { Button("Retry", action: retry).buttonStyle(.link).font(AppFont.meta()) }
                 }
             case .none:
-                Text("No critic scores found yet for this wine.").font(AppFont.body()).foregroundStyle(Theme.text)
+                Text("No critic scores found.").font(AppFont.body()).foregroundStyle(Theme.text)
                 if let searchMore {
                     Button("Search more retailers", action: searchMore).buttonStyle(.link).font(AppFont.meta())
                 }
@@ -72,7 +74,7 @@ struct CriticReviewsBlock: View {
             }
             if let scoreless = wine?.reviewLadder?.pages?.filter({ $0.scores == 0 }), !scoreless.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(scoreless.count == 1 ? "A page was found but no score could be read from it. It may carry a review without a score." : "\(scoreless.count) pages were found but no score could be read from them. They may carry reviews without a score.")
+                    Text(scoreless.count == 1 ? "A page with no readable score:" : "Pages with no readable score:")
                         .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                     ForEach(scoreless, id: \.productUrl) { page in
                         if let url = URL(string: page.productUrl) {
@@ -82,7 +84,7 @@ struct CriticReviewsBlock: View {
                 }
             }
             if let wine, let chooseBottling {
-                BottlingBanner(wine: wine, choose: chooseBottling)
+                BottlingBanner(wine: wine, choose: chooseBottling, draft: draft)
             }
         }
     }
@@ -140,7 +142,7 @@ struct CriticSummaryRow: View {
 
 struct StaleNotice: View {
     var body: some View {
-        Text("Fetched for a different version of this wine — may not match. Refresh.")
+        Text("Found for an earlier version of this wine. Refresh.")
             .font(.system(size: 12))
             .foregroundStyle(Theme.text)
             .padding(8)

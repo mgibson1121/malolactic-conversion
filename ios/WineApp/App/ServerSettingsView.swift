@@ -19,7 +19,7 @@ struct ServerSettingsView: View {
                 } header: {
                     Text("Backend address")
                 } footer: {
-                    Text("The Mac running the wine backend, on this Wi-Fi network. Port 3000 unless you changed it.")
+                    Text("The Mac running the backend on this Wi-Fi (port 3000).")
                 }
             }
             .scrollContentBackground(.hidden)

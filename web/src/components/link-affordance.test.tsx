@@ -84,7 +84,7 @@ describe('link affordance (D9)', () => {
     expect(screen.getByText('+1').className).toMatch(/\blink\b/)
   })
 
-  it('Try again, Show all and Search more are inline links', () => {
+  it('Retry and Search more are inline links', () => {
     render(
       <CriticReviewsBlock
         wine={makeTestWine({ review_data: [] })}
@@ -92,6 +92,6 @@ describe('link affordance (D9)', () => {
         onSearchMore={noop}
       />
     )
-    expect(screen.getByRole('button', { name: 'Try again' }).className).toMatch(/btn-link-inline/)
+    expect(screen.getByRole('button', { name: 'Retry' }).className).toMatch(/btn-link-inline/)
   })
 })

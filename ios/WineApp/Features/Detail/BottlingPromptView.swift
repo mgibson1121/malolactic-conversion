@@ -81,7 +81,7 @@ enum TierCopy {
 
     /// "Now matched at Tier 1 — 3 trusted scores".
     static func resultLine(tier: String, scores: Int, trusted: Int) -> String {
-        guard phrase(tier) != nil else { return "Saved. Nothing found for this bottling yet; the wine has no matched scores." }
+        guard phrase(tier) != nil else { return "Saved. No scores for this bottling yet." }
         let n = trusted > 0 ? trusted : scores
         let kind = trusted > 0 ? "trusted " : ""
         return "Now matched at Tier \(tier) — \(n) \(kind)\(n == 1 ? "score" : "scores")"
@@ -155,12 +155,14 @@ private struct TierSheet: View {
     }
 }
 
-/// "Listings name different bottlings — which is yours?" Non-blocking; opens a
-/// sheet. Shows the draft-review hint ("check the bottle") while the wine
+/// "Different bottlings found. Which is yours?" Non-blocking; opens a
+/// sheet. Shows the draft-review hint ("Check the bottle…", draft review only) while the wine
 /// names no vineyard or cuvée (WI-2.7).
 struct BottlingBanner: View {
     let wine: Wine
     let choose: (BottlingChoice) async -> BottlingOutcome
+    /// The scan's draft review: the one place the "check the bottle" hint shows (12.5 copy pass).
+    var draft = false
     @State private var showSheet = false
     @State private var resultLine: String?
 
@@ -168,7 +170,7 @@ struct BottlingBanner: View {
         VStack(alignment: .leading, spacing: 6) {
             if wine.bottlingPrompt != nil {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Listings name different bottlings — which is yours?" + (wine.vineyard == nil && wine.cuvee == nil ? " The label may name a vineyard or special bottling — check the bottle." : ""))
+                    Text("Different bottlings found. Which is yours?" + (draft && wine.vineyard == nil && wine.cuvee == nil ? " Check the bottle for a vineyard or cuvée." : ""))
                         .font(AppFont.meta())
                     Button("Choose") { showSheet = true }
                         .buttonStyle(.link).font(AppFont.meta())
@@ -221,7 +223,7 @@ private struct BottlingSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("The results name more than one bottling. Your answer re-scores what we already found. Nothing is searched again.")
+                    Text("Your answer re-scores what was found. Nothing is searched again.")
                         .font(AppFont.meta())
                 }
                 ForEach(options, id: \.name) { option in

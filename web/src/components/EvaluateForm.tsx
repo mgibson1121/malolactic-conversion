@@ -295,7 +295,7 @@ export function EvaluateForm({ wine, onSave, onTagUpdate, onCancel }: Props) {
       await onSave(data)
       setStep('tag_review')
     } catch {
-      setSaveError('Failed to save. Is the backend running?')
+      setSaveError('Couldn’t save. Is the backend running?')
       setSubmitting(false)
     }
   }
@@ -336,7 +336,7 @@ export function EvaluateForm({ wine, onSave, onTagUpdate, onCancel }: Props) {
         <div className="add-wine-form tag-review-form">
           <h2>Note Saved</h2>
           <p className="tag-review-intro">
-            Review your list tags for this wine. Add or remove any that apply.
+            Add or remove list tags.
           </p>
           <div className="tag-review-toggles">
             {(['tag_discovered', 'tag_wishlist', 'tag_cellar', 'tag_consumed'] as const).map((tag) => (
