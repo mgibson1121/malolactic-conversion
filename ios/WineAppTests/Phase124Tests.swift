@@ -115,3 +115,15 @@ final class LookupOutcomeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(APIClient.enrichmentTimeout, 180)
     }
 }
+
+/// Phase 12.4 WI-6: an inferred colour decodes with its provenance.
+final class WineColourSourceTests: XCTestCase {
+    func testADerivedColourDecodes() throws {
+        var wine = try Fixture.fullWine
+        wine.wineColorSource = .derived
+        let round = try JSONDecoder().decode(Wine.self, from: JSONEncoder().encode(wine))
+        XCTAssertEqual(round.wineColorSource, .derived)
+        let raw = try JSONSerialization.jsonObject(with: JSONEncoder().encode(wine)) as? [String: Any]
+        XCTAssertEqual(raw?["wine_color_source"] as? String, "derived")
+    }
+}

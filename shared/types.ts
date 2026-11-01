@@ -511,6 +511,9 @@ export interface WineEntry {
   cuvee: string | null          // prestige/commercial name; also overflow for unclassified label text
   grape_varieties: string[] | null  // extracted or inferred from denomination; null if ambiguous
   wine_color: WineColor | null  // Phase 10.5 — see WineColor above
+  // Phase 12.4 WI-6 (migration 011): 'derived' when inferred for an imported
+  // wine (Sourced marker), 'manual' once set in Edit, null when unknown.
+  wine_color_source?: FieldProvenance
   label_image_url: string | null
   // List tags — additive booleans; a wine can carry any combination simultaneously
   tag_discovered: boolean   // set automatically on creation
@@ -654,7 +657,7 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'enrichment_outcome' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'wine_color_source' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'enrichment_outcome' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
 export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'enrichment_outcome'>>
 // The identity snapshot is copied from the wine by the adapter at save time,

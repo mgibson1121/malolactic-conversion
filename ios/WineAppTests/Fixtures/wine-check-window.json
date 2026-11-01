@@ -1,5 +1,5 @@
 {
-  "id": "394be724-d60c-4af7-b965-097ef21618da",
+  "id": "e520156c-5492-421b-ae85-28e87532d2f3",
   "producer": "Domaine de Villaine",
   "denomination": "Rully 1er Cru",
   "vintage": 2019,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": false,
@@ -102,7 +103,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:36:14.067Z",
+  "date_added": "2026-11-01T15:42:57.855Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,

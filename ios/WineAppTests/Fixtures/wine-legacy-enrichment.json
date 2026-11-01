@@ -1,5 +1,5 @@
 {
-  "id": "034c67f1-5d9a-48c4-a231-a9c91d9b2446",
+  "id": "9ec00a10-1f18-4552-8db4-2d4f44db51af",
   "producer": "Château Rayas",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2012,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": true,
@@ -80,7 +81,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:36:14.067Z",
+  "date_added": "2026-11-01T15:42:57.854Z",
   "date_first_consumed": null,
   "promoted_at": "2026-07-01T12:00:00.000Z",
   "latest_tasting_note_date": null,

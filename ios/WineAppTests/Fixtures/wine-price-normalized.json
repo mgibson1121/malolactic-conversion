@@ -1,5 +1,5 @@
 {
-  "id": "aa936559-c0c1-4c62-928a-854835c9e411",
+  "id": "7bc49e46-ef97-4283-aa01-724052950280",
   "producer": "Domaine du Pavillon",
   "denomination": "Pommard 1er Cru",
   "vintage": 2019,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": false,
@@ -98,7 +99,7 @@
       },
       "price_per_750": 157.72
     },
-    "fetched_at": "2026-11-01T15:36:14.068Z",
+    "fetched_at": "2026-11-01T15:42:57.855Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -117,7 +118,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:36:14.068Z",
+  "date_added": "2026-11-01T15:42:57.855Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,

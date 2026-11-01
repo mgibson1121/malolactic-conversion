@@ -205,6 +205,8 @@ router.patch(
       updates.drinking_window_source = req.body.drinking_window ? 'manual' : null
     }
     if ('vintage_rating' in req.body) updates.vintage_rating_source = 'manual'
+    // Phase 12.4 WI-6: a colour set in Edit is the developer's — never inferred over.
+    if ('wine_color' in req.body) updates.wine_color_source = req.body.wine_color ? 'manual' : null
 
     // Phase 12.1 (WI-1) — editing a saved wine's identity while it carries
     // enrichment. Whatever the developer answers to "Refresh searches now?",

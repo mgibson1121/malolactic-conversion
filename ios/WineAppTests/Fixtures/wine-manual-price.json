@@ -1,5 +1,5 @@
 {
-  "id": "dbe90574-eb3f-4bff-b51f-bf9e11546784",
+  "id": "a9468f26-27e4-4272-9bf4-f522ef0c211a",
   "producer": "Marcoux",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2019,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": false,
@@ -112,7 +113,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:36:14.067Z",
+  "date_added": "2026-11-01T15:42:57.855Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,

@@ -1,5 +1,5 @@
 {
-  "id": "c811f74e-fb5c-47c7-ac22-f9a177dce3f5",
+  "id": "3c2344ce-9a01-418e-850c-c4b618b1d94f",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -11,6 +11,7 @@
     "Pinot Noir"
   ],
   "wine_color": "red",
+  "wine_color_source": null,
   "label_image_url": null,
   "tag_discovered": false,
   "tag_wishlist": false,
@@ -156,7 +157,7 @@
       "link_only": false,
       "verification": "verified"
     },
-    "fetched_at": "2026-11-01T15:36:14.068Z",
+    "fetched_at": "2026-11-01T15:42:57.856Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -193,7 +194,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:36:14.068Z",
+  "date_added": "2026-11-01T15:42:57.855Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,

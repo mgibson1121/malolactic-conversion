@@ -22,6 +22,8 @@ struct Pill: View {
 /// `*_source == 'derived'` — the value came from automated review
 /// extraction, not from the developer.
 struct SourcedMarker: View {
+    var accessibility = "Sourced from review extraction"
+
     var body: some View {
         Text("Sourced")
             .font(.system(size: 9, weight: .bold))
@@ -30,7 +32,7 @@ struct SourcedMarker: View {
             .padding(.vertical, 1)
             .foregroundStyle(Theme.accent2)
             .overlay(Capsule().strokeBorder(Theme.accent2, lineWidth: 1))
-            .accessibilityLabel("Sourced from review extraction")
+            .accessibilityLabel(accessibility)
     }
 }
 

@@ -62,6 +62,7 @@ interface WineRow {
   cuvee: string | null
   grape_varieties: string | null
   wine_color: string | null
+  wine_color_source?: string | null
   label_image_url: string | null
   tag_discovered: number
   tag_wishlist: number
@@ -183,6 +184,7 @@ function rowToWine(row: WineRow): WineEntry {
     cuvee: row.cuvee,
     grape_varieties: fromJson<string[] | null>(row.grape_varieties, null),
     wine_color: (row.wine_color as WineEntry['wine_color']) ?? null,
+    wine_color_source: (row.wine_color_source as WineEntry['wine_color_source']) ?? null,
     label_image_url: row.label_image_url,
     tag_discovered: fromBool(row.tag_discovered),
     tag_wishlist: fromBool(row.tag_wishlist),
@@ -321,6 +323,8 @@ export class SQLiteAdapter implements StorageAdapter {
       cellar_quantity: data.cellar_quantity ?? 0,
       drinking_window_source: data.drinking_window ? 'manual' : null,
       vintage_rating_source: data.vintage_rating ? 'manual' : null,
+      // A scan and a typed-in colour can't be told apart here: unknown provenance.
+      wine_color_source: null,
       latest_tasting_note_id: null,
       advice_linked: null,
       expert_reviews: null,
@@ -343,7 +347,7 @@ export class SQLiteAdapter implements StorageAdapter {
     this.db.prepare(`
       INSERT INTO wines (
         id, producer, denomination, vintage, region,
-        quality_classification, vineyard, cuvee, grape_varieties, wine_color, label_image_url,
+        quality_classification, vineyard, cuvee, grape_varieties, wine_color, wine_color_source, label_image_url,
         tag_discovered, tag_wishlist, tag_cellar, tag_consumed,
         cellar_category, cellar_quantity,
         drinking_window_start, drinking_window_end, drinking_window_source,
@@ -355,7 +359,7 @@ export class SQLiteAdapter implements StorageAdapter {
         promoted_at
       ) VALUES (
         ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?,
         ?, ?, ?,
@@ -369,7 +373,7 @@ export class SQLiteAdapter implements StorageAdapter {
     `).run(
       wine.id, wine.producer, wine.denomination, wine.vintage, wine.region,
       wine.quality_classification, wine.vineyard, wine.cuvee,
-      toJson(wine.grape_varieties), wine.wine_color, wine.label_image_url,
+      toJson(wine.grape_varieties), wine.wine_color, wine.wine_color_source ?? null, wine.label_image_url,
       toBool(wine.tag_discovered), toBool(wine.tag_wishlist),
       toBool(wine.tag_cellar), toBool(wine.tag_consumed),
       wine.cellar_category, wine.cellar_quantity,
@@ -452,7 +456,7 @@ export class SQLiteAdapter implements StorageAdapter {
       UPDATE wines SET
         producer = ?, denomination = ?, vintage = ?, region = ?,
         quality_classification = ?, vineyard = ?, cuvee = ?,
-        grape_varieties = ?, wine_color = ?, label_image_url = ?,
+        grape_varieties = ?, wine_color = ?, wine_color_source = ?, label_image_url = ?,
         tag_discovered = ?, tag_wishlist = ?, tag_cellar = ?, tag_consumed = ?,
         cellar_category = ?, cellar_quantity = ?,
         drinking_window_start = ?, drinking_window_end = ?, drinking_window_source = ?,
@@ -467,7 +471,7 @@ export class SQLiteAdapter implements StorageAdapter {
     `).run(
       updated.producer, updated.denomination, updated.vintage, updated.region,
       updated.quality_classification, updated.vineyard, updated.cuvee,
-      toJson(updated.grape_varieties), updated.wine_color, updated.label_image_url,
+      toJson(updated.grape_varieties), updated.wine_color, updated.wine_color_source ?? null, updated.label_image_url,
       toBool(updated.tag_discovered), toBool(updated.tag_wishlist),
       toBool(updated.tag_cellar), toBool(updated.tag_consumed),
       updated.cellar_category, updated.cellar_quantity,

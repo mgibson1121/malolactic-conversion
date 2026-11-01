@@ -115,3 +115,23 @@ describe('fetch routes stamp the identity they were fetched for', () => {
     expect(body.enrichment_stale.price).toBe(false)
   })
 })
+
+describe('Colour provenance (Phase 12.4 WI-6, migration 011)', () => {
+  it('a colour set in Edit is manual; clearing it clears the provenance; a new wine starts unknown', async () => {
+    const wine = await storage.createWine({ ...WINE, wine_color: null })
+    expect((await storage.getWine(wine.id))!.wine_color_source).toBeNull()
+
+    const patch = (body: unknown) => fetch(`${base}/${wine.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect((await patch({ wine_color: 'white' })).status).toBe(200)
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: 'white', wine_color_source: 'manual' })
+
+    await patch({ wine_color: null })
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: null, wine_color_source: null })
+  })
+
+  it('a derived colour round-trips through storage', async () => {
+    const wine = await storage.createWine({ ...WINE, wine_color: null })
+    await storage.updateWine(wine.id, { wine_color: 'red', wine_color_source: 'derived' })
+    expect((await storage.getWine(wine.id))!).toMatchObject({ wine_color: 'red', wine_color_source: 'derived' })
+  })
+})

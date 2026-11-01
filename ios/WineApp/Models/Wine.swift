@@ -273,6 +273,8 @@ struct Wine: Codable, Identifiable, Hashable {
     var cellarCategory: CellarCategory?
     var drinkingWindow: DrinkingWindow?
     var drinkingWindowSource: FieldProvenance?
+    /// Phase 12.4 WI-6: `.derived` when inferred for an imported wine.
+    var wineColorSource: FieldProvenance?
     var vintageRating: VintageRating?
     var vintageRatingSource: FieldProvenance?
     var myRating: MyRating?
@@ -330,6 +332,7 @@ struct Wine: Codable, Identifiable, Hashable {
         case cellarCategory = "cellar_category"
         case drinkingWindow = "drinking_window"
         case drinkingWindowSource = "drinking_window_source"
+        case wineColorSource = "wine_color_source"
         case vintageRating = "vintage_rating"
         case vintageRatingSource = "vintage_rating_source"
         case myRating = "my_rating"
