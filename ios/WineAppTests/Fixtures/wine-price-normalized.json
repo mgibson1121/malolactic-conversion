@@ -1,5 +1,5 @@
 {
-  "id": "7bc49e46-ef97-4283-aa01-724052950280",
+  "id": "1c8bf21e-3ef8-4dc0-91b5-9d86502cdba2",
   "producer": "Domaine du Pavillon",
   "denomination": "Pommard 1er Cru",
   "vintage": 2019,
@@ -99,7 +99,7 @@
       },
       "price_per_750": 157.72
     },
-    "fetched_at": "2026-11-01T15:42:57.855Z",
+    "fetched_at": "2026-11-01T16:01:31.774Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -118,7 +118,7 @@
   "retailer_links": null,
   "review_data": null,
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:42:57.855Z",
+  "date_added": "2026-11-01T16:01:31.774Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -135,6 +135,21 @@
     "hidden": [],
     "other_vintage_price_range": null,
     "order": [
+      "saratoga"
+    ]
+  },
+  "price_state": {
+    "kind": "estimated",
+    "line": "$158 avg · est.",
+    "avg": 157.72,
+    "range": {
+      "min": 157.72,
+      "max": 157.72
+    },
+    "priced": [
+      "saratoga"
+    ],
+    "exact": [
       "saratoga"
     ]
   },

@@ -16,6 +16,7 @@ import type {
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { priceWindowOf } from '@shared/utils/price-window'
+import { priceStateOf } from '@shared/utils/price-state'
 import { enrichmentOutcomesOf } from '@shared/utils/enrichment-outcome'
 import { buildReviewLadder } from '@shared/utils/review-ladder'
 import { buildBottlingAnswer, buildBottlingPrompt, type PromptInput } from '@shared/utils/bottling-prompt'
@@ -234,6 +235,7 @@ function rowToWine(row: WineRow): WineEntry {
     }),
     price_exclusions: describePriceExclusions(priceData),
     price_window: priceWindow,
+    price_state: priceStateOf(priceData, priceWindow),
     enrichment_outcome: enrichmentOutcomesOf({ price_data: priceData, price_window: priceWindow, review_data: reviewData, critic_summary: criticSummary }),
     // Phase 12.2 — the review ladder and the bottling prompt, derived from the
     // stored pages and listings against the wine's current identity.

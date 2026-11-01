@@ -1,5 +1,5 @@
 {
-  "id": "da96351f-9d74-4968-89cd-0d0e5d4bd16b",
+  "id": "85e89c21-fd8f-4deb-aac8-4b20d1821fb4",
   "producer": "Vietti",
   "denomination": "Barolo",
   "vintage": 2021,
@@ -145,7 +145,7 @@
         "missing": []
       }
     },
-    "fetched_at": "2026-11-01T15:42:57.856Z",
+    "fetched_at": "2026-11-01T16:01:31.775Z",
     "excluded": {
       "other_vintage": 0,
       "pack": 0,
@@ -274,7 +274,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-11-01T15:42:57.856Z",
+  "date_added": "2026-11-01T16:01:31.775Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -349,6 +349,20 @@
       "zachys",
       "sokolin",
       "thatchers"
+    ]
+  },
+  "price_state": {
+    "kind": "wide_range",
+    "line": "Prices vary widely",
+    "avg": null,
+    "range": null,
+    "priced": [
+      "zachys",
+      "sokolin",
+      "thatchers"
+    ],
+    "exact": [
+      "zachys"
     ]
   },
   "enrichment_outcome": {

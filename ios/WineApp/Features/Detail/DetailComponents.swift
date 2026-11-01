@@ -166,6 +166,19 @@ struct CriticScoreRow: View {
     }
 }
 
+/// "Exact match" (Phase 12.5 WI-4): the exact wine and the exact vintage — nothing looser.
+struct ExactMatchBadge: View {
+    var body: some View {
+        Text("Exact match")
+            .font(AppFont.badge())
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .foregroundStyle(Theme.green)
+            .background(Theme.greenSoft, in: Capsule())
+            .accessibilityLabel("Exact match: this wine and vintage")
+    }
+}
+
 /// A retailer as two lines, not a table row (§7.3): name and price, then the
 /// badge line, which drops right-to-left — distance first, verification never.
 /// The name is the tappable link (underlined, D9). Verified / Unverified /
@@ -174,6 +187,8 @@ struct RetailerRow: View {
     let retailer: RetailerPrice
     let isNearest: Bool
     let isResolving: Bool
+    /// The exact wine and the exact vintage (Phase 12.5 WI-4).
+    var isExact = false
     let open: () -> Void
     @State private var explained: RetailerBadge?
 
@@ -213,6 +228,8 @@ struct RetailerRow: View {
             .accessibilityHint(retailer.isSearchResultsPage
                                ? "Opens a search at \(retailer.name), not a direct product page"
                                : "Opens the product page")
+
+            if isExact { ExactMatchBadge() }
 
             ViewThatFits(in: .horizontal) {
                 let badges = RetailerTable.badges(retailer)

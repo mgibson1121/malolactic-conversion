@@ -20,14 +20,12 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
     expect(screen.getByRole('button', { name: 'Hard refresh' })).not.toHaveTextContent(/credit/)
   })
 
-  it('shows Avg · High · Low spelled out', () => {
+  it('one line for a priced wine: the average, and the range (Phase 12.5 WI-1)', () => {
     const data = makeTestPriceData([makeTestRetailer({ price: 100 }), makeTestRetailer({ slug: 'b', name: 'B', price: 140 })])
     renderBlock(makeTestWine({ price_data: data }))
-    expect(screen.getByText('Avg')).toBeInTheDocument()
-    expect(screen.getByText('High')).toBeInTheDocument()
-    expect(screen.getByText('Low')).toBeInTheDocument()
-    expect(screen.queryByText('Min')).not.toBeInTheDocument()
-    expect(screen.queryByText('Max')).not.toBeInTheDocument()
+    const line = screen.getByTestId('price-state-line')
+    expect(line).toHaveTextContent('$120 avg · $100–$140')
+    expect(screen.queryByText('Avg')).not.toBeInTheDocument()
   })
 
   it('the nearest retailer is a tappable, underlined link to its page', () => {
@@ -75,31 +73,6 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
     expect(screen.queryByText('Retailer prices (automated)')).not.toBeInTheDocument()
   })
 
-  describe('listings found but none counted — the Marcoux case', () => {
-    const data = makeTestPriceData(
-      [
-        makeTestRetailer({ slug: 'a', vintage_mismatch: true, matched_vintage: 2020, price: 68 }),
-        makeTestRetailer({ slug: 'b', non_standard_format: true, bottle_size_ml: 1500, format_label: '1.5L' }),
-        makeTestRetailer({ slug: 'c', link_only: true, price: null }),
-      ],
-      { other_vintage_price_range: { min: 68, max: 199 } }
-    )
-
-    it('says why, with counts, instead of showing dashes', () => {
-      renderBlock(makeTestWine({ price_data: data }))
-      expect(screen.getByText(/3 listings found, none counted toward the average/)).toBeInTheDocument()
-      expect(screen.getByText(/1 other vintage \(2020\), 1 magnum, 1 search-only/)).toBeInTheDocument()
-      expect(screen.queryByText('—')).not.toBeInTheDocument()
-      // Recomputed over the listings shown (Phase 12.4 WI-1), not the stored range.
-      expect(screen.getByText('Other vintages: $68–$68')).toBeInTheDocument()
-    })
-
-    it('prefers the sentence the backend sent', () => {
-      renderBlock(makeTestWine({ price_data: data, price_exclusions: { found: 3, reasons: [], sentence: 'Backend says hi.' } }))
-      expect(screen.getByText('Backend says hi.')).toBeInTheDocument()
-    })
-  })
-
   it('a sold-out listing from a price-only shop shows its price and says so (Phase 12.4 WI-2)', async () => {
     const data = makeTestPriceData([
       makeTestRetailer({ slug: 'a', name: 'A Shop', price: 100 }),
@@ -142,35 +115,83 @@ describe('PriceBlock — Price & retailers (Phase 12.1 WI-7, D7)', () => {
       expect(screen.getByText(/Near Shop/)).toBeInTheDocument()
       expect(screen.queryByText(/Far Shop/)).not.toBeInTheDocument()
       expect(screen.queryByText(/Eleven Shop/)).not.toBeInTheDocument()
-      expect(screen.getByText('Other vintages: $90–$90')).toBeInTheDocument()
       expect(w.price_data!.retailers).toHaveLength(3)
     })
 
     it('a wine whose only listings are outside the window says nothing was found, never a blank area', () => {
       renderBlock(wine([makeTestRetailer({ slug: 'eleven', name: 'Eleven Shop', vintage_mismatch: true, matched_vintage: 2023 })]))
-      expect(screen.getByText(/No matching listings found/)).toBeInTheDocument()
+      expect(screen.getByTestId('price-state-line')).toHaveTextContent('No prices found')
     })
   })
 
-  describe('four states, never a vanishing block', () => {
+  describe('the price state model (Phase 12.5 WI-1): one line per state, never a vanishing block', () => {
+    const line = () => screen.getByTestId('price-state-line')
+    const priced = (r: Parameters<typeof makeTestRetailer>[0] = {}) => makeTestRetailer({ price: 100, ...r })
+
     it('Looking', () => {
       renderBlock(makeTestWine(), { ...idle, busy: true })
-      expect(screen.getByText('Looking up prices…')).toBeInTheDocument()
+      expect(screen.getByText('Checking prices…')).toBeInTheDocument()
     })
     it('Looking, before the first result of an automatic lookup', () => {
       renderBlock(makeTestWine(), idle, 'preview', true)
-      expect(screen.getByText('Looking up prices…')).toBeInTheDocument()
+      expect(screen.getByText('Checking prices…')).toBeInTheDocument()
+    })
+    it('Priced, with Exact match when a listing is the exact wine and vintage', () => {
+      renderBlock(makeTestWine({ price_data: makeTestPriceData([priced({ vintage_verdict: 'match', bottling_difference: { extra: [], missing: [] } })]) }))
+      expect(line()).toHaveTextContent('$100 avg')
+      expect(line()).toHaveTextContent('Exact match')
+    })
+    it('Priced, no badge when the vintage is unconfirmed (WI-4)', () => {
+      renderBlock(makeTestWine({ price_data: makeTestPriceData([priced({ vintage_verdict: 'unknown', matched_vintage: null })]) }))
+      expect(line()).toHaveTextContent('$100 avg')
+      expect(screen.queryByText('Exact match')).not.toBeInTheDocument()
+    })
+    it('Estimated', () => {
+      renderBlock(makeTestWine({ price_data: { ...makeTestPriceData([priced()]), headline_estimated: true } }))
+      expect(line()).toHaveTextContent('$100 avg · est.')
+    })
+    it('Wide range: both groups, no average', () => {
+      const data = {
+        ...makeTestPriceData([priced({ price: 74.99 }), priced({ slug: 'b', name: 'B', price: 245 })]),
+        price_min: null, price_avg: null, price_max: null, headline_basis: 'ambiguous' as const,
+        price_groups: [{ min: 74.99, max: 74.99, retailers: ['a'] }, { min: 149, max: 245, retailers: ['b', 'c'] }],
+      }
+      renderBlock(makeTestWine({ price_data: data }))
+      expect(line()).toHaveTextContent('Prices vary widely')
+      expect(screen.getByTestId('price-groups')).toHaveTextContent('$149–$245')
+    })
+    it('Similar vintages: only other vintages within ±3, each row tagged with its year (the Gigondas case)', async () => {
+      // Saint-Damien Gigondas 2019: Zachys has the 2022 magnum. 3 years is inside the window.
+      const data = makeTestPriceData([priced({ slug: 'zachys', name: 'Zachys', vintage_mismatch: true, matched_vintage: 2022, price: 79.99 }), priced({ slug: 'kl', name: 'K&L', price: null, link_only: true })])
+      renderBlock(makeTestWine({ vintage: 2019, price_data: data }))
+      expect(line()).toHaveTextContent('Similar vintages')
+      await userEvent.click(screen.getByRole('button', { name: '1 more retailer' }))
+      expect(screen.getByText('2022 vintage')).toBeInTheDocument()
+      // The search-only K&L link is not in the price list (WI-2).
+      expect(screen.queryByText('K&L')).not.toBeInTheDocument()
+    })
+    it('No average: listings with prices, none countable', () => {
+      renderBlock(makeTestWine({ price_data: makeTestPriceData([priced({ non_standard_format: true, bottle_size_ml: 1500, format_label: '1.5L' })]) }))
+      expect(line()).toHaveTextContent('Prices found, no average')
     })
     it('Nothing found', () => {
       renderBlock(makeTestWine({ price_data: makeTestPriceData([]) }))
-      expect(screen.getByText('No matching listings found at the configured retailers.')).toBeInTheDocument()
+      expect(line()).toHaveTextContent('No prices found')
     })
-    it('Failed, with Try again', async () => {
+    it('Nothing found when the only entry is a search link (it lives under Trusted Retailers, WI-2)', () => {
+      renderBlock(makeTestWine({ price_data: makeTestPriceData([priced({ price: null, link_only: true })]) }))
+      expect(line()).toHaveTextContent('No prices found')
+    })
+    it('Failed, neutral, with Retry', async () => {
       const run = vi.fn()
       renderBlock(makeTestWine(), { ...idle, error: 'Price lookup failed', run })
-      expect(screen.getByText(/Price lookup failed —/)).toBeInTheDocument()
-      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      expect(screen.getByText(/Couldn’t check prices/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
       expect(run).toHaveBeenCalled()
+    })
+    it('no price block says "listings", "counted" or "none counted toward"', () => {
+      const { container } = renderBlock(makeTestWine({ price_data: makeTestPriceData([priced({ non_standard_format: true, format_label: '1.5L' })]) }))
+      expect(container.textContent).not.toMatch(/listings|counted|none counted toward/i)
     })
     it('Never fetched: a plain prompt', () => {
       renderBlock(makeTestWine())
@@ -206,14 +227,6 @@ describe('badge explanations (WI-8)', () => {
     expect(screen.getByRole('note')).toHaveTextContent(/couldn't confirm this listing/)
   })
 
-  it('Search only explains itself', async () => {
-    await open({ link_only: true, price: null, verification: 'unchecked' })
-    // No price, so it is never the nearest retailer: it lives in the collapsed list.
-    await userEvent.click(screen.getByRole('button', { name: '1 more retailer' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Search only' }))
-    expect(screen.getByRole('note')).toHaveTextContent(/no price was found/)
-  })
-
   it('unchecked shows no badge at all', async () => {
     await open({ verification: 'unchecked' })
     expect(screen.queryByRole('button', { name: /Verified|Unverified|Search only/ })).not.toBeInTheDocument()
@@ -230,8 +243,8 @@ describe('badge explanations (WI-8)', () => {
   })
 })
 
-describe('PriceBlock — Phase 12.2 states', () => {
-  it('shows a counted six-pack with both prices, a ÷6 tag, and marks the headline estimated', () => {
+describe('PriceBlock — Phase 12.2 formats, under the 12.5 state model', () => {
+  it('a counted six-pack shows both prices and a ÷6 tag, and the line says est.', () => {
     const six = makeTestRetailer({
       slug: 'benchmark',
       name: 'Benchmark',
@@ -245,35 +258,8 @@ describe('PriceBlock — Phase 12.2 states', () => {
     const data = { ...makeTestPriceData([six]), price_min: 117.83, price_avg: 117.83, price_max: 117.83, headline_basis: 'single_listing' as const, headline_estimated: true }
     renderBlock(makeTestWine({ price_data: data }))
     expect(screen.getByText('÷6 pack')).toBeInTheDocument()
-    expect(screen.getByText('estimated')).toBeInTheDocument()
+    expect(screen.getByTestId('price-state-line')).toHaveTextContent('$118 avg · est.')
     expect(screen.getByText(/\$707/)).toBeInTheDocument()
     expect(screen.getByText(/\$118 a bottle/)).toBeInTheDocument()
-    expect(screen.getByText(/single listing, counted at a per-bottle price/)).toBeInTheDocument()
-  })
-
-  it('says a lone uncounted-size listing is unconfirmed instead of presenting it as certain', () => {
-    const data = { ...makeTestPriceData([makeTestRetailer({ price: 946.32 })]), price_avg: 946.32, headline_basis: 'single_listing' as const, headline_estimated: false }
-    renderBlock(makeTestWine({ price_data: data }))
-    expect(screen.getByText(/single listing — size not confirmed/)).toBeInTheDocument()
-  })
-
-  it('shows both price groups and no average when the prices span 2.5x or more', () => {
-    const data = {
-      ...makeTestPriceData([makeTestRetailer({ price: 74.99 }), makeTestRetailer({ slug: 'b', name: 'B', price: 245 })]),
-      price_min: null,
-      price_avg: null,
-      price_max: null,
-      headline_basis: 'ambiguous' as const,
-      price_groups: [
-        { min: 74.99, max: 74.99, retailers: ['a'] },
-        { min: 149, max: 245, retailers: ['b', 'c', 'd', 'e'] },
-      ],
-    }
-    renderBlock(makeTestWine({ price_data: data }))
-    expect(screen.getByTestId('price-groups')).toHaveTextContent('more than one bottling')
-    const groups = screen.getByTestId('price-groups')
-    expect(groups).toHaveTextContent('$75')
-    expect(groups).toHaveTextContent('$149–$245')
-    expect(screen.queryByText('Avg')).not.toBeInTheDocument()
   })
 })

@@ -425,7 +425,7 @@ describe('DiscoveryReview — states (WI-4)', () => {
       />
     )
     expect(await screen.findByText('Looking for critic scores…')).toBeInTheDocument()
-    expect(await screen.findByText('Looking up prices…')).toBeInTheDocument()
+    expect(await screen.findByText('Checking prices…')).toBeInTheDocument()
   })
 
   it('a finished review lookup with no scores says so — the block does not disappear', async () => {

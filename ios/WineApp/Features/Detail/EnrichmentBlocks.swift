@@ -209,8 +209,7 @@ struct PriceRetailersBlock: View {
             NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("When the highest price we counted is 2.5 times the lowest or more, one average would be a number nobody is actually offered. Usually that means the listings are not all the same bottling — a plain wine and a named vineyard, say.")
-                        Text("Nothing was dropped. Both groups are shown, and every listing is still listed below. If you tell us which bottling is yours, we recompute from the listings that name it.")
+                        Text("The highest price is 2.5 times the lowest or more, which usually means more than one bottling. Nothing was dropped.")
                     }
                     .font(AppFont.body())
                     .padding()
@@ -230,85 +229,79 @@ struct PriceRetailersBlock: View {
         }
         if let price = wine.priceData {
             if wine.enrichmentStale?.price == true { StaleNotice() }
-            if visibleRows(price).isEmpty {
-                Text("No matching listings found at the configured retailers.")
-                    .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                Text("Checked \(NoteDate.short(price.fetchedAt) ?? "recently")")
-                    .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-            } else {
-                if price.headlineBasis == .ambiguous, let groups = price.priceGroups {
-                    // Counted prices span 2.5x or more (Phase 12.2 D10): no single average.
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("These prices are too far apart for one average — this may be more than one bottling.")
-                            .font(AppFont.body()).foregroundStyle(Theme.text)
-                        HStack(spacing: 4) {
-                            Text("Prices: split by the 2.5× rule").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                            Button { showSplitSheet = true } label: {
-                                Text("ⓘ").underline().font(AppFont.meta()).foregroundStyle(Theme.accent)
-                                    .frame(minWidth: 28, minHeight: Theme.minHitTarget)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("What is the 2.5× rule?")
+            stateLine(price)
+            if wine.priceState?.kind == .wideRange, let groups = price.priceGroups {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("Split by the 2.5× rule").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                        Button { showSplitSheet = true } label: {
+                            Text("ⓘ").underline().font(AppFont.meta()).foregroundStyle(Theme.accent)
+                                .frame(minWidth: 28, minHeight: Theme.minHitTarget)
                         }
-                        ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                            Text("\(DetailFormatting.priceRange(group.min, group.max)) · \(group.retailers.count) \(group.retailers.count == 1 ? "listing" : "listings")")
-                                .font(AppFont.body().monospacedDigit())
-                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("What is the 2.5× rule?")
                     }
-                } else if price.priceAvg != nil {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Avg \(DetailFormatting.priceBound(price.priceAvg)) · High \(DetailFormatting.priceBound(price.priceMax)) · Low \(DetailFormatting.priceBound(price.priceMin))")
+                    ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                        Text("\(DetailFormatting.priceRange(group.min, group.max)) · \(group.retailers.count) \(group.retailers.count == 1 ? "shop" : "shops")")
                             .font(AppFont.body().monospacedDigit())
-                        if price.headlineEstimated == true {
-                            Text("estimated").font(AppFont.meta().italic()).foregroundStyle(Theme.textMuted)
-                        }
                     }
-                    if price.headlineBasis == .singleListing {
-                        Text(price.headlineEstimated == true
-                             ? "Based on a single listing, counted at a per-bottle price."
-                             : "Based on a single listing — size not confirmed.")
-                            .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                    }
-                } else if let why = wine.priceExclusions?.sentence {
-                    Text(why).font(AppFont.body()).foregroundStyle(Theme.text)
                 }
-                if let other = wine.priceWindow != nil ? wine.priceWindow?.otherVintagePriceRange : price.otherVintagePriceRange {
-                    Text("Other vintages: \(DetailFormatting.priceBound(other.min))–\(DetailFormatting.priceBound(other.max))")
-                        .font(AppFont.meta().monospacedDigit())
-                        .foregroundStyle(Theme.textMuted)
-                }
-                retailerRows(price)
-                if let date = NoteDate.short(price.fetchedAt) {
-                    Text("Updated \(date)").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                }
+            }
+            retailerRows(price)
+            if let date = NoteDate.short(price.fetchedAt) {
+                Text("Updated \(date)").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
         } else if control.isBusy {
             VStack(alignment: .leading, spacing: 8) {
                 RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 200, height: 12)
-                Text("Looking up prices…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                Text("Checking prices…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
         } else if control.error != nil {
+            // An error or timeout only (12.4 WI-7) — neutral, not alarming (12.5 WI-1).
             HStack(spacing: 4) {
-                Text("Price lookup failed —").font(.system(size: 12)).foregroundStyle(Theme.redPill)
-                if let retry { Button("Try again", action: retry).buttonStyle(.link).font(.system(size: 12)) }
+                Text("Couldn't check prices.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                if let retry { Button("Retry", action: retry).buttonStyle(.link).font(AppFont.meta()) }
             }
         } else {
             Text("No price data yet.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
         }
     }
 
-    /// Listings within ±3 vintages, in display order (Phase 12.4 WI-1). The
-    /// backend names the rest in `price_window`; they stay in `price_data`.
+    /// The one line the backend chose (Phase 12.5 WI-1): "$85 avg · $70–$110",
+    /// "Prices vary widely", "No prices found" …
+    @ViewBuilder
+    private func stateLine(_ price: PriceData) -> some View {
+        if let state = wine.priceState {
+            let headline = state.kind == .priced || state.kind == .estimated
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(state.line)
+                    .font(headline ? AppFont.cardTitle().monospacedDigit() : AppFont.body())
+                    .foregroundStyle(headline ? Theme.text : Theme.textMuted)
+                if headline, let range = state.range, range.min != range.max {
+                    Text("· \(DetailFormatting.priceRange(range.min, range.max))")
+                        .font(AppFont.body().monospacedDigit()).foregroundStyle(Theme.textMuted)
+                }
+                if headline, !state.exact.isEmpty { ExactMatchBadge() }
+            }
+            .accessibilityIdentifier("price-state-line")
+        } else if let avg = WineFormatting.price(price.priceAvg) {
+            // An older backend sends no state.
+            Text("\(avg) avg").font(AppFont.cardTitle().monospacedDigit())
+        }
+    }
+
+    /// The rows the price list shows (Phase 12.5 WI-2): priced, within ±3
+    /// vintages, in the one display order — the backend's `price_state.priced`.
+    /// Search-only links live under Trusted Retailers. An older backend's data
+    /// falls back to its window order, priced rows only.
     private func visibleRows(_ price: PriceData) -> [RetailerPrice] {
-        // The backend's one display order (WI-3); an older backend's data
-        // falls back to nearest-first in stored order.
-        if let order = wine.priceWindow?.order {
-            return order.compactMap { slug in price.retailers.first { $0.slug == slug } }
+        if let priced = wine.priceState?.priced {
+            return priced.compactMap { slug in price.retailers.first { $0.slug == slug } }
         }
         let hidden = Set(wine.priceWindow?.hidden ?? [])
-        return RetailerTable.ordered(price).filter { !hidden.contains($0.slug) }
+        return RetailerTable.ordered(price).filter { !hidden.contains($0.slug) && !$0.linkOnly && $0.price != nil }
     }
 
     /// The nearest retailer as a tappable, underlined line, then the rest
@@ -319,7 +312,8 @@ struct PriceRetailersBlock: View {
         let nearest = price.nearestRetailer.flatMap { n in rows.first { $0.slug == n.slug } }
         let rest = rows.filter { $0.slug != nearest?.slug }
         if let nearest {
-            RetailerRow(retailer: nearest, isNearest: true, isResolving: resolving.contains(nearest.slug)) {
+            RetailerRow(retailer: nearest, isNearest: true, isResolving: resolving.contains(nearest.slug),
+                        isExact: wine.priceState?.exact.contains(nearest.slug) == true) {
                 openRetailer(nearest)
             }
         }
@@ -331,7 +325,8 @@ struct PriceRetailersBlock: View {
             .font(AppFont.meta())
             if showMore {
                 ForEach(Array(rest.enumerated()), id: \.offset) { index, row in
-                    RetailerRow(retailer: row, isNearest: false, isResolving: resolving.contains(row.slug)) {
+                    RetailerRow(retailer: row, isNearest: false, isResolving: resolving.contains(row.slug),
+                                isExact: wine.priceState?.exact.contains(row.slug) == true) {
                         openRetailer(row)
                     }
                     if index < rest.count - 1 { Divider() }

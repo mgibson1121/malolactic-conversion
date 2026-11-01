@@ -64,6 +64,12 @@ struct FindReviewsSection: View {
                     if let saved, let url = URL(string: saved) {
                         Button("✓ Saved") { openURL(url) }
                     }
+                    // Phase 12.5 WI-2: a product page the price lookup found but could
+                    // read no price from lives here, not in the price list.
+                    if let page = wine.priceData?.retailers.first(where: { $0.slug == link.slug && $0.linkOnly && !$0.isSearchResultsPage }),
+                       let url = URL(string: page.url) {
+                        Button("Product page") { openURL(url) }
+                    }
                     Button(saved == nil ? "Save link" : "Edit") { model.startEditing(link) }
                     if saved != nil {
                         Button("Remove", role: .destructive) { Task { await model.clear(link.slug) } }
