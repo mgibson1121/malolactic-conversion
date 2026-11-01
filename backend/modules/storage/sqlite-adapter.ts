@@ -16,6 +16,7 @@ import type {
 } from '@shared/types'
 import { buildCriticSummary } from '@shared/utils/critic-summary'
 import { priceWindowOf } from '@shared/utils/price-window'
+import { enrichmentOutcomesOf } from '@shared/utils/enrichment-outcome'
 import { buildReviewLadder } from '@shared/utils/review-ladder'
 import { buildBottlingAnswer, buildBottlingPrompt, type PromptInput } from '@shared/utils/bottling-prompt'
 import { bottlingWineOf, type BottlingWine } from '@shared/utils/bottling-difference'
@@ -168,6 +169,8 @@ function rowToWine(row: WineRow): WineEntry {
     bottling_prompt_dismissed: row.bottling_prompt_dismissed ?? null,
   }
   const bottlingPrompt = buildBottlingPrompt(promptInput)
+  const criticSummary = buildCriticSummary(reviewData, row.vintage, undefined, bottlingWine)
+  const priceWindow = priceWindowOf(priceData, row.vintage)
 
   return {
     id: row.id,
@@ -216,7 +219,7 @@ function rowToWine(row: WineRow): WineEntry {
     // a client (shared/utils/window-status.ts, critic-summary.ts,
     // enrichment-stale.ts).
     window_status: windowStatusOf(drinkingWindow, reviewData),
-    critic_summary: buildCriticSummary(reviewData, row.vintage, undefined, bottlingWine),
+    critic_summary: criticSummary,
     enrichment_stale: enrichmentStale({
       producer: row.producer,
       denomination: row.denomination,
@@ -228,7 +231,8 @@ function rowToWine(row: WineRow): WineEntry {
       review_data: reviewData,
     }),
     price_exclusions: describePriceExclusions(priceData),
-    price_window: priceWindowOf(priceData, row.vintage),
+    price_window: priceWindow,
+    enrichment_outcome: enrichmentOutcomesOf({ price_data: priceData, price_window: priceWindow, review_data: reviewData, critic_summary: criticSummary }),
     // Phase 12.2 — the review ladder and the bottling prompt, derived from the
     // stored pages and listings against the wine's current identity.
     review_ladder: reviewLadder,

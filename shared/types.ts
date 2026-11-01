@@ -136,12 +136,23 @@ export interface RetailerPrice {
   outside_bottling?: boolean
 }
 
+/** What a lookup found (Phase 12.4 WI-7) — see shared/utils/enrichment-outcome.ts. */
+export type LookupOutcome = 'found' | 'none_found' | 'none_counted' | 'failed'
+
+/** Per lookup; null when it was never run. Derived on every read, never stored. */
+export interface EnrichmentOutcomes {
+  price: LookupOutcome | null
+  reviews: LookupOutcome | null
+}
+
 /** What the price list displays (Phase 12.4 WI-1) — see shared/utils/price-window.ts. */
 export interface PriceWindow {
   /** Slugs of listings more than ±3 vintages from the wine: kept in price_data, not shown. */
   hidden: string[]
   /** "Other vintages: $x–$y" over the listings still shown. */
   other_vintage_price_range: PriceRange | null
+  /** Slugs of the rows shown, in display order: nearest, preferred A–Z, others A–Z (WI-3). Optional: older backends lack it. */
+  order?: string[]
 }
 
 /** A candidate that states a colour other than the wine's (Phase 12.4). */
@@ -580,6 +591,8 @@ export interface WineEntry {
   bottling_answer?: BottlingAnswer | null
   // Phase 12.4 WI-1 (derived): which price rows are outside ±3 vintages.
   price_window?: PriceWindow | null
+  // Phase 12.4 WI-7 (derived): found / none_found / none_counted per lookup.
+  enrichment_outcome?: EnrichmentOutcomes
   // Phase 12.2 WI-2 (stored, migration 010). `bottling_plain`: the developer
   // answered "Plain / no special bottling", so a later refresh does not ask
   // again. `bottling_prompt_dismissed`: the modifier signature of the last
@@ -641,9 +654,9 @@ export interface AdviceEntry {
 
 export type CreateWineInput = Omit<
   WineEntry,
-  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
+  'id' | 'manual_price' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'enrichment_outcome' | 'bottling_plain' | 'bottling_prompt_dismissed' | 'date_added' | 'latest_tasting_note_id' | 'advice_linked' | 'expert_reviews' | 'community_sentiment' | 'community_excerpts' | 'price_data' | 'review_data' | 'drinking_window_source' | 'vintage_rating_source' | 'promoted_at' | 'latest_tasting_note_date'
 >
-export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window'>>
+export type UpdateWineInput = Partial<Omit<WineEntry, 'id' | 'date_added' | 'latest_tasting_note_date' | 'window_status' | 'critic_summary' | 'enrichment_stale' | 'price_exclusions' | 'review_ladder' | 'bottling_prompt' | 'bottling_answer' | 'price_window' | 'enrichment_outcome'>>
 // The identity snapshot is copied from the wine by the adapter at save time,
 // never supplied by a client.
 export type CreateTastingNoteInput = Omit<

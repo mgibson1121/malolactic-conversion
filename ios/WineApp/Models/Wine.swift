@@ -216,9 +216,12 @@ struct BottlingAnswer: Codable, Hashable {
 struct PriceWindow: Codable, Hashable {
     var hidden: [String]
     var otherVintagePriceRange: PriceRange?
+    /// The rows shown, in display order — nearest, preferred A–Z, others A–Z
+    /// (Phase 12.4 WI-3). Nil from an older backend.
+    var order: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case hidden
+        case hidden, order
         case otherVintagePriceRange = "other_vintage_price_range"
     }
 }

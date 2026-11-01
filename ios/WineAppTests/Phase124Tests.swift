@@ -68,3 +68,50 @@ final class SoldOutListingTests: XCTestCase {
         XCTAssertEqual(r.price, 105)
     }
 }
+
+/// Phase 12.4 WI-7: "failed" only when the lookup failed. A request that
+/// errors after the server finished (the phone's timeout, a dropped
+/// connection) shows what was stored instead.
+@MainActor
+final class LookupOutcomeTests: XCTestCase {
+    override func tearDown() {
+        StubURLProtocol.router = nil
+        super.tearDown()
+    }
+
+    func testAPriceRequestThatErrorsButStoredShowsTheStoredResultNotFailed() async throws {
+        let wine = try Fixture.fullWine
+        var stored = wine
+        stored.priceData?.fetchedAt = "2026-11-01T12:00:00.000Z"
+        stored.priceData?.retailers = []
+        let storedJSON = try JSONEncoder().encode(stored)
+        StubURLProtocol.requests = []
+        StubURLProtocol.router = { request in
+            request.httpMethod == "GET" ? (200, storedJSON) : (504, Data(#"{"error":"gateway timeout"}"#.utf8))
+        }
+        let model = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: {})
+
+        await model.fetchPrice(force: true)
+
+        XCTAssertNil(model.price.error)
+        XCTAssertEqual(model.wine.priceData?.fetchedAt, "2026-11-01T12:00:00.000Z")
+        XCTAssertEqual(model.wine.priceData?.retailers.count, 0, "searched, nothing found — not failed")
+    }
+
+    func testAPriceRequestThatErrorsAndStoredNothingIsFailed() async throws {
+        let wine = try Fixture.fullWine
+        let unchanged = try JSONEncoder().encode(wine)
+        StubURLProtocol.router = { request in
+            request.httpMethod == "GET" ? (200, unchanged) : (503, Data(#"{"error":"no key","outcome":"failed"}"#.utf8))
+        }
+        let model = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: {})
+
+        await model.fetchPrice(force: true)
+
+        XCTAssertEqual(model.price.error, "Price lookup failed")
+    }
+
+    func testEnrichmentCallsWaitLongerThanTheDefault() {
+        XCTAssertGreaterThanOrEqual(APIClient.enrichmentTimeout, 180)
+    }
+}

@@ -81,7 +81,7 @@ describe('WI-1 — one ±3-year window for what is displayed', () => {
         { slug: 'unknown', matched_vintage: null, vintage_mismatch: false, price: 120, non_standard_format: false },
       ],
     } as unknown as PriceData
-    expect(priceWindowOf(data, 2012)).toEqual({ hidden: ['far'], other_vintage_price_range: { min: 90, max: 90 } })
+    expect(priceWindowOf(data, 2012)).toMatchObject({ hidden: ['far'], other_vintage_price_range: { min: 90, max: 90 } })
     expect(data.retailers).toHaveLength(3)
     expect(priceWindowOf(data, null)!.hidden).toEqual([])
   })

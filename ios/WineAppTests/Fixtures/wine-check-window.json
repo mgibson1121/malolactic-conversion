@@ -1,5 +1,5 @@
 {
-  "id": "47ad5369-15ac-4ae2-add0-31bcbb9b5a38",
+  "id": "394be724-d60c-4af7-b965-097ef21618da",
   "producer": "Domaine de Villaine",
   "denomination": "Rully 1er Cru",
   "vintage": 2019,
@@ -102,7 +102,7 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-10-31T21:08:11.602Z",
+  "date_added": "2026-11-01T15:36:14.067Z",
   "date_first_consumed": null,
   "promoted_at": "2026-10-01T00:00:00.000Z",
   "latest_tasting_note_date": null,
@@ -153,6 +153,10 @@
   },
   "price_exclusions": null,
   "price_window": null,
+  "enrichment_outcome": {
+    "price": null,
+    "reviews": "found"
+  },
   "review_ladder": {
     "tier": "3",
     "rungs": [

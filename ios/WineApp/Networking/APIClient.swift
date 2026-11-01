@@ -80,16 +80,24 @@ struct APIClient: Sendable {
 
     // MARK: Enrichment (metered)
 
+    /// A lookup chains Serper searches, page renders (15 s each at most) and
+    /// GPT-4o reads, on the server: the default 30 s gave up on lookups that
+    /// went on to finish and store — and the phone said "failed" for searches
+    /// that had simply found nothing (Phase 12.4 WI-7, 2026-10-31).
+    static let enrichmentTimeout: TimeInterval = 240
+
     func fetchPrice(wineID: String, force: Bool = false) async throws -> EnrichmentResult {
-        try await sendEnrichment(request("POST", "api/wines/\(wineID)/fetch-price",
-                                         query: enrichmentQuery(force: force, tier: nil)))
+        var req = try request("POST", "api/wines/\(wineID)/fetch-price", query: enrichmentQuery(force: force, tier: nil))
+        req.timeoutInterval = Self.enrichmentTimeout
+        return try await sendEnrichment(req)
     }
 
     /// `tier: .primary` exists for exactly one caller: the scan path's
     /// auto-fire, once per wine, after the duplicate check.
     func fetchReviews(wineID: String, force: Bool = false, tier: ReviewTier? = nil) async throws -> EnrichmentResult {
-        try await sendEnrichment(request("POST", "api/wines/\(wineID)/fetch-reviews",
-                                         query: enrichmentQuery(force: force, tier: tier)))
+        var req = try request("POST", "api/wines/\(wineID)/fetch-reviews", query: enrichmentQuery(force: force, tier: tier))
+        req.timeoutInterval = Self.enrichmentTimeout
+        return try await sendEnrichment(req)
     }
 
     func resolveRetailerURL(wineID: String, slug: String) async throws -> Wine {
