@@ -1,3 +1,5 @@
+import { CHROMIUM_ARGS, withRenderSlot } from '@shared/utils/render-gate'
+
 const PAGE_TIMEOUT_MS = 15_000
 // Fixed settle delay after domcontentloaded, added Phase 8 (2026-07-29) after
 // live testing on a real product page (amsterwine.com) showed a client-side
@@ -26,15 +28,12 @@ const USER_AGENT =
  * (waiting for a specific DOM signal to stabilize, rather than a fixed
  * delay) still hasn't been applied there.
  */
-export async function renderPageHtml(url: string): Promise<string | null> {
+async function renderUngated(url: string): Promise<string | null> {
   let browser
   try {
     // Dynamic import so the module can be mocked in tests without Puppeteer running
     const puppeteer = await import('puppeteer')
-    browser = await puppeteer.default.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+    browser = await puppeteer.default.launch({ headless: true, args: CHROMIUM_ARGS })
     const page = await browser.newPage()
     await page.setUserAgent(USER_AGENT)
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS })
@@ -45,4 +44,9 @@ export async function renderPageHtml(url: string): Promise<string | null> {
   } finally {
     if (browser) await browser.close()
   }
+}
+
+/** Waits for a render slot (shared/utils/render-gate.ts) so concurrent renders stay capped. */
+export function renderPageHtml(url: string): Promise<string | null> {
+  return withRenderSlot(() => renderUngated(url))
 }
