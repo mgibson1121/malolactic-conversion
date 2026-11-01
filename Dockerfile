@@ -25,22 +25,30 @@ RUN npm run build -w web && npm run build -w backend
 # ── Runtime: production dependencies, Chromium, and the two build outputs ───
 FROM node:${NODE_VERSION}-bookworm-slim
 WORKDIR /app
+
+# Debian's Chromium, with its system libraries resolved by apt, instead of
+# Puppeteer's downloaded Chrome plus `--install-deps`: that step failed on
+# the first two Fly builds (2026-11-01), the second time even after
+# `apt-get update`. Puppeteer reads PUPPETEER_EXECUTABLE_PATH and then skips
+# its own download. bookworm-security tracks Chrome stable, close to the
+# build Puppeteer pins; the launch check below proves the pair works.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
+ && rm -rf /var/lib/apt/lists/* \
+ && chromium --version
+
 ENV NODE_ENV=production \
     PUPPETEER_SKIP_DOWNLOAD=true \
-    PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/
 COPY web/package.json web/
 RUN npm ci --omit=dev -w backend && npm cache clean --force
-# The Chrome build Puppeteer pins, plus the system libraries it needs.
-# `--install-deps` runs `apt-get satisfy` but never `apt-get update`, and the
-# slim image ships with an empty package index, so update first (the first
-# deploy failed here, 2026-11-01). Separate RUN steps so a failure names its
-# command.
-RUN apt-get update \
- && npx puppeteer browsers install chrome --install-deps \
- && rm -rf /var/lib/apt/lists/*
+
+# Fail the build, not the first scan, if Puppeteer cannot drive this Chromium.
+# Same flags as shared/utils/render-gate.ts CHROMIUM_ARGS.
+RUN node -e "require('puppeteer').launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] }).then(async b => { console.log('Puppeteer launched', await b.version()); await b.close() }).catch(e => { console.error(e); process.exit(1) })"
 
 COPY --from=build /app/backend/dist backend/dist
 COPY --from=build /app/web/dist web/dist
