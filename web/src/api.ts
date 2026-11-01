@@ -1,4 +1,5 @@
 import type { AppSettings, BottlingChoice, ReviewTierId, CreateWineInput, CreateTastingNoteInput, RetailerLink, TastingNote, UpdateWineInput, WineEntry, WineFilter } from '@shared/types'
+import { apiFetch } from './access-key'
 
 const BASE = '/api'
 
@@ -23,7 +24,7 @@ export interface LabelScanResult {
 export async function scanLabel(file: File): Promise<LabelScanResult> {
   const form = new FormData()
   form.append('label', file)
-  const res = await fetch(`${BASE}/label-scan`, { method: 'POST', body: form })
+  const res = await apiFetch(`${BASE}/label-scan`, { method: 'POST', body: form })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     const code = body?.error ?? `HTTP ${res.status}`
@@ -51,12 +52,12 @@ export async function listWines(filter?: WineFilter): Promise<WineEntry[]> {
   if (filter?.region) params.set('region', filter.region)
   if (filter?.q) params.set('q', filter.q)
   const qs = params.toString()
-  return handleResponse(await fetch(qs ? `${BASE}/wines?${qs}` : `${BASE}/wines`))
+  return handleResponse(await apiFetch(qs ? `${BASE}/wines?${qs}` : `${BASE}/wines`))
 }
 
 export async function createWine(data: CreateWineInput): Promise<WineEntry> {
   return handleResponse(
-    await fetch(`${BASE}/wines`, {
+    await apiFetch(`${BASE}/wines`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -66,7 +67,7 @@ export async function createWine(data: CreateWineInput): Promise<WineEntry> {
 
 export async function updateWine(id: string, data: UpdateWineInput): Promise<WineEntry> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${id}`, {
+    await apiFetch(`${BASE}/wines/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -83,7 +84,7 @@ export async function promoteWine(
   tags: { tag_discovered?: boolean; tag_wishlist?: boolean; tag_cellar?: boolean }
 ): Promise<WineEntry> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${id}/promote`, {
+    await apiFetch(`${BASE}/wines/${id}/promote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tags),
@@ -96,7 +97,7 @@ export async function promoteWine(
  * saved wine). Tasting notes no longer block it — they outlive the wine.
  */
 export async function deleteWine(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/wines/${id}`, { method: 'DELETE' })
+  const res = await apiFetch(`${BASE}/wines/${id}`, { method: 'DELETE' })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body?.error ? String(body.error) : `HTTP ${res.status}`)
@@ -109,7 +110,7 @@ export async function deleteWine(id: string): Promise<void> {
  * them.
  */
 export async function countNotesKeptOnDelete(id: string): Promise<number> {
-  const res = await fetch(`${BASE}/wines/${id}?dry_run=1`, { method: 'DELETE' })
+  const res = await apiFetch(`${BASE}/wines/${id}?dry_run=1`, { method: 'DELETE' })
   const body = await handleResponse<{ notes_kept: number }>(res)
   return body.notes_kept
 }
@@ -128,7 +129,7 @@ export interface ChooseBottlingResult {
 /** "Which bottling is yours?" (Phase 12.2): re-scores the stored listings and pages server-side. No metered call. */
 export async function chooseBottling(id: string, choice: BottlingChoice): Promise<ChooseBottlingResult> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${id}/choose-bottling`, {
+    await apiFetch(`${BASE}/wines/${id}/choose-bottling`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(choice),
@@ -138,7 +139,7 @@ export async function chooseBottling(id: string, choice: BottlingChoice): Promis
 
 export async function createTastingNote(data: CreateTastingNoteInput): Promise<TastingNote> {
   return handleResponse(
-    await fetch(`${BASE}/tasting-notes`, {
+    await apiFetch(`${BASE}/tasting-notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -149,11 +150,11 @@ export async function createTastingNote(data: CreateTastingNoteInput): Promise<T
 /** Every tasting note, newest first — including notes whose wine was deleted
  * (`wine_removed`). Phase 12.1, WI-3. */
 export async function listAllTastingNotes(): Promise<TastingNote[]> {
-  return handleResponse(await fetch(`${BASE}/tasting-notes`))
+  return handleResponse(await apiFetch(`${BASE}/tasting-notes`))
 }
 
 export async function listTastingNotesByWine(wineId: string): Promise<TastingNote[]> {
-  return handleResponse(await fetch(`${BASE}/tasting-notes/wine/${wineId}`))
+  return handleResponse(await apiFetch(`${BASE}/tasting-notes/wine/${wineId}`))
 }
 
 /**
@@ -191,12 +192,12 @@ export async function fetchWinePrice(
   opts?: EnrichmentOptions
 ): Promise<EnrichmentResponse> {
   return handleResponse(
-    await fetch(enrichmentUrl(wineId, 'fetch-price', opts), { method: 'POST' })
+    await apiFetch(enrichmentUrl(wineId, 'fetch-price', opts), { method: 'POST' })
   )
 }
 
 export async function fetchRetailerLinks(wineId: string): Promise<RetailerLink[]> {
-  return handleResponse(await fetch(`${BASE}/wines/${wineId}/retailer-links`))
+  return handleResponse(await apiFetch(`${BASE}/wines/${wineId}/retailer-links`))
 }
 
 export async function fetchWineReviews(
@@ -204,7 +205,7 @@ export async function fetchWineReviews(
   opts?: EnrichmentOptions
 ): Promise<EnrichmentResponse> {
   return handleResponse(
-    await fetch(enrichmentUrl(wineId, 'fetch-reviews', opts), { method: 'POST' })
+    await apiFetch(enrichmentUrl(wineId, 'fetch-reviews', opts), { method: 'POST' })
   )
 }
 
@@ -216,7 +217,7 @@ export async function fetchWineReviews(
  */
 export async function resolveRetailerUrl(wineId: string, slug: string): Promise<WineEntry> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${wineId}/resolve-retailer-url`, {
+    await apiFetch(`${BASE}/wines/${wineId}/resolve-retailer-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug }),
@@ -226,7 +227,7 @@ export async function resolveRetailerUrl(wineId: string, slug: string): Promise<
 
 export async function confirmRetailerLink(wineId: string, slug: string, url: string): Promise<WineEntry> {
   return handleResponse(
-    await fetch(`${BASE}/wines/${wineId}/confirm-retailer-link`, {
+    await apiFetch(`${BASE}/wines/${wineId}/confirm-retailer-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug, url }),
@@ -237,12 +238,12 @@ export async function confirmRetailerLink(wineId: string, slug: string, url: str
 // ── Settings (Phase 10.5) ────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<AppSettings> {
-  return handleResponse(await fetch(`${BASE}/settings`))
+  return handleResponse(await apiFetch(`${BASE}/settings`))
 }
 
 export async function updateSettings(data: Partial<AppSettings>): Promise<AppSettings> {
   return handleResponse(
-    await fetch(`${BASE}/settings`, {
+    await apiFetch(`${BASE}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
