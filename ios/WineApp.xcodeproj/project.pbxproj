@@ -271,11 +271,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8PZC3RCML7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WineApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Wine;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera is used to photograph wine labels so they can be read and added to your collection.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "The app talks to your wine backend running on this network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -302,11 +304,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8PZC3RCML7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WineApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Wine;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera is used to photograph wine labels so they can be read and added to your collection.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "The app talks to your wine backend running on this network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
