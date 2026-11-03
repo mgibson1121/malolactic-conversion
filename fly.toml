@@ -23,9 +23,9 @@ kill_timeout = "60s"
   WINE_DB_PATH = "/data/wine.db"
   WEB_DIST_DIR = "/app/web/dist"
   # Concurrent Chromium renders across price and reviews (shared/utils/render-gate.ts).
-  # WI-5 (2026-11-01): at 2 on performance-1x, the 14-wine run peaked near
-  # 0.9 GB of 2 GB. Raise only with a new measurement.
-  RENDER_CONCURRENCY = "2"
+  # WI-5 size test (2026-11-02): at 4 on performance-4x, the 14-wine run
+  # peaked near 1.6 GB of 8 GB with no render failures. One per CPU.
+  RENDER_CONCURRENCY = "4"
   SHUTDOWN_GRACE_MS = "55000"
 
 # SQLite is single-writer (D4): exactly one machine, with this one volume.
@@ -55,13 +55,15 @@ kill_timeout = "60s"
     path = "/healthz"
     timeout = "5s"
 
-# A dedicated CPU, sized by WI-5 (2026-11-01). On shared-cpu-1x, Fly's quota
-# (6.25% of a core once the burst balance is spent) throttled Chromium so
-# hard that 30 renders timed out and the gate failed: 2 of 14 wines against
-# 7 of 14 here. performance-1x comes with 2 GB. Billed per second while
-# running, about $33/month-equivalent; idle stop keeps the real figure small.
-# Do not move back to a shared CPU without re-running WI-5.
+# Four dedicated CPUs, sized by WI-5 and chosen by the developer (2026-11-02).
+# On shared-cpu-1x, Fly's quota (6.25% of a core once the burst balance is
+# spent) throttled Chromium until the gate failed (2 of 14 wines). On
+# dedicated CPUs, every size matched the laptop's 7 of 14. Time for the
+# 14-wine check, against the laptop's 181 s: 1 CPU 349 s, 2 CPUs 250 s,
+# 4 CPUs 221 s (no render failures). performance-4x comes with 8 GB. Billed
+# per second while running; idle stop keeps the real cost to a few dollars a
+# month. Do not move to a shared CPU without re-running WI-5.
 [[vm]]
-  memory = "2gb"
+  memory = "8gb"
   cpu_kind = "performance"
-  cpus = 1
+  cpus = 4
