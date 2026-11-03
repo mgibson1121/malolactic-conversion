@@ -1,6 +1,6 @@
 # Phase 13 — Production deployment and distribution
 
-> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open; WI-5 next.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open. **WI-5 passed 2026-11-01 on `performance-1x`** (results in `docs/build-phases.md`); next WI-4.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
 > **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
@@ -20,7 +20,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 | D2 | **Cloud container on Fly.io** (Ashburn, nearest NYC). Fallback if WI-5 fails: Google Cloud Run + Litestream, or a home machine behind a Cloudflare Tunnel. | Chromium needs a real container; SQLite needs a persistent disk. Plain serverless functions are ruled out (ephemeral filesystem; Postgres is forbidden by CLAUDE.md §15). |
 | D3 | **One container serves the API and the built web app.** Default `*.fly.dev` HTTPS hostname; **no custom domain now** (can be added later without rework). The developer's laptop may still run the web app locally against the cloud backend. | Same origin, one deploy, no domain cost. |
 | D4 | **SQLite on a Fly volume, exactly one machine.** | SQLite is single-writer. No multi-instance. |
-| D5 | **Idle auto-stop** (scale to zero). Start at 1 GB RAM; right-size from WI-5 measurements. Fallback: always-on (about $6.69/mo). | Usage is minutes per week. |
+| D5 | **Idle auto-stop** (scale to zero). Start at 1 GB RAM; right-size from WI-5 measurements. Fallback: always-on (about $6.69/mo). **Amended by WI-5 (2026-11-01): `performance-1x` (dedicated CPU, 2 GB), about $33/mo-equivalent billed per second while running. A shared CPU's quota throttled Chromium into failing the gate. Always-on fallback is now about $33/mo.** | Usage is minutes per week. |
 | D6 | **iPhone distribution: TestFlight** (paid Apple Developer Program, $99/yr), **internal testers**. Builds by **Xcode Cloud** (25 compute hours/month included). Wife joins by Apple ID invite. | Only option that is automatable, updates through an app, and avoids per-release App Review. Rejected: free personal-team installs (7-day expiry), ad hoc (manual device IDs, no update prompts), App Store unlisted (review on every release), PWA (discards the native app). |
 | D7 | **Two TestFlight groups:** *Developer* receives every build automatically; *Household* receives builds the developer promotes. | A broken build never reaches the wife's phone untested. |
 | D8 | **Release rule:** backend auto-deploys on merge to `main` once CI is green. iOS builds on every merge that touches `ios/**`. Promotion to Household is a git tag (`ios-v*`) or one click. | Developer asked for push-and-consume. |
@@ -46,7 +46,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 | Egress | $0.02/GB, negligible |
 | Custom domain | $0 now; about $10–15/yr later (estimate) |
 
-**Expected all-in: about $9–10/mo with idle stop; about $15/mo always-on at 1 GB; about $21/mo always-on at 2 GB.** Apple's $99 is the only up-front cash. Serper pack and OpenAI usage are existing costs; the wife's scans add a small usage-based amount.
+**Expected all-in: about $9–10/mo with idle stop; about $15/mo always-on at 1 GB; about $21/mo always-on at 2 GB.** (**Revised after WI-5, 2026-11-01:** the machine is `performance-1x`, $33.00/mo in `iad` if it ran continuously (docs.fly.io/about/pricing, read 2026-11-01), billed per second while running, and stopped machines pay only for root filesystem storage. With idle stop, at an assumed 20 running hours a month, about $1/mo, so about $10/mo all-in. Always-on would be about $42/mo all-in. Acceptance criterion 7, a billing period observed, will replace the assumption.) Apple's $99 is the only up-front cash. Serper pack and OpenAI usage are existing costs; the wife's scans add a small usage-based amount.
 
 ## 5. Risks
 
@@ -103,7 +103,7 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 
 1. ~~Phase number~~ — resolved 2026-11-01: Phase 13; the former 13–15 are now 14–16.
 2. ~~Confirm WI-5's pass rule~~ — confirmed 2026-11-01 (see WI-5).
-3. Confirm idle-stop works with a volume attached and the draft sweep (WI-2).
+3. ~~Confirm idle-stop works with a volume attached and the draft sweep (WI-2).~~ Confirmed 2026-11-01 (WI-5): auto-stopped after about 8 idle minutes with the volume attached and drained cleanly; woke in about 3 s; the sweep runs at each start.
 4. Confirm internal TestFlight testers skip Beta App Review as expected (first build).
 
 ## 10. Acceptance criteria
