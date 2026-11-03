@@ -64,8 +64,8 @@ If the gate fails, the spec's fallback is the same container on a home machine b
 
 ## Tuning
 
-- **Machine size: `performance-1x` (dedicated CPU, 2 GB), set in `fly.toml` `[[vm]]`.** WI-5 showed that a shared CPU is throttled to 6.25% of a core once its burst balance runs out, and Chromium renders then time out. Don't move to a shared CPU to save money without re-running WI-5. `fly scale vm` changes a running machine, but the next `fly deploy` resets it to `fly.toml`.
-- `RENDER_CONCURRENCY` (`fly.toml`, `[env]`) caps concurrent Chromium renders across price and reviews. At 2, the 14-wine run peaked at about 0.9 GB of 2 GB. Lower it if a scan runs out of memory; raise it only with a new measurement.
+- **Machine size: `performance-4x` (4 dedicated CPUs, 8 GB), set in `fly.toml` `[[vm]]`** (chosen 2026-11-02 after the WI-5 size test: 1.2× the laptop's time, against 1.9× on 1 CPU). WI-5 showed that a shared CPU is throttled to 6.25% of a core once its burst balance runs out, and Chromium renders then time out. Don't move to a shared CPU to save money without re-running WI-5. `fly scale vm` changes a running machine, but the next `fly deploy` resets it to `fly.toml`.
+- `RENDER_CONCURRENCY` (`fly.toml`, `[env]`) caps concurrent Chromium renders across price and reviews. Set to 4 (one per CPU); the 14-wine run peaked at about 1.6 GB of 8 GB. Lower it if a scan runs out of memory; raise it only with a new measurement.
 - **Measuring memory and throttling yourself:** inside the machine, `MemAvailable` in `/proc/meminfo` (sampled while the work runs) gives peak use, and the 8th number on the `cpu` line of `/proc/stat` (steal) shows CPU withheld by Fly. The Fly dashboard's Metrics tab shows the same memory figure.
 - `SHUTDOWN_GRACE_MS` must stay below `kill_timeout`.
 
