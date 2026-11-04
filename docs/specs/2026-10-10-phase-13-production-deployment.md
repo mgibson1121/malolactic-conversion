@@ -26,6 +26,16 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 | D8 | **Release rule:** backend auto-deploys on merge to `main` once CI is green. iOS builds on every merge that touches `ios/**`. Promotion to Household is a git tag (`ios-v*`) or one click. | Developer asked for push-and-consume. |
 | D9 | **Security:** HTTPS only; per-device bearer token (held in iOS Keychain); rate limits on metered routes; OpenAI monthly spend cap; no accounts or passwords. | Interception on Wi-Fi/cellular is solved by TLS (iOS enforces it). The real risk is someone spending the API keys. Serper is prepaid, so its exposure is capped. VPN-only (Tailscale) rejected as disproportionate for two users and non-sensitive data. |
 
+**Decisions, 2026-11-03 (developer):**
+
+| # | Decision |
+|---|---|
+| D10 | **Production app name: `malolactic-conversion`** (reserved on Fly 2026-11-03, empty until WI-4). Address `https://malolactic-conversion.fly.dev`, built into the iOS Release build (WI-7). |
+| D11 | **Cold start is acceptable** (about 4 s, measured in WI-5). **Idle stop stays**: the server wakes when the app opens; no always-on machine. |
+| D12 | **Metered rate limit raised to 100 an hour** per device (was 60); 200 a day unchanged. |
+| D13 | **WI-6 deploys only when app code changes** (`backend/`, `shared/`, `web/`, `Dockerfile`, `fly.toml`, package files), not on docs-only merges. |
+| D14 | **The one-time database upload leaves WI-4 for its own phase, Phase 13.1** (`docs/specs/2026-11-03-phase-13.1-data-cutover.md`), run after WI-9 so the laptop and cloud copies never both take changes. WI-4 keeps backups and the restore drill, built against an empty production database. |
+
 ## 3. Constraints this phase amends (record at the original claim too)
 
 - **CLAUDE.md §15 "Do not build a hosted backend or cloud database"** — reversed for the backend and its SQLite file. Still no Postgres, no separate cloud database service. (Phase 12 D5 already flagged this.)
@@ -61,7 +71,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 
 ## 6. Work items
 
-**Sequence:** WI-0 → WI-1, WI-2 → **WI-5 (gate)** → WI-3, WI-4 → WI-6 → WI-7, WI-8, WI-9 → WI-10 → WI-11.
+**Sequence:** WI-0 → WI-1, WI-2 → **WI-5 (gate)** → WI-3, WI-4 → WI-6 → WI-7, WI-8, WI-9 → WI-10 → WI-11. (**Amended 2026-11-03:** WI-3 was built before WI-5; the data upload is Phase 13.1, after WI-9 and before WI-10's household switch-over, D14.)
 
 **WI-0 — Prerequisites (developer; start now, Apple enrollment can take days).** Enroll in the Apple Developer Program. Create a Fly.io account. Get the wife's Apple ID for the TestFlight invite. Set a monthly usage cap on the OpenAI account.
 
@@ -73,13 +83,13 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 
 **WI-3 — Authentication and abuse protection.** Bearer-token middleware (constant-time compare) on every route except `/healthz`. Tokens held as a Fly secret list so each device's token can be revoked independently; issue two (developer, wife) plus one for the web app. Rate limit on the metered routes (`fetch-price`, `fetch-reviews`, `label-scan`, `confirm-retailer-link`, `resolve-retailer-url`). Tests: missing, wrong, and revoked token; `/healthz` stays open. Web app reads its token from local config, never from the bundle.
 
-**WI-3 as built (2026-11-01), differences from the text above:** (1) built **before** WI-5 by developer decision, so the staging app is never unauthenticated; a production start without `DEVICE_TOKENS` refuses to run. (2) `POST /api/tasting-notes` is also rate-limited — it calls GPT for tag extraction. (3) "Every route except `/healthz`" is every `/api` route: the static web bundle stays public, since it holds no secret and a browser must load it to ask for the key. (4) The web app's "local config" is either the browser's `localStorage` (typed once into a prompt) or, for Vite against the cloud, `WINE_ACCESS_KEY` in `.env` added by the dev proxy. Limits: 60/hour, 200/day per device, in memory.
+**WI-3 as built (2026-11-01), differences from the text above:** (1) built **before** WI-5 by developer decision, so the staging app is never unauthenticated; a production start without `DEVICE_TOKENS` refuses to run. (2) `POST /api/tasting-notes` is also rate-limited — it calls GPT for tag extraction. (3) "Every route except `/healthz`" is every `/api` route: the static web bundle stays public, since it holds no secret and a browser must load it to ask for the key. (4) The web app's "local config" is either the browser's `localStorage` (typed once into a prompt) or, for Vite against the cloud, `WINE_ACCESS_KEY` in `.env` added by the dev proxy. Limits: 60/hour, 200/day per device, in memory. **Hourly raised to 100 by the developer, 2026-11-03** (daily stays 200).
 
-**WI-4 — Data safety and migration.** Automatic backup before any schema migration. Nightly off-box backup to Cloudflare R2 (Litestream or a scheduled `.backup`). One-time upload of the local database using `sqlite3 .backup`; verify row counts for wines, tasting notes and settings against the local copy before cutover. Restore drill documented and performed once. Local `wine.db` kept until the developer signs off.
+**WI-4 — Data safety and migration.** Automatic backup before any schema migration. Nightly off-box backup to Cloudflare R2 (Litestream or a scheduled `.backup`). ~~One-time upload of the local database using `sqlite3 .backup`; verify row counts for wines, tasting notes and settings against the local copy before cutover.~~ **Moved to Phase 13.1 (D14).** Restore drill documented and performed once. Local `wine.db` kept until the developer signs off. **Open (2026-11-03): "nightly" cannot run on a machine that idle stop has stopped (D5).** The backup method is the developer's choice: Litestream streaming every change to R2 while the machine is awake (recommended), a copy at each shutdown, or a scheduled job that wakes the machine. Fly's automatic daily volume snapshots are a second layer whichever is chosen.
 
 **WI-5 — Deployment test (go/no-go gate).** Deploy the container to a staging Fly app. Replay the 14-wine ground-truth set from the cloud and compare against the stored laptop baseline (`validate-reviews-results.json`). Record per-retailer yield, peak memory per scan, and cold-start time. **Pass rule (confirmed by the developer 2026-11-01; no numeric cold-start threshold is fixed — the developer judges it from the measured figure):** the cloud finds a trusted-critic score on at least as many of the 14 wines as the baseline minus one; peak memory fits the chosen size; cold start is acceptable to the developer. **Metered-call arithmetic (CLAUDE.md §15):** about 20–29 Serper credits per wine at first enrichment (Phase 9.2) × 14 wines is roughly 280–410 credits, about $0.40 at $50 per 50,000 credits, plus a small GPT-4o amount. One time; no new metered call is added to the product. **If it fails:** run the same container on a home machine behind a Cloudflare Tunnel, or revisit the host; the remaining work items are unchanged.
 
-**WI-6 — Backend CI/CD.** GitHub Actions job: after CI is green on `main`, `flyctl deploy` using a `FLY_API_TOKEN` secret; post-deploy smoke test against `/healthz` and one authenticated read. Rollback documented as redeploying the previous release. Existing CI jobs unchanged.
+**WI-6 — Backend CI/CD.** GitHub Actions job: after CI is green on `main`, `flyctl deploy` using a `FLY_API_TOKEN` secret; post-deploy smoke test against `/healthz` and one authenticated read. Rollback documented as redeploying the previous release. Existing CI jobs unchanged. **Deploys only when app code changes (D13).**
 
 **WI-6 as built (2026-11-03):** a separate workflow, `.github/workflows/deploy.yml`, triggered by CI completing (`workflow_run`) on a green push to `main`. It deploys with `flyctl deploy --remote-only --ha=false` and labels the image `git-<commit>`. Differences from the text above: (1) D13's check compares the new commit with the commit **running on Fly** (read from that label), not with the previous commit, so a failed deploy or a rollback is not missed. It deploys whenever that commit cannot be known. (2) `.dockerignore` joins D13's paths. (3) The smoke test also requires `401` from `/api/wines` without a token, proving production auth is on; the authenticated read uses a dedicated `smoke-test` device token (GitHub secret `SMOKE_DEVICE_TOKEN`, also a pair in `DEVICE_TOKENS`). (4) A manual run deploys `main`'s head once CI has passed on it; that is the first deploy. (5) Until the `FLY_API_TOKEN` secret exists (after WI-4), every run skips with a notice. Setup and rollback are in the runbook. A real deploy is not yet verified.
 
@@ -107,6 +117,8 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 2. ~~Confirm WI-5's pass rule~~ — confirmed 2026-11-01 (see WI-5).
 3. ~~Confirm idle-stop works with a volume attached and the draft sweep (WI-2).~~ Confirmed 2026-11-01 (WI-5): auto-stopped after about 8 idle minutes with the volume attached and drained cleanly; woke in about 3 s; the sweep runs at each start.
 4. Confirm internal TestFlight testers skip Beta App Review as expected (first build).
+5. **WI-4 backup method** (added 2026-11-03): Litestream, a copy at shutdown, or a scheduled waking job. See WI-4.
+6. **WI-9 promotion to the Household group** (added 2026-11-03): a git tag (`ios-v*`, the default) or one click in App Store Connect. To be confirmed.
 
 ## 10. Acceptance criteria
 

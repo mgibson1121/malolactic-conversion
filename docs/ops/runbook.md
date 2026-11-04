@@ -108,6 +108,12 @@ Then fix `main` (revert the bad PR) before merging anything else. While the live
 
 ## Backup and restore *(WI-4)*
 
+The backup method is still open (spec §9 item 5): "nightly" can't run on a machine that idle stop has stopped.
+
+## Data cutover *(Phase 13.1)*
+
+The one-time move of the laptop database to production: `docs/specs/2026-11-03-phase-13.1-data-cutover.md` §5. The steps land here when Phase 13.1 is built.
+
 ## Device tokens: issue, rotate, revoke *(WI-3)*
 
 One Fly secret, `DEVICE_TOKENS`, holds every device as comma-separated `name:token` pairs. Production issues three: the developer's iPhone, the household iPhone and the web app. A token identifies a device, not a person, and each one is revoked on its own.
@@ -128,7 +134,7 @@ Setting a secret restarts the machine. Give each person their own token privatel
 
 **Check which devices are configured.** The machine logs device names (never tokens) at start: `fly logs --app <app> | grep 'Device tokens'`.
 
-**Rate limits.** Each device may make 60 metered calls an hour and 200 a day: label scans, tasting-note saves, and price/review fetches. Beyond that the API answers `429` with `Retry-After`, and the log names the device (`Metered rate limit: <device> refused …`). Override the limits with `METERED_LIMIT_PER_HOUR` / `METERED_LIMIT_PER_DAY` in `fly.toml` `[env]`. The counts reset when the machine stops or restarts.
+**Rate limits.** Each device may make 100 metered calls an hour and 200 a day: label scans, tasting-note saves, and price/review fetches. Beyond that the API answers `429` with `Retry-After`, and the log names the device (`Metered rate limit: <device> refused …`). Override the limits with `METERED_LIMIT_PER_HOUR` / `METERED_LIMIT_PER_DAY` in `fly.toml` `[env]`. The counts reset when the machine stops or restarts.
 
 **Laptop web app against the cloud.** Put `WINE_API_TARGET=https://<app>.fly.dev` and `WINE_ACCESS_KEY=<the web token>` in `.env`, then run `npm run dev:web`. The Vite proxy adds the header, so the key is never in the bundle or the browser.
 
