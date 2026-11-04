@@ -71,7 +71,7 @@ If the gate fails, the spec's fallback is the same container on a home machine b
 
 ## Deploy and rollback *(WI-6)*
 
-The workflow `.github/workflows/deploy.yml` ("Deploy backend") deploys production, the app `malolactic-conversion` (`https://malolactic-conversion.fly.dev`). It runs after every CI run that passes on a push to `main`. It deploys only when app code changed since the release that is running now (spec D13): `backend/`, `shared/`, `web/`, `Dockerfile`, `.dockerignore`, `fly.toml`, `package.json`, `package-lock.json`. Docs-only and iOS-only merges skip, and the run's summary says why. Each deploy tags its image `git-<commit>`, which is how the next run knows which commit is live. Only one deploy runs at a time; a later one waits.
+The workflow `.github/workflows/deploy.yml` ("Deploy backend") deploys production, the app `malolactic-conversion` (`https://malolactic-conversion.fly.dev`). It runs after every CI run that passes on a push to `main`. It deploys only when app code changed since the release that is running now (spec D13): `backend/`, `shared/`, `web/`, `Dockerfile`, `.dockerignore`, `docker-entrypoint.sh`, `litestream.yml`, `fly.toml`, `package.json`, `package-lock.json`. Docs-only and iOS-only merges skip, and the run's summary says why. Each deploy tags its image `git-<commit>`, which is how the next run knows which commit is live. Only one deploy runs at a time; a later one waits.
 
 **One-time setup** (after WI-4 has created the production volume and secrets; until then every run skips with a notice, because production refuses to start without `DEVICE_TOKENS` or the four `LITESTREAM_*` backup secrets, see "Backup and restore"):
 
