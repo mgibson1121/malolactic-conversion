@@ -174,6 +174,14 @@ Setting a secret restarts the machine. Give each person their own token privatel
 
 **Rate limits.** Each device may make 100 metered calls an hour and 200 a day: label scans, tasting-note saves, and price/review fetches. Beyond that the API answers `429` with `Retry-After`, and the log names the device (`Metered rate limit: <device> refused …`). Override the limits with `METERED_LIMIT_PER_HOUR` / `METERED_LIMIT_PER_DAY` in `fly.toml` `[env]`. The counts reset when the machine stops or restarts.
 
+**Entering the key on an iPhone (WI-7).** A TestFlight (Release) build opens on the Server screen until it has a key: paste the device's token into **Access key** and tap Save. It is stored in that phone's Keychain only, and isn't restored to a new phone, so enter it again there. If the key is revoked or mistyped, the app returns to the same screen with "That key wasn't accepted." A Debug build against a local backend needs no key unless that backend has `DEVICE_TOKENS` set.
+
+**Forcing an app update (WI-8).** Set `MIN_IOS_BUILD` to the lowest `CFBundleVersion` the server should still serve, only once that build is in TestFlight for everyone:
+```bash
+fly secrets set --app malolactic-conversion MIN_IOS_BUILD=<build>
+```
+Older apps then show "Update available in TestFlight." The web app and scripts are unaffected (they send no build header). To remove the check, run `fly secrets unset --app malolactic-conversion MIN_IOS_BUILD`. Each TestFlight upload needs a higher build number (`CURRENT_PROJECT_VERSION`, currently 1) anyway, which WI-9 handles.
+
 **Laptop web app against the cloud.** Put `WINE_API_TARGET=https://<app>.fly.dev` and `WINE_ACCESS_KEY=<the web token>` in `.env`, then run `npm run dev:web`. The Vite proxy adds the header, so the key is never in the bundle or the browser.
 
 ## TestFlight: add a tester, promote a build, expired builds *(WI-9, WI-10)*
