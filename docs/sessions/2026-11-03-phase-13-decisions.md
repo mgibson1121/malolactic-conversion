@@ -23,3 +23,10 @@ Launching Chromium is cheap on the M3, so there was nothing to save. Fly's fewer
 
 - WI-4 backup method: Litestream (recommended), a copy at shutdown, or a scheduled waking job.
 - WI-9 promotion step: tag (default) or click. Your reply "Let's do my wife" wasn't clear enough to record.
+
+## WI-4 built, deployed and drilled (same day)
+
+- **Litestream to R2** (you chose it): PR #60. It merged `main` twice: once for #57/#59, once for the WI-6 session's concurrent push, which added `docker-entrypoint.sh` and `litestream.yml` to the deploy trigger.
+- **Production deployed** to `malolactic-conversion` on `performance-4x`. You set the four `LITESTREAM_*` secrets. The session added the API keys and a **temporary `wi4-drill` device token**, which your real three tokens replace (runbook, "Device tokens").
+- **Both restore drills passed:** beside the live database, and after destroying the machine and volume. The change written right before shutdown survived. Test data is removed, and production is empty, awaiting Phase 13.1.
+- Your first `fly secrets set` attempt failed on the `<…>` placeholders (zsh redirection); `fly secrets import` worked. The failed line, with the key, may sit in `~/.zsh_history`.
