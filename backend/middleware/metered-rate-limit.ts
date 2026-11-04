@@ -39,13 +39,14 @@ function positiveInt(value: string | undefined, fallback: number): number {
 /**
  * Defaults sized from the spec's usage (about 5 bottles a session, three
  * metered calls each: scan, price, reviews) with room for retries and a
- * long session. A leaked token at the daily cap spends at most about 6,000
- * Serper credits (200 × the ~29-credit worst case per fetch, about $6) plus
- * GPT-4o a day until it is revoked.
+ * long session. Hourly raised from 60 to 100 by the developer (2026-11-03).
+ * A leaked token at the daily cap spends at most about 6,000 Serper credits
+ * (200 × the ~29-credit worst case per fetch, about $6) plus GPT-4o a day
+ * until it is revoked.
  */
 export function meteredLimitsFromEnv(env = process.env): MeteredLimits {
   return {
-    perHour: positiveInt(env.METERED_LIMIT_PER_HOUR, 60),
+    perHour: positiveInt(env.METERED_LIMIT_PER_HOUR, 100),
     perDay: positiveInt(env.METERED_LIMIT_PER_DAY, 200),
   }
 }
