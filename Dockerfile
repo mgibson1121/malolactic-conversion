@@ -50,10 +50,23 @@ RUN npm ci --omit=dev -w backend && npm cache clean --force
 # Same flags as shared/utils/render-gate.ts CHROMIUM_ARGS.
 RUN node -e "require('puppeteer').launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] }).then(async b => { console.log('Puppeteer launched', await b.version()); await b.close() }).catch(e => { console.error(e); process.exit(1) })"
 
+# Litestream (WI-4): continuous backup of the database to Cloudflare R2.
+# Pinned release with its published SHA-256 (checksums.txt of v0.5.17).
+ARG LITESTREAM_VERSION=0.5.17
+ADD --checksum=sha256:cfb371176d164437ae869f8351cfde49bd1804ae71c61923f75c9cba9c9c006d \
+    https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-x86_64.tar.gz \
+    /tmp/litestream.tar.gz
+RUN tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream \
+ && rm /tmp/litestream.tar.gz \
+ && litestream version
+COPY litestream.yml /etc/litestream.yml
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
 COPY --from=build /app/backend/dist backend/dist
 COPY --from=build /app/web/dist web/dist
 
 ENV PORT=8080 \
     WEB_DIST_DIR=/app/web/dist
 EXPOSE 8080
-CMD ["node", "backend/dist/backend/server.js"]
+# Restore-if-needed, then the server under Litestream (docker-entrypoint.sh).
+CMD ["/app/docker-entrypoint.sh"]

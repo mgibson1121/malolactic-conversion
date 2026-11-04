@@ -1,0 +1,29 @@
+# Phase 13 WI-4 — continuous off-machine backup of the SQLite database to
+# Cloudflare R2 (developer's choice, 2026-11-03). Litestream v0.5 format.
+# Copied to /etc/litestream.yml in the image; see docker-entrypoint.sh and
+# docs/ops/runbook.md "Backup and restore".
+#
+# Every value that names the account or grants access comes from a Fly secret
+# (${VAR} is expanded by Litestream at start), so nothing account-specific is
+# in this public repo. The entrypoint refuses to start without them.
+#
+# Litestream uploads changes about once a second while the machine is awake
+# (sync-interval) and keeps 30 days of history (snapshot.retention), so any
+# moment in that window can be restored. With idle stop the machine runs only
+# minutes a day; Litestream never keeps it awake.
+
+snapshot:
+  interval: 1h
+  retention: 720h
+
+dbs:
+  - path: ${WINE_DB_PATH}
+    replica:
+      type: s3
+      bucket: ${LITESTREAM_BUCKET}
+      path: wine.db
+      endpoint: ${LITESTREAM_ENDPOINT}
+      region: auto
+      access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+      secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+      sync-interval: 1s
