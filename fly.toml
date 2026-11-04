@@ -1,16 +1,20 @@
 # Phase 13 WI-2 — Fly.io configuration (spec D2–D5). Operations: docs/ops/runbook.md.
 #
-# `app` is a placeholder until the app exists on Fly (names are global); WI-5's
-# staging run overrides it with `fly deploy -a <staging-app>`.
-# Secrets are never in this file: OPENAI_API_KEY, SERPER_API_KEY and
-# DEVICE_TOKENS (WI-3; production refuses to start without it) are set with
-# `fly secrets set`.
+# Production app, named by the developer and reserved 2026-11-03 (empty until
+# WI-4). Its address, https://malolactic-conversion.fly.dev, is built into the
+# iPhone Release build (WI-7). Staging runs override it: `fly deploy -a <app>`.
+# Secrets are never in this file: OPENAI_API_KEY, SERPER_API_KEY, DEVICE_TOKENS
+# (WI-3) and LITESTREAM_BUCKET / _ENDPOINT / _ACCESS_KEY_ID / _SECRET_ACCESS_KEY
+# (WI-4) are set with `fly secrets set`. Production refuses to start without
+# DEVICE_TOKENS or the Litestream four.
 
-app = "malolactic-wine"
+app = "malolactic-conversion"
 primary_region = "iad" # Ashburn, nearest NYC
 
-# server.ts drains in-flight requests on SIGTERM for up to SHUTDOWN_GRACE_MS
-# (55 s), then checkpoints the WAL; kill_timeout must stay above that.
+# On SIGTERM, Litestream (WI-4) passes the signal to server.ts, which drains
+# in-flight requests for up to SHUTDOWN_GRACE_MS (50 s) and closes the
+# database; Litestream then uploads the last changes to R2. kill_timeout must
+# leave room for both.
 kill_signal = "SIGTERM"
 kill_timeout = "60s"
 
@@ -26,7 +30,7 @@ kill_timeout = "60s"
   # WI-5 size test (2026-11-02): at 4 on performance-4x, the 14-wine run
   # peaked near 1.6 GB of 8 GB with no render failures. One per CPU.
   RENDER_CONCURRENCY = "4"
-  SHUTDOWN_GRACE_MS = "55000"
+  SHUTDOWN_GRACE_MS = "50000"
 
 # SQLite is single-writer (D4): exactly one machine, with this one volume.
 [mounts]

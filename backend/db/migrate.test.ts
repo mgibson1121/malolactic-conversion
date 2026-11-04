@@ -263,3 +263,56 @@ describe('migration 009 — manual_price (Phase 12.1)', () => {
     db.close()
   })
 })
+
+// ─── Phase 13 WI-4: a copy before any migration touches real data ───────────
+
+describe('runMigration — backup before migrating', () => {
+  const os = require('os') as typeof import('os')
+  let dir: string
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wine-migrate-'))
+  })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  const copiesIn = (d: string) => fs.readdirSync(d).filter(f => f.includes('.pre-migrate-'))
+  const quiet = () => jest.spyOn(console, 'log').mockImplementation(() => {})
+
+  it('copies a database that holds wines before a pending migration runs, data intact', () => {
+    const log = quiet()
+    const file = path.join(dir, 'wine.db')
+    const db = new Database(file)
+    db.pragma('journal_mode = WAL')
+    runMigration(db)
+    db.prepare('INSERT INTO wines (id, date_added, promoted_at) VALUES (?, ?, ?)').run('kept', '2026-11-03T00:00:00.000Z', '2026-11-03T00:00:00.000Z')
+    // As if a deploy brought a new migration: one recorded file is "unapplied".
+    db.prepare('DELETE FROM schema_migrations WHERE name = ?').run(MIGRATIONS[MIGRATIONS.length - 1])
+    runMigration(db)
+
+    const copies = copiesIn(dir)
+    expect(copies).toHaveLength(1)
+    const copy = new Database(path.join(dir, copies[0]), { readonly: true })
+    expect((copy.prepare("SELECT id FROM wines").all() as Array<{ id: string }>).map(r => r.id)).toEqual(['kept'])
+    copy.close()
+    db.close()
+    log.mockRestore()
+  })
+
+  it('makes no copy when nothing is pending, for an empty database, or in memory', () => {
+    const log = quiet()
+    const file = path.join(dir, 'wine.db')
+    const db = new Database(file)
+    runMigration(db) // fresh database: every migration pending, but no wines
+    db.prepare('INSERT INTO wines (id, date_added) VALUES (?, ?)').run('w', '2026-11-03T00:00:00.000Z')
+    runMigration(db) // wines now, but nothing pending
+    expect(copiesIn(dir)).toEqual([])
+    db.close()
+
+    const mem = new Database(':memory:')
+    runMigration(mem)
+    mem.prepare('INSERT INTO wines (id, date_added) VALUES (?, ?)').run('w', '2026-11-03T00:00:00.000Z')
+    mem.prepare('DELETE FROM schema_migrations WHERE name = ?').run(MIGRATIONS[0])
+    expect(() => runMigration(mem)).not.toThrow()
+    mem.close()
+    log.mockRestore()
+  })
+})

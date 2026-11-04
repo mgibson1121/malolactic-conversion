@@ -48,6 +48,9 @@ function runAlterMigrations(db: Database.Database): void {
     .filter(f => f.endsWith('.sql'))
     .sort()
 
+  const pending = files.filter(f => !applied.has(f))
+  if (pending.length > 0) backupBeforeMigrating(db, pending)
+
   for (const file of files) {
     if (applied.has(file)) continue
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8')
@@ -81,6 +84,27 @@ function runAlterMigrations(db: Database.Database): void {
       throw err
     }
   }
+}
+
+/**
+ * Copies the database beside itself before any migration touches it (Phase 13
+ * WI-4, spec R6: Phase 12 had a migration re-run bug that turned drafts into
+ * saved wines, and on the cloud machine nobody would see it happen). Runs
+ * only when a migration is about to apply to a database that already holds
+ * wines, so a fresh or in-memory database (tests) gets no copy.
+ *
+ * `VACUUM INTO` writes one consistent file that includes whatever is still in
+ * the WAL (spec R7). The copy stays on the same volume as
+ * `<db>.pre-migrate-<timestamp>` for an immediate rollback; the off-machine
+ * history is Litestream's (docs/ops/runbook.md, "Backup and restore").
+ */
+function backupBeforeMigrating(db: Database.Database, pending: string[]): void {
+  if (db.memory) return
+  const hasWines = db.prepare('SELECT EXISTS (SELECT 1 FROM wines) AS present').get() as { present: number }
+  if (!hasWines.present) return
+  const target = `${db.name}.pre-migrate-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`)
+  console.log(`Copied the database before migrating (${pending.join(', ')}): ${target}`)
 }
 
 /**

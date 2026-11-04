@@ -1,0 +1,223 @@
+name: Deploy backend
+
+# Phase 13 WI-6 (docs/specs/2026-10-10-phase-13-production-deployment.md §6,
+# D8, D13). After CI passes on a push to main, deploy the backend to Fly and
+# smoke-test it, but only when app code changed since the release that is
+# running now. Docs-only merges never deploy. Setup, watching a deploy and
+# rollback: docs/ops/runbook.md "Deploy and rollback".
+#
+# Until the FLY_API_TOKEN repository secret exists (it is added once WI-4 has
+# created the production volume and secrets), every run skips with a notice.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Manual deploy of main's head (the first deploy, or a redeploy). CI must
+  # already have passed on that commit; the app-code check is skipped.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # gh run list: has CI passed on this commit (manual runs)
+
+# One deploy at a time, and never cancel one halfway. A newer run that queues
+# behind it compares against whatever is running when it starts, so a run
+# GitHub drops from the queue loses nothing.
+concurrency:
+  group: fly-deploy-production
+  cancel-in-progress: false
+
+env:
+  FLY_APP: malolactic-conversion
+  APP_URL: https://malolactic-conversion.fly.dev
+
+jobs:
+  plan:
+    name: Decide whether to deploy
+    # workflow_run fires for every CI completion; only a green CI run for a
+    # push to main (not a pull request) may deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+      sha: ${{ steps.decide.outputs.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0 # the app-code check diffs against an older commit
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      - name: Decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HAS_SMOKE_TOKEN: ${{ secrets.SMOKE_DEVICE_TOKEN != '' }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+          decide() { # decide <true|false> <reason>
+            echo "deploy=$1" >> "$GITHUB_OUTPUT"
+            if [ "$1" = true ]; then
+              echo "::notice title=Deploying::$2"
+              echo "**Deploying \`${SHA:0:12}\`:** $2" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::notice title=Deploy skipped::$2"
+              echo "**Deploy skipped:** $2" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          }
+          fail() {
+            echo "::error title=Deploy not started::$1"
+            echo "**Deploy not started:** $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          # Safe to merge before production exists: no token, no deploy.
+          if [ -z "$FLY_API_TOKEN" ]; then
+            decide false "the FLY_API_TOKEN repository secret is not set, so nothing was deployed. Add it once WI-4 has created the production volume and secrets (docs/ops/runbook.md, Deploy and rollback)."
+          fi
+          # Half-configured is an error, not a skip: a deploy nobody can verify.
+          if [ "$HAS_SMOKE_TOKEN" != true ]; then
+            fail "FLY_API_TOKEN is set but SMOKE_DEVICE_TOKEN is not, so a deploy could not be smoke-tested. Add it (docs/ops/runbook.md, Deploy and rollback)."
+          fi
+
+          if [ "$EVENT" = workflow_dispatch ]; then
+            [ "$REF" = refs/heads/main ] || fail "manual deploys run from main only (this run is on $REF)."
+            green=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" \
+              --status success --limit 1 --json databaseId --jq length)
+            [ "$green" -ge 1 ] || fail "CI has not passed on ${SHA:0:12}."
+            decide true "manual run; the app-code check is skipped."
+          fi
+
+          # D13: deploy only when app code changed since the release that is
+          # running now. Each deploy below labels its image git-<sha>, so the
+          # newest complete release names the commit it was built from. That
+          # also covers rollbacks (fly deploy --image <older>) and runs that
+          # failed or were dropped from the queue.
+          if ! releases=$(flyctl releases --app "$FLY_APP" --json); then
+            decide true "could not read the app's releases, so deploying to be safe."
+          fi
+          image=$(jq -r '[.[] | select(.Status == "complete")] | max_by(.Version) | .ImageRef // ""' <<<"$releases")
+          deployed=$(grep -oE 'git-[0-9a-f]{40}' <<<"$image" | head -1 | cut -c5- || true)
+          echo "Running image: ${image:-none}"
+
+          if [ -z "$image" ]; then
+            decide true "no release is running yet (first deploy)."
+          fi
+          if [ -z "$deployed" ]; then
+            decide true "the running release (${image:-none}) was not deployed by this workflow, so its commit is unknown."
+          fi
+          if ! git cat-file -e "$deployed^{commit}" 2>/dev/null; then
+            decide true "the running commit ${deployed:0:12} is not in this repository's history."
+          fi
+          if git merge-base --is-ancestor "$SHA" "$deployed"; then
+            decide false "${SHA:0:12} is already part of the running release (${deployed:0:12})."
+          fi
+          if ! git merge-base --is-ancestor "$deployed" "$SHA"; then
+            decide true "the running commit ${deployed:0:12} is not an ancestor of ${SHA:0:12}."
+          fi
+
+          # Keep this list in step with what the Dockerfile copies.
+          changed=$(git diff --name-only "$deployed" "$SHA" -- \
+            backend shared web Dockerfile .dockerignore docker-entrypoint.sh litestream.yml \
+            fly.toml package.json package-lock.json)
+          if [ -z "$changed" ]; then
+            decide false "no app code changed since the running release (${deployed:0:12}); only docs, iOS or CI files."
+          fi
+          echo "App files changed since ${deployed:0:12}:"
+          echo "$changed"
+          decide true "$(wc -l <<<"$changed" | tr -d ' ') app file(s) changed since the running release (${deployed:0:12})."
+
+  deploy:
+    name: Deploy to Fly and smoke-test
+    needs: plan
+    if: needs.plan.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      # --ha=false: SQLite is single-writer, so exactly one machine (D4). It
+      # only matters when a deploy has to create the machine.
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          flyctl deploy --remote-only --app "$FLY_APP" --ha=false \
+            --image-label "git-$SHA" --wait-timeout 10m
+
+      # The repo is public, so this step never prints a response body.
+      - name: Smoke test
+        env:
+          SMOKE_DEVICE_TOKEN: ${{ secrets.SMOKE_DEVICE_TOKEN }}
+        run: |
+          set -euo pipefail
+          fail() {
+            echo "::error title=Smoke test failed::$1"
+            echo "**Smoke test failed:** $1 Roll back: docs/ops/runbook.md, Deploy and rollback." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          # 1. /healthz says ok. Retried: an idle-stopped machine takes a few
+          #    seconds to wake (WI-5: about 4 s).
+          healthy=false
+          for _ in $(seq 1 20); do
+            body=$(curl -s --max-time 10 "$APP_URL/healthz" || true)
+            if [ "$(jq -r '.status? // empty' <<<"$body" 2>/dev/null || true)" = ok ]; then
+              healthy=true
+              break
+            fi
+            sleep 3
+          done
+          [ "$healthy" = true ] || fail "/healthz did not return {\"status\":\"ok\"} within a minute."
+          echo "/healthz: ok"
+
+          # 2. Without a token, /api is refused (production auth is on).
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$APP_URL/api/wines" || true)
+          [ "$code" = 401 ] || fail "GET /api/wines without a token returned $code, expected 401."
+          echo "/api/wines without a token: 401"
+
+          # 3. One authenticated read returns the wine list.
+          out="$RUNNER_TEMP/wines.json"
+          code=$(curl -s -o "$out" -w '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer $SMOKE_DEVICE_TOKEN" "$APP_URL/api/wines" || true)
+          [ "$code" = 200 ] || fail "GET /api/wines with the smoke token returned $code, expected 200. Is SMOKE_DEVICE_TOKEN one of the pairs in DEVICE_TOKENS?"
+          jq -e 'type == "array"' "$out" > /dev/null || fail "GET /api/wines returned 200 but not a JSON list."
+          echo "/api/wines with the smoke token: 200, a JSON list"
+
+      - name: Summary
+        if: success()
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          version=$(flyctl releases --app "$FLY_APP" --json | jq -r 'max_by(.Version) | .Version' || echo '?')
+          {
+            echo "**Deployed** \`${SHA:0:12}\` to \`$FLY_APP\` as release v$version; smoke test passed."
+            echo
+            echo "Roll back: \`fly releases --app $FLY_APP --image\`, then \`fly deploy --app $FLY_APP --image <the previous image>\`."
+          } >> "$GITHUB_STEP_SUMMARY"

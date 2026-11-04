@@ -76,7 +76,7 @@ describe('optionsFromEnv', () => {
 
   it('reads metered limits, falling back to the defaults', () => {
     expect(meteredLimitsFromEnv({ METERED_LIMIT_PER_HOUR: '5', METERED_LIMIT_PER_DAY: '9' })).toEqual({ perHour: 5, perDay: 9 })
-    expect(meteredLimitsFromEnv({ METERED_LIMIT_PER_HOUR: 'nope' })).toEqual({ perHour: 60, perDay: 200 })
+    expect(meteredLimitsFromEnv({ METERED_LIMIT_PER_HOUR: 'nope' })).toEqual({ perHour: 100, perDay: 200 })
   })
 })
 
