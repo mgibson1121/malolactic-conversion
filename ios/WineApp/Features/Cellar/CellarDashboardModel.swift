@@ -78,8 +78,8 @@ final class CellarDashboardModel: WineRowActionTarget {
             }
             return true
         } catch {
-            capacityError = (error as? APIError)?.message(networkMessage: "Couldn't save. Is the backend running?")
-                ?? "Couldn't save. Is the backend running?"
+            capacityError = (error as? APIError)?.message(networkMessage: NetworkHint.couldnt("save"))
+                ?? NetworkHint.couldnt("save")
             return false
         }
     }

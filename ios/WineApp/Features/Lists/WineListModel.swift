@@ -109,5 +109,5 @@ final class WineListModel: WineRowActionTarget {
     }
 
     /// §4.2 — the list's network-level copy, lifted from the web's `App.tsx`.
-    static let networkMessage = "Couldn't load wines. Is the backend running?"
+    static let networkMessage = NetworkHint.couldnt("load wines")
 }

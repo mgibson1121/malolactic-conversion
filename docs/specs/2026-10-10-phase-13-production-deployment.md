@@ -1,6 +1,6 @@
 # Phase 13 — Production deployment and distribution
 
-> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open. **WI-5 passed 2026-11-01 on a dedicated CPU; production size `performance-4x` chosen 2026-11-02** (results in `docs/build-phases.md`); next WI-4.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open. **WI-5 passed 2026-11-01 on a dedicated CPU; production size `performance-4x` chosen 2026-11-02** (results in `docs/build-phases.md`). WI-4, WI-6, WI-7 and WI-8 built 2026-11-03; next WI-9.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
 > **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
@@ -106,6 +106,18 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 **WI-7 — iOS production configuration.** Separate Debug and Release configurations: Debug keeps the LAN/localhost server and the local-network exception; Release has the production HTTPS URL built in and no cleartext exceptions. Keychain storage and an "Access key" field in the existing server-settings screen for the device token (entered once; the wife receives hers privately, never through the repo). Remove the "type your server address" step from the Release flow.
 
 **WI-8 — Version compatibility.** The app sends its build number on every request. The backend answers `426` with the minimum supported build when the app is too old, and the app shows "Update available in TestFlight". Policy: API changes are additive until the minimum build is raised deliberately. Note: a change to `shared/types.ts` still regenerates the iOS fixtures in the same PR.
+
+**WI-7 and WI-8 as built (2026-11-03):**
+- **Configurations:** Debug uses `ios/WineApp/Info-Debug.plist`, the only plist with `NSAllowsLocalNetworking` and the local-network usage string. Release uses `Info.plist`, which has no App Transport Security exception, so iOS refuses any cleartext request.
+- **Server address:** `ServerMode` picks Debug's configurable LAN address (`localhost` in the Simulator) or Release's built-in `https://malolactic-conversion.fly.dev` (D10). Release never asks for an address, and its error screens have no "Change server" button.
+- **Access key:** `KeychainAccessKeyStore` keeps one generic-password item (`AfterFirstUnlockThisDeviceOnly`: not synced, not restored to another phone). It is entered in the Server screen's "Access key" field (a secure field) and sent as `Authorization: Bearer` on every request. Release won't show the tabs without a key.
+- **401:** a refused stored key is dropped and the screen says "That key wasn't accepted.", mirroring the web app's `AccessKeyGate`. A late 401 for a key since replaced is ignored.
+- **Version check (WI-8):** every request carries `X-App-Build` (`CFBundleVersion`). `backend/middleware/min-app-build.ts` answers `426 {error:'update_required', min_build}` when `MIN_IOS_BUILD` is set and the build is lower or not a whole number. It runs after the token check (an unknown caller gets 401, not 426) and before the metered limit (a refused request spends nothing). A request without the header (web, curl, the deploy smoke test) is never refused. Unset `MIN_IOS_BUILD` means no check, and a malformed value stops the server at start.
+- On a 426, the app shows "Update available in TestFlight." with Try again.
+- **Policy, unchanged:** API changes stay additive until the minimum is raised deliberately.
+- **Found on the simulator and fixed:** a plain `SecureField` made iOS offer "Save Password?" after the key was entered. That would put the key in iCloud Keychain and sync it to other devices, against "this device only", so the field is marked `.textContentType(.oneTimeCode)`.
+- **Release error copy (developer, 2026-11-03):** "Couldn't <do it>. Check your connection." replaces "… Is the backend running?" in the 16 iOS error lines (`NetworkHint`); Debug and web keep the Phase 12.5 wording.
+- **Built by a side session that was stopped before committing; reviewed and finished in the main session.**
 
 **WI-9 — Xcode Cloud and TestFlight.** Workflow A: on merge to `main` touching `ios/**`, archive and distribute to the Developer group automatically. Workflow B: on tag `ios-v*`, distribute to the Household group. A scheduled or monthly build to keep builds inside the 90-day window (confirm Xcode Cloud supports a scheduled start condition; otherwise a monthly tag). Existing GitHub Actions iOS job stays as the PR check. Fallback if Xcode Cloud proves awkward: GitHub Actions plus fastlane.
 

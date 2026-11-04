@@ -16,7 +16,11 @@ struct RootTabView: View {
 
     var body: some View {
         Group {
-            if session.api == nil {
+            if session.updateRequired {
+                UpdateRequiredView()
+            } else if session.needsSetup {
+                // First run (no address in Debug on a phone, no key in
+                // Release) or the server refused this device's key (401).
                 ServerSettingsView(isFirstRun: true)
             } else {
                 tabs
@@ -61,6 +65,30 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: $isAddingManually) {
             if let api = session.api { ScanFlowView(api: api, startManual: true) }
         }
+    }
+}
+
+/// WI-8: the server answered 426 — this build is older than its minimum.
+/// Every request would get the same answer, so the whole app waits here.
+private struct UpdateRequiredView: View {
+    @Environment(AppSession.self) private var session
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "arrow.down.app")
+                .font(.system(size: 28))
+                .foregroundStyle(Theme.textMuted)
+            Text(APIError.updateRequiredMessage)
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+            Button("Try again") { session.retryAfterUpdateRequired() }
+                .buttonStyle(.bordered)
+                .frame(minHeight: Theme.minHitTarget)
+        }
+        .padding(.horizontal, Theme.sideMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.bg)
     }
 }
 

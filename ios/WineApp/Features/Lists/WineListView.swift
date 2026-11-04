@@ -167,11 +167,11 @@ struct WineListContent: View {
         case .failed(let error):
             FullStateErrorView(
                 message: error.isNetwork
-                    ? "Can't reach the backend at \(session.hostDescription). Check you're on the same network."
+                    ? session.unreachableMessage
                     : error.message(networkMessage: WineListModel.networkMessage),
                 stillFailing: model.consecutiveFailures > 1,
-                secondaryTitle: error.isNetwork ? "Change server" : nil,
-                secondaryAction: error.isNetwork ? onChangeServer : nil,
+                secondaryTitle: error.isNetwork && session.canChangeServer ? "Change server" : nil,
+                secondaryAction: error.isNetwork && session.canChangeServer ? onChangeServer : nil,
                 retry: { Task { await reload() } }
             )
             .cardRow()

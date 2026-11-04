@@ -1,25 +1,52 @@
 import SwiftUI
 
-/// Where the backend lives. LAN-only in Phase 12 (spec D5): the phone must be
-/// on the same network as the Mac running `npm run dev:backend`.
+/// Where the backend lives and this device's access key.
+///
+/// Debug: the backend address (LAN-only, Phase 12 D5 — the phone must be on
+/// the same network as the Mac running `npm run dev:backend`) plus an optional
+/// key, needed only when that backend has `DEVICE_TOKENS` set. Release
+/// (Phase 13 WI-7): the address is built in, so only the key is asked for.
 struct ServerSettingsView: View {
     @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     let isFirstRun: Bool
-    @State private var draft = ""
+    @State private var addressDraft = ""
+    @State private var keyDraft = ""
 
     var body: some View {
         NavigationStack {
             Form {
+                if session.mode.isFixed {
+                    Section("Server") {
+                        Text(session.hostDescription)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        TextField("192.168.1.20:3000", text: $addressDraft)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } header: {
+                        Text("Backend address")
+                    } footer: {
+                        Text("The Mac running the backend on this Wi-Fi (port 3000).")
+                    }
+                }
                 Section {
-                    TextField("192.168.1.20:3000", text: $draft)
-                        .keyboardType(.URL)
+                    SecureField(session.accessKey == nil ? "Paste this phone's key" : "Saved", text: $keyDraft)
+                        // Not a password: without this, iOS offers "Save Password?",
+                        // which would put the key in iCloud Keychain and sync it to the
+                        // user's other devices. The key belongs to this phone only.
+                        .textContentType(.oneTimeCode)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .accessibilityLabel("Access key")
                 } header: {
-                    Text("Backend address")
+                    Text("Access key")
                 } footer: {
-                    Text("The Mac running the backend on this Wi-Fi (port 3000).")
+                    Text(keyFooter)
+                        .foregroundStyle(session.accessKeyPrompt == .rejected ? Theme.redPill : .secondary)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -32,14 +59,36 @@ struct ServerSettingsView: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        session.setBaseURL(draft)
-                        if !isFirstRun { dismiss() }
-                    }
-                    .disabled(AppSession.normalisedURL(draft) == nil)
+                    Button("Save", action: save)
+                        .disabled(!canSave)
                 }
             }
         }
-        .onAppear { draft = session.baseURLString }
+        .onAppear { addressDraft = session.baseURLString }
+    }
+
+    private var trimmedKey: String { keyDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var keyFooter: String {
+        switch session.accessKeyPrompt {
+        case .rejected: return "That key wasn't accepted."
+        case .missing: return "The server needs this phone's access key."
+        case nil: return session.mode.isFixed ? "Each phone has its own key." : "Only needed if the backend asks for one."
+        }
+    }
+
+    private var canSave: Bool {
+        if !session.mode.isFixed, AppSession.normalisedURL(addressDraft) == nil { return false }
+        // Release can't be used without a key; a 401 means the server wants a new one.
+        // (After a 401 the refused key has already been removed.)
+        let keyRequired = session.mode.isFixed || session.accessKeyPrompt != nil
+        return !(keyRequired && trimmedKey.isEmpty && session.accessKey == nil)
+    }
+
+    private func save() {
+        session.setBaseURL(addressDraft)
+        // A blank field keeps the saved key.
+        if !trimmedKey.isEmpty { session.setAccessKey(trimmedKey) }
+        if !isFirstRun { dismiss() }
     }
 }
