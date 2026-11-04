@@ -166,10 +166,10 @@ final class EditWineModel {
                 }
                 return saved
             } catch let apiError as APIError {
-                error = apiError.message(networkMessage: "Couldn't save. Is the backend running?")
+                error = apiError.message(networkMessage: NetworkHint.couldnt("save"))
                 return nil
             } catch {
-                self.error = "Couldn't save. Is the backend running?"
+                self.error = NetworkHint.couldnt("save")
                 return nil
             }
         }
@@ -205,7 +205,7 @@ final class EditWineModel {
         do {
             deletePreview = try await api.notesKeptOnDelete(id: original.id)
         } catch let apiError as APIError {
-            error = apiError.message(networkMessage: "Couldn't check this wine's notes. Is the backend running?")
+            error = apiError.message(networkMessage: NetworkHint.couldnt("check this wine's notes"))
         } catch {}
     }
 
@@ -219,7 +219,7 @@ final class EditWineModel {
             try await api.deleteWine(id: original.id)
             return true
         } catch let apiError as APIError {
-            error = apiError.message(networkMessage: "Couldn't delete. Is the backend running?")
+            error = apiError.message(networkMessage: NetworkHint.couldnt("delete"))
             return false
         } catch {
             return false

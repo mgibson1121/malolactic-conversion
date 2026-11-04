@@ -44,3 +44,19 @@ enum AppBuild {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
     }
 }
+
+/// The second sentence of a failed-request message (Phase 12.5 copy rule:
+/// "Couldn't <do it>. <hint>"). Debug talks to a backend the developer runs,
+/// so it asks whether that is running; Release talks to the cloud, where
+/// "the backend" means nothing to the person holding the phone (developer,
+/// 2026-11-03).
+enum NetworkHint {
+    static func hint(for mode: ServerMode = .current) -> String {
+        mode.isFixed ? "Check your connection." : "Is the backend running?"
+    }
+
+    /// `couldnt("save")` → "Couldn't save. Check your connection." in Release.
+    static func couldnt(_ action: String, mode: ServerMode = .current) -> String {
+        "Couldn't \(action). \(hint(for: mode))"
+    }
+}

@@ -320,7 +320,7 @@ final class ScanFlowModel {
             step = .review
             fetchPriceOnce(draft)
         } catch let error as APIError {
-            actionError = error.message(networkMessage: "Couldn't save. Is the backend running?")
+            actionError = error.message(networkMessage: NetworkHint.couldnt("save"))
         } catch {}
     }
 
@@ -447,7 +447,7 @@ final class ScanFlowModel {
             wine = try await api.promoteWine(id: draft.id, tags: tags)
             return true
         } catch let error as APIError {
-            actionError = error.message(networkMessage: "Couldn't save. Is the backend running?")
+            actionError = error.message(networkMessage: NetworkHint.couldnt("save"))
             return false
         } catch {
             return false
@@ -471,7 +471,7 @@ final class ScanFlowModel {
             wine = try await api.updateWine(id: current.id, tag.patch(!previous))
         } catch let error as APIError {
             wine?[keyPath: tag.wineKeyPath] = previous
-            actionError = error.message(networkMessage: "Couldn't update. Is the backend running?")
+            actionError = error.message(networkMessage: NetworkHint.couldnt("update"))
         } catch {
             wine?[keyPath: tag.wineKeyPath] = previous
         }

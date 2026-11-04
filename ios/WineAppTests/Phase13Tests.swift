@@ -270,3 +270,22 @@ final class KeychainAccessKeyStoreTests: XCTestCase {
         XCTAssertNil(store.read())
     }
 }
+
+/// Failed-request copy fits the build (developer, 2026-11-03): Release talks
+/// to the cloud, so it never mentions "the backend".
+final class NetworkHintTests: XCTestCase {
+    func testReleaseAsksAboutTheConnection() {
+        let release = ServerMode.fixed(ServerMode.productionURL)
+        XCTAssertEqual(NetworkHint.couldnt("save", mode: release), "Couldn't save. Check your connection.")
+        XCTAssertFalse(NetworkHint.hint(for: release).contains("backend"))
+    }
+
+    func testDebugStillAsksAboutTheBackend() {
+        let debug = ServerMode.configurable(fallback: "http://localhost:3000")
+        XCTAssertEqual(NetworkHint.couldnt("load wines", mode: debug), "Couldn't load wines. Is the backend running?")
+    }
+
+    func testTheTestHostIsDebugSoTheDefaultIsTheBackendHint() {
+        XCTAssertEqual(NetworkHint.couldnt("delete"), "Couldn't delete. Is the backend running?")
+    }
+}
