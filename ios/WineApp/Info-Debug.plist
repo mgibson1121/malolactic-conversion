@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Debug configuration only (INFOPLIST_FILE for Debug). Release uses Info.plist,
+	     which has no App Transport Security exception (Phase 13 WI-7).
+	     Merged with the build-setting-generated Info.plist (GENERATE_INFOPLIST_FILE).
+	     Only keys with no INFOPLIST_KEY_ equivalent live here
+	     (NSLocalNetworkUsageDescription is INFOPLIST_KEY_ in the Debug build settings). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Debug talks to a local dev backend over plain HTTP (Phase 12 D5):
+		     localhost in the Simulator, the Mac's LAN address on a phone. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- Keep in step with Info.plist. Domine (display) / Work Sans (body), the
+	     Phase 11.1 type pair; SIL OFL 1.1 — licences alongside in Fonts/. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Domine-Variable.ttf</string>
+		<string>WorkSans-Variable.ttf</string>
+	</array>
+</dict>
+</plist>

@@ -10,6 +10,14 @@ import Foundation
 /// spec §4.4, CLAUDE.md §15).
 struct APIClient: Sendable {
     let baseURL: URL
+    /// This device's key for the cloud backend (Phase 13 WI-7), sent as
+    /// `Authorization: Bearer`. Nil against a local backend that needs none.
+    var accessKey: String? = nil
+    /// Sent as `X-App-Build` on every request (WI-8).
+    var appBuild: String? = AppBuild.current
+    /// Told when the server refuses this device (401) or this build (426),
+    /// so the app can ask for the key or show "Update available".
+    var onRefused: (@Sendable (APIRefusal) -> Void)? = nil
     var session: URLSession = .shared
 
     // MARK: Wines
@@ -163,6 +171,10 @@ struct APIClient: Sendable {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.timeoutInterval = 30
+        if let accessKey, !accessKey.isEmpty {
+            req.setValue("Bearer \(accessKey)", forHTTPHeaderField: "Authorization")
+        }
+        if let appBuild { req.setValue(appBuild, forHTTPHeaderField: AppBuild.header) }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONEncoder().encode(body)
@@ -210,9 +222,31 @@ struct APIClient: Sendable {
             throw APIError.network("No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
+            if let refusal = APIRefusal(status: http.statusCode, body: data) { onRefused?(refusal) }
             throw APIError.server(status: http.statusCode,
                                   message: APIError.serverMessage(from: data, status: http.statusCode))
         }
         return data
+    }
+}
+
+/// The two answers that mean "this device can't use the API as it is" rather
+/// than "this request failed" (Phase 13).
+enum APIRefusal: Equatable, Sendable {
+    /// 401: no key, or a key the server doesn't accept (revoked or mistyped).
+    case unauthorized
+    /// 426: this build is older than the server's `MIN_IOS_BUILD` (WI-8).
+    case updateRequired(minBuild: Int?)
+
+    init?(status: Int, body: Data) {
+        switch status {
+        case 401:
+            self = .unauthorized
+        case 426:
+            let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+            self = .updateRequired(minBuild: object?["min_build"] as? Int)
+        default:
+            return nil
+        }
     }
 }

@@ -87,7 +87,9 @@ fly secrets set --app <app> DEVICE_TOKENS="matt-iphone:…,household-iphone:…,
 ```
 Setting a secret restarts the machine. Give each person their own token privately (WI-10). It goes into the iPhone app's Access key field (WI-7), or into the web app's prompt once per browser.
 
-**Revoke one device.** Set `DEVICE_TOKENS` again without that device's pair. The other devices keep working. The revoked device's next request gets `401`; the web app then drops its stored key and asks again.
+**Enter the key on an iPhone** (WI-7). Open the app. A TestFlight (Release) build has the server address built in, so the first screen asks only for the **Access key**: paste that phone's token, without the `name:` prefix, and tap **Save**. The app keeps it in the iPhone's Keychain, where it stays on that phone (a backup restored to a new phone doesn't carry it), and doesn't ask again. If the key is later revoked or was mistyped, the next request gets `401`, the app deletes the stored key and shows the same screen with "That key wasn't accepted." A Debug build from Xcode shows the same field under the backend address. It's optional there, needed only when the local backend has `DEVICE_TOKENS` set.
+
+**Revoke one device.** Set `DEVICE_TOKENS` again without that device's pair. The other devices keep working. The revoked device's next request gets `401`; the web app and the iPhone app then drop their stored key and ask again.
 
 **Rotate one device.** Replace that device's token in the list, set the secret, and enter the new token on that device.
 
@@ -96,5 +98,11 @@ Setting a secret restarts the machine. Give each person their own token privatel
 **Rate limits.** Each device may make 60 metered calls an hour and 200 a day: label scans, tasting-note saves, and price/review fetches. Beyond that the API answers `429` with `Retry-After`, and the log names the device (`Metered rate limit: <device> refused …`). Override the limits with `METERED_LIMIT_PER_HOUR` / `METERED_LIMIT_PER_DAY` in `fly.toml` `[env]`. The counts reset when the machine stops or restarts.
 
 **Laptop web app against the cloud.** Put `WINE_API_TARGET=https://<app>.fly.dev` and `WINE_ACCESS_KEY=<the web token>` in `.env`, then run `npm run dev:web`. The Vite proxy adds the header, so the key is never in the bundle or the browser.
+
+**Minimum iPhone build** (WI-8). The app sends its build number (`CFBundleVersion`) as `X-App-Build`. To stop serving older builds, for example after a change to the API that isn't additive, first make sure the new build is installed on both phones, then:
+```bash
+fly secrets set --app <app> MIN_IOS_BUILD=<lowest build still allowed>
+```
+An older build then gets `426` on every request and shows "Update available in TestFlight." Unset it (`fly secrets unset --app <app> MIN_IOS_BUILD`) to turn the check off. The web app sends no build number and is never refused. A value that isn't a positive whole number stops the server from starting.
 
 ## TestFlight: add a tester, promote a build, expired builds *(WI-9, WI-10)*

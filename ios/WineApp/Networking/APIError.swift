@@ -12,6 +12,9 @@ enum APIError: Error, Hashable {
     /// a contract drift, not a user-facing condition.
     case decoding(String)
 
+    /// WI-8: the server answered 426 because this build is too old.
+    static let updateRequiredMessage = "Update available in TestFlight."
+
     var isNetwork: Bool {
         if case .network = self { return true }
         return false
@@ -32,6 +35,9 @@ enum APIError: Error, Hashable {
     /// `error` (a zod validation tree) falls back to the body's `message`,
     /// then to the status line — the spec forbids showing a JSON blob.
     static func serverMessage(from data: Data, status: Int) -> String {
+        // Phase 13: the two refusals carry codes, not sentences.
+        if status == 401 { return "That access key wasn't accepted." }
+        if status == 426 { return updateRequiredMessage }
         guard
             let object = try? JSONSerialization.jsonObject(with: data),
             let body = object as? [String: Any]
