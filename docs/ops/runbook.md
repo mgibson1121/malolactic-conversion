@@ -73,7 +73,45 @@ If the gate fails, the spec's fallback is the same container on a home machine b
 
 ## Backup and restore *(WI-4)*
 
-The backup method is still open (spec §9 item 5): "nightly" can't run on a machine that idle stop has stopped.
+**What runs.** Three layers:
+1. **Litestream** (`litestream.yml`, started by `docker-entrypoint.sh`) streams every database change to the Cloudflare R2 bucket about once a second while the machine is awake. It takes a snapshot hourly and keeps 30 days of history, so any moment in the last 30 days can be restored.
+2. **A copy before every schema migration**, made by the server itself, on the volume as `/data/wine.db.pre-migrate-<timestamp>`.
+3. **Fly's automatic daily volume snapshots**, the last resort (`fly volumes snapshots list <volume-id>`).
+
+Production refuses to start without the four Litestream secrets. A throwaway staging app sets `LITESTREAM_DISABLED=true` instead.
+
+**One-time setup (developer, in your own Terminal so the key never passes through chat).** From Cloudflare you need the bucket name, the account's S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`, shown on the bucket's settings page) and the R2 API token's access key ID and secret:
+```bash
+fly secrets set --app malolactic-conversion --stage LITESTREAM_BUCKET=<bucket> LITESTREAM_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com LITESTREAM_ACCESS_KEY_ID=<access-key-id> LITESTREAM_SECRET_ACCESS_KEY=<secret>
+```
+`--stage` stores them for the next deploy without restarting anything.
+
+**Is it working?**
+- `fly logs --app malolactic-conversion | grep -i litestream` shows replication starting at each wake-up and no errors.
+- `fly ssh console --app malolactic-conversion -C "litestream databases"` lists `/data/wine.db` with its replica.
+- In the R2 dashboard, the bucket has a `wine.db/` folder whose files update after a change.
+
+**Restore drill (done once at WI-4, repeat after any change to the backup setup).**
+1. Make a change through the app and wait a few seconds.
+2. Restore the latest backup **beside** the live database, never over it:
+   ```bash
+   fly ssh console --app malolactic-conversion -C "litestream restore -o /tmp/drill.db /data/wine.db"
+   ```
+3. Compare counts between the restored copy and the live database:
+   ```bash
+   fly ssh console --app malolactic-conversion -C "node -e \"const D=require('better-sqlite3');for(const f of ['/data/wine.db','/tmp/drill.db']){const d=new D(f,{readonly:true});console.log(f,d.prepare('select (select count(*) from wines) w,(select count(*) from tasting_notes) n').get())}\""
+   ```
+4. They must match.
+
+**Lost volume (machine or disk gone).** Create a fresh volume and deploy. On the empty volume, `docker-entrypoint.sh` restores the latest backup before the server opens the database. On the first start of a brand-new app there is no backup yet, and it starts empty.
+
+**Roll back to an earlier moment** (a bad migration or a mistaken bulk change). Restore that moment beside the live database:
+```bash
+fly ssh console --app malolactic-conversion -C "litestream restore -timestamp 2026-11-03T12:00:00Z -o /tmp/pit.db /data/wine.db"
+```
+Check it as in the drill. Putting it in place of the live database uses Phase 13.1's import-on-start, which runs before Litestream so the backup history follows the swap. Until 13.1 is built, roll back from the newest `/data/wine.db.pre-migrate-*` copy the same way.
+
+**Housekeeping.** Pre-migration copies are only made when a deploy brings a new migration, so they're rare. Delete old ones once a deploy is known good: `fly ssh console -C "ls -l /data"`, then `rm` the ones you don't need.
 
 ## Data cutover *(Phase 13.1)*
 

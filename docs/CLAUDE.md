@@ -31,6 +31,8 @@ Monorepo. All code lives in a single repository. Capabilities are implemented as
 ├── .github/
 │   └── workflows/           # GitHub Actions CI workflow files
 ├── Dockerfile        # Phase 13 — the one production image (API + built web app)
+├── docker-entrypoint.sh  # Phase 13 WI-4 — restore-if-needed, then the server under Litestream
+├── litestream.yml    # Phase 13 WI-4 — continuous backup of the database to Cloudflare R2
 ├── fly.toml          # Phase 13 — Fly.io app: one machine, volume at /data, idle auto-stop
 ├── .dockerignore     # Keeps .env and every *.db out of the image
 ├── .env.example      # Template — never commit .env
@@ -171,6 +173,13 @@ Fly.io container, TestFlight distribution (spec: `docs/specs/2026-10-10-phase-13
 - **`web`'s `build` script is `tsc --noEmit && vite build`.** Plain `tsc` there (no `outDir`) wrote a `.js` beside every `.ts` in `web/src` and `shared/`, and ts-jest then picked up `shared/validation.js` and failed.
 - **Production runs on 4 dedicated CPUs (`performance-4x`, 8 GB; developer's choice 2026-11-02), never a shared CPU** (WI-5, 2026-11-01/02). Against the laptop's 181 s for the 14-wine check: 1 CPU took 349 s, 2 CPUs 250 s, 4 CPUs 221 s with no render failures. Returns diminish past 4, because the rest is network wait. On `shared-cpu-1x`, Fly's CPU quota (6.25% of a core once a burst balance of at most ~500 s is spent) throttled Chromium. 30 renders timed out, and the gate failed: a trusted-critic score on 2 of 14 wines versus 7 of 14 on a dedicated CPU, which matched a same-day laptop run wine for wine. A single scan's renders can outlast the burst too. Do not downsize to a shared CPU without re-running WI-5.
 - **Never put a database in the image.** `.dockerignore` excludes every `*.db*`; the collection reaches the cloud only through Phase 13.1's one-time `sqlite3 .backup` upload (spec R7; moved out of WI-4 on 2026-11-03).
+- **Backups are Litestream to Cloudflare R2 (WI-4, D15).** The container's start is `docker-entrypoint.sh`:
+  - it restores the latest backup onto an empty volume, then runs the server as Litestream's child (`litestream replicate -exec`);
+  - production refuses to start without `LITESTREAM_BUCKET`/`_ENDPOINT`/`_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY`, the same fail-closed rule as `DEVICE_TOKENS`, and only a staging app sets `LITESTREAM_DISABLED=true`;
+  - **never replace or move `/data/wine.db` while Litestream runs**: an import or rollback happens in the entrypoint before Litestream starts (Phase 13.1).
+  - `db/migrate.ts` copies a database that holds wines (`VACUUM INTO`) to `<db>.pre-migrate-<timestamp>` before any pending migration; don't remove that step.
+  - On shutdown, Litestream signals the server and uploads the last changes after it exits. That is why `SHUTDOWN_GRACE_MS` is 50 s inside the 60 s `kill_timeout`; keep the gap if either changes.
+  - The CI smoke start runs `node` directly, without Litestream.
 - **The production app is `malolactic-conversion`** (`https://malolactic-conversion.fly.dev`; reserved 2026-11-03, D10). The iOS Release build hard-codes this address (WI-7), so renaming the app means shipping a new app build.
 
 ### Phase 13.1 — Data cutover (planned)
