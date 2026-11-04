@@ -10,6 +10,7 @@ import debugRouter from './routes/debug'
 import settingsRouter from './routes/settings'
 import { parseDeviceTokens, requireDeviceToken, type DeviceToken } from './middleware/device-auth'
 import { METERED_ROUTES, meteredLimitsFromEnv, meteredRateLimit, type MeteredLimits } from './middleware/metered-rate-limit'
+import { minIosBuildFromEnv, requireMinAppBuild } from './middleware/min-app-build'
 
 // Phase 13 WI-1 — the Express app, split from server.ts so it can be built
 // and exercised without listening, opening the database or starting the
@@ -31,6 +32,11 @@ export interface AppOptions {
    */
   deviceTokens?: DeviceToken[]
   meteredLimits?: MeteredLimits
+  /**
+   * Lowest iPhone app build (`X-App-Build`) still served (WI-8); older builds
+   * get 426. Null or unset = no check.
+   */
+  minIosBuild?: number | null
 }
 
 /** `CORS_ORIGINS` is a comma-separated list; unset keeps the Vite dev origin. */
@@ -51,6 +57,7 @@ export function optionsFromEnv(env = process.env): AppOptions {
     webDistDir: env.WEB_DIST_DIR || null,
     deviceTokens,
     meteredLimits: meteredLimitsFromEnv(env),
+    minIosBuild: minIosBuildFromEnv(env.MIN_IOS_BUILD),
   }
 }
 
@@ -73,8 +80,15 @@ export function createApp(opts: AppOptions = optionsFromEnv()): express.Express 
   // bundle served below stays public: it holds no secret, and a browser has
   // to load it to ask for the access key.
   const tokens = opts.deviceTokens ?? []
+  if (tokens.length > 0) app.use('/api', requireDeviceToken(tokens))
+
+  // WI-8 — an iPhone build older than MIN_IOS_BUILD gets 426 and the app
+  // shows "Update available in TestFlight". After the token check, so an
+  // unknown caller learns nothing; before the metered limit, so a refused
+  // request spends none of the device's budget.
+  if (opts.minIosBuild) app.use('/api', requireMinAppBuild(opts.minIosBuild))
+
   if (tokens.length > 0) {
-    app.use('/api', requireDeviceToken(tokens))
     const limit = meteredRateLimit(opts.meteredLimits ?? meteredLimitsFromEnv())
     for (const route of METERED_ROUTES) app[route.method](route.path, limit)
   }
