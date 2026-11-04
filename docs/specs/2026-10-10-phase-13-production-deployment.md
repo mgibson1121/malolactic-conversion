@@ -116,6 +116,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 - On a 426, the app shows "Update available in TestFlight." with Try again.
 - **Policy, unchanged:** API changes stay additive until the minimum is raised deliberately.
 - **Found on the simulator and fixed:** a plain `SecureField` made iOS offer "Save Password?" after the key was entered. That would put the key in iCloud Keychain and sync it to other devices, against "this device only", so the field is marked `.textContentType(.oneTimeCode)`.
+- **Release error copy (developer, 2026-11-03):** "Couldn't <do it>. Check your connection." replaces "… Is the backend running?" in the 16 iOS error lines (`NetworkHint`); Debug and web keep the Phase 12.5 wording.
 - **Built by a side session that was stopped before committing; reviewed and finished in the main session.**
 
 **WI-9 — Xcode Cloud and TestFlight.** Workflow A: on merge to `main` touching `ios/**`, archive and distribute to the Developer group automatically. Workflow B: on tag `ios-v*`, distribute to the Household group. A scheduled or monthly build to keep builds inside the 90-day window (confirm Xcode Cloud supports a scheduled start condition; otherwise a monthly tag). Existing GitHub Actions iOS job stays as the PR check. Fallback if Xcode Cloud proves awkward: GitHub Actions plus fastlane.
