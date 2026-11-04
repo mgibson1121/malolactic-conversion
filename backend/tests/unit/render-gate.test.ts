@@ -55,3 +55,88 @@ it('is uncapped when RENDER_CONCURRENCY is unset (local development)', async () 
   gates.forEach((g) => g.resolve())
   await Promise.all(done)
 })
+
+// ── The shared browser (2026-11-03) ───────────────────────────────────────────
+import { withSharedBrowser, closeSharedBrowser } from '@shared/utils/render-gate'
+
+class FakeBrowser {
+  connected = true
+  closed = 0
+  private onDisconnect: (() => void) | null = null
+  once(_event: 'disconnected', handler: () => void) {
+    this.onDisconnect = handler
+    return this
+  }
+  async close() {
+    this.closed++
+    this.crash()
+  }
+  crash() {
+    this.connected = false
+    this.onDisconnect?.()
+  }
+}
+
+describe('withSharedBrowser', () => {
+  let launched: FakeBrowser[]
+  const launch = jest.fn(async () => {
+    const b = new FakeBrowser()
+    launched.push(b)
+    return b
+  })
+
+  beforeEach(() => {
+    launched = []
+    launch.mockClear()
+  })
+  afterEach(async () => {
+    await closeSharedBrowser()
+    delete process.env.BROWSER_IDLE_MS
+    jest.useRealTimers()
+  })
+
+  it('launches once and reuses the browser across renders, including concurrent ones', async () => {
+    const seen = await Promise.all([1, 2, 3].map(() => withSharedBrowser(launch, async (b) => b)))
+    seen.push(await withSharedBrowser(launch, async (b) => b))
+    expect(launch).toHaveBeenCalledTimes(1)
+    expect(new Set(seen).size).toBe(1)
+  })
+
+  it('relaunches after the browser crashes', async () => {
+    const first = await withSharedBrowser(launch, async (b) => b)
+    first.crash()
+    const second = await withSharedBrowser(launch, async (b) => b)
+    expect(second).not.toBe(first)
+    expect(launch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not keep a failed launch: the next render tries again', async () => {
+    launch.mockRejectedValueOnce(new Error('no chromium'))
+    await expect(withSharedBrowser(launch, async () => 'x')).rejects.toThrow('no chromium')
+    expect(await withSharedBrowser(launch, async () => 'ok')).toBe('ok')
+    expect(launch).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes the browser after BROWSER_IDLE_MS with nothing to render, not while rendering', async () => {
+    jest.useFakeTimers()
+    process.env.BROWSER_IDLE_MS = '1000'
+    await withSharedBrowser(launch, async () => null)
+    jest.advanceTimersByTime(500)
+    // A render inside the idle window cancels the close and reuses the browser.
+    await withSharedBrowser(launch, async () => null)
+    jest.advanceTimersByTime(999)
+    expect(launched[0].closed).toBe(0)
+    jest.advanceTimersByTime(1)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(launched[0].closed).toBe(1)
+    expect(launch).toHaveBeenCalledTimes(1)
+  })
+
+  it('closeSharedBrowser closes once and is safe to repeat', async () => {
+    await withSharedBrowser(launch, async () => null)
+    await closeSharedBrowser()
+    await closeSharedBrowser()
+    expect(launched[0].closed).toBe(1)
+  })
+})

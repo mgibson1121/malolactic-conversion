@@ -6,7 +6,7 @@ import path from 'path'
 config({ path: [path.resolve(__dirname, '../.env'), path.resolve(__dirname, '../../../.env')] })
 import { createApp, optionsFromEnv } from './app'
 import { getStorage, closeStorage } from './modules/storage'
-import { activeRenders } from '@shared/utils/render-gate'
+import { activeRenders, closeSharedBrowser } from '@shared/utils/render-gate'
 
 const options = optionsFromEnv()
 const app = createApp(options)
@@ -57,7 +57,10 @@ const server = app.listen(PORT, HOST, () => {
 const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS ?? 55_000)
 let shuttingDown = false
 
-function finish(code: number): never {
+// The shared Chromium gets at most 3 s to close; a hung browser must not
+// hold the machine past kill_timeout. The database is closed either way.
+async function finish(code: number): Promise<never> {
+  await Promise.race([closeSharedBrowser(), new Promise((resolve) => setTimeout(resolve, 3_000))])
   try {
     closeStorage()
   } catch (err) {
@@ -70,16 +73,17 @@ function finish(code: number): never {
 function shutdown(signal: string) {
   if (shuttingDown) {
     console.log(`${signal} again: closing now`)
-    finish(1)
+    void finish(1)
+    return
   }
   shuttingDown = true
   console.log(`${signal}: no new connections; waiting for in-flight requests (${activeRenders()} render(s) running)`)
   if (sweepTimer) clearInterval(sweepTimer)
   setTimeout(() => {
     console.error(`Shutdown: requests still open after ${SHUTDOWN_GRACE_MS}ms; closing anyway`)
-    finish(1)
+    void finish(1)
   }, SHUTDOWN_GRACE_MS).unref()
-  server.close(() => finish(0))
+  server.close(() => void finish(0))
   server.closeIdleConnections()
 }
 
