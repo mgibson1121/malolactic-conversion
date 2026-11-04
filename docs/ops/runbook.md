@@ -123,7 +123,8 @@ fly secrets set --app malolactic-conversion --stage LITESTREAM_BUCKET=<bucket> L
 
 **Is it working?**
 - `fly logs --app malolactic-conversion | grep -i litestream` shows replication starting at each wake-up and no errors.
-- `fly ssh console --app malolactic-conversion -C "litestream databases"` lists `/data/wine.db` with its replica.
+- `fly ssh console --app malolactic-conversion -C "litestream databases"` lists `/data/wine.db` with replica `s3`.
+- At start, "no matching backups found" appears only on the very first boot of an empty app. A restore onto an empty volume prints nothing, so the absence of that line on a fresh volume means it restored.
 - In the R2 dashboard, the bucket has a `wine.db/` folder whose files update after a change.
 
 **Restore drill (done once at WI-4, repeat after any change to the backup setup).**
@@ -136,7 +137,7 @@ fly secrets set --app malolactic-conversion --stage LITESTREAM_BUCKET=<bucket> L
    ```bash
    fly ssh console --app malolactic-conversion -C "node -e \"const D=require('better-sqlite3');for(const f of ['/data/wine.db','/tmp/drill.db']){const d=new D(f,{readonly:true});console.log(f,d.prepare('select (select count(*) from wines) w,(select count(*) from tasting_notes) n').get())}\""
    ```
-4. They must match.
+4. They must match. (Last run 2026-11-03: matched, and the lost-volume restore below also passed. See build-phases, Phase 13 WI-4.)
 
 **Lost volume (machine or disk gone).** Create a fresh volume and deploy. On the empty volume, `docker-entrypoint.sh` restores the latest backup before the server opens the database. On the first start of a brand-new app there is no backup yet, and it starts empty.
 
