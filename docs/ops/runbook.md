@@ -71,6 +71,41 @@ If the gate fails, the spec's fallback is the same container on a home machine b
 
 ## Deploy and rollback *(WI-6)*
 
+The workflow `.github/workflows/deploy.yml` ("Deploy backend") deploys production, the app `malolactic-conversion` (`https://malolactic-conversion.fly.dev`). It runs after every CI run that passes on a push to `main`. It deploys only when app code changed since the release that is running now (spec D13): `backend/`, `shared/`, `web/`, `Dockerfile`, `.dockerignore`, `fly.toml`, `package.json`, `package-lock.json`. Docs-only and iOS-only merges skip, and the run's summary says why. Each deploy tags its image `git-<commit>`, which is how the next run knows which commit is live. Only one deploy runs at a time; a later one waits.
+
+**One-time setup** (after WI-4 has created the production volume and secrets; until then every run skips with a notice, because production refuses to start without `DEVICE_TOKENS`):
+
+1. A deploy token that can manage only this app. Fly's default lifetime is 20 years; a shorter `--expiry` means a reminder to renew it. Pipe it straight into the GitHub secret, so it never lands on the screen or in a file:
+   ```bash
+   fly tokens create deploy --app malolactic-conversion --name github-actions-deploy \
+     | gh secret set FLY_API_TOKEN --repo mgibson1121/malolactic-conversion
+   ```
+   The value is the whole output, starting `FlyV1 `.
+2. A smoke-test device token: a fourth pair, `smoke-test`, alongside the three devices in "Device tokens" below. `fly secrets set` replaces the whole list, so include the existing pairs:
+   ```bash
+   SMOKE=$(openssl rand -hex 32)
+   fly secrets set --app malolactic-conversion DEVICE_TOKENS="matt-iphone:…,household-iphone:…,web:…,smoke-test:$SMOKE"
+   printf %s "$SMOKE" | gh secret set SMOKE_DEVICE_TOKEN --repo mgibson1121/malolactic-conversion
+   unset SMOKE
+   ```
+   It only reads the wine list, and the workflow never prints the response, because the repository and its logs are public. Removing the pair from `DEVICE_TOKENS` makes the next deploy's smoke test fail.
+3. First deploy: GitHub → Actions → **Deploy backend** → **Run workflow** on `main` (or `gh workflow run deploy.yml --ref main`). A manual run deploys `main`'s head if CI has passed on it, and skips the app-code check. `--ha=false` keeps it to one machine (SQLite is single-writer, D4).
+
+If `FLY_API_TOKEN` is set but `SMOKE_DEVICE_TOKEN` is not, the run fails before deploying, since nothing could check the result.
+
+**See a deploy.**
+- GitHub: Actions → **Deploy backend**. Each run's summary says deployed, skipped or failed, and why. A failed run is red, and GitHub emails the person who pushed. From the terminal: `gh run list --workflow deploy.yml`, and `gh run watch` for one in progress.
+- Fly: `fly releases --app malolactic-conversion --image` lists releases with their images (`git-<commit>` names the commit); `fly status` and `fly logs` show the machine.
+
+**Smoke test** (after every deploy): `/healthz` answers `{"status":"ok"}` within a minute (a stopped machine takes a few seconds to wake), `GET /api/wines` without a token is `401` (auth is on), and with `SMOKE_DEVICE_TOKEN` it is `200` with a JSON list. If any check fails, the run fails. The new release stays live, so decide whether to roll back.
+
+**Roll back** by redeploying the previous release's image. Nothing is rebuilt. Run from the repo root so `fly.toml` applies:
+```bash
+fly releases --app malolactic-conversion --image
+fly deploy --app malolactic-conversion --ha=false --image registry.fly.io/malolactic-conversion:git-<previous commit>
+```
+Then fix `main` (revert the bad PR) before merging anything else. While the live release is older than `main`, the next merge to `main` redeploys `main`'s head, docs-only merges included, because the app code differs from what is live. To hold deploys meanwhile: `gh workflow disable deploy.yml` (and `enable` afterwards). A rollback restores code, not data: a migration the bad release ran stays applied (spec R6; WI-4's backups cover that).
+
 ## Backup and restore *(WI-4)*
 
 **What runs.** Three layers:
