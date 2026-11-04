@@ -135,7 +135,8 @@ jobs:
 
           # Keep this list in step with what the Dockerfile copies.
           changed=$(git diff --name-only "$deployed" "$SHA" -- \
-            backend shared web Dockerfile .dockerignore fly.toml package.json package-lock.json)
+            backend shared web Dockerfile .dockerignore docker-entrypoint.sh litestream.yml \
+            fly.toml package.json package-lock.json)
           if [ -z "$changed" ]; then
             decide false "no app code changed since the running release (${deployed:0:12}); only docs, iOS or CI files."
           fi
