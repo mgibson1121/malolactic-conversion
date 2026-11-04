@@ -94,7 +94,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 - `docker-entrypoint.sh` restores the latest backup onto an empty volume (`-if-db-not-exists -if-replica-exists`), then runs the server under `litestream replicate -exec`. On SIGTERM, Litestream signals the server, waits for the drain, then uploads the last changes. `SHUTDOWN_GRACE_MS` was lowered from 55 s to 50 s to leave it room inside the 60 s `kill_timeout`.
 - Production refuses to start without the four `LITESTREAM_*` secrets; a staging app opts out with `LITESTREAM_DISABLED=true`.
 - `db/migrate.ts` copies the database (`VACUUM INTO`, WAL included) to `<db>.pre-migrate-<timestamp>` before any pending migration runs on a database that holds wines.
-- Restore drill: procedure in the runbook, run on the production app before the collection is uploaded (results in `docs/build-phases.md`).
+- Restore drill: procedure in the runbook, run on the production app before the collection is uploaded. **Performed 2026-11-03: both drills passed**, restoring beside the live database and onto a destroyed-and-recreated volume (results in `docs/build-phases.md`).
 - Known limit: if the server exits with an error (the drain timed out), Litestream skips its final upload, so up to about a second of changes could be lost.
 
 **WI-5 — Deployment test (go/no-go gate).** Deploy the container to a staging Fly app. Replay the 14-wine ground-truth set from the cloud and compare against the stored laptop baseline (`validate-reviews-results.json`). Record per-retailer yield, peak memory per scan, and cold-start time. **Pass rule (confirmed by the developer 2026-11-01; no numeric cold-start threshold is fixed — the developer judges it from the measured figure):** the cloud finds a trusted-critic score on at least as many of the 14 wines as the baseline minus one; peak memory fits the chosen size; cold start is acceptable to the developer. **Metered-call arithmetic (CLAUDE.md §15):** about 20–29 Serper credits per wine at first enrichment (Phase 9.2) × 14 wines is roughly 280–410 credits, about $0.40 at $50 per 50,000 credits, plus a small GPT-4o amount. One time; no new metered call is added to the product. **If it fails:** run the same container on a home machine behind a Cloudflare Tunnel, or revisit the host; the remaining work items are unchanged.
@@ -136,7 +136,7 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 2. A merge to `main` deploys the backend with no manual step; a bad deploy is reversed by redeploying the previous release.
 3. A merge touching `ios/**` reaches the developer's phone through TestFlight; a tagged build reaches the wife's phone.
 4. A request without a valid token is rejected; revoking one device's token leaves the other working.
-5. A restore from backup has been performed once and the data matched.
+5. A restore from backup has been performed once and the data matched. **Met 2026-11-03 (WI-4 drills).**
 6. The WI-5 numbers (yield, memory, cold start) are recorded in `build-phases.md`, and the chosen machine size comes from them.
 7. Monthly cost has been observed for one billing period and compared with section 4.
 
