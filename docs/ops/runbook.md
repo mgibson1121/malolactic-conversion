@@ -155,13 +155,11 @@ The one-time move of the laptop database to production: `docs/specs/2026-11-03-p
 One Fly secret, `DEVICE_TOKENS`, holds every device as comma-separated `name:token` pairs. Production issues three: the developer's iPhone, the household iPhone and the web app. A token identifies a device, not a person, and each one is revoked on its own.
 
 **Issue the set** (once, before the first phone uses production; Phase 13.1 precondition 4). Production currently holds only a temporary `wi4-drill` token from WI-4's restore drill; setting the list below replaces it. Generate one token per device plus the deploy workflow's smoke-test token, and keep them out of the repo and out of chat; a password manager is the right home:
+One command, in your own Terminal (not a chat or the `!` prompt). It generates the four keys into a file only you can read, joins them and sets them, without printing them:
 ```bash
-for d in matt-iphone household-iphone web smoke-test; do echo "$d:$(openssl rand -hex 32)"; done
+umask 077; for d in matt-iphone household-iphone web smoke-test; do echo "$d:$(openssl rand -hex 32)"; done > ~/wine-device-keys.txt && fly secrets set --app malolactic-conversion DEVICE_TOKENS="$(paste -sd, ~/wine-device-keys.txt)"
 ```
-Join the four lines with commas into one value and set it:
-```bash
-fly secrets set --app malolactic-conversion DEVICE_TOKENS="matt-iphone:…,household-iphone:…,web:…,smoke-test:…"
-```
+Copy the four lines into your password manager, then `rm ~/wine-device-keys.txt`. **Never set the list by hand with placeholders:** on 2026-11-07, `DEVICE_TOKENS="matt-iphone:…,…"` was set literally, and production refused to start until real keys replaced it. A key is ≥ 32 characters, and the server fails closed on anything shorter. A device's key is the part **after** `name:` (64 characters); that's what goes into the app.
 Put the `smoke-test` token into the GitHub secret `SMOKE_DEVICE_TOKEN` ("Deploy and rollback" above). Check with `fly logs --app malolactic-conversion | grep 'Device tokens'`: four names, no `wi4-drill`.
 Setting a secret restarts the machine. Give each person their own token privately (WI-10). It goes into the iPhone app's Access key field (WI-7), or into the web app's prompt once per browser.
 
@@ -195,4 +193,6 @@ Older apps then show "Update available in TestFlight." The web app and scripts a
 - `ios/WineApp.xcodeproj/xcshareddata/xcodecloud/manifest.json` links the project's targets to the Xcode Cloud product. It holds IDs only; keep it committed.
 - **Export compliance:** the app target sets `ITSAppUsesNonExemptEncryption = NO` (standard HTTPS only), so builds don't wait on the encryption question. If the app ever adds its own encryption, this must change.
 
-**Install on a phone:** TestFlight app (same Apple ID) → Wine → Install → enter the device's access key ("Device tokens" above).
+**Install on a phone:** TestFlight app (same Apple ID) → Wine → Install → enter the device's access key ("Device tokens" above). If TestFlight only shows **"Redeem"** (asks for a code), the phone's Apple ID hasn't got an invitation yet: add the person to the internal group in App Store Connect (TestFlight → Internal Testing → the group → Testers +) and accept the emailed invitation on the phone. Internal testers never need a code.
+
+**First result (2026-11-07):** build 0.1 (2) on the developer's iPhone, key accepted, empty production cellar.
