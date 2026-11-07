@@ -1,0 +1,9 @@
+{
+  "id" : "f9714c80-d4bc-4bfe-af6e-982300a95df6",
+  "targets" : [
+    {
+      "id" : "1a0404f9-9e83-444b-aefe-15576d617f80",
+      "name" : "WineApp"
+    }
+  ]
+}

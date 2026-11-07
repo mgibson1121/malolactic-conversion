@@ -186,3 +186,15 @@ Older apps then show "Update available in TestFlight." The web app and scripts a
 **Laptop web app against the cloud.** Put `WINE_API_TARGET=https://<app>.fly.dev` and `WINE_ACCESS_KEY=<the web token>` in `.env`, then run `npm run dev:web`. The Vite proxy adds the header, so the key is never in the bundle or the browser.
 
 ## TestFlight: add a tester, promote a build, expired builds *(WI-9, WI-10)*
+
+**Xcode Cloud workflow `TestFlight – Developer`** (set up 2026-11-07, WI-9 step 1, D16). It lives in App Store Connect/Xcode, not in the repo, so its settings are recorded here. Edit it in Xcode: Report navigator (⌘9) → Cloud → right-click the workflow → Edit Workflow.
+- Environment: Xcode and macOS "Latest Release".
+- Start conditions: **Branch Changes** on `main`, only when files in `ios/` change (auto-cancel on); **Manual Start – Branch**.
+- Action: **Archive – iOS**, scheme `WineApp`, distribution preparation **TestFlight (Internal Testing Only)**.
+- Post-action: **TestFlight Internal Testing** → group `Developer`.
+- App Store Connect app: "Malolactic Conversion", bundle ID `com.mgibson.WineApp`. The home-screen name stays "Wine".
+- Xcode shows "the scheme 'WineApp' may only exist locally" on the Archive action. It's a caution: the shared scheme is in the repo (`ios/WineApp.xcodeproj/xcshareddata/xcschemes/`).
+- `ios/WineApp.xcodeproj/xcshareddata/xcodecloud/manifest.json` links the project's targets to the Xcode Cloud product. It holds IDs only; keep it committed.
+- **Export compliance:** the app target sets `ITSAppUsesNonExemptEncryption = NO` (standard HTTPS only), so builds don't wait on the encryption question. If the app ever adds its own encryption, this must change.
+
+**Install on a phone:** TestFlight app (same Apple ID) → Wine → Install → enter the device's access key ("Device tokens" above).
