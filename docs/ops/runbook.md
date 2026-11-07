@@ -142,7 +142,22 @@ fly secrets set --app malolactic-conversion --stage LITESTREAM_BUCKET=<bucket> L
 ```bash
 fly ssh console --app malolactic-conversion -C "litestream restore -timestamp 2026-11-03T12:00:00Z -o /tmp/pit.db /data/wine.db"
 ```
-Check it as in the drill. Putting it in place of the live database uses Phase 13.1's import-on-start, which runs before Litestream so the backup history follows the swap. Until 13.1 is built, roll back from the newest `/data/wine.db.pre-migrate-*` copy the same way.
+Check it as in the drill. Then put it in place with the import-on-start (Phase 13.1 WI-1), which runs in `docker-entrypoint.sh` before Litestream:
+```bash
+fly ssh console --app malolactic-conversion -C "mv /tmp/pit.db /data/wine.db.import"
+fly machine restart --app malolactic-conversion
+```
+`/tmp` is on the machine's root filesystem, not the volume, so `mv` copies it across. A `/data/wine.db.pre-migrate-*` copy goes in place the same way (`cp` it to `/data/wine.db.import`).
+
+**What the start does with `/data/wine.db.import`.** It checks the file (`PRAGMA integrity_check` must be `ok`, and the wine tables must exist). If the check passes, it moves the live database and its `-wal`/`-shm` to `/data/wine.db.pre-import-<timestamp>`, moves the import into place, runs `litestream reset`, and then starts Litestream and the server as usual (migrations included). Check the log:
+```bash
+fly logs --app malolactic-conversion --no-tail | grep -iE 'import|litestream|snapshot'
+```
+- `Imported /data/wine.db.import → /data/wine.db: wines=… tasting_notes=… app_settings=…`, followed by `Previous database kept as …`.
+- `Resetting local Litestream state` and `Reset complete`, then Litestream writing a new snapshot. If instead you see `WARNING: litestream reset failed`, run the restore drill above before trusting the backup.
+- `Import REFUSED, nothing changed` with the reason means the live database is untouched. Delete or replace `/data/wine.db.import`, or it is checked again on every start.
+
+Delete the `.pre-import-*` files once you're satisfied ("Housekeeping").
 
 **Housekeeping.** Pre-migration copies are only made when a deploy brings a new migration, so they're rare. Delete old ones once a deploy is known good: `fly ssh console -C "ls -l /data"`, then `rm` the ones you don't need.
 
