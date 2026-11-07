@@ -103,8 +103,8 @@ final class WineDetailModel {
             onChanged()
         } catch {
             rollback(&wine)
-            actionError = (error as? APIError)?.message(networkMessage: "Couldn't update. Is the backend running?")
-                ?? "Couldn't update. Is the backend running?"
+            actionError = (error as? APIError)?.message(networkMessage: NetworkHint.couldnt("update"))
+                ?? NetworkHint.couldnt("update")
         }
     }
 

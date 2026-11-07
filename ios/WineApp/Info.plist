@@ -2,18 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Merged with the build-setting-generated Info.plist (GENERATE_INFOPLIST_FILE).
-	     Only keys with no INFOPLIST_KEY_ equivalent live here
-	     (NSLocalNetworkUsageDescription is INFOPLIST_KEY_ in the project file). -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<!-- Phase 12 is LAN-only (D5): the backend is plain HTTP on the local network.
-		     Phase 13 WI-7 will limit this to Debug, with Release on HTTPS to Fly only. -->
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<!-- Domine (display) / Work Sans (body), the Phase 11.1 type pair. Variable
-	     fonts from google/fonts, SIL OFL 1.1 — licences alongside in Fonts/. -->
+	<!-- Release configuration (TestFlight). Debug uses Info-Debug.plist.
+	     Merged with the build-setting-generated Info.plist (GENERATE_INFOPLIST_FILE).
+	     Deliberately no NSAppTransportSecurity: Release talks only to the HTTPS
+	     production backend, so iOS refuses every cleartext request (Phase 13 WI-7). -->
+	<!-- Keep in step with Info-Debug.plist. Domine (display) / Work Sans (body), the
+	     Phase 11.1 type pair. Variable fonts from google/fonts, SIL OFL 1.1 —
+	     licences alongside in Fonts/. -->
 	<key>UIAppFonts</key>
 	<array>
 		<string>Domine-Variable.ttf</string>
