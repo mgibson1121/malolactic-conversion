@@ -1,6 +1,6 @@
 # Phase 13 — Production deployment and distribution
 
-> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open. **WI-5 passed 2026-11-01 on a dedicated CPU; production size `performance-4x` chosen 2026-11-02** (results in `docs/build-phases.md`). WI-4, WI-6, WI-7 and WI-8 built 2026-11-03; next WI-9.** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
+> v2 — 2026-11-01. Status: **approved by the developer 2026-11-01; in progress — WI-1, WI-2 and WI-3 built 2026-11-01 (see `docs/build-phases.md`); WI-3 was built ahead of WI-5 by developer decision so the staging app is never open. **WI-5 passed 2026-11-01 on a dedicated CPU; production size `performance-4x` chosen 2026-11-02** (results in `docs/build-phases.md`). WI-4, WI-6, WI-7 and WI-8 built 2026-11-03 (merged by 2026-11-07); next WI-9, the developer's phone first (D16).** v1 (2026-10-10) was written in a Claude.ai planning session after the developer's usage context and six clarifying answers.
 > Read alongside `CLAUDE.md`, `docs/build-phases.md` (Phases 12, 12.1, 12.2), and the two Phase 12 specs.
 > **Numbering (resolved 2026-11-01):** this is Phase 13. The former Phase 13 (remaining frontend surfaces), 14 (learning) and 15 (open source) are now 14, 15 and 16 in `docs/build-phases.md`. The "call it Phase 12.3" alternative is moot: 12.3–12.5 are the 2026-10-31 field-test round 2.
 
@@ -36,6 +36,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 | D13 | **WI-6 deploys only when app code changes** (`backend/`, `shared/`, `web/`, `Dockerfile`, `fly.toml`, package files), not on docs-only merges. |
 | D14 | **The one-time database upload leaves WI-4 for its own phase, Phase 13.1** (`docs/specs/2026-11-03-phase-13.1-data-cutover.md`), run after WI-9 so the laptop and cloud copies never both take changes. WI-4 keeps backups and the restore drill, built against an empty production database. |
 | D15 | **Backups: Litestream to Cloudflare R2**, continuous while the machine is awake, 30 days of history; Fly volume snapshots as a second layer (see WI-4). |
+| D16 | **The developer's phone first** (developer, 2026-11-07). WI-9 is built in two steps: first workflow A (every merge touching `ios/**` → the *Developer* TestFlight group, i.e. the developer's iPhone), then, at WI-10, workflow B and the *Household* group. How a build is promoted to Household (git tag or one click; open item 6) is decided at WI-10, not before. |
 
 ## 3. Constraints this phase amends (record at the original claim too)
 
@@ -119,7 +120,7 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 - **Release error copy (developer, 2026-11-03):** "Couldn't <do it>. Check your connection." replaces "… Is the backend running?" in the 16 iOS error lines (`NetworkHint`); Debug and web keep the Phase 12.5 wording.
 - **Built by a side session that was stopped before committing; reviewed and finished in the main session.**
 
-**WI-9 — Xcode Cloud and TestFlight.** Workflow A: on merge to `main` touching `ios/**`, archive and distribute to the Developer group automatically. Workflow B: on tag `ios-v*`, distribute to the Household group. A scheduled or monthly build to keep builds inside the 90-day window (confirm Xcode Cloud supports a scheduled start condition; otherwise a monthly tag). Existing GitHub Actions iOS job stays as the PR check. Fallback if Xcode Cloud proves awkward: GitHub Actions plus fastlane.
+**WI-9 — Xcode Cloud and TestFlight.** Workflow A: on merge to `main` touching `ios/**`, archive and distribute to the Developer group automatically. Workflow B: on tag `ios-v*`, distribute to the Household group. A scheduled or monthly build to keep builds inside the 90-day window (confirm Xcode Cloud supports a scheduled start condition; otherwise a monthly tag). Existing GitHub Actions iOS job stays as the PR check. Fallback if Xcode Cloud proves awkward: GitHub Actions plus fastlane. **Added 2026-11-07:** (1) **build numbers.** Every TestFlight upload needs a `CFBundleVersion` higher than the last, and the project's `CURRENT_PROJECT_VERSION` is fixed at 1, so Xcode Cloud must set it per build (its build number; `MIN_IOS_BUILD`, WI-8, compares against the same number). (2) **Order (D16):** workflow A for the developer's phone first; workflow B and the Household group at WI-10.
 
 **WI-10 — Household onboarding.** Wife's iPhone: install TestFlight, accept invite, install the app, enter her access key. Short written checklist in the runbook. Verify a scan end to end on her phone over cellular.
 
@@ -140,7 +141,7 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 3. ~~Confirm idle-stop works with a volume attached and the draft sweep (WI-2).~~ Confirmed 2026-11-01 (WI-5): auto-stopped after about 8 idle minutes with the volume attached and drained cleanly; woke in about 3 s; the sweep runs at each start.
 4. Confirm internal TestFlight testers skip Beta App Review as expected (first build).
 5. ~~**WI-4 backup method**~~: decided 2026-11-03, Litestream (D15).
-6. **WI-9 promotion to the Household group** (added 2026-11-03): a git tag (`ios-v*`, the default) or one click in App Store Connect. To be confirmed.
+6. **WI-9 promotion to the Household group** (added 2026-11-03): a git tag (`ios-v*`, the default) or one click in App Store Connect. **Deferred to WI-10 (D16, 2026-11-07):** the developer's phone comes first; this is decided when the Household group is set up.
 
 ## 10. Acceptance criteria
 

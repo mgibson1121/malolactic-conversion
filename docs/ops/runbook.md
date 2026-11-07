@@ -81,12 +81,9 @@ The workflow `.github/workflows/deploy.yml` ("Deploy backend") deploys productio
      | gh secret set FLY_API_TOKEN --repo mgibson1121/malolactic-conversion
    ```
    The value is the whole output, starting `FlyV1 `.
-2. A smoke-test device token: a fourth pair, `smoke-test`, alongside the three devices in "Device tokens" below. `fly secrets set` replaces the whole list, so include the existing pairs:
+2. A smoke-test device token. It is the fourth pair, `smoke-test`, issued together with the three devices in "Device tokens: issue the set" below (one `fly secrets set`, which replaces the whole list, so never set a partial list). Copy that `smoke-test` token into the GitHub secret, typed or pasted at the prompt so it stays off the screen and out of shell history:
    ```bash
-   SMOKE=$(openssl rand -hex 32)
-   fly secrets set --app malolactic-conversion DEVICE_TOKENS="matt-iphone:…,household-iphone:…,web:…,smoke-test:$SMOKE"
-   printf %s "$SMOKE" | gh secret set SMOKE_DEVICE_TOKEN --repo mgibson1121/malolactic-conversion
-   unset SMOKE
+   gh secret set SMOKE_DEVICE_TOKEN --repo mgibson1121/malolactic-conversion
    ```
    It only reads the wine list, and the workflow never prints the response, because the repository and its logs are public. Removing the pair from `DEVICE_TOKENS` makes the next deploy's smoke test fail.
 3. First deploy: GitHub → Actions → **Deploy backend** → **Run workflow** on `main` (or `gh workflow run deploy.yml --ref main`). A manual run deploys `main`'s head if CI has passed on it, and skips the app-code check. `--ha=false` keeps it to one machine (SQLite is single-writer, D4).
@@ -157,14 +154,15 @@ The one-time move of the laptop database to production: `docs/specs/2026-11-03-p
 
 One Fly secret, `DEVICE_TOKENS`, holds every device as comma-separated `name:token` pairs. Production issues three: the developer's iPhone, the household iPhone and the web app. A token identifies a device, not a person, and each one is revoked on its own.
 
-**Issue the set** (once, at production cutover). Generate one token per device and keep them out of the repo and out of chat; a password manager is the right home:
+**Issue the set** (once, before the first phone uses production; Phase 13.1 precondition 4). Production currently holds only a temporary `wi4-drill` token from WI-4's restore drill; setting the list below replaces it. Generate one token per device plus the deploy workflow's smoke-test token, and keep them out of the repo and out of chat; a password manager is the right home:
 ```bash
-for d in matt-iphone household-iphone web; do echo "$d:$(openssl rand -hex 32)"; done
+for d in matt-iphone household-iphone web smoke-test; do echo "$d:$(openssl rand -hex 32)"; done
 ```
-Join the three lines with commas into one value and set it:
+Join the four lines with commas into one value and set it:
 ```bash
-fly secrets set --app <app> DEVICE_TOKENS="matt-iphone:…,household-iphone:…,web:…"
+fly secrets set --app malolactic-conversion DEVICE_TOKENS="matt-iphone:…,household-iphone:…,web:…,smoke-test:…"
 ```
+Put the `smoke-test` token into the GitHub secret `SMOKE_DEVICE_TOKEN` ("Deploy and rollback" above). Check with `fly logs --app malolactic-conversion | grep 'Device tokens'`: four names, no `wi4-drill`.
 Setting a secret restarts the machine. Give each person their own token privately (WI-10). It goes into the iPhone app's Access key field (WI-7), or into the web app's prompt once per browser.
 
 **Revoke one device.** Set `DEVICE_TOKENS` again without that device's pair. The other devices keep working. The revoked device's next request gets `401`; the web app then drops its stored key and asks again.
