@@ -183,6 +183,7 @@ Fly.io container, TestFlight distribution (spec: `docs/specs/2026-10-10-phase-13
   - `db/migrate.ts` copies a database that holds wines (`VACUUM INTO`) to `<db>.pre-migrate-<timestamp>` before any pending migration; don't remove that step.
   - On shutdown, Litestream signals the server and uploads the last changes after it exits. That is why `SHUTDOWN_GRACE_MS` is 50 s inside the 60 s `kill_timeout`; keep the gap if either changes.
   - The CI smoke start runs `node` directly, without Litestream.
+- **TestFlight builds (WI-9).** The Xcode Cloud workflow lives in App Store Connect; its settings are recorded in `docs/ops/runbook.md`. Xcode Cloud sets the build number (`CFBundleVersion`), so don't rely on `CURRENT_PROJECT_VERSION`. **The app must keep a 1024×1024 `AppIcon` without alpha**: an empty icon set archives fine but fails the App Store Connect upload (build 1, 2026-11-07). `ITSAppUsesNonExemptEncryption = NO` holds only while the app uses standard HTTPS; any custom encryption changes the answer. Keep `ios/WineApp.xcodeproj/xcshareddata/xcodecloud/manifest.json` committed.
 - **The production app is `malolactic-conversion`** (`https://malolactic-conversion.fly.dev`; reserved 2026-11-03, D10). The iOS Release build hard-codes this address (WI-7), so renaming the app means shipping a new app build.
 
 ### Phase 13.1 — Data cutover (planned)
