@@ -122,6 +122,15 @@ Move the app from "backend on the developer's laptop, phone on the same LAN" to 
 
 **WI-9 — Xcode Cloud and TestFlight.** Workflow A: on merge to `main` touching `ios/**`, archive and distribute to the Developer group automatically. Workflow B: on tag `ios-v*`, distribute to the Household group. A scheduled or monthly build to keep builds inside the 90-day window (confirm Xcode Cloud supports a scheduled start condition; otherwise a monthly tag). Existing GitHub Actions iOS job stays as the PR check. Fallback if Xcode Cloud proves awkward: GitHub Actions plus fastlane. **Added 2026-11-07:** (1) **build numbers.** Every TestFlight upload needs a `CFBundleVersion` higher than the last, and the project's `CURRENT_PROJECT_VERSION` is fixed at 1, so Xcode Cloud must set it per build (its build number; `MIN_IOS_BUILD`, WI-8, compares against the same number). (2) **Order (D16):** workflow A for the developer's phone first; workflow B and the Household group at WI-10.
 
+**WI-9 step 1 as built (2026-11-07): done.** The developer's iPhone runs the TestFlight build against production.
+- **Setup:** App Store Connect record "Malolactic Conversion" (bundle ID `com.mgibson.WineApp`; the home-screen name stays "Wine"); internal group `Developer`; Xcode Cloud connected to the GitHub repo.
+- **Workflow `TestFlight – Developer`:** `main`, only when `ios/` changes, then Archive, TestFlight internal, `Developer` group. Its settings are in the runbook, since workflows live in App Store Connect.
+- **First build failed** at "Preparing build for App Store Connect" after archiving and exporting fine: the app had no icon (the `AppIcon` set was empty). #65 added a 1024×1024 icon, the Xcode Cloud manifest and `ITSAppUsesNonExemptEncryption = NO`.
+- **Build 2,** started automatically by #65's merge, reached TestFlight as **0.1 (2)**: version 0.1 from `MARKETING_VERSION`, and the build number is Xcode Cloud's build number. So build numbers increase on their own with no project change, and `MIN_IOS_BUILD` compares against them.
+- **No Beta App Review** for the internal group (open item 4).
+- **Production's real `DEVICE_TOKENS`** were issued the same day (four pairs, replacing `wi4-drill`). The app took the `matt-iphone` key and loaded the (empty) production cellar.
+- **Still to do in WI-9:** workflow B and the Household group (D16, at WI-10), and the scheduled build against the 90-day expiry.
+
 **WI-10 — Household onboarding.** Wife's iPhone: install TestFlight, accept invite, install the app, enter her access key. Short written checklist in the runbook. Verify a scan end to end on her phone over cellular.
 
 **WI-11 — Documentation.** Apply §3's amendments to CLAUDE.md at the original claims. Add a "Phase 13" entry to `docs/build-phases.md`. Create `docs/ops/runbook.md` (deploy, rollback, backup and restore, rotate or revoke a token, add a tester, what to do when a build expires). Documentation delta on the PR per CLAUDE.md §13.
@@ -139,7 +148,7 @@ Custom domain; separate staging environment beyond WI-5's test app; push notific
 1. ~~Phase number~~ — resolved 2026-11-01: Phase 13; the former 13–15 are now 14–16.
 2. ~~Confirm WI-5's pass rule~~ — confirmed 2026-11-01 (see WI-5).
 3. ~~Confirm idle-stop works with a volume attached and the draft sweep (WI-2).~~ Confirmed 2026-11-01 (WI-5): auto-stopped after about 8 idle minutes with the volume attached and drained cleanly; woke in about 3 s; the sweep runs at each start.
-4. Confirm internal TestFlight testers skip Beta App Review as expected (first build).
+4. ~~Confirm internal TestFlight testers skip Beta App Review as expected (first build).~~ Confirmed 2026-11-07: build 0.1 (2) reached the internal Developer group with no review.
 5. ~~**WI-4 backup method**~~: decided 2026-11-03, Litestream (D15).
 6. **WI-9 promotion to the Household group** (added 2026-11-03): a git tag (`ios-v*`, the default) or one click in App Store Connect. **Deferred to WI-10 (D16, 2026-11-07):** the developer's phone comes first; this is decided when the Household group is set up.
 
