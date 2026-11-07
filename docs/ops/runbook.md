@@ -163,7 +163,73 @@ Delete the `.pre-import-*` files once you're satisfied ("Housekeeping").
 
 ## Data cutover *(Phase 13.1)*
 
-The one-time move of the laptop database to production: `docs/specs/2026-11-03-phase-13.1-data-cutover.md` §5. The steps land here when Phase 13.1 is built.
+The one-time move of the laptop database to production (spec: `docs/specs/2026-11-03-phase-13.1-data-cutover.md`). Run it from the repo root in your own Terminal, or ask Claude to run each step. Pick a quiet moment: the laptop takes no changes from step 1 on.
+
+**Before you start:** spec §3 preconditions 1–5 hold (#67 merged and deployed), `WINE_ACCESS_KEY` in the repo `.env` holds a production device key (the `web` one is fine), and `fly auth whoami` works. Set the date once for the commands below:
+```bash
+D=$(date +%Y%m%d)
+```
+
+**1. Freeze the laptop.** Stop the local backend (`Ctrl-C` in its terminal) and the web dev server. Don't open the iOS Debug build. Nothing writes to `backend/db/wine.db` from here on. Check nothing still has it open:
+```bash
+lsof backend/db/wine.db
+```
+No output means it's free.
+
+**2. Make the upload copy, WAL included, and check it.** `.backup` takes in whatever is still in `wine.db-wal`. Copying the `.db` alone would lose it (spec R7).
+```bash
+sqlite3 backend/db/wine.db ".backup 'backend/db/cutover-$D.db'"
+sqlite3 backend/db/cutover-$D.db "PRAGMA integrity_check"
+```
+The second command must print `ok`. `backend/db/cutover-*.db` is gitignored.
+
+**3. Record the laptop counts** (WI-3):
+```bash
+npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/scripts/cutover-counts.ts --db backend/db/cutover-$D.db --laptop-only
+```
+Keep this output; step 6 prints it again beside production.
+
+**4. Upload and restart.** Wake the machine (SFTP needs it running), upload to the import path, then restart:
+```bash
+curl -s https://malolactic-conversion.fly.dev/healthz
+fly ssh sftp put backend/db/cutover-$D.db /data/wine.db.import --app malolactic-conversion
+fly machine restart $(fly machine list --app malolactic-conversion -q) --app malolactic-conversion
+```
+On start, `docker-entrypoint.sh` checks the file, keeps the old database as `/data/wine.db.pre-import-<timestamp>`, puts the import in place, resets Litestream's local state and starts Litestream and the server (Phase 13.1 WI-1).
+
+**5. Check the log, then the backup.**
+```bash
+fly logs --app malolactic-conversion --no-tail | grep -iE 'import|litestream|reset|snapshot|migrat|sweep'
+```
+You should see:
+- `Imported /data/wine.db.import → /data/wine.db: wines=… tasting_notes=… app_settings=1`. The wine count is step 3's "Wines" plus any drafts older than 24 hours, which the server sweeps right after.
+- `Previous database kept as /data/wine.db.pre-import-…`.
+- `Reset complete`, then Litestream replicating without errors.
+- `Copied the database before migrating …` only if the laptop copy was behind on migrations. That's fine.
+
+If it says `Import REFUSED`, nothing changed. Stop and look at the reason (the laptop is still the live copy).
+
+Then prove the backup now holds the imported collection. Wait a minute, then run the restore drill ("Backup and restore" above, steps 2–3). Its counts must equal the live database's, which now has the full collection.
+
+**6. Compare counts** (WI-3). Laptop and production must match row for row:
+```bash
+npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/scripts/cutover-counts.ts --db backend/db/cutover-$D.db
+```
+It ends `All counts match.` and exits 0, or lists each `MISMATCH` and exits 1. Production is read through the API (three GETs, no metered call) with `WINE_ACCESS_KEY`. Drafts older than 24 hours are left out on both sides, since production sweeps them on start.
+
+**7. Spot-check on the phone and the web app.** Pick three wines: one with tasting notes, one with critic scores, one with a manual price. Each should look the same as on the laptop. On the web, use the production site (enter the `web` key once).
+
+**8. One real scan over cellular** on your phone, end to end. Then the household phone's first scan (Phase 13 WI-10).
+
+**9. Keep the laptop files** (`backend/db/wine.db*` and `backend/db/cutover-$D.db`) untouched until you sign off. After that, local development uses a copy, never the original. Delete `/data/wine.db.pre-import-*` once you're satisfied ("Housekeeping" above).
+
+**Rollback.**
+- **Nothing written to the cloud yet:** keep using the laptop. It was frozen and is unchanged.
+- **After writes:** restore from R2 ("Roll back to an earlier moment" above).
+- **Back to the empty pre-import production state:** that's `/data/wine.db.pre-import-<timestamp>`. Put it in place with the same import step: copy it to `/data/wine.db.import`, and if a `-wal` sits beside it, copy that to `/data/wine.db.import-wal` too (the import step carries it across). Then restart:
+  ```bash
+  fly ssh console --app malolactic-conversion -C "sh -c 'f=/data/wine.db.pre-import-<timestamp>; cp \$f /data/wine.db.import; [ ! -f \$f-wal ] || cp \$f-wal /data/wine.db.import-wal'"
+  ```
 
 ## Device tokens: issue, rotate, revoke *(WI-3)*
 

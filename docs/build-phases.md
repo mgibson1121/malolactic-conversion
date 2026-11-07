@@ -1984,7 +1984,7 @@ action available on the web is reachable on the phone.
 
 ## Phase 13.1 — Data cutover: the collection moves to the cloud
 
-**Status:** Spec drafted 2026-11-03 (`docs/specs/2026-11-03-phase-13.1-data-cutover.md`), for developer review. Built after Phase 13's WI-4 and WI-6–WI-9, before WI-10's household switch-over. **WI-1 (pending-import on start) built 2026-11-07** on `feature/phase-13.1-wi1-pending-import`: `backend/db/pending-import.ts`, run from `docker-entrypoint.sh` before Litestream, then `litestream reset` after an import. WI-2 (runbook cutover steps) and WI-3 (count comparison script) are next.
+**Status:** Spec drafted 2026-11-03 (`docs/specs/2026-11-03-phase-13.1-data-cutover.md`), for developer review. Built after Phase 13's WI-4 and WI-6–WI-9, before WI-10's household switch-over. **WI-1 (pending-import on start) built 2026-11-07** on `feature/phase-13.1-wi1-pending-import`: `backend/db/pending-import.ts`, run from `docker-entrypoint.sh` before Litestream, then `litestream reset` after an import. **WI-2 (runbook "Data cutover") and WI-3 (`backend/scripts/cutover-counts.ts`) built the same day** on the same branch (#67). Next: the developer picks the cutover date and runs the runbook steps.
 
 **Goal:** Move the laptop's `wine.db` to the production app once, at the moment the phones can switch, so the laptop and cloud copies never both take changes.
 
