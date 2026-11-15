@@ -2003,6 +2003,8 @@ action available on the web is reachable on the phone.
 
 **Milestone:** Both phones and the web app use the cloud copy of the full collection; the counts matched at cutover; the laptop backend is retired to development on a copy.
 
+
+**Field-test fix, 2026-11-15 (step 8):** of the two first cloud scans, one showed no reviews or prices before Save. That Littorai label scanned with no denomination, and the scan path fires nothing on a partial identity, by design. The iOS review screen now fires price and the primary review tier once the missing field is filled in, instead of waiting for Save (CLAUDE.md §15, amended). The web already did this from its scan card's Continue. The two scans also left a likely duplicate (Littorai 2024 with no denomination, and Littorai The Pivot Vineyard, Sonoma Coast 2024), because the first had no denomination for the duplicate check to compare.
 ---
 
 ## Phase 14 — Remaining frontend surfaces (web + iOS extras)
