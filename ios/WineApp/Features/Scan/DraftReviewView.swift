@@ -76,6 +76,8 @@ struct DraftReviewView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        // A Tier 1 field the scan missed, once typed in, fires the lookups.
+        .onChange(of: model.fields) { model.identityEdited() }
         .safeAreaInset(edge: .bottom) {
             if model.isDraft {
                 SaveBar(
