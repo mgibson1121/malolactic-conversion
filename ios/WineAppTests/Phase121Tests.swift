@@ -609,6 +609,11 @@ final class ScanHoldTests: XCTestCase {
     private var draftJSON = Data()
     private var reviewsJSON = Data()
     private var reviewsDelay: TimeInterval = 0
+    /// Holds the reviews answer until the test releases it, for a test that
+    /// must see the lookup still running. A fixed delay raced the runner: on
+    /// a slow CI machine (2026-11-15) the 0.4 s answer landed before the
+    /// review screen was up, and the "still Looking…" check failed.
+    private var reviewsGate: DispatchSemaphore?
     private let draftID = "draft-hold"
 
     override func setUp() async throws {
@@ -630,6 +635,7 @@ final class ScanHoldTests: XCTestCase {
             case ("POST", "/api/wines/duplicate-check"): return (200, Data(#"{"kind":"none"}"#.utf8))
             case ("POST", "/api/wines"): return (201, self.draftJSON)
             case (_, let p) where p.hasSuffix("/fetch-reviews"):
+                if let gate = self.reviewsGate { gate.wait() }
                 if self.reviewsDelay > 0 { Thread.sleep(forTimeInterval: self.reviewsDelay) }
                 return (200, self.reviewsJSON)
             case (_, let p) where p.hasSuffix("/fetch-price"): return (200, self.draftJSON)
@@ -638,7 +644,12 @@ final class ScanHoldTests: XCTestCase {
         }
     }
 
-    override func tearDown() { StubURLProtocol.router = nil }
+    override func tearDown() {
+        // Never leave a stub request blocked if a test failed before releasing it.
+        reviewsGate?.signal()
+        reviewsGate = nil
+        StubURLProtocol.router = nil
+    }
 
     private func scan(_ model: ScanFlowModel) {
         model.scan(UIGraphicsImageRenderer(size: CGSize(width: 40, height: 60)).image { ctx in
@@ -674,11 +685,13 @@ final class ScanHoldTests: XCTestCase {
 
     func testTheLookupsAreNeverCancelledWhenTheHoldEnds() async throws {
         reviewsJSON = draftJSON
-        reviewsDelay = 0.4
+        let gate = DispatchSemaphore(value: 0)
+        reviewsGate = gate
         let model = ScanFlowModel(api: StubURLProtocol.api(), previewHold: .milliseconds(50))
         scan(model)
         try await waitUntil { model.step == .review }
         XCTAssertTrue(model.reviews.isBusy, "the review screen shows Looking… for what is still pending")
+        gate.signal()
         try await waitUntil { !model.reviews.isBusy }
         XCTAssertNil(model.reviews.error)
         XCTAssertEqual(StubURLProtocol.requests.filter { $0.url?.path.hasSuffix("/fetch-reviews") == true }.count, 1)
