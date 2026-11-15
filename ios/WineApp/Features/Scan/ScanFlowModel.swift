@@ -52,6 +52,12 @@ struct WineFields: Equatable {
         !vintage.trimmingCharacters(in: .whitespaces).isEmpty && vintageValue == nil
     }
 
+    /// The typed fields name all three Tier 1 parts — `Wine.hasTier1` for
+    /// what's on screen, before it is saved.
+    var hasTier1: Bool {
+        producer.nilIfBlank != nil && denomination.nilIfBlank != nil && vintageValue != nil
+    }
+
     /// The web's bar for Continue: something to call the wine by.
     var canSave: Bool {
         !(producer.trimmed.isEmpty && denomination.trimmed.isEmpty) && !vintageIsInvalid
@@ -153,8 +159,12 @@ final class ScanFlowModel {
 
     private let api: APIClient
     private let previewHold: Duration
+    /// How long typing must pause before a filled-in Tier 1 field fires the
+    /// lookups (`identityEdited`), so they go out once, not per keystroke.
+    private let fillInDelay: Duration
     private var scanTask: Task<Void, Never>?
     private var holdTask: Task<Void, Never>?
+    private var fillInTask: Task<Void, Never>?
 
     /// Called whenever a background price or review lookup lands — even
     /// after the modal has closed. A new wine takes about a minute to enrich,
@@ -163,9 +173,11 @@ final class ScanFlowModel {
     /// was saved four seconds before its price arrived).
     var onEnrichmentLanded: () -> Void = {}
 
-    init(api: APIClient, startManual: Bool = false, previewHold: Duration = ScanTiming.previewHold) {
+    init(api: APIClient, startManual: Bool = false, previewHold: Duration = ScanTiming.previewHold,
+         fillInDelay: Duration = .milliseconds(1200)) {
         self.api = api
         self.previewHold = previewHold
+        self.fillInDelay = fillInDelay
         step = startManual ? .manual : .capture
     }
 
@@ -336,6 +348,36 @@ final class ScanFlowModel {
         fireReviews(draft.id, force: force, tier: .primary)
     }
 
+    /// A scan that missed a Tier 1 field fired nothing (no search on a partial
+    /// identity). Once the developer fills it in on the review screen, save the
+    /// fields to the draft and fire the same lookups the scan would have:
+    /// price and the primary review tier, once (developer decision 2026-11-15,
+    /// after a Littorai scan with no denomination showed no reviews or prices
+    /// until after Save). Called on every edit; waits for typing to pause.
+    func identityEdited() {
+        fillInTask?.cancel()
+        guard !enrichmentFired, let draft = wine, draft.isDraft, !draft.hasTier1, fields.hasTier1 else { return }
+        fillInTask = Task { [fillInDelay] in
+            try? await Task.sleep(for: fillInDelay)
+            guard !Task.isCancelled else { return }
+            await fireAfterFillIn(draftID: draft.id)
+        }
+    }
+
+    private func fireAfterFillIn(draftID: String) async {
+        guard !enrichmentFired, let draft = wine, draft.id == draftID, draft.isDraft, fields.hasTier1 else { return }
+        do {
+            let patch = fields.patch(against: draft)
+            let updated = patch.isEmpty ? draft : try await api.updateWine(id: draftID, patch)
+            // Save may have fired (and promoted) while the PATCH was out.
+            guard !enrichmentFired, wine?.id == draftID, wine?.isDraft == true, updated.hasTier1 else { return }
+            wine = updated
+            fireEnrichment(for: updated, force: false)
+        } catch {
+            // Nothing fired; Save PATCHes the same fields and fires then.
+        }
+    }
+
     private func fireReviews(_ id: String, force: Bool, tier: ReviewTier?) {
         reviews.isBusy = true
         reviews.error = nil
@@ -434,6 +476,7 @@ final class ScanFlowModel {
     /// modal should close.
     func saveToCollection() async -> Bool {
         guard let draft = wine, tags.hasAny else { return false }
+        fillInTask?.cancel()
         isSaving = true
         defer { isSaving = false }
         actionError = nil
@@ -486,6 +529,7 @@ final class ScanFlowModel {
     func discard() async -> Bool {
         scanTask?.cancel()
         holdTask?.cancel()
+        fillInTask?.cancel()
         guard let draft = wine, draft.isDraft else { return true }
         do {
             try await api.deleteWine(id: draft.id)
