@@ -12,11 +12,13 @@ app = "malolactic-conversion"
 primary_region = "iad" # Ashburn, nearest NYC
 
 # On SIGTERM, Litestream (WI-4) passes the signal to server.ts, which drains
-# in-flight requests for up to SHUTDOWN_GRACE_MS (50 s) and closes the
-# database; Litestream then uploads the last changes to R2. kill_timeout must
-# leave room for both.
+# in-flight requests and running review searches for up to SHUTDOWN_GRACE_MS
+# (110 s) and closes the database; Litestream then uploads the last changes to
+# R2. kill_timeout must leave room for both. Raised from 60 s for Phase 14: a
+# search is saved shop by shop and a typical one ends inside this, but it must
+# be allowed to (Fly's maximum is 300 s).
 kill_signal = "SIGTERM"
-kill_timeout = "60s"
+kill_timeout = "120s"
 
 [build]
   dockerfile = "Dockerfile"
@@ -30,7 +32,7 @@ kill_timeout = "60s"
   # WI-5 size test (2026-11-02): at 4 on performance-4x, the 14-wine run
   # peaked near 1.6 GB of 8 GB with no render failures. One per CPU.
   RENDER_CONCURRENCY = "4"
-  SHUTDOWN_GRACE_MS = "50000"
+  SHUTDOWN_GRACE_MS = "110000"
 
 # SQLite is single-writer (D4): exactly one machine, with this one volume.
 [mounts]
