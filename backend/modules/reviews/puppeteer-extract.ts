@@ -1,4 +1,4 @@
-import { CHROMIUM_ARGS, withRenderSlot } from '@shared/utils/render-gate'
+import { CHROMIUM_ARGS, withSharedBrowser } from '@shared/utils/render-gate'
 
 const PAGE_TIMEOUT_MS = 15_000
 // Fixed settle delay after domcontentloaded, added Phase 8 (2026-07-29) after
@@ -11,6 +11,12 @@ const PAGE_TIMEOUT_MS = 15_000
 const POST_LOAD_SETTLE_MS = 1_500
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+async function launchChromium() {
+  // Dynamic import so the module can be mocked in tests without Puppeteer running
+  const puppeteer = await import('puppeteer')
+  return puppeteer.default.launch({ headless: true, args: CHROMIUM_ARGS })
+}
 
 /**
  * Renders the single product page found by find-product-page.ts — never a
@@ -27,26 +33,26 @@ const USER_AGENT =
  * differently-shaped count-based check) — that note's underlying fix
  * (waiting for a specific DOM signal to stabilize, rather than a fixed
  * delay) still hasn't been applied there.
+ *
+ * Since 2026-11-03 it renders in a fresh browser context of the shared
+ * Chromium (shared/utils/render-gate.ts), once a render slot is free. Any
+ * failure, including a failed launch, is null, as before.
  */
-async function renderUngated(url: string): Promise<string | null> {
-  let browser
+export async function renderPageHtml(url: string): Promise<string | null> {
   try {
-    // Dynamic import so the module can be mocked in tests without Puppeteer running
-    const puppeteer = await import('puppeteer')
-    browser = await puppeteer.default.launch({ headless: true, args: CHROMIUM_ARGS })
-    const page = await browser.newPage()
-    await page.setUserAgent(USER_AGENT)
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS })
-    await new Promise((resolve) => setTimeout(resolve, POST_LOAD_SETTLE_MS))
-    return await page.content()
+    return await withSharedBrowser(launchChromium, async (browser) => {
+      const context = await browser.createBrowserContext()
+      try {
+        const page = await context.newPage()
+        await page.setUserAgent(USER_AGENT)
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS })
+        await new Promise((resolve) => setTimeout(resolve, POST_LOAD_SETTLE_MS))
+        return await page.content()
+      } finally {
+        await context.close().catch(() => {})
+      }
+    })
   } catch {
     return null
-  } finally {
-    if (browser) await browser.close()
   }
-}
-
-/** Waits for a render slot (shared/utils/render-gate.ts) so concurrent renders stay capped. */
-export function renderPageHtml(url: string): Promise<string | null> {
-  return withRenderSlot(() => renderUngated(url))
 }
