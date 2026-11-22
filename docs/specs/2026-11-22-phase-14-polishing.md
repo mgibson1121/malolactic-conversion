@@ -168,10 +168,17 @@ The costs that are not covered by that argument:
 **WI-4 status (built 2026-11-22, branch `feature/phase-14-wi4-ios`).** The iOS half of §5.4, with these differences and additions:
 - **The watcher stops once the request returns.** The POST that starts a search returns when it ends, so there is nothing left to follow; it keeps going only if another lookup on the wine is still running. It also gives up if it never sees a lookup running within 8 s (an answer from stored data), and always at 5 minutes (§5.4).
 - **The one automatic resume is the scan screen's only.** The detail screen shows an `interrupted` search as "The search stopped before every shop was checked." with **Retry**, which is the same request the server resumes on. Reading §5.3.4 as "the screen whose scan started the job".
-- **The price job is typed and decoded but not acted on:** the server does not write one until WI-5, so the price block does not yet keep its skeleton after Save. The list indicator already counts a running price job.
+- **The price job is typed and decoded here, and acted on from WI-5.** The list indicator already counted a running price job.
 - **`apply` of a review answer keeps the price job and the other way round** (the same rule as `Wine.applying`), so a late answer cannot erase what the app knows about the other lookup.
 - **Not done here:** an XCUITest or on-device check. The state machine, the watcher, the scan flow (dropped request, resume once, first score from a poll) and the detail flow are XCTest with the stubbed network; "scan five bottles, once with the screen locked" is WI-8.
 - Tests: `ios/WineAppTests/Phase14Tests.swift` (decoding, copy, critic states, row badge, watcher, scan, detail).
+
+**WI-5 status (built 2026-11-22, branch `feature/phase-14-wi5-price-job`).** Server and iOS; the web half of "on iOS and web" is WI-6. Done as §5.1 and §5.4 say ("the same envelope without counts"), with these differences:
+- **No resume, so an interrupted price lookup runs again.** Reviews resume because they save per shop. Price writes once at the end, so an interrupted lookup has nothing to carry on from, and answering a plain request from the price stored before it would leave the wine reading "interrupted" for good. A plain request therefore runs it again, as a force would; that spends a lookup, but one the developer already asked for.
+- **A refresh over stored prices shows one line, "Checking prices…", above them** and leaves them on screen; with no price yet it shows the skeleton. §5.4 names only the second case.
+- **The scan follows the price job with the same watcher** (it stops only when neither lookup is running), and recovers a dropped price request the way it does a review one.
+- **The open-time price-once starts nothing while a price job runs**, which is the interaction the scan's own lookup and a just-opened saved wine would otherwise have.
+- Tests: `backend/tests/unit/enrichment-jobs-price.test.ts` (12) and, in `Phase14Tests.swift`, `PriceSearchCopyTests`, `DetailPriceSearchTests` and three price cases in `ScanSearchTests` (10).
 
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
