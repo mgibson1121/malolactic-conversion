@@ -313,7 +313,9 @@ struct WineDetailView: View {
     }
 
     private var priceRetailers: some View {
+        let pricing = PriceSearch(wine: wine, control: model.price).isSearching
         let summary: String = {
+            if pricing && wine.priceData == nil { return "Checking…" }
             if let price = WineFormatting.cardPrice(wine) { return EffectivePrice(wine).isManual ? price : "\(price) avg" }
             if let price = wine.priceData { return price.retailers.isEmpty ? "No listings" : "\(price.retailers.count) listings" }
             return "Not fetched"
@@ -332,6 +334,7 @@ struct WineDetailView: View {
                     label: "Price & retailers",
                     control: model.price,
                     hasData: wine.priceData != nil,
+                    searching: pricing,
                     run: { force in Task { await model.fetchPrice(force: force); setExpanded(.priceRetailers, true) } }
                 )
             }

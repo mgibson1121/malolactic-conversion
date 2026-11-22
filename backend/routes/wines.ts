@@ -29,7 +29,8 @@ import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
-import { cancelJobs, heartbeatMs, runningJob, startOrJoin, withLiveJobs, writeJob } from './enrichment-jobs'
+import { cancelJobs, heartbeatMs, runningJob, startOrJoin, withLiveJobs, writeJob, type JobHandle } from './enrichment-jobs'
+import type { PriceJob } from '@shared/types'
 import { accountSerperUsage } from '@shared/utils/serper-client'
 import {
   coalesce,
@@ -463,6 +464,17 @@ type EnrichmentOutcome =
   // discarded or its identity edited; nothing was stored. Absent means failed.
   | { ok: false; status: number; error: string; outcome?: 'cancelled' }
 
+/**
+ * The answer for a run that was stopped because its wine was discarded or its
+ * identity edited (Phase 14): nothing was stored, and the two cases answer
+ * differently. Shared by the reviews and the price job.
+ */
+function droppedOutcome(job: JobHandle): EnrichmentOutcome {
+  return job.cancelled() === 'superseded'
+    ? { ok: false, status: 409, outcome: 'cancelled', error: 'The wine was edited during the search; its results were dropped. Nothing was stored.' }
+    : { ok: false, status: 404, outcome: 'cancelled', error: 'The wine was discarded during the search. Nothing was stored.' }
+}
+
 /** `?force=true` bypasses the freshness guard (Phase 9.2, WI-4). Anything else
  * — absent, empty, 'false' — leaves it in place, so a mistyped query string
  * costs nothing. */
@@ -487,82 +499,136 @@ function cachedResponse(wine: WineEntry, fetched_at: string) {
 // POST /api/wines/:id/fetch-price — trigger retailer crawl and store price + critic score data
 // Without ?force=true, stored price data newer than PRICE_TTL_DAYS is returned
 // as-is and no outbound call is made (Phase 9.2, WI-4).
+//
+// Phase 14 (WI-5): the run is a job, like the review search — one per wine,
+// recorded in `wines.enrichment_job.price`, joined by any request that arrives
+// while it runs (so a double-click, or a tap while the scan's own price lookup
+// is still going, starts nothing new), cancelled by a discard or an identity
+// edit, and visible to every client that reads the wine. That is what lets the
+// price block say "Checking prices…" after the scan screen has closed.
 router.post(
   '/:id/fetch-price',
   wrap(async (req, res) => {
-    const wine = await getStorage().getWine(req.params.id)
+    const wineId = req.params.id
+    const wine = await getStorage().getWine(wineId)
     if (!wine) {
       res.status(404).json({ error: 'Wine not found' })
       return
     }
 
+    // A price job stored `running` that nothing is running is `interrupted`
+    // (see withLiveJobs): it never wrote its result, so the stored price is
+    // from before it. Run again rather than answer from that as if the lookup
+    // had completed.
+    const interrupted = withLiveJobs(wine).enrichment_job?.price?.state === 'interrupted'
+
     const storedAt = wine.price_data?.fetched_at ?? null
-    if (!isForced(req) && isWithinTtl(storedAt, PRICE_TTL_DAYS)) {
+    if (!runningJob(wineId, 'price') && !interrupted && !isForced(req) && isWithinTtl(storedAt, PRICE_TTL_DAYS)) {
       res.json(cachedResponse(wine, storedAt!))
       return
     }
 
-    // Coalesced, so a double-click joins the run already under way rather than
-    // starting a second full-price one — see enrichment-cache.ts. The write is
-    // inside the coalesced region too: two runs racing to persist the same
-    // wine is the other half of what a double-click costs.
-    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-price`, () =>
-      // Every outbound Serper call below is attributed to this wine and this
-      // action (Phase 9.2) — see shared/utils/serper-client.ts.
-      accountSerperUsage({ wine_id: req.params.id, action: 'fetch-price' }, async () => {
-        // Cross-feed (Phase 9.1): a product page modules/reviews/ already
-        // rendered and matched is the strongest possible evidence a shop
-        // carries this wine, and price/ was throwing it away — reviews found a
-        // live Woodland Hills product page for Mangot 2022 with 7 critic
-        // scores in the same run price/ returned zero retailers for it. The
-        // two modules must not import each other (CLAUDE.md §5), so the router
-        // is where they meet.
-        const result = await fetchPriceData(wine, {
-          confirmedProductPages: (wine.review_data ?? []).map((r) => ({
-            slug: r.slug,
-            name: r.name,
-            product_url: r.product_url,
-            // The shop's own price, off the shop's own page — see
-            // ConfirmedProductPage. Null when the extraction read none.
-            price: r.page_price ?? null,
-          })),
-        })
-        if (!result) {
-          return {
-            ok: false,
-            status: 503,
-            error: 'Price lookup failed — the search could not run (OPENAI_API_KEY or SERPER_API_KEY not configured, or Serper errored or timed out). Nothing was stored.',
-          }
-        }
-
-        // Fallback retailers keep their constructed Google search URL here —
-        // resolving it to a real product page is deferred to the moment the
-        // user clicks "View" (Phase 9.2, WI-6; see POST
-        // /:id/resolve-retailer-url below), not spent unconditionally on
-        // links most users never open.
-        const priceData = aggregatePriceData(result.retailers)
-
-        const updates: UpdateWineInput = {
-          price_data: {
-            // The whole aggregate (Phase 12.4 fix, 2026-11-01). This used to
-            // copy seven named fields, so everything Phase 12.2 added —
-            // headline_basis, price_groups, excluded, normalized,
-            // headline_estimated — was dropped on every fetch: only 2 of 66
-            // stored blobs had them (both written by choose-bottling, which
-            // spreads). The 2.5× "too far apart for one average" rule and the
-            // "estimated" marker never reached a client from a fetch.
-            ...priceData,
-            // Phase 12.1 — what this was fetched for; see enrichmentStale.
-            enriched_for: identityKey(wine),
-          },
-        }
-        return { ok: true, wine: await getStorage().updateWine(req.params.id, updates) }
+    const { promise } = startOrJoin<EnrichmentOutcome>(wineId, 'price', { tier: 'full', identity: identityKey(wine) }, async (job) => {
+      const storage = getStorage()
+      const jobState = (patch: Partial<PriceJob> = {}): PriceJob => ({
+        state: 'running',
+        started_at: job.startedAt,
+        updated_at: new Date().toISOString(),
+        identity: job.identity,
+        ...patch,
       })
-    )
+      /** Still wanted: not cancelled, still there, still the identity this run was started for. */
+      const stillWanted = async (): Promise<WineEntry | null> => {
+        if (job.cancelled()) return null
+        const current = await storage.getWine(wineId)
+        return current && identityKey(current) === job.identity ? current : null
+      }
+      // The heartbeat: says the run is alive, so a stopped machine is told from a slow lookup.
+      let beat: Promise<unknown> = Promise.resolve()
+      const heartbeat = setInterval(() => {
+        beat = beat.then(async () => {
+          if (await stillWanted()) await writeJob(wineId, 'price', jobState())
+        }).catch((err) => console.error('[price] heartbeat failed:', err))
+      }, heartbeatMs())
+      heartbeat.unref()
+
+      if (!(await writeJob(wineId, 'price', jobState()))) {
+        clearInterval(heartbeat)
+        return droppedOutcome(job)
+      }
+
+      try {
+        // Every outbound Serper call below is attributed to this wine and this
+        // action (Phase 9.2) — see shared/utils/serper-client.ts.
+        return await accountSerperUsage({ wine_id: wineId, action: 'fetch-price' }, async (): Promise<EnrichmentOutcome> => {
+          // Cross-feed (Phase 9.1): a product page modules/reviews/ already
+          // rendered and matched is the strongest possible evidence a shop
+          // carries this wine, and price/ was throwing it away — reviews found a
+          // live Woodland Hills product page for Mangot 2022 with 7 critic
+          // scores in the same run price/ returned zero retailers for it. The
+          // two modules must not import each other (CLAUDE.md §5), so the router
+          // is where they meet.
+          const result = await fetchPriceData(wine, {
+            confirmedProductPages: (wine.review_data ?? []).map((r) => ({
+              slug: r.slug,
+              name: r.name,
+              product_url: r.product_url,
+              // The shop's own price, off the shop's own page — see
+              // ConfirmedProductPage. Null when the extraction read none.
+              price: r.page_price ?? null,
+            })),
+          })
+          clearInterval(heartbeat)
+          await beat
+
+          // Still wanted? A discarded or re-identified wine takes nothing.
+          if (!(await stillWanted())) return droppedOutcome(job)
+
+          if (!result) {
+            await writeJob(wineId, 'price', jobState({ state: 'failed' }))
+            return {
+              ok: false,
+              status: 503,
+              error: 'Price lookup failed — the search could not run (OPENAI_API_KEY or SERPER_API_KEY not configured, or Serper errored or timed out). Nothing was stored.',
+            }
+          }
+
+          // Fallback retailers keep their constructed Google search URL here —
+          // resolving it to a real product page is deferred to the moment the
+          // user clicks "View" (Phase 9.2, WI-6; see POST
+          // /:id/resolve-retailer-url below), not spent unconditionally on
+          // links most users never open.
+          const priceData = aggregatePriceData(result.retailers)
+
+          const written = await writeJob(wineId, 'price', jobState({ state: 'done' }), {
+            price_data: {
+              // The whole aggregate (Phase 12.4 fix, 2026-11-01). This used to
+              // copy seven named fields, so everything Phase 12.2 added —
+              // headline_basis, price_groups, excluded, normalized,
+              // headline_estimated — was dropped on every fetch: only 2 of 66
+              // stored blobs had them (both written by choose-bottling, which
+              // spreads). The 2.5× "too far apart for one average" rule and the
+              // "estimated" marker never reached a client from a fetch.
+              ...priceData,
+              // Phase 12.1 — what this was fetched for; see enrichmentStale.
+              enriched_for: job.identity,
+            },
+          })
+          return written ? { ok: true, wine: written } : droppedOutcome(job)
+        })
+      } catch (err) {
+        clearInterval(heartbeat)
+        // An unexpected throw must not leave a job 'running' for a run that is over.
+        await beat
+        if (!job.cancelled()) await writeJob(wineId, 'price', jobState({ state: 'failed' })).catch(() => {})
+        throw err
+      }
+    })
+    const outcome = await promise
 
     if (!outcome.ok) {
       // The one place a lookup is 'failed' (Phase 12.4 WI-7): an error, never a search that found nothing.
-      res.status(outcome.status).json({ error: outcome.error, outcome: 'failed' })
+      res.status(outcome.status).json({ error: outcome.error, outcome: outcome.outcome ?? 'failed' })
       return
     }
     res.json(outcome.wine)
@@ -670,12 +736,7 @@ router.post(
           identity: job.identity,
           ...patch,
         })
-        // The wine was discarded, or its identity edited, while the search ran:
-        // nothing is written, and the two cases answer differently.
-        const dropped = (): EnrichmentOutcome =>
-          job.cancelled() === 'superseded'
-            ? { ok: false, status: 409, outcome: 'cancelled', error: 'The wine was edited during the search; its results were dropped. Nothing was stored.' }
-            : { ok: false, status: 404, outcome: 'cancelled', error: 'The wine was discarded during the search. Nothing was stored.' }
+        const dropped = (): EnrichmentOutcome => droppedOutcome(job)
         /** Still wanted: not cancelled, still there, still the identity this run was started for. */
         const stillWanted = async (): Promise<WineEntry | null> => {
           if (job.cancelled()) return null

@@ -228,11 +228,20 @@ struct PriceRetailersBlock: View {
 
     @ViewBuilder
     private func automated(titled: Bool) -> some View {
+        let search = PriceSearch(wine: wine, control: control)
         if titled {
             Text("Retailer prices (automated)").font(AppFont.sectionLabel()).foregroundStyle(Theme.textMuted)
         }
         if let price = wine.priceData {
             if wine.enrichmentStale?.price == true { StaleNotice() }
+            // A refresh running over stored prices says so (Phase 14 D4); the stored ones stay on screen.
+            if search.isSearching {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Checking prices…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                }
+                .accessibilityElement(children: .combine)
+            }
             stateLine(price)
             if wine.priceState?.kind == .wideRange, let groups = price.priceGroups {
                 VStack(alignment: .leading, spacing: 4) {
@@ -255,14 +264,16 @@ struct PriceRetailersBlock: View {
             if let date = NoteDate.short(price.fetchedAt) {
                 Text("Updated \(date)").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
-        } else if control.isBusy {
+        } else if search.isSearching {
+            // Also after Save, when the request that started it is on a screen that has gone.
             VStack(alignment: .leading, spacing: 8) {
                 RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 200, height: 12)
                 Text("Checking prices…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
-        } else if control.error != nil {
+            .accessibilityIdentifier("price-skeleton")
+        } else if search.hasFailed {
             // An error or timeout only (12.4 WI-7) — neutral, not alarming (12.5 WI-1).
             HStack(spacing: 4) {
                 Text("Couldn't check prices.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)

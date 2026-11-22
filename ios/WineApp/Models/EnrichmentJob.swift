@@ -116,3 +116,18 @@ struct ReviewSearch: Equatable {
         shopsTotal > 0 ? "No critic scores found at \(shopsTotal) \(shopsTotal == 1 ? "shop" : "shops")." : "No critic scores found."
     }
 }
+
+/// What the price block says about a price lookup (Phase 14 WI-5): the same
+/// rule as `ReviewSearch`. A lookup the server is running, or this app's own
+/// request that is out, is shown as running whatever else is known.
+struct PriceSearch: Equatable {
+    var isSearching: Bool
+    /// The server's lookup failed, or stopped under it: say so, with Retry.
+    var hasFailed: Bool
+
+    init(wine: Wine?, control: EnrichmentControl) {
+        let job = wine?.enrichmentJob?.price
+        isSearching = control.isBusy || job?.state == .running
+        hasFailed = !isSearching && (control.error != nil || job?.state == .failed || job?.state == .interrupted)
+    }
+}
