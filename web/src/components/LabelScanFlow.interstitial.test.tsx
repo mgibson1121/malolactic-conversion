@@ -7,8 +7,8 @@ import { act, render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 import type { WineEntry } from '@shared/types'
 import { LabelScanFlow } from './LabelScanFlow'
-import { scanLabel, createWine, fetchWinePrice, fetchWineReviews, deleteWine } from '../api'
-import { PREVIEW_HOLD_MS } from '../constants'
+import { scanLabel, createWine, fetchWinePrice, fetchWineReviews, deleteWine, getWine } from '../api'
+import { JOB_POLL_MS, PREVIEW_HOLD_MS } from '../constants'
 
 vi.mock('../api', () => ({
   scanLabel: vi.fn(),
@@ -17,6 +17,7 @@ vi.mock('../api', () => ({
   updateWine: vi.fn(),
   fetchWinePrice: vi.fn(),
   fetchWineReviews: vi.fn(),
+  getWine: vi.fn(),
 }))
 
 const mockScan = scanLabel as unknown as ReturnType<typeof vi.fn>
@@ -24,6 +25,7 @@ const mockCreate = createWine as unknown as ReturnType<typeof vi.fn>
 const mockPrice = fetchWinePrice as unknown as ReturnType<typeof vi.fn>
 const mockReviews = fetchWineReviews as unknown as ReturnType<typeof vi.fn>
 const mockDelete = deleteWine as unknown as ReturnType<typeof vi.fn>
+const mockGetWine = getWine as unknown as ReturnType<typeof vi.fn>
 
 const WINE = {
   id: 'w1', producer: 'Domaine Leroy', denomination: 'Gevrey-Chambertin', vintage: 2019, region: 'Burgundy',
@@ -66,6 +68,7 @@ beforeEach(() => {
   mockCreate.mockResolvedValue(WINE)
   mockPrice.mockResolvedValue(WINE)
   mockDelete.mockResolvedValue(undefined)
+  mockGetWine.mockResolvedValue(WINE)
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -83,7 +86,7 @@ describe('scan interstitial (D8)', () => {
 
     expect(screen.getByText('Scan successful')).toBeInTheDocument()
     expect(screen.getByText('Domaine Leroy · Gevrey-Chambertin · 2019')).toBeInTheDocument()
-    expect(screen.getByText('Pulling details…')).toBeInTheDocument()
+    expect(screen.getByText('Setting up your review…')).toBeInTheDocument()
 
     await act(async () => { vi.advanceTimersByTime(PREVIEW_HOLD_MS - 1) })
     expect(screen.getByText('Scan successful')).toBeInTheDocument()
@@ -113,7 +116,7 @@ describe('scan interstitial (D8)', () => {
     mockReviews.mockReturnValue(new Promise(() => {}))
     await startScan()
     expect(mockPrice).toHaveBeenCalledWith('w1')
-    expect(mockReviews).toHaveBeenCalledWith('w1', { tier: 'primary' })
+    expect(mockReviews).toHaveBeenCalledWith('w1')
     await act(async () => { vi.advanceTimersByTime(PREVIEW_HOLD_MS + 10) })
     expect(mockPrice).toHaveBeenCalledTimes(1)
     expect(mockReviews).toHaveBeenCalledTimes(1)
@@ -126,3 +129,44 @@ describe('scan interstitial (D8)', () => {
     expect(screen.queryByText('Scan successful')).not.toBeInTheDocument()
   })
 })
+
+describe('scan interstitial — the first score arrives by reading the wine (Phase 14 WI-6)', () => {
+  it('ends the hold on the first score a poll finds, while the search request is still open', async () => {
+    // The search request returns only when every shop is in; scores are saved as they land.
+    mockReviews.mockReturnValue(new Promise(() => {}))
+    mockGetWine.mockResolvedValueOnce(WINE).mockResolvedValue(scoreResult)
+    await startScan()
+    expect(screen.getByText('Scan successful')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(JOB_POLL_MS) })   // first read: nothing yet
+    expect(screen.getByText('Scan successful')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(JOB_POLL_MS) })   // second read: a score
+    expect(screen.queryByText('Scan successful')).not.toBeInTheDocument()
+    expect(mockGetWine).toHaveBeenCalledWith('w1')
+  })
+
+  it('stops reading once the hold has ended', async () => {
+    mockReviews.mockReturnValue(new Promise(() => {}))
+    await startScan()
+    await act(async () => { await vi.advanceTimersByTimeAsync(PREVIEW_HOLD_MS + 10) })
+    const reads = mockGetWine.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(JOB_POLL_MS * 3) })
+    expect(mockGetWine.mock.calls.length).toBe(reads)
+  })
+
+  it('a failed read is not the end: the hold still ends on time', async () => {
+    mockReviews.mockReturnValue(new Promise(() => {}))
+    mockGetWine.mockRejectedValue(new Error('offline'))
+    await startScan()
+    await act(async () => { await vi.advanceTimersByTimeAsync(PREVIEW_HOLD_MS + 10) })
+    expect(screen.queryByText('Scan successful')).not.toBeInTheDocument()
+  })
+
+  it('reads nothing when no lookup was fired (Tier 1 incomplete)', async () => {
+    mockCreate.mockResolvedValue({ ...WINE, producer: null } as unknown as WineEntry)
+    await startScan()
+    await act(async () => { await vi.advanceTimersByTimeAsync(JOB_POLL_MS * 2) })
+    expect(mockGetWine).not.toHaveBeenCalled()
+  })
+})
+

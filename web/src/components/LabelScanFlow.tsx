@@ -8,7 +8,7 @@
  *      screen, spending nothing.
  *   4. A new wine is a draft row from the moment parsing succeeds (WI-1) —
  *      created here, immediately, before the user has confirmed anything.
- *      Price and the primary review tier fire in the background the same
+ *      Price and the review search fire in the background the same
  *      moment (WI-6), so the seconds spent verifying fields below double as
  *      the seconds the search needs.
  *   5. Scan result card — visual preview of detected fields, now a PATCH
@@ -21,10 +21,10 @@
 
 import { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react'
 import type { CreateWineInput, UpdateWineInput, WineColor, WineEntry } from '@shared/types'
-import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, scanLabel, updateWine } from '../api'
+import { createWine, deleteWine, fetchWinePrice, fetchWineReviews, getWine, scanLabel, updateWine } from '../api'
 import type { LabelScanResult } from '../api'
 import { findDuplicate, type BottlingDifference } from '@shared/utils/duplicate-match'
-import { PREVIEW_HOLD_MS } from '../constants'
+import { JOB_POLL_MS, PREVIEW_HOLD_MS } from '../constants'
 import { criticSummaryOf } from '../utils/wineDerived'
 
 interface Props {
@@ -34,7 +34,7 @@ interface Props {
   wines: WineEntry[]
   /** Called once there is a wine to review — either a newly created draft or
    * an existing wine a duplicate check matched. autoFireReviews tells the
-   * Discovery Review screen whether to join the primary-tier reviews search
+   * Discovery Review screen whether to join the review search
    * already under way (true for a fresh scan) or stay click-gated (false
    * for an existing wine the developer is just being shown again). */
   onReview: (wine: WineEntry, autoFireReviews: boolean) => void
@@ -103,7 +103,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
   function fireEnrichment(wine: { id: string; producer: string | null; denomination: string | null; vintage: number | null }, opts?: { force?: boolean }) {
     if (!hasTier1(wine)) return
     fetchWinePrice(wine.id, opts).catch(() => {})
-    fetchWineReviews(wine.id, { tier: 'primary', ...opts }).catch(() => {})
+    fetchWineReviews(wine.id, opts).catch(() => {})
   }
 
   async function discardDraft() {
@@ -157,7 +157,11 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
   // for whatever is still pending. A failed scan never reaches here, so the
   // hold never delays an error.
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current) }, [])
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current)
+    if (pollTimer.current) clearInterval(pollTimer.current)
+  }, [])
 
   async function createDraftAndReview(scan: LabelScanResult, distinctFrom: WineEntry | null) {
     const wine = await createWine(scanToDraftInput(scan))
@@ -171,6 +175,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
       if (moved) return
       moved = true
       if (holdTimer.current) clearTimeout(holdTimer.current)
+      if (pollTimer.current) clearInterval(pollTimer.current)
       // Only if the developer is still on the interstitial for this wine.
       setFlow((f) =>
         f.step === 'pulling' && f.wine.id === wine.id
@@ -182,9 +187,17 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
     setFlow({ step: 'pulling', wine, scan, vintageNotice })
     if (fired) {
       fetchWinePrice(wine.id).catch(() => {})
-      fetchWineReviews(wine.id, { tier: 'primary' })
+      fetchWineReviews(wine.id)
         .then((res) => { if (criticSummaryOf(res).ordered.length > 0) moveOn(res) })
         .catch(() => {})
+      // The request above returns when the whole search ends, so the first
+      // score is seen by reading the wine (free): scores are saved as they land
+      // (Phase 14), and the hold ends on the first one.
+      pollTimer.current = setInterval(() => {
+        getWine(wine.id)
+          .then((fresh) => { if (criticSummaryOf(fresh).ordered.length > 0) moveOn(fresh) })
+          .catch(() => {})
+      }, JOB_POLL_MS)
     }
     holdTimer.current = setTimeout(() => moveOn(wine), PREVIEW_HOLD_MS)
   }
@@ -271,7 +284,7 @@ export function LabelScanFlow({ wines, onReview, onDone }: Props) {
           <span className="scan-spinner" aria-hidden="true">✓</span>
           <h2>Scan successful</h2>
           {line && <p className="scan-pulling-wine">{line}</p>}
-          <p role="status">Pulling details…</p>
+          <p role="status">Setting up your review…</p>
         </div>
       </div>
     )

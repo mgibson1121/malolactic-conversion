@@ -23,9 +23,10 @@
 
 import { useEffect, useState } from 'react'
 import type { UpdateWineInput, WineEntry } from '@shared/types'
-import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { useJobWatcher } from '../hooks/useJobWatcher'
+import { reviewSearchOf } from '../utils/enrichmentJob'
 import { claimPriceOnce, hasAttemptedPrice } from '../utils/priceOnce'
 import { CriticReviewsBlock } from './CriticReviewsBlock'
 import { EnrichmentRow } from './EnrichmentRow'
@@ -33,12 +34,10 @@ import { PriceBlock } from './PriceSection'
 import { criticSummaryOf } from '../utils/wineDerived'
 import { summarizePreferredRetailers } from '../utils/preferredRetailers'
 
-const EXTENDED_RETAILER_COUNT = RETAILER_CONFIG.filter((r) => r.reviewTier === 'extended').length
-
 interface Props {
   wine: WineEntry
   /** True only on the fresh-scan creation path (WI-6) — joins the
-   * primary-tier reviews search already fired by LabelScanFlow. False for
+   * review search already fired by LabelScanFlow. False for
    * manual add and for an existing wine shown via the duplicate check. */
   autoFireReviews?: boolean
   onDone: () => void
@@ -86,19 +85,23 @@ export function DiscoveryReview({
     onWineUpdated(updated)
   }
 
-  const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
-  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Couldn’t check reviews')
+  const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed', { wine, kind: 'price' })
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Couldn’t check reviews', { wine, kind: 'reviews' })
+  // Follows a search by reading the wine (free) while the server says one is
+  // running, so scores and the shop count show as they land (Phase 14 WI-6).
+  useJobWatcher(wine, price.busy || reviews.busy, applyUpdate)
 
   // Price follows the fetch-once rule (developer decision 2026-09-26,
   // utils/priceOnce.ts): priced automatically only if it has never been, and
   // at most once per session even when that attempt fails.
   // Reviews auto-fire only on the fresh-scan path (Phase 9.4, WI-6) — this
   // call joins whatever LabelScanFlow already started (or hits its TTL
-  // cache) via the same coalescing key, rather than starting a second run.
+  // cache): the server runs one search per wine and attaches a second request
+  // to it (Phase 14), rather than starting a second run.
   // Manual add and the duplicate-match path stay click-gated, as before.
   useEffect(() => {
     if (claimPriceOnce(wine)) price.run()
-    if (autoFireReviews && !wine.review_data) reviews.run({ tier: 'primary' })
+    if (autoFireReviews && !wine.review_data) reviews.run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -143,8 +146,10 @@ export function DiscoveryReview({
   const hasScores = criticSummaryOf(wine).ordered.length > 0
   const { carried, totalConfigured } = summarizePreferredRetailers(wine.price_data)
 
-  const reviewsLabel = hasScores ? 'Refresh Reviews' : wine.review_data ? 'Search more retailers' : 'Fetch Reviews'
-  // A fresh scan has its primary-tier lookup under way until a result or an
+  // No second, wider search to offer (Phase 14): the search already covers every shop.
+  const reviewsLabel = hasScores || wine.review_data ? 'Refresh Reviews' : 'Fetch Reviews'
+  const reviewSearch = reviewSearchOf(wine, reviews.busy)
+  // A fresh scan has its lookup under way until a result or an
   // error arrives (Phase 12.1 WI-4): the block says "Looking…", not nothing.
   const reviewsUnderWay = autoFireReviews && !wine.review_data
   // A wine that has never been priced is about to be (fetch-once rule).
@@ -183,11 +188,7 @@ export function DiscoveryReview({
             busyLabel="Fetching…"
             freshnessLabel="Reviews"
             hasData={!!wine.review_data}
-            note={
-              reviewsLabel === 'Search more retailers' ? (
-                <p className="scan-result-tier2">Searches {EXTENDED_RETAILER_COUNT} more shops</p>
-              ) : undefined
-            }
+            searching={reviewSearch.isSearching}
           />
         </div>
 

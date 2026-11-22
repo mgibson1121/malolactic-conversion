@@ -12,8 +12,11 @@ interface Props {
   freshnessLabel: string
   /** Hard refresh needs data to refresh; shown once any exists (WI-7). */
   hasData: boolean
-  /** Extra text under the buttons, e.g. "Searches 7 more shops". */
+  /** Extra text under the buttons. */
   note?: ReactNode
+  /** A search is already running on this wine (Phase 14): both buttons wait
+   * for it, so a click can never start a second one. */
+  searching?: boolean
 }
 
 /**
@@ -23,14 +26,15 @@ interface Props {
  * line when a click returned stored data, and the
  * error.
  */
-export function EnrichmentRow({ action, label, busyLabel, freshnessLabel, hasData, note }: Props) {
+export function EnrichmentRow({ action, label, busyLabel, freshnessLabel, hasData, note, searching = false }: Props) {
+  const wait = action.busy || searching
   return (
     <div className="enrichment-row">
       <div className="enrichment-row-buttons">
-        <button type="button" className="btn-fetch-price" onClick={() => action.run()} disabled={action.busy}>
-          {action.busy ? busyLabel : label}
+        <button type="button" className="btn-fetch-price" onClick={() => action.run()} disabled={wait}>
+          {action.busy ? busyLabel : searching ? 'Searching…' : label}
         </button>
-        {hasData && <HardRefreshButton onClick={() => action.run({ force: true })} disabled={action.busy} />}
+        {hasData && <HardRefreshButton onClick={() => action.run({ force: true })} disabled={wait} />}
       </div>
       {note}
       {action.cachedAt && <EnrichmentFreshness fetchedAt={action.cachedAt} label={freshnessLabel} />}

@@ -9,7 +9,7 @@ import type { LabelScanResult } from '../api'
 // The "Scan successful — pulling details" hold (Phase 12.1 WI-5) is covered by
 // LabelScanFlow.interstitial.test.tsx; everything else here is about what
 // follows it, so the hold is zero.
-vi.mock('../constants', () => ({ PREVIEW_HOLD_MS: 0 }))
+vi.mock('../constants', () => ({ PREVIEW_HOLD_MS: 0, JOB_POLL_MS: 2000, JOB_WATCH_MAX_MS: 300000 }))
 
 vi.mock('../api', () => ({
   scanLabel: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock('../api', () => ({
   updateWine: vi.fn(),
   fetchWinePrice: vi.fn(),
   fetchWineReviews: vi.fn(),
+  getWine: vi.fn(),
 }))
 
 const mockScanLabel = scanLabel as unknown as ReturnType<typeof vi.fn>
@@ -120,7 +121,7 @@ describe('LabelScanFlow — draft creation on parse (WI-1)', () => {
     })
   })
 
-  it('fires price and primary-tier reviews as soon as the draft is created (WI-6)', async () => {
+  it('fires price and the review search as soon as the draft is created (WI-6)', async () => {
     mockScanLabel.mockResolvedValue(makeScan())
     mockCreateWine.mockResolvedValue(makeWine())
 
@@ -128,7 +129,9 @@ describe('LabelScanFlow — draft creation on parse (WI-1)', () => {
     await uploadAFile()
 
     await waitFor(() => expect(mockFetchPrice).toHaveBeenCalledWith('wine-1'))
-    expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { tier: 'primary' })
+    // Phase 14: no tier — the search covers every shop, and nothing is click-gated.
+    expect(mockFetchReviews).toHaveBeenCalledWith('wine-1')
+    expect(mockFetchReviews.mock.calls[0]).not.toContainEqual(expect.objectContaining({ tier: expect.anything() }))
   })
 
   it('holds the fetch when Tier 1 is incomplete (missing producer)', async () => {
@@ -156,7 +159,7 @@ describe('LabelScanFlow — draft creation on parse (WI-1)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() =>
-      expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { force: false, tier: 'primary' })
+      expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { force: false })
     )
   })
 })

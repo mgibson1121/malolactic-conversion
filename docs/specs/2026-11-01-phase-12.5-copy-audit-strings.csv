@@ -63,7 +63,6 @@ web,web/src/components/CriticReviewsBlock.tsx,56,Critic reviews,Fetched for a di
 web,web/src/components/CriticReviewsBlock.tsx,63,Critic reviews,Looking for critic scores…,"Checking reviews… (matches ""Checking prices…"")",accept
 web,web/src/components/CriticReviewsBlock.tsx,71,Critic reviews,Try again,,keep
 web,web/src/components/CriticReviewsBlock.tsx,79,Critic reviews,No critic scores found yet,,keep
-web,web/src/components/CriticReviewsBlock.tsx,83,Critic reviews,Search more retailers,,keep
 web,web/src/components/CriticReviewsBlock.tsx,92,Critic reviews,Critic scores haven’t been looked up yet.,,keep
 web,web/src/components/CriticReviewsBlock.tsx,134,Critic reviews,The vintage this score is for,,keep
 web,web/src/components/CriticReviewsBlock.tsx,174,Critic reviews,What does this tier mean?,,keep
@@ -79,7 +78,6 @@ web,web/src/components/DiscoveryReview.tsx,50,Scan preview,Promise,,keep
 web,web/src/components/DiscoveryReview.tsx,89,Scan preview,Price lookup failed,,keep
 web,web/src/components/DiscoveryReview.tsx,90,Scan preview,Review lookup failed,Couldn't check reviews,accept
 web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Refresh Reviews,,keep
-web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Search more retailers,,keep
 web,web/src/components/DiscoveryReview.tsx,146,Scan preview,Fetch Reviews,,keep
 web,web/src/components/DiscoveryReview.tsx,160,Scan preview,Not yet saved — pick a list below,,keep
 web,web/src/components/DiscoveryReview.tsx,162,Scan preview,✓ Saved to Collection,,keep
@@ -203,7 +201,7 @@ web,web/src/components/LabelScanFlow.tsx,245,Scan,Cancel,,keep
 web,web/src/components/LabelScanFlow.tsx,258,Scan,Scanning label…,,keep
 web,web/src/components/LabelScanFlow.tsx,259,Scan,GPT-4o is reading the label. This usually takes 5–15 seconds.,Reading the label… (5–15 seconds),accept
 web,web/src/components/LabelScanFlow.tsx,272,Scan,Scan successful,,keep
-web,web/src/components/LabelScanFlow.tsx,274,Scan,Pulling details…,,keep
+web,web/src/components/LabelScanFlow.tsx,,Scan,Pulling details…,Setting up your review…,accept (Phase 14 D5)
 web,web/src/components/LabelScanFlow.tsx,285,Scan,Scan Unavailable,,keep
 web,web/src/components/LabelScanFlow.tsx,287,Scan,You can still add wines manually using the,,keep
 web,web/src/components/LabelScanFlow.tsx,287,Scan,+ Add Wine,,keep
@@ -431,7 +429,6 @@ ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,51,Critic reviews / Price
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,57,Critic reviews / Price,Review lookup failed —,"Couldn't check reviews. (+ Retry, matching ""Couldn't check prices"")",accept
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,58,Critic reviews / Price,Try again,,keep
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,61,Critic reviews / Price,No critic scores found yet for this wine.,"No critic scores found. (matches ""No prices found"")",accept
-ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,,Critic reviews / Price,Search more retailers,,removed (Phase 14: the search covers every shop by itself)
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,66,Critic reviews / Price,Critic scores haven't been looked up yet.,,keep
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,75,Critic reviews / Price,A page was found but no score could be read from it. It may carry a review without a score.,A page with no readable score: (link follows),accept
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,132,Critic reviews / Price,different bottling,,keep
@@ -723,5 +720,14 @@ ios,ios/WineApp/Features/Detail/DetailComponents.swift,106,Wine detail,Searching
 ios,ios/WineApp/Features/Detail/WineDetailView.swift,296,Wine detail,Searching… / 2 so far…,,new (Phase 14: the Critic reviews card summary while a search runs)
 ios,ios/WineApp/Features/Lists/WineRowView.swift,180,Lists,Searching…,,new (Phase 14: list row indicator)
 ios,ios/WineApp/Features/Lists/WineRowView.swift,96,Lists,searching for scores and prices,,new (Phase 14: VoiceOver label)
-ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,,Price & retailers,Checking prices…,,new use (Phase 14 WI-5: one line over stored prices while a refresh runs; the skeleton when there is no price yet, including after Save)
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,,Price & retailers,Checking prices…,,new use (Phase 14 WI-5: one line over stored prices while a refresh runs; the skeleton when there is no price yet - also after Save)
 ios,ios/WineApp/Features/Detail/WineDetailView.swift,,Wine detail,Checking…,,new (Phase 14 WI-5: the Price & retailers card summary while the first lookup runs)
+web,web/src/utils/enrichmentJob.ts,,Critic reviews,Checked 7 of 11 shops · 2 scores so far,,new (Phase 14; same wording as iOS)
+web,web/src/utils/enrichmentJob.ts,,Critic reviews,Checked 11 shops,,new (Phase 14)
+web,web/src/utils/enrichmentJob.ts,,Critic reviews,No critic scores found at 11 shops.,,new (Phase 14; no button)
+web,web/src/components/CriticReviewsBlock.tsx,,Critic reviews,Looking for an exact-vintage score…,,new (Phase 14)
+web,web/src/components/CriticReviewsBlock.tsx,,Critic reviews,Searching shops…,,new (Phase 14: under scores before the first count)
+web,web/src/components/CriticReviewsBlock.tsx,,Critic reviews,The search stopped before every shop was checked.,,new (Phase 14; + Retry)
+web,web/src/components/EnrichmentRow.tsx,,Critic reviews / Price,Searching…,,new (Phase 14: the Fetch/Refresh button while a search runs)
+web,web/src/components/WineCard.tsx,,Wine card,Searching… Checked 6 of 11 shops,,new (Phase 14: card indicator)
+web,web/src/components/PriceSection.tsx,,Price & retailers,Checking prices…,,new use (Phase 14: one line over stored prices while a refresh runs)

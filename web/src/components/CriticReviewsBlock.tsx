@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { CriticSummaryItem, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
 import { criticSummaryOf, ladderOf, staleOf } from '../utils/wineDerived'
+import { reviewSearchOf } from '../utils/enrichmentJob'
 import { formatScore, yearTagOf } from '../utils/criticBadge'
 import { TIER_COPY, tierHeadline } from '../utils/tierCopy'
 import { BottlingBanner } from './BottlingPrompt'
@@ -12,12 +13,9 @@ interface Props {
   wine: WineEntry
   /** The reviews enrichment action — drives the Looking and Failed states. */
   action: EnrichmentAction
-  /** A fresh scan whose primary-tier lookup is already under way: until a
-   * result or an error arrives, the block reads as Looking rather than idle. */
+  /** A fresh scan whose lookup is already under way: until a result or an
+   * error arrives, the block reads as Looking rather than idle. */
   lookupUnderWay?: boolean
-  /** Offered in the "nothing found" state — the extended-tier search. */
-  onSearchMore?: () => void
-  extendedRetailerCount?: number
   /** Enables "Which bottling is yours?" (Phase 12.2), which saves the answer. */
   onWineUpdated?: (wine: WineEntry) => void
   /** The scan's draft review (DiscoveryReview) rather than a saved wine. */
@@ -27,10 +25,16 @@ interface Props {
 export type CriticReviewsState = 'looking' | 'found' | 'none' | 'failed' | 'idle'
 
 /**
- * Phase 12.1 WI-4: the critic block has four explicit states and never
- * vanishes (this supersedes the Phase 12 implementation spec §6.4 "the block
+ * Phase 12.1 WI-4: the critic block has explicit states and never vanishes
+ * (this supersedes the Phase 12 implementation spec §6.4 "the block
  * disappears rather than showing an empty state mid-task" — that rule made
  * "still loading" and "found nothing" indistinguishable).
+ *
+ * Phase 14 (WI-6): a search that is running is shown as running whatever else
+ * is known (spec D4). `looking` is a search with nothing to show yet; `found`
+ * while a search is still going keeps its scores and adds the skeleton under
+ * them, so the first score never reads as the end of the search. A saved wine
+ * mid-search reads as looking, never as `idle`.
  *
  * `idle` is the one non-spec state: a wine whose scores have simply never been
  * looked up (manual add, no auto-fire). It says so rather than claiming a
@@ -39,14 +43,16 @@ export type CriticReviewsState = 'looking' | 'found' | 'none' | 'failed' | 'idle
 export function criticReviewsState(wine: WineEntry, action: EnrichmentAction, lookupUnderWay = false): CriticReviewsState {
   const hasScores = criticSummaryOf(wine).ordered.length > 0
   if (hasScores) return 'found'
-  if (action.busy) return 'looking'
-  if (action.error) return 'failed'
+  const search = reviewSearchOf(wine, action.busy)
+  if (search.isSearching) return 'looking'
+  if (action.error || search.isInterrupted || search.hasFailed) return 'failed'
   if (wine.review_data) return 'none'
   return lookupUnderWay ? 'looking' : 'idle'
 }
 
-export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore, extendedRetailerCount, onWineUpdated, draft = false }: Props) {
+export function CriticReviewsBlock({ wine, action, lookupUnderWay, onWineUpdated, draft = false }: Props) {
   const state = criticReviewsState(wine, action, lookupUnderWay)
+  const search = reviewSearchOf(wine, action.busy)
   const [promptOpen, setPromptOpen] = useState(false)
   const [tierOpen, setTierOpen] = useState(false)
   const stale = staleOf(wine).reviews
@@ -58,17 +64,11 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
         <p className="stale-notice">Found for an earlier version of this wine. Refresh.</p>
       )}
 
-      {state === 'looking' && (
-        <div className="critic-reviews-looking" role="status">
-          <span className="skeleton-line" aria-hidden="true" />
-          <span className="skeleton-line skeleton-line--short" aria-hidden="true" />
-          <span className="critic-reviews-looking-text">Checking reviews…</span>
-        </div>
-      )}
+      {state === 'looking' && <SearchSkeleton line={search.metaLine ?? 'Checking reviews…'} />}
 
       {state === 'failed' && (
         <p className="critic-reviews-failed">
-          Couldn’t check reviews.{' '}
+          {search.isInterrupted ? 'The search stopped before every shop was checked.' : 'Couldn’t check reviews.'}{' '}
           <button type="button" className="btn-link-inline" onClick={() => action.run()}>
             Retry
           </button>
@@ -76,18 +76,11 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
       )}
 
       {state === 'none' && (
+        // How hard it looked, and nothing to click: the search already covered every shop.
         <div className="critic-reviews-none">
           <p>
-            <strong>No critic scores found yet</strong> for this wine.
+            <strong>{search.noneLine}</strong>
           </p>
-          {onSearchMore && (
-            <button type="button" className="btn-link-inline" onClick={onSearchMore} disabled={action.busy}>
-              Search more retailers
-            </button>
-          )}
-          {onSearchMore && extendedRetailerCount ? (
-            <span className="scan-result-tier2"> Searches {extendedRetailerCount} more shops</span>
-          ) : null}
         </div>
       )}
 
@@ -95,13 +88,25 @@ export function CriticReviewsBlock({ wine, action, lookupUnderWay, onSearchMore,
 
       <ScorelessPages wine={wine} />
 
-      {state === 'found' && ladder && ladder.tier !== 'none' && (
+      {/* The tier is not announced while shops are unfinished: the best one so far is not the answer. */}
+      {state === 'found' && search.isSearching && ladder?.tier !== '1' && (
+        <p className="tier-marker tier-marker--quiet" data-testid="tier-looking">Looking for an exact-vintage score…</p>
+      )}
+
+      {state === 'found' && !search.isSearching && ladder && ladder.tier !== 'none' && (
         <TierMarker wine={wine} open={tierOpen} onOpenChange={setTierOpen} onChoose={onWineUpdated ? () => { setTierOpen(false); setPromptOpen(true) } : undefined} />
       )}
 
       {state === 'found' && <FoundScores wine={wine} />}
 
-      {onWineUpdated && (
+      {/* Scores above a skeleton and one line, until the last shop is in. */}
+      {state === 'found' && search.isSearching && <SearchSkeleton line={search.metaLine ?? 'Searching shops…'} />}
+      {state === 'found' && !search.isSearching && search.metaLine && (
+        <p className="search-meta-line" data-testid="search-meta">{search.metaLine}</p>
+      )}
+
+      {/* A partial result never prompts a question: the banner waits for the search to end. */}
+      {onWineUpdated && !search.isSearching && (
         <BottlingBanner wine={wine} onWineUpdated={onWineUpdated} open={promptOpen} onOpenChange={setPromptOpen} draft={draft} />
       )}
     </div>
@@ -224,5 +229,19 @@ function ScorelessPages({ wine }: { wine: WineEntry }) {
         </span>
       ))}
     </p>
+  )
+}
+
+/**
+ * Grey placeholder lines and one line saying how far the search has got. Shown
+ * under any scores already in while a shop is still unfinished (Phase 14 D4).
+ */
+function SearchSkeleton({ line }: { line: string }) {
+  return (
+    <div className="critic-reviews-looking" role="status">
+      <span className="skeleton-line" aria-hidden="true" />
+      <span className="skeleton-line skeleton-line--short" aria-hidden="true" />
+      <span className="critic-reviews-looking-text">{line}</span>
+    </div>
   )
 }

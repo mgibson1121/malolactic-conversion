@@ -314,7 +314,7 @@ describe('DiscoveryReview — autoFireReviews (Phase 9.4, WI-6)', () => {
       />
     )
 
-    await waitFor(() => expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', { tier: 'primary' }))
+    await waitFor(() => expect(mockFetchReviews).toHaveBeenCalledWith('wine-1', undefined))
   })
 
   it('does not fire reviews on mount when autoFireReviews is false (manual add / duplicate match)', async () => {
@@ -324,9 +324,10 @@ describe('DiscoveryReview — autoFireReviews (Phase 9.4, WI-6)', () => {
 })
 
 describe('DiscoveryReview — reviews button copy (Phase 9.4, WI-6)', () => {
-  it('shows "Search more retailers" once review_data exists with no critic scores', async () => {
+  it('never offers a second, wider search: review_data with no scores reads Refresh Reviews (Phase 14)', async () => {
     await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: [] }))
-    expect(screen.getByRole('button', { name: 'Search more retailers' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /search more/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh Reviews' })).toBeInTheDocument()
   })
 
   it('shows "Refresh Reviews" once a critic score is present', async () => {
@@ -430,8 +431,8 @@ describe('DiscoveryReview — states (WI-4)', () => {
 
   it('a finished review lookup with no scores says so — the block does not disappear', async () => {
     await renderAndSettle(makeWine({ price_data: makePriceData([]), review_data: [] }))
-    expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search more retailers' })).toBeInTheDocument()
+    expect(screen.getByText('No critic scores found.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /search more/i })).not.toBeInTheDocument()
   })
 
   it('a failed review lookup says so and offers Retry', async () => {

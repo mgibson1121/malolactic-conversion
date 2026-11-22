@@ -180,6 +180,15 @@ The costs that are not covered by that argument:
 - **The open-time price-once starts nothing while a price job runs**, which is the interaction the scan's own lookup and a just-opened saved wine would otherwise have.
 - Tests: `backend/tests/unit/enrichment-jobs-price.test.ts` (12) and, in `Phase14Tests.swift`, `PriceSearchCopyTests`, `DetailPriceSearchTests` and three price cases in `ScanSearchTests` (10).
 
+**WI-6 status (built 2026-11-22, branch `feature/phase-14-wi6-web`).** §5.4's web paragraph, with these differences and additions:
+- **One merge rule for polls, written down:** a read brings across only what a lookup writes (`mergeEnrichment`'s list), never tags, quantity, notes or an identity edit in progress, and a read that began before the wine last changed is dropped. The iOS app got the same effect from `Wine.applying(_:from:)`; the web had no equivalent, and its POST results were applied whole (unchanged).
+- **The web card is the list row.** The spec's "small indicator on the list row" is the card's "Searching…" line with the count; the detail modal and the scan review get the same blocks as iOS.
+- **The interstitial reads the wine every 2 s to see the first score,** because the request that starts the search now returns only when the whole search ends. On a 3 s hold that is one read; it stops when the hold does, and a failed read changes nothing.
+- **Wording differs from iOS in one place:** before the first count the web says "Checking reviews…" (it has nothing true to say about shops yet), where iOS says "Searching shops…".
+- **Not done:** no browser check (the web is exercised by Vitest with a stubbed API; WI-8 is where it is looked at), and the old "Refresh anyway" copy is untouched.
+- Acceptance 7 holds: `grep -ri "search more retailers"` finds nothing under `ios/`, `web/src/` or the copy audit (three rows removed, nine new web strings added).
+- Tests: 55 new in `utils/enrichmentJob.test.ts`, `hooks/useJobWatcher.test.tsx`, `components/EnrichmentJobs.test.tsx` and the interstitial file; several older tests that asserted the retired rules now assert the new ones. Ten mutations of the guards were each caught.
+
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
 ---

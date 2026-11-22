@@ -10,3 +10,11 @@
  * hold ends — the preview shows its "Looking…" states for whatever is pending.
  */
 export const PREVIEW_HOLD_MS = 3000
+
+/**
+ * Phase 14 WI-6: how often a running search is read while the app waits for it
+ * (a free GET, never a metered call), and the longest one watcher will follow
+ * a single search. Mirror `ScanTiming` in the iOS app.
+ */
+export const JOB_POLL_MS = 2000
+export const JOB_WATCH_MAX_MS = 5 * 60 * 1000

@@ -1,3 +1,4 @@
+import { priceSearchOf } from '../utils/enrichmentJob'
 import { useState } from 'react'
 import type { RetailerPrice, WineEntry } from '@shared/types'
 import type { EnrichmentAction } from '../hooks/useEnrichmentAction'
@@ -185,8 +186,11 @@ export function PriceBlock({ wine, action, onWineUpdated, variant = 'detail', lo
   const data = wine.price_data
   const manual = effectivePrice(wine).basis === 'manual'
 
-  const looking = !data && (action.busy || (lookupUnderWay && !action.error))
-  const failed = !data && !action.busy && !!action.error
+  // Phase 14 (WI-5/6): a lookup the server is running counts, whoever started
+  // it — also after Save, when the request that did is on a screen that has gone.
+  const search = priceSearchOf(wine, action.busy, action.error)
+  const looking = !data && (search.isSearching || (lookupUnderWay && !action.error))
+  const failed = !data && !search.isSearching && search.hasFailed
 
   return (
     <div className="price-block">
@@ -220,6 +224,11 @@ export function PriceBlock({ wine, action, onWineUpdated, variant = 'detail', lo
 
       {!data && !looking && !failed && <p className="detail-empty-hint">No price data yet.</p>}
 
+      {/* A refresh running over stored prices says so; the stored ones stay on screen. */}
+      {data && search.isSearching && (
+        <p className="price-refreshing" role="status">Checking prices…</p>
+      )}
+
       {data && (
         <AutomatedPrices wine={wine} onWineUpdated={onWineUpdated} folded={manual && variant === 'card'} manual={manual} />
       )}
@@ -230,6 +239,7 @@ export function PriceBlock({ wine, action, onWineUpdated, variant = 'detail', lo
         busyLabel={data ? 'Refreshing…' : 'Fetching…'}
         freshnessLabel="Price"
         hasData={!!data}
+        searching={search.isSearching}
       />
     </div>
   )
