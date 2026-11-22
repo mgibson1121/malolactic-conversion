@@ -330,6 +330,8 @@ struct Wine: Codable, Identifiable, Hashable {
     /// User-saved retailer URLs keyed by retailer slug.
     var retailerLinks: [String: String]?
     var reviewData: [RetailerReview]?
+    /// Phase 14: the state of this wine's running or last lookups.
+    var enrichmentJob: EnrichmentJobs?
 
     let dateAdded: String
     var dateFirstConsumed: String?
@@ -378,6 +380,7 @@ struct Wine: Codable, Identifiable, Hashable {
         case priceData = "price_data"
         case retailerLinks = "retailer_links"
         case reviewData = "review_data"
+        case enrichmentJob = "enrichment_job"
         case dateAdded = "date_added"
         case dateFirstConsumed = "date_first_consumed"
         case promotedAt = "promoted_at"

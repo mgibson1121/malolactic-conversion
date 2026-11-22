@@ -54,7 +54,8 @@ final class ScanFillInTests: XCTestCase {
 
         XCTAssertEqual(draftDenomination, "Sonoma Coast", "the field is saved to the draft before the search")
         let reviews = try XCTUnwrap(lookups().first { $0.url!.path.hasSuffix("/fetch-reviews") })
-        XCTAssertTrue(reviews.url!.query?.contains("tier=primary") ?? false, "the scan path's primary tier only")
+        // Phase 14: the scan searches every shop and asks for no tier; nothing is click-gated.
+        XCTAssertFalse(reviews.url!.query?.contains("tier") ?? false, "no ?tier=primary: the full search")
 
         // More edits don't fire again, and neither does Save.
         model.fields.region = "Sonoma County"
