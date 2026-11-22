@@ -147,6 +147,14 @@ The costs that are not covered by that argument:
 
 **WI-8 — Field test.** Scan five real bottles on the phone, once with the screen locked mid-search; confirm each acceptance criterion below on the device.
 
+**WI-1 status (built 2026-11-22, branch `feature/phase-14-wi1-job-state`).** Done as written in §5.1 for reviews, with these differences, each a decision for the developer if they disagree:
+- **`enrichment_job` is `{ reviews?, price? }`**, one section per kind. §5.1 describes the reviews shape and says price "carries the same envelope", which implies two jobs in one column. Price is typed and stored-safe but not wired until WI-5.
+- **A full request waits behind a stale client's primary run** instead of attaching (§5.1 says one key "whatever the tier"). Attaching would give a `tier=full` caller a primary-only answer, and the old build 0.1 (2) can produce exactly that pair: its scan sends `primary`, its Refresh sends `full`. Once clients stop sending `primary` (WI-4) the branch can never run. A primary request attaching to a running full job is unchanged.
+- **Cancellation is checked once, at the end of the run, until WI-2.** `fetchReviewData` is still one call, so there is no per-shop check to make yet; the handle (`JobHandle.cancelled()`) is what WI-2 calls after each shop. A cancelled run still spends its calls, as before.
+- **The final write re-reads the wine** and derives the window/rating with its current provenance, not the request-start snapshot. A drinking window set by hand during a search is no longer at risk of being overwritten.
+- **Start-up recovery is here, not WI-3.** Marking stored `running` jobs `interrupted` at boot is five lines and keeps §8's "no job stays `running` after its machine has stopped" true from the first deploy. The heartbeat-based detection without a restart stays in WI-3.
+- Tests: `backend/tests/unit/enrichment-jobs.test.ts` (18).
+
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
 ---

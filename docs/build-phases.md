@@ -2009,7 +2009,7 @@ action available on the web is reachable on the phone.
 
 ## Phase 14 — Polishing
 
-**Status:** Spec drafted 2026-11-22 (`docs/specs/2026-11-22-phase-14-polishing.md`), for developer review. Not started. **Numbering:** inserted as Phase 14 on 2026-11-22; the former Phases 14, 15 and 16 are now 15, 16 and 17 (the same move as Phase 13's insertion on 2026-11-01). Older specs and session notes keep the numbers current when they were written.
+**Status:** Spec drafted 2026-11-22 (`docs/specs/2026-11-22-phase-14-polishing.md`), for developer review. WI-1 built (see Progress below), the rest not started. **Numbering:** inserted as Phase 14 on 2026-11-22; the former Phases 14, 15 and 16 are now 15, 16 and 17 (the same move as Phase 13's insertion on 2026-11-01). Older specs and session notes keep the numbers current when they were written.
 
 **Goal:** Make the scan's retailer and critic lookups behave as the developer expects: they start by themselves, search every retailer the app knows, show each result the moment it arrives, and always show that they are still working, including after the wine is saved.
 
@@ -2018,6 +2018,8 @@ action available on the web is reachable on the phone.
 **Decisions (D1–D8, spec §3):** the click-gated escalation is retired and CLAUDE.md §15 amended (credits are prepaid and plentiful); Stage A searches every renderable configured retailer at once, Stage B (merchant probes and open web) runs automatically only when Stage A leaves no Tier 1 result; results are saved per retailer and read by polling the free `GET`; a running search is shown everywhere the wine appears (scan review, detail, list row); the interstitial stays at most 3 s ("Setting up your review…"); the job survives Fly's idle stop through saved progress, a heartbeat, a SIGTERM that waits for jobs, and one automatic resume; manual add, price-once and Refresh/Hard refresh are unchanged; `?tier=primary` keeps working for old builds.
 
 **Work items:** WI-0 staging spike (concurrency, Stage B yield, idle-stop timing; sets the constants) → WI-1 job state and API → WI-2 pipeline → WI-3 durability → WI-4 iOS → WI-5 price status → WI-6 web parity → WI-7 docs → WI-8 field test.
+
+**Progress:** WI-1 built 2026-11-22 (job state and API: migration 012, `enrichment_job`, the per-wine registry, attach-to-running, cancellation on discard and identity edit; PR open). The work items are otherwise not started. WI-0 (the staging spike) still decides the concurrency constant and whether Stage B earns its cost; WI-1 does not depend on either. Differences from the spec are listed under WI-1 status in the spec.
 
 **Cost:** about 27–32 Serper credits a scan against about 10 (ceiling about 40), 6–19% of the prepaid pack over six months; about one extra render and GPT-4o extraction a wine. Arithmetic in spec §6.
 
