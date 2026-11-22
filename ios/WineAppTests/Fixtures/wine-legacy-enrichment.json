@@ -1,5 +1,5 @@
 {
-  "id": "72ff138c-8c14-41a4-a193-35400823099b",
+  "id": "d94d9c09-7433-4b1e-aa9f-5cfca396eb84",
   "producer": "Château Rayas",
   "denomination": "Châteauneuf-du-Pape",
   "vintage": 2012,
@@ -81,7 +81,8 @@
     }
   ],
   "review_probe_log": null,
-  "date_added": "2026-11-01T16:01:31.773Z",
+  "enrichment_job": null,
+  "date_added": "2026-11-22T21:23:23.858Z",
   "date_first_consumed": null,
   "promoted_at": "2026-07-01T12:00:00.000Z",
   "latest_tasting_note_date": null,

@@ -8,6 +8,7 @@ import type {
   RetailerPrice,
   RetailerReview,
   ReviewProbeLogEntry,
+  ReviewsJob,
   UpdateWineInput,
   WineEntry,
   WineFilter,
@@ -28,6 +29,7 @@ import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
+import { cancelJobs, runningJob, startOrJoin, writeJob } from './enrichment-jobs'
 import { accountSerperUsage } from '@shared/utils/serper-client'
 import {
   coalesce,
@@ -246,6 +248,21 @@ router.patch(
       }
     }
 
+    // Phase 14 (WI-1) — a search running for the old identity is for a wine
+    // this one no longer is. Stop it (its late results are dropped, never
+    // stamped onto the new identity) and clear its job state, so a request
+    // that follows this one starts a search of its own. This applies to drafts
+    // too: the scan's review screen edits a draft's fields while it searches.
+    if (existing && identityKey(existing) !== identityKey({ ...existing, ...updates })) {
+      const cancelled = cancelJobs(req.params.id, 'superseded')
+      if (cancelled.length > 0) {
+        updates.enrichment_job = {
+          ...(existing.enrichment_job ?? {}),
+          ...Object.fromEntries(cancelled.map((kind) => [kind, null])),
+        }
+      }
+    }
+
     const wine = await getStorage().updateWine(req.params.id, updates)
     res.json(wine)
   })
@@ -358,6 +375,9 @@ router.delete(
       return
     }
 
+    // Phase 14 (WI-1): stop a search for a wine that is going away, so its
+    // results are dropped rather than written to a row that no longer exists.
+    cancelJobs(req.params.id, 'discarded')
     await getStorage().deleteWine(req.params.id)
     res.status(204).end()
   })
@@ -407,7 +427,9 @@ router.post(
  */
 type EnrichmentOutcome =
   | { ok: true; wine: WineEntry }
-  | { ok: false; status: number; error: string }
+  // `outcome: 'cancelled'` (Phase 14): the run was stopped because the wine was
+  // discarded or its identity edited; nothing was stored. Absent means failed.
+  | { ok: false; status: number; error: string; outcome?: 'cancelled' }
 
 /** `?force=true` bypasses the freshness guard (Phase 9.2, WI-4). Anything else
  * — absent, empty, 'false' — leaves it in place, so a mistyped query string
@@ -519,31 +541,48 @@ router.post(
 // Unlike /fetch-price, this always succeeds: an empty review_data array
 // covers "not configured" and "nothing found" alike (modules/reviews/
 // degrades gracefully rather than distinguishing them — see CLAUDE.md §5).
+//
+// Phase 14 (WI-1): the run is a job — one per wine, whatever the tier —
+// recorded in `wines.enrichment_job` and visible to every client that reads the
+// wine. A request that arrives while one is running attaches to it and gets the
+// same answer; it never starts a second search (Phase 14 spec §5.1, F5).
 router.post(
   '/:id/fetch-reviews',
   wrap(async (req, res) => {
-    const wine = await getStorage().getWine(req.params.id)
+    const wineId = req.params.id
+    const tier = reviewTier(req)
+
+    // A stale client's primary-only run (spec D8) is under way and this request
+    // wants the full search: let it finish, then run the full one. Attaching
+    // would hand the caller a narrower answer than it asked for.
+    const inFlight = runningJob(wineId, 'reviews')
+    if (inFlight && inFlight.tier === 'primary' && tier === 'full') await inFlight.settled
+
+    const wine = await getStorage().getWine(wineId)
     if (!wine) {
       res.status(404).json({ error: 'Wine not found' })
       return
     }
 
-    const tier = reviewTier(req)
-
-    // review_data timestamps each retailer separately, so the wine's own
-    // freshness is the newest of them. A wine that has never been fetched has
-    // no timestamp at all and always runs.
-    const storedAt = newestTimestamp((wine.review_data ?? []).map((r) => r.fetched_at))
-    // Phase 9.4, WI-5 — a tier=primary request is satisfied by any fresh
-    // stored data, same as before. A tier=full request additionally needs
-    // the stored data to have actually come from a run that reached the
-    // extended tier — otherwise a primary-tier auto-fire's result would
-    // silently satisfy an escalation click for up to REVIEWS_TTL_DAYS. See
-    // reachedExtendedTier's docs for the one accepted over-invalidation case.
-    const cacheSatisfiesTier = tier === 'primary' || reachedExtendedTier(wine.review_probe_log)
-    if (!isForced(req) && cacheSatisfiesTier && isWithinTtl(storedAt, REVIEWS_TTL_DAYS)) {
-      res.json(cachedResponse(wine, storedAt!))
-      return
+    // A running job is joined whatever the stored data says: its results are
+    // saved as they arrive (WI-2), so the stored data can look fresh while the
+    // search is still going.
+    if (!runningJob(wineId, 'reviews')) {
+      // review_data timestamps each retailer separately, so the wine's own
+      // freshness is the newest of them. A wine that has never been fetched has
+      // no timestamp at all and always runs.
+      const storedAt = newestTimestamp((wine.review_data ?? []).map((r) => r.fetched_at))
+      // Phase 9.4, WI-5 — a tier=primary request is satisfied by any fresh
+      // stored data, same as before. A tier=full request additionally needs
+      // the stored data to have actually come from a run that reached the
+      // extended tier — otherwise a primary-tier auto-fire's result would
+      // silently satisfy an escalation click for up to REVIEWS_TTL_DAYS. See
+      // reachedExtendedTier's docs for the one accepted over-invalidation case.
+      const cacheSatisfiesTier = tier === 'primary' || reachedExtendedTier(wine.review_probe_log)
+      if (!isForced(req) && cacheSatisfiesTier && isWithinTtl(storedAt, REVIEWS_TTL_DAYS)) {
+        res.json(cachedResponse(wine, storedAt!))
+        return
+      }
     }
 
     // force=true clears this wine's probe log as well as bypassing the TTL
@@ -551,60 +590,105 @@ router.post(
     // skipped by a stale negative from before whatever prompted the click.
     const existingProbeLog = isForced(req) ? [] : wine.review_probe_log ?? []
 
-    // Keyed by tier so an in-flight primary-tier auto-fire and a concurrent
-    // tier=full escalation click never coalesce onto each other's (narrower
-    // or wider) result.
-    const outcome = await coalesce<EnrichmentOutcome>(`${req.params.id}:fetch-reviews:${tier}`, () =>
-      accountSerperUsage({ wine_id: req.params.id, action: 'fetch-reviews' }, async () => {
-        const probeLogSink: ReviewProbeLogEntry[] = []
-        // The other half of the cross-feed: retailers price/ discovered that
-        // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
-        // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
-        // looked. Consumed only when no configured retailer yields a score.
-        const fetchedReviews = await fetchReviewData(wine, {
-          discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
-            slug: r.slug,
-            name: r.name,
-          })),
-          existingProbeLog,
-          probeLogSink,
-          tier,
+    const { promise } = startOrJoin<EnrichmentOutcome>(
+      wineId,
+      'reviews',
+      { tier, identity: identityKey(wine) },
+      async (job) => {
+        const jobState = (patch: Partial<ReviewsJob> = {}): ReviewsJob => ({
+          state: 'running',
+          stage: 'shops',
+          started_at: job.startedAt,
+          updated_at: new Date().toISOString(),
+          shops_total: 0,
+          shops_done: 0,
+          scores_found: 0,
+          identity: job.identity,
+          ...patch,
         })
-        // Null means the search could not be run (no key, or every Serper
-        // request failed) — as distinct from running and finding nothing.
-        // Write nothing rather than erasing whatever this wine already had; a
-        // transient failure must never look like a result.
-        if (fetchedReviews === null) {
-          return {
-            ok: false,
-            status: 503,
-            error:
-              'Review sourcing unavailable — SERPER_API_KEY/OPENAI_API_KEY not configured, or the search requests failed. Existing review_data left untouched.',
-          }
-        }
+        // The wine was discarded, or its identity edited, while the search ran:
+        // nothing is written, and the two cases answer differently.
+        const dropped = (): EnrichmentOutcome =>
+          job.cancelled() === 'superseded'
+            ? { ok: false, status: 409, outcome: 'cancelled', error: 'The wine was edited during the search; its results were dropped. Nothing was stored.' }
+            : { ok: false, status: 404, outcome: 'cancelled', error: 'The wine was discarded during the search. Nothing was stored.' }
 
-        // Phase 12.1 — stamp what each result was fetched for.
-        const enrichedFor = identityKey(wine)
-        const review_data = fetchedReviews.map((r) => ({ ...r, enriched_for: enrichedFor }))
-        const derived = deriveWineLevelFields(review_data, {
-          drinking_window_source: wine.drinking_window_source,
-          vintage_rating_source: wine.vintage_rating_source,
-        })
-        const review_probe_log = mergeProbeLog(existingProbeLog, probeLogSink)
-        return {
-          ok: true,
-          wine: await getStorage().updateWine(req.params.id, {
-            review_data,
-            review_probe_log,
-            ...derived,
-          }),
+        if (!(await writeJob(wineId, 'reviews', jobState()))) return dropped()
+
+        try {
+          // Every outbound Serper call below is attributed to this wine and this action.
+          return await accountSerperUsage({ wine_id: wineId, action: 'fetch-reviews' }, async (): Promise<EnrichmentOutcome> => {
+            const probeLogSink: ReviewProbeLogEntry[] = []
+            // The other half of the cross-feed: retailers price/ discovered that
+            // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
+            // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
+            // looked. Consumed only when no configured retailer yields a score.
+            const fetchedReviews = await fetchReviewData(wine, {
+              discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
+                slug: r.slug,
+                name: r.name,
+              })),
+              existingProbeLog,
+              probeLogSink,
+              tier,
+            })
+
+            // Still wanted? A discarded or re-identified wine takes nothing.
+            const current = await getStorage().getWine(wineId)
+            if (!current || job.cancelled() || identityKey(current) !== job.identity) return dropped()
+
+            // Null means the search could not be run (no key, or every Serper
+            // request failed) — as distinct from running and finding nothing.
+            // Write nothing rather than erasing whatever this wine already had; a
+            // transient failure must never look like a result. Only the job
+            // state changes, to 'failed'.
+            if (fetchedReviews === null) {
+              await writeJob(wineId, 'reviews', jobState({ state: 'failed', stage: 'finishing' }))
+              return {
+                ok: false,
+                status: 503,
+                error:
+                  'Review sourcing unavailable — SERPER_API_KEY/OPENAI_API_KEY not configured, or the search requests failed. Existing review_data left untouched.',
+              }
+            }
+
+            // Phase 12.1 — stamp what each result was fetched for.
+            const review_data = fetchedReviews.map((r) => ({ ...r, enriched_for: job.identity }))
+            const derived = deriveWineLevelFields(review_data, {
+              drinking_window_source: current.drinking_window_source,
+              vintage_rating_source: current.vintage_rating_source,
+            })
+            const review_probe_log = mergeProbeLog(existingProbeLog, probeLogSink)
+            const shops = probeLogSink.length
+            const written = await writeJob(
+              wineId,
+              'reviews',
+              // Totals from this run's probe log, written once at the end. WI-2
+              // replaces them with live counts saved as each shop finishes.
+              jobState({
+                state: 'done',
+                stage: 'finishing',
+                shops_total: shops,
+                shops_done: shops,
+                scores_found: review_data.reduce((n, r) => n + r.critic_scores.length, 0),
+              }),
+              { review_data, review_probe_log, ...derived }
+            )
+            return written ? { ok: true, wine: written } : dropped()
+          })
+        } catch (err) {
+          // An unexpected throw must not leave a job 'running' for a run that
+          // is over. Best effort: the original error is the one that matters.
+          if (!job.cancelled()) await writeJob(wineId, 'reviews', jobState({ state: 'failed', stage: 'finishing' })).catch(() => {})
+          throw err
         }
-      })
+      }
     )
+    const outcome = await promise
 
     if (!outcome.ok) {
       // The one place a lookup is 'failed' (Phase 12.4 WI-7): an error, never a search that found nothing.
-      res.status(outcome.status).json({ error: outcome.error, outcome: 'failed' })
+      res.status(outcome.status).json({ error: outcome.error, outcome: outcome.outcome ?? 'failed' })
       return
     }
     res.json(outcome.wine)

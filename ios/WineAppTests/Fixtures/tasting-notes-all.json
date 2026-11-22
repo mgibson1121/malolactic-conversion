@@ -1,6 +1,6 @@
 [
   {
-    "id": "f3930376-4fcb-4bc6-891b-bc55c69f92e5",
+    "id": "9f114d9e-e969-4775-9967-afe860f87619",
     "wine_id": null,
     "wine_producer": "Georges Roumier",
     "wine_denomination": "Chambolle-Musigny",
@@ -29,8 +29,8 @@
     "tags": []
   },
   {
-    "id": "04d12530-7c7d-49ca-9108-cde0c07fa1a2",
-    "wine_id": "ece04ab6-254c-4ad7-87aa-cffec160166f",
+    "id": "81361ea1-922c-4762-819b-16b98af84439",
+    "wine_id": "bb9fba30-bcb2-4bac-a503-08497e979597",
     "wine_producer": "Domaine Comte Georges de Vogüé",
     "wine_denomination": "Chambolle-Musigny 1er Cru Les Amoureuses",
     "wine_vintage": 2019,
