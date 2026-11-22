@@ -7,7 +7,7 @@ config({ path: [path.resolve(__dirname, '../.env'), path.resolve(__dirname, '../
 import { createApp, optionsFromEnv } from './app'
 import { getStorage, closeStorage } from './modules/storage'
 import { activeRenders } from '@shared/utils/render-gate'
-import { recoverInterruptedJobs } from './routes/enrichment-jobs'
+import { activeJobCount, recoverInterruptedJobs, waitForJobs } from './routes/enrichment-jobs'
 
 const options = optionsFromEnv()
 const app = createApp(options)
@@ -62,7 +62,14 @@ const server = app.listen(PORT, HOST, () => {
 // for a minute), then checkpoint the WAL and close the database. Must stay
 // under fly.toml's kill_timeout, after which the machine is killed outright.
 // A second signal (Ctrl-C twice locally) skips the wait.
-const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS ?? 55_000)
+//
+// Phase 14 WI-3 — a running search is waited for as well as an open request.
+// A search whose client has gone away (a locked phone, a dropped connection)
+// has no request open, and server.close() does not wait for work it cannot
+// see, so the process would exit under it. A search that outlasts the grace
+// is marked interrupted before the database closes, so the next read says so
+// at once and the app can resume it (the saved shops are not repeated).
+const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS ?? 110_000)
 let shuttingDown = false
 
 function finish(code: number): never {
@@ -81,14 +88,20 @@ function shutdown(signal: string) {
     finish(1)
   }
   shuttingDown = true
-  console.log(`${signal}: no new connections; waiting for in-flight requests (${activeRenders()} render(s) running)`)
+  console.log(
+    `${signal}: no new connections; waiting for in-flight requests and ${activeJobCount()} search(es) (${activeRenders()} render(s) running)`
+  )
   if (sweepTimer) clearInterval(sweepTimer)
   setTimeout(() => {
-    console.error(`Shutdown: requests still open after ${SHUTDOWN_GRACE_MS}ms; closing anyway`)
-    finish(1)
+    console.error(`Shutdown: work still open after ${SHUTDOWN_GRACE_MS}ms; marking searches interrupted and closing`)
+    recoverInterruptedJobs().then(
+      () => finish(1),
+      () => finish(1)
+    )
   }, SHUTDOWN_GRACE_MS).unref()
-  server.close(() => finish(0))
+  const closed = new Promise<void>((resolve) => server.close(() => resolve()))
   server.closeIdleConnections()
+  Promise.all([closed, waitForJobs(SHUTDOWN_GRACE_MS)]).then(() => finish(0))
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'))

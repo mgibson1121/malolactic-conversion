@@ -25,6 +25,17 @@ import type { EnrichmentJobs, UpdateWineInput, WineEntry } from '@shared/types'
  * written `running` is still alive after a restart is `recoverInterruptedJobs`.
  */
 
+/**
+ * A job saves `updated_at` at least this often while it runs (Phase 14, WI-3).
+ * `ENRICHMENT_HEARTBEAT_MS` exists for the tests; nothing in production sets it.
+ */
+export function heartbeatMs(): number {
+  const n = Number(process.env.ENRICHMENT_HEARTBEAT_MS)
+  return Number.isFinite(n) && n > 0 ? n : 10_000
+}
+/** A stored `running` job nobody in this process is running, and whose heartbeat is older than this, is reported `interrupted`. */
+export const STALE_JOB_MS = 30_000
+
 export type JobKind = 'reviews' | 'price'
 export type CancelReason = 'discarded' | 'superseded'
 export type JobTier = 'primary' | 'full'
@@ -72,7 +83,9 @@ export interface StartedJob<T> {
 export function startOrJoin<T>(
   wineId: string,
   kind: JobKind,
-  meta: { tier: JobTier; identity: string },
+  // `startedAt` is given only by a resume, which carries on the interrupted
+  // run's own clock: the probe log is read against it.
+  meta: { tier: JobTier; identity: string; startedAt?: string },
   run: (handle: JobHandle) => Promise<T>
 ): StartedJob<T> {
   const key = keyOf(wineId, kind)
@@ -88,7 +101,7 @@ export function startOrJoin<T>(
       kind,
       tier: meta.tier,
       identity: meta.identity,
-      startedAt: new Date().toISOString(),
+      startedAt: meta.startedAt ?? new Date().toISOString(),
       cancelled: () => entry.reason,
       settled: new Promise<void>((resolve) => {
         resolveSettled = resolve
@@ -133,9 +146,55 @@ export function cancelJobs(wineId: string, reason: CancelReason): JobKind[] {
   return cancelled
 }
 
-/** Runs currently registered: for tests and, later, the SIGTERM wait (WI-3). */
+/** Runs currently registered: for tests and diagnostics. */
 export function activeJobCount(): number {
   return running.size
+}
+
+/**
+ * Resolves when every registered job has ended, or after `timeoutMs`; true when
+ * they all ended (Phase 14, WI-3). The SIGTERM handler waits on this as well as
+ * on open requests, because Fly's idle stop cannot see work with no request
+ * open: a search whose client has gone away would otherwise be killed with the
+ * server (spec §4, §5.3).
+ */
+export async function waitForJobs(timeoutMs: number): Promise<boolean> {
+  const pending = [...running.values()].map((entry) => entry.handle.settled)
+  if (pending.length === 0) return true
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs)
+    timer.unref()
+  })
+  try {
+    return await Promise.race([Promise.all(pending).then(() => true as const), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * The wine as a client should see it: a job stored `running` that nothing in
+ * this process is running, and whose heartbeat has stopped, is `interrupted`
+ * (Phase 14, WI-3). Read-only: nothing is written, so a request that merely
+ * looks at a wine never changes it, and the answer is right the moment the
+ * heartbeat is old enough, with no sweep to wait for.
+ */
+export function withLiveJobs<T extends WineEntry>(wine: T, now: number = Date.now()): T {
+  const jobs = wine.enrichment_job
+  if (!jobs) return wine
+  let changed = false
+  const next: EnrichmentJobs = { ...jobs }
+  for (const kind of ['reviews', 'price'] as const) {
+    const job = jobs[kind]
+    if (!job || job.state !== 'running' || running.has(keyOf(wine.id, kind))) continue
+    const beat = Date.parse(job.updated_at)
+    if (Number.isNaN(beat) || now - beat > STALE_JOB_MS) {
+      ;(next as Record<string, unknown>)[kind] = { ...job, state: 'interrupted' }
+      changed = true
+    }
+  }
+  return changed ? { ...wine, enrichment_job: next } : wine
 }
 
 // ── Persisted state ──────────────────────────────────────────────────────────

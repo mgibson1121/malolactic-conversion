@@ -29,7 +29,7 @@ import { renderPageHtml } from '../modules/reviews/puppeteer-extract'
 import { extractCandidateText } from '../modules/reviews/keyword-window'
 import { extractFromRenderedHtml } from '../modules/reviews/gpt-extract'
 import { deriveWineLevelFields } from '../modules/reviews/derive-wine-level'
-import { cancelJobs, runningJob, startOrJoin, writeJob } from './enrichment-jobs'
+import { cancelJobs, heartbeatMs, runningJob, startOrJoin, withLiveJobs, writeJob } from './enrichment-jobs'
 import { accountSerperUsage } from '@shared/utils/serper-client'
 import {
   coalesce,
@@ -156,7 +156,7 @@ router.get(
     if (req.query.include_drafts === 'true') filter.include_drafts = true
     if (req.query.q) filter.q = String(req.query.q)
     const wines = await getStorage().listWines(filter)
-    res.json(wines)
+    res.json(wines.map((w) => withLiveJobs(w)))
   })
 )
 
@@ -186,7 +186,7 @@ router.get(
       res.status(404).json({ error: 'Wine not found' })
       return
     }
-    res.json(wine)
+    res.json(withLiveJobs(wine))
   })
 )
 
@@ -259,6 +259,38 @@ router.patch(
         updates.enrichment_job = {
           ...(existing.enrichment_job ?? {}),
           ...Object.fromEntries(cancelled.map((kind) => [kind, null])),
+        }
+      }
+      // Results are saved shop by shop (WI-2), so a search that is cancelled has
+      // already left some. They were found for the old identity: take out what
+      // that run saved (its pages, and its probe-log entries, which would
+      // otherwise tell the new search a shop "has nothing" for a wine it never
+      // looked for), and re-derive from what was there before it began.
+      const ranSince = Date.parse(cancelled.includes('reviews') ? existing.enrichment_job?.reviews?.started_at ?? '' : '')
+      if (!Number.isNaN(ranSince)) {
+        const before = updates.review_data ?? existing.review_data
+        if (before) {
+          const kept = before.filter((r) => !(Date.parse(r.fetched_at) >= ranSince))
+          updates.review_data = kept
+          const sources = { ...existing, ...updates }
+          const derived = deriveWineLevelFields(kept, {
+            drinking_window_source: sources.drinking_window_source,
+            vintage_rating_source: sources.vintage_rating_source,
+          })
+          // Nothing left to derive from: a value that was only ever derived goes
+          // with the data it came from. A manual one stays (derive never touches it).
+          if (sources.drinking_window_source === 'derived' && derived.drinking_window === undefined) {
+            derived.drinking_window = null
+            derived.drinking_window_source = null
+          }
+          if (sources.vintage_rating_source === 'derived' && derived.vintage_rating === undefined) {
+            derived.vintage_rating = null
+            derived.vintage_rating_source = null
+          }
+          Object.assign(updates, derived)
+        }
+        if (existing.review_probe_log) {
+          updates.review_probe_log = existing.review_probe_log.filter((e) => !(Date.parse(e.probed_at) >= ranSince))
         }
       }
     }
@@ -564,10 +596,16 @@ router.post(
       return
     }
 
+    // A job stored `running` that nothing is running (see withLiveJobs) is
+    // `interrupted`: the machine stopped under it. Its partial results look
+    // fresh, so they must never answer a request as if the search had finished.
+    const stored = withLiveJobs(wine).enrichment_job?.reviews ?? null
+    const interrupted = stored?.state === 'interrupted' ? stored : null
+
     // A running job is joined whatever the stored data says: its results are
-    // saved as they arrive (WI-2), so the stored data can look fresh while the
-    // search is still going.
-    if (!runningJob(wineId, 'reviews')) {
+    // saved as they arrive, so the stored data can look fresh while the search
+    // is still going.
+    if (!runningJob(wineId, 'reviews') && !interrupted) {
       // review_data timestamps each retailer separately, so the wine's own
       // freshness is the newest of them. A wine that has never been fetched has
       // no timestamp at all and always runs.
@@ -585,6 +623,13 @@ router.post(
       }
     }
 
+    // Phase 14 (WI-3): an interrupted search is carried on, not started over,
+    // unless the request is a deliberate force. It keeps the interrupted run's
+    // own start time, because the shops it finished are the probe-log entries
+    // newer than that, and what it had saved is what it found since.
+    const resumeFrom = interrupted && !isForced(req) ? interrupted.started_at : null
+    const since = resumeFrom ? Date.parse(resumeFrom) : Number.NaN
+
     // force=true clears this wine's probe log as well as bypassing the TTL
     // (Phase 9.2, WI-4/WI-5): a deliberate re-check should not be silently
     // skipped by a stale negative from before whatever prompted the click.
@@ -593,16 +638,35 @@ router.post(
     const { promise } = startOrJoin<EnrichmentOutcome>(
       wineId,
       'reviews',
-      { tier, identity: identityKey(wine) },
+      { tier, identity: identityKey(wine), ...(resumeFrom ? { startedAt: resumeFrom } : {}) },
       async (job) => {
+        const storage = getStorage()
+        // What this run has found, by shop, and how far it has got. Saved after
+        // each shop (Phase 14, WI-2), so a client polling the free GET sees
+        // scores as they land, and a killed run loses at most the shops in flight.
+        const found = new Map<string, RetailerReview>()
+        const stamp = (r: RetailerReview): RetailerReview => ({ ...r, enriched_for: job.identity })
+        for (const r of resumeFrom ? (wine.review_data ?? []).filter((x) => Date.parse(x.fetched_at) >= since) : []) {
+          found.set(r.slug, r)
+        }
+        // Whatever was stored before this run: shown until this run's own result
+        // for the same shop replaces it, and dropped only when the run ends
+        // `done` (a refresh must not make a score vanish while it is working).
+        const before = wine.review_data ?? []
+        const probes: ReviewProbeLogEntry[] = []
+        let stage: ReviewsJob['stage'] = 'shops'
+        let shopsTotal = 0
+        let shopsDone = 0
+
+        const scoresFound = () => [...found.values()].reduce((n, r) => n + r.critic_scores.length, 0)
         const jobState = (patch: Partial<ReviewsJob> = {}): ReviewsJob => ({
           state: 'running',
-          stage: 'shops',
+          stage,
           started_at: job.startedAt,
           updated_at: new Date().toISOString(),
-          shops_total: 0,
-          shops_done: 0,
-          scores_found: 0,
+          shops_total: shopsTotal,
+          shops_done: shopsDone,
+          scores_found: scoresFound(),
           identity: job.identity,
           ...patch,
         })
@@ -612,30 +676,98 @@ router.post(
           job.cancelled() === 'superseded'
             ? { ok: false, status: 409, outcome: 'cancelled', error: 'The wine was edited during the search; its results were dropped. Nothing was stored.' }
             : { ok: false, status: 404, outcome: 'cancelled', error: 'The wine was discarded during the search. Nothing was stored.' }
+        /** Still wanted: not cancelled, still there, still the identity this run was started for. */
+        const stillWanted = async (): Promise<WineEntry | null> => {
+          if (job.cancelled()) return null
+          const current = await storage.getWine(wineId)
+          return current && identityKey(current) === job.identity ? current : null
+        }
 
-        if (!(await writeJob(wineId, 'reviews', jobState()))) return dropped()
+        // One write at a time, in the order asked for. Each save builds its
+        // content from this run's own state when it writes, so two in flight
+        // could not lose a shop; what the order protects is the end: the last
+        // write waits for every save before it (`await queue` below), so a
+        // progress save can never land after the 'done' write and set the job
+        // back to 'running'.
+        let queue: Promise<void> = Promise.resolve()
+        const enqueue = (write: () => Promise<void>) => {
+          queue = queue.then(write).catch((err) => console.error('[reviews] saving progress failed:', err))
+        }
+        const saveProgress = () =>
+          enqueue(async () => {
+            const current = await stillWanted()
+            if (!current) return
+            const review_data = [...[...found.values()].map(stamp), ...before.filter((r) => !found.has(r.slug))]
+            const derived = deriveWineLevelFields(review_data, {
+              drinking_window_source: current.drinking_window_source,
+              vintage_rating_source: current.vintage_rating_source,
+            })
+            await writeJob(wineId, 'reviews', jobState(), {
+              review_data,
+              review_probe_log: mergeProbeLog(existingProbeLog, probes),
+              ...derived,
+            })
+          })
+        // The heartbeat: a lighter write that only says the run is alive, so a
+        // stopped machine is told from a slow search (WI-3).
+        const heartbeat = setInterval(
+          () =>
+            enqueue(async () => {
+              if (await stillWanted()) await writeJob(wineId, 'reviews', jobState())
+            }),
+          heartbeatMs()
+        )
+        heartbeat.unref()
+
+        if (!(await writeJob(wineId, 'reviews', jobState()))) {
+          clearInterval(heartbeat)
+          return dropped()
+        }
 
         try {
           // Every outbound Serper call below is attributed to this wine and this action.
           return await accountSerperUsage({ wine_id: wineId, action: 'fetch-reviews' }, async (): Promise<EnrichmentOutcome> => {
-            const probeLogSink: ReviewProbeLogEntry[] = []
             // The other half of the cross-feed: retailers price/ discovered that
             // RETAILER_CONFIG doesn't cover. price/ found central-wine-merchants
             // for Montus; reviews/ only ever iterated RETAILER_CONFIG, so it never
-            // looked. Consumed only when no configured retailer yields a score.
+            // looked. Consumed only when no configured retailer yields a Tier 1 result.
             const fetchedReviews = await fetchReviewData(wine, {
               discoveredRetailers: (wine.price_data?.retailers ?? []).map((r) => ({
                 slug: r.slug,
                 name: r.name,
               })),
               existingProbeLog,
-              probeLogSink,
+              probeLogSink: probes,
               tier,
+              isCancelled: () => job.cancelled() !== null,
+              resume: resumeFrom ? { since: resumeFrom, priorResults: [...found.values()] } : undefined,
+              progress: {
+                onPlan: (plan) => {
+                  shopsTotal = plan.shopsTotal
+                  shopsDone = plan.shopsSettled
+                  saveProgress()
+                },
+                onShop: ({ slug, result }) => {
+                  shopsDone += 1
+                  if (result) found.set(slug, result as RetailerReview)
+                  saveProgress()
+                },
+                onStage: (next) => {
+                  stage = next
+                  saveProgress()
+                },
+                onExtra: (result) => {
+                  found.set(result.slug, result as RetailerReview)
+                  saveProgress()
+                },
+              },
             })
+            clearInterval(heartbeat)
+            await queue // every save the run asked for has landed before the last one
 
             // Still wanted? A discarded or re-identified wine takes nothing.
-            const current = await getStorage().getWine(wineId)
-            if (!current || job.cancelled() || identityKey(current) !== job.identity) return dropped()
+            const current = await stillWanted()
+            if (!current) return dropped()
 
             // Null means the search could not be run (no key, or every Serper
             // request failed) — as distinct from running and finding nothing.
@@ -652,33 +784,31 @@ router.post(
               }
             }
 
-            // Phase 12.1 — stamp what each result was fetched for.
-            const review_data = fetchedReviews.map((r) => ({ ...r, enriched_for: job.identity }))
+            // Phase 12.1 — stamp what each result was fetched for. The run's own
+            // results are the whole set now: shops it did not reach are dropped
+            // here, and only here (see `before`).
+            const review_data = fetchedReviews.map((r) => stamp(r as RetailerReview))
+            for (const r of review_data) found.set(r.slug, r)
             const derived = deriveWineLevelFields(review_data, {
               drinking_window_source: current.drinking_window_source,
               vintage_rating_source: current.vintage_rating_source,
             })
-            const review_probe_log = mergeProbeLog(existingProbeLog, probeLogSink)
-            const shops = probeLogSink.length
+            // A module that reports no progress (a test double, or a run that never
+            // got as far as planning) still gets counts, from its own probe log.
+            if (shopsTotal === 0) shopsTotal = shopsDone = probes.length
             const written = await writeJob(
               wineId,
               'reviews',
-              // Totals from this run's probe log, written once at the end. WI-2
-              // replaces them with live counts saved as each shop finishes.
-              jobState({
-                state: 'done',
-                stage: 'finishing',
-                shops_total: shops,
-                shops_done: shops,
-                scores_found: review_data.reduce((n, r) => n + r.critic_scores.length, 0),
-              }),
-              { review_data, review_probe_log, ...derived }
+              jobState({ state: 'done', stage: 'finishing', shops_done: Math.max(shopsDone, shopsTotal) }),
+              { review_data, review_probe_log: mergeProbeLog(existingProbeLog, probes), ...derived }
             )
             return written ? { ok: true, wine: written } : dropped()
           })
         } catch (err) {
+          clearInterval(heartbeat)
           // An unexpected throw must not leave a job 'running' for a run that
           // is over. Best effort: the original error is the one that matters.
+          await queue
           if (!job.cancelled()) await writeJob(wineId, 'reviews', jobState({ state: 'failed', stage: 'finishing' })).catch(() => {})
           throw err
         }

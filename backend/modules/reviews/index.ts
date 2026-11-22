@@ -10,7 +10,7 @@ import {
 import type { WineIdentity } from './find-product-page'
 import { identityOf, extractVintage, type MatchVerdict } from '@shared/utils/wine-match'
 import { isExactBottling, type BottlingDifference, type BottlingWine } from '@shared/utils/bottling-difference'
-import { reviewBottlingDifference, vintageDelta, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
+import { buildReviewLadder, reviewBottlingDifference, vintageDelta, SIMILAR_VINTAGE_YEARS } from '@shared/utils/review-ladder'
 import { nearestOtherVintageLink } from './other-vintage-link'
 import { renderPageHtml } from './puppeteer-extract'
 import { extractCandidateText } from './keyword-window'
@@ -222,24 +222,32 @@ function vintageFields(match: MatchVerdict): Pick<ReviewResult, 'page_vintage' |
 /**
  * Runs Step 1 (Serper organic search per retailer) and Step 2 (Puppeteer
  * render, window around score citations, GPT-4o extraction) for every
- * configured retailer, independently — one retailer failing (no match,
- * render timeout, no score-citation pattern plus a genuinely empty fallback,
- * no attributed score) never blocks another. K&L is expected to always fail
- * here (bot-blocked at the product-page render, not just its search page —
- * see build-phases.md Phase 7); that's expected, not a bug to chase.
+ * renderable configured retailer, independently — one retailer failing (no
+ * match, render timeout, no score-citation pattern plus a genuinely empty
+ * fallback, no attributed score) never blocks another. K&L is expected to
+ * always fail here (bot-blocked at the product-page render, not just its
+ * search page — see build-phases.md Phase 7), so it is not searched at all.
  *
- * If every configured retailer comes back with zero critic scores (not just
- * zero matched retailers — a retailer whose page rendered fine but cited no
- * score still counts as "nothing"), runs one open-web fallback pass
- * (fetchFallbackReview) before giving up — see that function's docs. Gated
- * on this "nothing at all" condition, not run unconditionally, so a wine
- * already covered by a configured retailer never triggers the extra
- * Serper/Puppeteer/GPT-4o cost.
+ * Phase 14 shape:
+ * - **Stage A:** every configured retailer at once through a bounded pool
+ *   (`reviewSearchConcurrency`), primary shops first. `opts.progress` is told
+ *   as each finishes, so the caller can save and show it at once.
+ * - **Stage B:** only when Stage A left no Tier 1 result (the exact wine, same
+ *   vintage, from a trusted critic: `buildReviewLadder`). The merchants the
+ *   price module found and the open web are searched side by side. They are
+ *   unvetted and likelier to return the wrong page, which is why they are
+ *   gated rather than always on.
+ * - **Last rungs:** pages of a different bottling are read only when no page
+ *   of the exact wine gave a score (Phase 12.2).
+ * - `tier: 'primary'` (clients from before Phase 14) stops after Stage A over
+ *   the primary shops. `resume` carries on an interrupted run. `isCancelled`
+ *   stops new work.
  *
- * Always returns an array, never null: an empty array covers "not
- * configured," "no query to run," and "nothing found anywhere, including
- * the fallback" alike, since none of those are error conditions here
- * (CLAUDE.md §5 — modules degrade gracefully, never throw uncaught errors).
+ * Returns null — never an empty array — when the search could not run (a key
+ * missing, or every request failed), so a transient failure is not stored as a
+ * finding. Otherwise an array: empty covers "no query to run" and "nothing
+ * found anywhere" alike, since neither is an error here (CLAUDE.md §5 —
+ * modules degrade gracefully, never throw uncaught errors).
  */
 /** A retailer modules/price/ found for this wine — supplied by the router
  * from price_data.retailers (CLAUDE.md §5: modules communicate through the
@@ -270,6 +278,35 @@ export interface ReviewFetchOptions {
    * Defaults to 'full' (today's behaviour) so WineCard and WineDetailModal's
    * existing buttons are unchanged. */
   tier?: 'primary' | 'full'
+  /** Phase 14 (WI-2) — told as the search goes, so the caller can save each
+   * result the moment it exists instead of when the slowest stage ends. A
+   * callback that throws never stops the search. */
+  progress?: ReviewProgress
+  /** Phase 14 (WI-1/WI-2) — asked before each new shop and before Stage B. A
+   * search whose wine was discarded or re-identified stops launching work (a
+   * request already out cannot be recalled) and returns what it has. */
+  isCancelled?: () => boolean
+  /** Phase 14 (WI-3) — carry on an interrupted run instead of starting over.
+   * A shop probed since `since` (and not `request_failed`) is not searched
+   * again; `priorResults` are what that run had already saved, so Stage B's
+   * Tier 1 test and the returned array see them. */
+  resume?: { since: string; priorResults: ReviewResult[] }
+}
+
+/** What a search reports as it goes (Phase 14, WI-2). */
+export interface ReviewProgress {
+  /** Stage A is about to run. `shopsTotal` is every shop the run covers;
+   * `shopsSettled` of those need no search now (a fresh negative probe, or a
+   * resumed run that already did them). */
+  onPlan?(plan: { shopsTotal: number; shopsSettled: number }): void
+  /** One configured shop finished: its page (null when it had none) and the
+   * probe-log entry recording how it went. */
+  onShop?(event: { slug: string; result: ReviewResult | null; probe: ReviewProbeLogEntry | undefined }): void
+  /** Stage B (merchant probes and open web) is starting, or the last-rung
+   * reads of a different bottling are. */
+  onStage?(stage: 'merchants' | 'finishing'): void
+  /** A result from outside Stage A: a merchant, the open web, or a last-rung read. */
+  onExtra?(result: ReviewResult): void
 }
 
 /** Merchants probed per wine in the discovered-retailer pass. Each costs a
@@ -281,6 +318,21 @@ const MERCHANT_PROBE_LIMIT = 3
  * deliberately: the cost of being slow is seconds, the cost of being rate
  * limited is a wine silently losing its data (see mapWithConcurrency). */
 const SERPER_CONCURRENCY = 3
+
+/**
+ * Configured shops searched at once in Stage A (Phase 14, WI-2). Replaces the
+ * 3 that bounded the old primary pass, because Stage A now covers every shop
+ * and the answer should arrive in seconds. Still bounded: an unbounded burst
+ * is how 8 of 14 wines lost their data on 2026-08-05 (mapWithConcurrency), and
+ * Chromium stays capped separately by RENDER_CONCURRENCY. The default is
+ * provisional until WI-0 measures 3, 6 and 8 on staging; the variable is how
+ * that spike sets it without a deploy.
+ */
+const DEFAULT_REVIEW_SEARCH_CONCURRENCY = 6
+export function reviewSearchConcurrency(): number {
+  const n = Number(process.env.REVIEW_SEARCH_CONCURRENCY)
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_REVIEW_SEARCH_CONCURRENCY
+}
 
 /**
  * What a skipped retailer is assumed to have cost, for the avoided-call
@@ -368,6 +420,17 @@ export async function fetchReviewData(
   const deferred: Array<{ retailer: RetailerConfig; url: string; match: MatchVerdict; difference: BottlingDifference }> = []
   // Links to another vintage followed in this fetch (D12): one local render + one extraction each.
   let followBudget = MAX_VINTAGE_LINK_FOLLOWS
+  // The probe entry each shop wrote this run, so Stage A can hand it to the caller with the shop's result.
+  const probeBySlug = new Map<string, ReviewProbeLogEntry>()
+  /** Runs a progress callback; one that throws must never stop the search. */
+  const notify = (fn: () => void) => {
+    try {
+      fn()
+    } catch (err) {
+      console.error('[reviews] progress callback failed:', err)
+    }
+  }
+  const cancelled = () => opts.isCancelled?.() === true
 
   async function sourceFromRetailer(
     retailer: RetailerConfig,
@@ -386,13 +449,15 @@ export async function fetchReviewData(
     // the configured passes write here: a fallback/discovered-merchant result
     // isn't a RETAILER_CONFIG entry, and the probe log's question is
     // specifically "does this known shop carry this bottling".
-    opts.probeLogSink?.push({
+    const probe: ReviewProbeLogEntry = {
       slug: retailer.slug,
       domain: retailer.domain,
       stage: outcome.stage,
       variants_tried: outcome.variantsTried,
       probed_at: new Date().toISOString(),
-    })
+    }
+    probeBySlug.set(retailer.slug, probe)
+    opts.probeLogSink?.push(probe)
 
     if (!outcome.url || !outcome.match) return null
 
@@ -445,45 +510,62 @@ export async function fetchReviewData(
     }
   }
 
-  // Bounded, not Promise.all (2026-08-05). Twelve retailers × up to four
-  // Serper queries each is a burst large enough to get rate limited, and a
-  // rate-limited query is indistinguishable from "this shop doesn't carry
-  // it" — so the failure mode is silent data loss, not a visible error.
-  async function runPass(retailers: RetailerConfig[], tier: ReviewTier): Promise<ReviewResult[]> {
-    const passResults = await mapWithConcurrency(retailers, SERPER_CONCURRENCY, r =>
-      sourceFromRetailer(r, tier)
-    )
-    return passResults.filter((r): r is ReviewResult => r !== null)
-  }
+  const results: ReviewResult[] = [...(opts.resume?.priorResults ?? [])]
+  const hasTier1 = () => buildReviewLadder(results, identity).tier === '1'
 
-  const results = await runPass(
-    searchable.filter(r => r.reviewTier === 'primary'),
-    'primary'
-  )
+  // Stage A (Phase 14, WI-2). Every renderable configured shop, primary shops
+  // first so the first scores arrive early, through one bounded pool. This
+  // replaces "primary, then extended only if nothing scored", which let one
+  // off-vintage score end the search (F8) and put the wider net behind a
+  // click (CLAUDE.md §15, amended 2026-11-22). A tier=primary request (stale
+  // clients, D8) still covers the primary shops only.
+  const wantedTier = (r: RetailerConfig) =>
+    r.reviewTier === 'primary' || (opts.tier !== 'primary' && r.reviewTier === 'extended')
+  const tierShops = [
+    ...renderable.filter(r => r.reviewTier === 'primary'),
+    ...renderable.filter(r => r.reviewTier === 'extended'),
+  ].filter(wantedTier)
+  const searchableSlugs = new Set(searchable.map(r => r.slug))
+
+  // A resumed run does not repeat a shop it already finished. request_failed
+  // is never "finished": the request did not run, so it is asked again.
+  const resumeSince = opts.resume ? Date.parse(opts.resume.since) : Number.NaN
+  const settledByResume = (r: RetailerConfig): boolean => {
+    if (Number.isNaN(resumeSince)) return false
+    const entry = findProbeEntry(opts.existingProbeLog, r.slug)
+    return !!entry && entry.stage !== 'request_failed' && Date.parse(entry.probed_at) >= resumeSince
+  }
+  const toSearch = tierShops.filter(r => {
+    if (!searchableSlugs.has(r.slug)) return false
+    if (!settledByResume(r)) return true
+    recordAvoidedCalls(`reviews:skipped:resume:${r.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
+    return false
+  })
+  notify(() => opts.progress?.onPlan?.({ shopsTotal: tierShops.length, shopsSettled: tierShops.length - toSearch.length }))
+
+  const shopResults = await mapWithConcurrency(toSearch, reviewSearchConcurrency(), async retailer => {
+    if (cancelled()) return null
+    const result = await sourceFromRetailer(retailer, retailer.reviewTier)
+    notify(() => opts.progress?.onShop?.({ slug: retailer.slug, result, probe: probeBySlug.get(retailer.slug) }))
+    return result
+  })
+  results.push(...shopResults.filter((r): r is ReviewResult => r !== null))
 
   /**
-   * "This run has found nothing worth having" — one definition, shared by
-   * every escalation below (Phase 9.2, CLAUDE.md §15 "prefer escalation over
-   * breadth"). A retailer whose page rendered fine but cited no score counts
-   * as nothing: a page without a critic score is not what any of these passes
-   * are being paid to find.
+   * "This run has found nothing worth having" for the tier=primary path only
+   * (Phase 9.2). The full search no longer escalates on "any score at all":
+   * Stage B is gated on Tier 1 (`hasTier1`), the exact wine in the same
+   * vintage from a trusted critic.
    */
   const foundNoScore = () => !results.some(r => r.critic_scores.length > 0)
 
-  // Extended tier — fully trusted retailers, just not paid for up front. Only
-  // reached when the primary pass came back without a single critic score.
-  const extended = searchable.filter(r => r.reviewTier === 'extended')
-
-  // Phase 9.4 (WI-3) — bounded to the primary tier. Stops here regardless of
-  // foundNoScore(): extended, discovered-merchant, and open-web escalation
-  // are a click away (POST /:id/fetch-reviews?tier=full), never automatic.
-  // The avoided-call label is only recorded when the tier boundary actually
-  // changed the outcome (foundNoScore() true) — when primary already found a
-  // score, extended would have been skipped in 'full' mode too, and
-  // attributing that skip to tiering would misreport why it was cheap.
+  // Phase 9.4 (WI-3) — a tier=primary request stops after the primary shops,
+  // whether or not they found a score. Kept for clients from before Phase 14.
+  // The avoided-call label is only recorded when the boundary changed the
+  // outcome (nothing found), so a cheap run is not credited to tiering.
   if (opts.tier === 'primary') {
     if (foundNoScore()) {
-      for (const skipped of extended) {
+      for (const skipped of searchable.filter(r => r.reviewTier === 'extended')) {
         recordAvoidedCalls(`reviews:skipped:tier-primary:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
       }
       recordAvoidedCalls(
@@ -496,14 +578,6 @@ export async function fetchReviewData(
     return results
   }
 
-  if (foundNoScore()) {
-    results.push(...(await runPass(extended, 'extended')))
-  } else {
-    for (const skipped of extended) {
-      recordAvoidedCalls(`reviews:skipped:extended:${skipped.slug}`, ESTIMATED_VARIANTS_PER_RETAILER)
-    }
-  }
-
   // Every configured retailer domain, attempted or not — the open passes
   // below must not spend a render on one this run has already exhausted.
   // Bessin-Tremblay and Dureuil-Janthial both produced
@@ -511,27 +585,25 @@ export async function fetchReviewData(
   // returned zero as a configured retailer.
   const attemptedDomains = RETAILER_CONFIG.map(r => r.domain)
 
-  // Nothing from any configured retailer. Try the shops modules/price/ found
-  // for this wine first — a merchant its Shopping search actually surfaced is
-  // better aimed than a blind open-web query — then fall back to that query.
-  if (foundNoScore()) {
-    const discovered = await fetchDiscoveredMerchantReviews(
-      identity,
-      opts.discoveredRetailers ?? [],
-      openai,
-      serperKey,
-      attemptedDomains
-    )
-    results.push(...discovered)
-  }
-
-  if (foundNoScore()) {
-    const attemptedPlusDiscovered = [
-      ...attemptedDomains,
-      ...results.map(r => hostnameOf(r.product_url)).filter((h): h is string => h !== null),
-    ]
-    const fallback = await fetchFallbackReview(identity, openai, serperKey, attemptedPlusDiscovered)
-    if (fallback) results.push(fallback)
+  // Stage B (Phase 14, WI-2): the merchants modules/price/ found and the open
+  // web are unvetted sources — likelier to return the wrong page, dearer in
+  // GPT-4o per hit — so they run, automatically, only when Stage A left no
+  // Tier 1 result. The two run side by side: each needs only the configured
+  // domains above to avoid repeating a shop, which is known up front. A page
+  // both reach is kept once.
+  if (!cancelled() && !hasTier1()) {
+    notify(() => opts.progress?.onStage?.('merchants'))
+    const keep = (found: ReviewResult[]) => {
+      for (const r of found) {
+        if (results.some(x => x.slug === r.slug)) continue
+        results.push(r)
+        notify(() => opts.progress?.onExtra?.(r))
+      }
+    }
+    await Promise.all([
+      fetchDiscoveredMerchantReviews(identity, opts.discoveredRetailers ?? [], openai, serperKey, attemptedDomains).then(keep),
+      fetchFallbackReview(identity, openai, serperKey, attemptedDomains).then(r => keep(r ? [r] : [])),
+    ])
   }
 
   // The last rungs (Phase 12.2 D9, T3/T4). No page of the exact wine yielded
@@ -547,10 +619,12 @@ export async function fetchReviewData(
       .filter((x): x is { d: (typeof deferred)[number]; delta: number } => x.delta !== null && x.delta <= SIMILAR_VINTAGE_YEARS)
       .sort((a, b) => a.delta - b.delta)
       .slice(0, T3_READ_LIMIT)
+    if (ranked.length > 0 && !cancelled()) notify(() => opts.progress?.onStage?.('finishing'))
     for (const { d } of ranked) {
+      if (cancelled()) break
       const extraction = await renderAndExtract(openai, d.url)
       if (!extraction) continue
-      results.push({
+      const read: ReviewResult = {
         slug: d.retailer.slug,
         name: d.retailer.name,
         product_url: d.url,
@@ -560,7 +634,9 @@ export async function fetchReviewData(
         ...vintageFields(verdictFromPage(d.match, extraction.vintage, identity.vintage)),
         page_price: extraction.price,
         page_bottling: extraction.bottling ?? null,
-      })
+      }
+      results.push(read)
+      notify(() => opts.progress?.onExtra?.(read))
       if (extraction.critic_scores.length > 0) break
     }
   }
