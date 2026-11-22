@@ -55,6 +55,15 @@ export async function listWines(filter?: WineFilter): Promise<WineEntry[]> {
   return handleResponse(await apiFetch(qs ? `${BASE}/wines?${qs}` : `${BASE}/wines`))
 }
 
+/**
+ * One wine, read free (no metered call). What a client polls to follow a
+ * search that is running: the server saves each shop as it finishes, so this
+ * shows the scores so far and `enrichment_job` (Phase 14).
+ */
+export async function getWine(id: string): Promise<WineEntry> {
+  return handleResponse(await apiFetch(`${BASE}/wines/${id}`))
+}
+
 export async function createWine(data: CreateWineInput): Promise<WineEntry> {
   return handleResponse(
     await apiFetch(`${BASE}/wines`, {
@@ -173,16 +182,16 @@ export interface EnrichmentResponse extends WineEntry {
 export interface EnrichmentOptions {
   /** Skip the server's freshness guard and spend the credits. */
   force?: boolean
-  /** Phase 9.4 (WI-3) — fetch-reviews only. 'primary' searches only the
-   * primary retailer tier; omitted defaults to 'full' server-side. */
-  tier?: 'primary' | 'full'
+  // Phase 14 (WI-6): there is no `tier`. The review search covers every
+  // retailer by itself and shows each result as it arrives, so the web app
+  // never asks for the primary tier (the server still accepts it for old
+  // clients). CLAUDE.md §15.
 }
 
 function enrichmentUrl(wineId: string, action: string, opts?: EnrichmentOptions): string {
   const base = `${BASE}/wines/${wineId}/${action}`
   const params = new URLSearchParams()
   if (opts?.force) params.set('force', 'true')
-  if (opts?.tier) params.set('tier', opts.tier)
   const qs = params.toString()
   return qs ? `${base}?${qs}` : base
 }

@@ -84,12 +84,11 @@ describe('link affordance (D9)', () => {
     expect(screen.getByText('+1').className).toMatch(/\blink\b/)
   })
 
-  it('Retry and Search more are inline links', () => {
+  it('Retry is an inline link', () => {
     render(
       <CriticReviewsBlock
         wine={makeTestWine({ review_data: [] })}
         action={{ ...idle, error: 'x' }}
-        onSearchMore={noop}
       />
     )
     expect(screen.getByRole('button', { name: 'Retry' }).className).toMatch(/btn-link-inline/)

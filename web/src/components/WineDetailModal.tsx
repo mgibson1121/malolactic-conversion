@@ -10,6 +10,8 @@ import type { TastingNote, UpdateWineInput, WineEntry } from '@shared/types'
 import { RETAILER_CONFIG } from '@shared/config/retailers.config'
 import { fetchWinePrice, fetchWineReviews, listTastingNotesByWine } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { useJobWatcher } from '../hooks/useJobWatcher'
+import { reviewSearchOf } from '../utils/enrichmentJob'
 import { claimPriceOnce } from '../utils/priceOnce'
 import { CriticReviewsBlock } from './CriticReviewsBlock'
 import { DrinkingWindowSection } from './DrinkingWindowSection'
@@ -107,8 +109,11 @@ export function WineDetailModal({
     onWineUpdated(updated)
   }
 
-  const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed')
-  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Couldn’t check reviews')
+  const price = useEnrichmentAction(wine.id, fetchWinePrice, applyUpdate, 'Price lookup failed', { wine, kind: 'price' })
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, applyUpdate, 'Couldn’t check reviews', { wine, kind: 'reviews' })
+  // Opened on a wine saved mid-search, it shows that search and follows it (Phase 14 WI-6).
+  useJobWatcher(wine, price.busy || reviews.busy, applyUpdate)
+  const reviewSearch = reviewSearchOf(wine, reviews.busy)
 
   // Fetch-once price rule (developer decision 2026-09-26, utils/priceOnce.ts):
   // a wine that has never been priced is priced on open; one that has is not
@@ -294,6 +299,7 @@ export function WineDetailModal({
               busyLabel="Fetching…"
               freshnessLabel="Reviews"
               hasData={!!wine.review_data}
+              searching={reviewSearch.isSearching}
             />
           </section>
 

@@ -1,6 +1,8 @@
 import type { WineEntry, UpdateWineInput } from '@shared/types'
 import { fetchWinePrice, fetchWineReviews } from '../api'
 import { useEnrichmentAction } from '../hooks/useEnrichmentAction'
+import { useJobWatcher } from '../hooks/useJobWatcher'
+import { priceSearchOf, reviewSearchOf } from '../utils/enrichmentJob'
 import { EnrichmentRow } from './EnrichmentRow'
 import { PriceBlock } from './PriceSection'
 import { RetailerLinksSection } from './RetailerLinksSection'
@@ -44,8 +46,13 @@ const VINTAGE_RATING_LABELS: Record<string, string> = {
 }
 
 export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityChange, onViewHistory, onWineUpdated, onViewDetail, onEdit }: Props) {
-  const price = useEnrichmentAction(wine.id, fetchWinePrice, onWineUpdated, 'Price lookup failed')
-  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Couldn’t check reviews')
+  const price = useEnrichmentAction(wine.id, fetchWinePrice, onWineUpdated, 'Price lookup failed', { wine, kind: 'price' })
+  const reviews = useEnrichmentAction(wine.id, fetchWineReviews, onWineUpdated, 'Couldn’t check reviews', { wine, kind: 'reviews' })
+  // A wine saved mid-search shows the search running, and its scores as they
+  // land, not "Not fetched" (Phase 14 WI-6).
+  useJobWatcher(wine, price.busy || reviews.busy, onWineUpdated)
+  const reviewSearch = reviewSearchOf(wine, reviews.busy)
+  const searching = reviewSearch.isSearching || priceSearchOf(wine, price.busy).isSearching
 
   const badge = cardBadge(criticSummaryOf(wine))
   const windowStatus = windowStatusOfWine(wine)
@@ -219,6 +226,11 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           "+N" and open the detail view. Nothing is averaged. */}
       <section className="card-section">
         <h4 className="card-section-title">Critic reviews</h4>
+        {searching && (
+          <p className="card-searching" role="status" data-testid="card-searching">
+            Searching…{reviewSearch.metaLine ? ` ${reviewSearch.metaLine}` : ''}
+          </p>
+        )}
         {badge && (
           <button
             type="button"
@@ -240,6 +252,7 @@ export function WineCard({ wine, activeTab, onEvaluate, onTagUpdate, onQuantityC
           busyLabel="Fetching…"
           freshnessLabel="Reviews"
           hasData={!!wine.review_data}
+          searching={reviewSearch.isSearching}
         />
       </section>
 

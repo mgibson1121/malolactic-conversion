@@ -78,7 +78,7 @@ describe('preview / list / detail parity', () => {
     const { rerender } = render(
       <DiscoveryReview wine={{ ...before, promoted_at: null }} onDone={noop} onTagUpdate={noop} onWineUpdated={noop} />
     )
-    expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
+    expect(screen.getByText('No critic scores found.')).toBeInTheDocument()
     rerender(<DiscoveryReview wine={{ ...after, promoted_at: null }} onDone={noop} onTagUpdate={noop} onWineUpdated={noop} />)
     // DiscoveryReview keeps its own copy seeded from props, so a fresh mount
     // (what happens when the wine is reopened) is the "after one reload" case.

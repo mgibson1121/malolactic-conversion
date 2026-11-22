@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { WineEntry } from '@shared/types'
-import type { EnrichmentOptions, EnrichmentResponse } from '../api'
+import { getWine, type EnrichmentOptions, type EnrichmentResponse } from '../api'
+import type { JobKind } from '../utils/enrichmentJob'
 
 /**
  * Drives one metered enrichment button (Phase 9.2, WI-4).
@@ -13,6 +14,12 @@ import type { EnrichmentOptions, EnrichmentResponse } from '../api'
  *
  * The button itself never forces. One click shows what is already stored; a
  * second, explicit click on "Refresh anyway" spends the credits.
+ *
+ * Phase 14 (WI-6): given `watch`, the action knows the wine's job on the
+ * server. A request while that job is running is not sent (the server would
+ * join it anyway, but the button should not look as if it started something),
+ * and a request that fails while the server is still working is not an error:
+ * the lookup carries on and `useJobWatcher` shows it.
  */
 export interface EnrichmentAction {
   busy: boolean
@@ -27,13 +34,26 @@ export function useEnrichmentAction(
   wineId: string,
   fetcher: (id: string, opts?: EnrichmentOptions) => Promise<EnrichmentResponse>,
   onWineUpdated: (wine: WineEntry) => void,
-  failureMessage: string
+  failureMessage: string,
+  watch?: { wine: WineEntry; kind: JobKind }
 ): EnrichmentAction {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cachedAt, setCachedAt] = useState<string | null>(null)
 
+  /** The wine as the server has it, when the lookup this request was for is still running there. */
+  async function stillRunning(): Promise<WineEntry | null> {
+    if (!watch) return null
+    try {
+      const fresh = await getWine(wineId)
+      return fresh.enrichment_job?.[watch.kind]?.state === 'running' ? fresh : null
+    } catch {
+      return null
+    }
+  }
+
   async function run(opts?: EnrichmentOptions) {
+    if (!busy && watch?.wine.enrichment_job?.[watch.kind]?.state === 'running') return
     setBusy(true)
     setError(null)
     try {
@@ -44,7 +64,11 @@ export function useEnrichmentAction(
       setCachedAt(response.cached ? response.fetched_at ?? null : null)
       onWineUpdated(response)
     } catch (err) {
-      setError(err instanceof Error ? err.message : failureMessage)
+      // The request can fail while the search does not (a dropped connection,
+      // a locked phone): look at the stored wine before showing an error.
+      const running = await stillRunning()
+      if (running) onWineUpdated(running)
+      else setError(err instanceof Error ? err.message : failureMessage)
     } finally {
       setBusy(false)
     }

@@ -22,7 +22,7 @@ describe('CriticReviewsBlock — four explicit states (Phase 12.1 WI-4)', () => 
 
   it('Nothing found: says so rather than disappearing', () => {
     render(<CriticReviewsBlock wine={makeTestWine({ review_data: [] })} action={idle} />)
-    expect(screen.getByText('No critic scores found yet')).toBeInTheDocument()
+    expect(screen.getByText('No critic scores found.')).toBeInTheDocument()
     expect(screen.queryByText('Checking reviews…')).not.toBeInTheDocument()
   })
 
