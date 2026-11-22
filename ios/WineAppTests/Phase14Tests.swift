@@ -31,6 +31,26 @@ private func scored(_ job: ReviewsJob?) throws -> Wine {
     return wine
 }
 
+private func priceJob(_ state: JobState) -> PriceJob {
+    PriceJob(state: state, startedAt: "2026-11-22T10:00:00.000Z", updatedAt: "2026-11-22T10:00:05.000Z", identity: "x")
+}
+
+/// A saved wine with no price yet and the given price job (and no review job).
+private func unpriced(_ job: PriceJob?) throws -> Wine {
+    var wine = try Fixture.fullWine
+    wine.priceData = nil
+    wine.priceState = nil
+    wine.enrichmentJob = job.map { EnrichmentJobs(reviews: nil, price: $0) }
+    return wine
+}
+
+/// A wine with prices (the fixture's) and the given price job.
+private func priced(_ job: PriceJob?) throws -> Wine {
+    var wine = try Fixture.fullWine
+    wine.enrichmentJob = job.map { EnrichmentJobs(reviews: nil, price: $0) }
+    return wine
+}
+
 @MainActor
 private func waitUntil(timeout: TimeInterval = 5, _ condition: @escaping () -> Bool) async throws {
     let deadline = Date().addingTimeInterval(timeout)
@@ -290,6 +310,8 @@ final class ScanSearchTests: XCTestCase {
     private let draftID = "draft-p14"
     private var postStatus = 200
     private var postBody = Data()
+    private var priceStatus = 200
+    private var priceBody: Data?
     /// What each GET of the wine answers, in turn; the last repeats.
     private var gets: [Data] = []
     private var getCount = 0
@@ -306,6 +328,8 @@ final class ScanSearchTests: XCTestCase {
         PriceOnce.reset()
         getCount = 0
         postStatus = 200
+        priceStatus = 200
+        priceBody = nil
         drafts = try json(try unscored(nil, promoted: false))
         postBody = drafts
         gets = [drafts]
@@ -318,7 +342,8 @@ final class ScanSearchTests: XCTestCase {
             case ("POST", "/api/wines"): return (201, self.drafts)
             case ("POST", let p) where p.hasSuffix("/fetch-reviews"):
                 return self.postStatus == 200 ? (200, self.postBody) : (self.postStatus, Data(#"{"error":"connection lost"}"#.utf8))
-            case ("POST", let p) where p.hasSuffix("/fetch-price"): return (200, self.drafts)
+            case ("POST", let p) where p.hasSuffix("/fetch-price"):
+                return self.priceStatus == 200 ? (200, self.priceBody ?? self.drafts) : (self.priceStatus, Data(#"{"error":"connection lost"}"#.utf8))
             case ("GET", "/api/wines/\(self.draftID)"):
                 return (200, self.nextGet())
             default: return (404, Data(#"{"error":"unrouted \(path)"}"#.utf8))
@@ -431,6 +456,57 @@ final class ScanSearchTests: XCTestCase {
         try await waitUntil { m.wine?.enrichmentJob?.reviews?.state == .done }
         try await waitUntil { landed >= 1 }
     }
+
+    // MARK: Price (WI-5)
+
+    private var pricePosts: [URLRequest] {
+        StubURLProtocol.requests.filter { $0.httpMethod == "POST" && $0.url?.path.hasSuffix("/fetch-price") == true }
+    }
+
+    func testALockedPhoneDropsBothRequestsAndNeitherLookupIsAnError() async throws {
+        postStatus = 500
+        priceStatus = 500
+        var running = try unscored(reviewsJob(.running, done: 3), promoted: false)
+        running.enrichmentJob?.price = priceJob(.running)
+        var finished = try scored(reviewsJob(.done, done: 11, scores: 2))
+        finished.promotedAt = nil
+        finished.enrichmentJob?.price = priceJob(.done)
+        gets = [try json(running), try json(running), try json(finished)]
+        let m = model(hold: .milliseconds(30))
+        scan(m)
+        try await waitUntil { m.wine?.enrichmentJob?.price?.state == .done && m.wine?.enrichmentJob?.reviews?.state == .done }
+        XCTAssertNil(m.reviews.error)
+        XCTAssertNil(m.price.error, "the requests were cut off; the lookups were not")
+        XCTAssertFalse(m.price.isBusy)
+        XCTAssertNotNil(m.wine?.priceData, "the price the server finished is on screen")
+        XCTAssertEqual(pricePosts.count, 1, "and nothing was started a second time")
+    }
+
+    func testAPriceFailureWithNoLookupRunningIsShownAsOne() async throws {
+        priceStatus = 500
+        gets = [try json(try unscored(nil, promoted: false))]
+        let m = model(hold: .milliseconds(30))
+        scan(m)
+        try await waitUntil { m.price.error != nil }
+        XCTAssertEqual(m.price.error, "Price lookup failed")
+    }
+
+    func testAPriceLookupAnotherScreenIsStillRunningKeepsTheSkeleton() async throws {
+        // The reviews answer arrives, naming a price job that is still going: keep following it.
+        var running = try unscored(reviewsJob(.done, done: 11), promoted: false)
+        running.enrichmentJob?.price = priceJob(.running)
+        postBody = try json(running)
+        priceStatus = 500
+        var finished = try unpriced(priceJob(.done))
+        finished.priceData = try Fixture.fullWine.priceData
+        finished.promotedAt = nil
+        gets = [try json(running), try json(finished)]
+        let m = model(hold: .milliseconds(30))
+        scan(m)
+        try await waitUntil { m.wine?.enrichmentJob?.price?.state == .done }
+        XCTAssertNil(m.price.error)
+        XCTAssertNotNil(m.wine?.priceData)
+    }
 }
 
 // MARK: - The detail screen
@@ -521,5 +597,103 @@ final class DetailSearchTests: XCTestCase {
         await m.fetchReviews()
         XCTAssertNil(m.reviews.error, "the search is still running on the server")
         try await waitUntil { m.wine.enrichmentJob?.reviews?.state == .done }
+    }
+}
+
+// MARK: - Price (WI-5)
+
+final class PriceSearchCopyTests: XCTestCase {
+    func testARunningJobOrAnOutstandingRequestIsSearching() throws {
+        XCTAssertTrue(PriceSearch(wine: try unpriced(priceJob(.running)), control: EnrichmentControl()).isSearching)
+        XCTAssertTrue(PriceSearch(wine: try unpriced(nil), control: EnrichmentControl(isBusy: true)).isSearching)
+        XCTAssertFalse(PriceSearch(wine: try priced(priceJob(.done)), control: EnrichmentControl()).isSearching)
+        XCTAssertFalse(PriceSearch(wine: try unpriced(nil), control: EnrichmentControl()).isSearching)
+    }
+
+    func testAFailedOrStoppedLookupIsShownAsFailedUnlessItIsRunning() throws {
+        XCTAssertTrue(PriceSearch(wine: try unpriced(priceJob(.failed)), control: EnrichmentControl()).hasFailed)
+        XCTAssertTrue(PriceSearch(wine: try unpriced(priceJob(.interrupted)), control: EnrichmentControl()).hasFailed)
+        var failedControl = EnrichmentControl(); failedControl.error = "Price lookup failed"
+        XCTAssertTrue(PriceSearch(wine: try unpriced(nil), control: failedControl).hasFailed)
+        // An error from the last tap does not outrank a lookup that is running now.
+        XCTAssertFalse(PriceSearch(wine: try unpriced(priceJob(.running)), control: failedControl).hasFailed)
+    }
+}
+
+@MainActor
+final class DetailPriceSearchTests: XCTestCase {
+    private var gets: [Data] = []
+    private var getCount = 0
+    private var changed = 0
+
+    override func setUp() async throws {
+        StubURLProtocol.requests = []
+        getCount = 0
+        changed = 0
+        StubURLProtocol.router = { [unowned self] request in
+            if request.httpMethod == "GET" {
+                let body = self.gets.isEmpty ? Data() : self.gets[min(self.getCount, self.gets.count - 1)]
+                self.getCount += 1
+                return (200, body)
+            }
+            return (500, Data(#"{"error":"lost"}"#.utf8))
+        }
+    }
+
+    override func tearDown() { StubURLProtocol.router = nil }
+
+    private func model(_ wine: Wine) -> WineDetailModel {
+        let m = WineDetailModel(wine: wine, api: StubURLProtocol.api(), onChanged: { [unowned self] in changed += 1 },
+                                pollInterval: .milliseconds(15), watchGrace: .seconds(5))
+        addTeardownBlock { @MainActor in m.stopWatching() }
+        return m
+    }
+
+    private var pricePosts: Int {
+        StubURLProtocol.requests.filter { $0.httpMethod == "POST" && $0.url?.path.hasSuffix("/fetch-price") == true }.count
+    }
+
+    func testAWineSavedWhileItsPriceIsBeingCheckedShowsThatAndThenThePrices() async throws {
+        let m = model(try unpriced(priceJob(.running)))
+        XCTAssertTrue(m.isSearchingPrice, "Checking prices…, not \"No price data yet\"")
+        XCTAssertTrue(PriceSearch(wine: m.wine, control: m.price).isSearching)
+
+        gets = [try JSONEncoder().encode(try priced(priceJob(.done)))]
+        m.watchSearches()
+        try await waitUntil { m.wine.enrichmentJob?.price?.state == .done }
+        XCTAssertFalse(m.isSearchingPrice)
+        XCTAssertNotNil(m.wine.priceData)
+        XCTAssertEqual(changed, 1, "the lists are told once, when the lookup ends")
+        XCTAssertEqual(pricePosts, 0, "watching starts nothing")
+    }
+
+    func testATapDuringARunningPriceLookupStartsNothing() async throws {
+        let m = model(try unpriced(priceJob(.running)))
+        await m.fetchPrice()
+        await m.fetchPrice(force: true)
+        XCTAssertEqual(pricePosts, 0)
+    }
+
+    func testThePriceOnceOnOpenDoesNotStartASecondLookup() async throws {
+        PriceOnce.reset()
+        let m = model(try unpriced(priceJob(.running)))
+        await m.fetchPriceOnceIfNeeded()
+        XCTAssertEqual(pricePosts, 0, "the scan's lookup is still going: no second one")
+    }
+
+    func testARequestThatDropsWhileThePriceIsBeingCheckedIsNotAnError() async throws {
+        gets = [try JSONEncoder().encode(try unpriced(priceJob(.running))), try JSONEncoder().encode(try priced(priceJob(.done)))]
+        let m = model(try unpriced(nil))
+        await m.fetchPrice()
+        XCTAssertNil(m.price.error, "the lookup is still running on the server")
+        try await waitUntil { m.wine.enrichmentJob?.price?.state == .done }
+        XCTAssertNotNil(m.wine.priceData)
+    }
+
+    func testAPriceLookupThatNeverRanIsShownAsFailed() async throws {
+        gets = [try JSONEncoder().encode(try unpriced(nil))]
+        let m = model(try unpriced(nil))
+        await m.fetchPrice()
+        XCTAssertEqual(m.price.error, "Price lookup failed")
     }
 }

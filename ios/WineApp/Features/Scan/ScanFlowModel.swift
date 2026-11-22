@@ -158,6 +158,7 @@ final class ScanFlowModel {
     /// The one automatic resume of a search the server stopped part-way.
     private var resumedOnce = false
     private var lastReviewsState: JobState?
+    private var lastPriceState: JobState?
 
     var fields = WineFields()
     var tags = PromoteTags()
@@ -444,13 +445,14 @@ final class ScanFlowModel {
     /// Reads from the watcher: every poll while the search runs.
     private func watched(_ fresh: Wine) {
         guard let current = wine, current.id == fresh.id else { return }
-        wine = current.applying(fresh, from: .reviews)
+        wine = current.applying(fresh, from: .reviews).applying(fresh, from: .price)
         // The first critic score ends the interstitial early, however it arrived.
         if !(wine?.criticSummary?.ordered.isEmpty ?? true) { moveToReview() }
         let state = fresh.enrichmentJob?.reviews?.state
+        let priceEnded = notePriceState(fresh.enrichmentJob?.price?.state)
         if state == .interrupted, !resumedOnce, !reviews.isBusy {
             resumeInterruptedSearch(fresh.id)
-        } else if noteReviewsState(state) {
+        } else if noteReviewsState(state) || priceEnded {
             onEnrichmentLanded()
         }
     }
@@ -483,19 +485,49 @@ final class ScanFlowModel {
     private func firePrice(_ id: String, force: Bool) {
         price.isBusy = true
         price.error = nil
+        watcher.start(wineID: id)
         Task {
             do {
                 let result = try await api.fetchPrice(wineID: id, force: force)
                 guard wine?.id == id else { return }
                 wine = wine?.applying(result.wine, from: .price)
                 price.isBusy = false
+                // The request returns when the lookup ends (unless another is still running).
+                if result.wine.enrichmentJob?.anyRunning != true { watcher.stop() }
+                notePriceState(result.wine.enrichmentJob?.price?.state)
                 onEnrichmentLanded()
             } catch {
                 guard wine?.id == id else { return }
-                price.isBusy = false
-                price.error = "Price lookup failed"
+                await recoverPriceFromDroppedRequest(id)
             }
         }
+    }
+
+    /// As for reviews: a failed or cut-off request says nothing about the
+    /// lookup, which the server keeps running. Look at the stored wine first.
+    private func recoverPriceFromDroppedRequest(_ id: String) async {
+        guard let fresh = try? await api.getWine(id: id), wine?.id == id else {
+            price.isBusy = false
+            price.error = "Price lookup failed"
+            return
+        }
+        wine = wine?.applying(fresh, from: .price)
+        price.isBusy = false
+        switch fresh.enrichmentJob?.price?.state {
+        case .running:
+            watcher.start(wineID: id) // still going: the watcher shows it
+        case .done:
+            notePriceState(.done)
+            onEnrichmentLanded()
+        default:
+            price.error = "Price lookup failed"
+        }
+    }
+
+    @discardableResult
+    private func notePriceState(_ state: JobState?) -> Bool {
+        defer { lastPriceState = state }
+        return lastPriceState == .running && state != .running
     }
 
     // MARK: Developer-initiated lookups on the review screen (click-gated)
@@ -621,6 +653,7 @@ final class ScanFlowModel {
         enrichmentFired = false
         resumedOnce = false
         lastReviewsState = nil
+        lastPriceState = nil
         watcher.stop()
         actionError = nil
         step = .capture
