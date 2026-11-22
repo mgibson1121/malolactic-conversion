@@ -723,3 +723,5 @@ ios,ios/WineApp/Features/Detail/DetailComponents.swift,106,Wine detail,Searching
 ios,ios/WineApp/Features/Detail/WineDetailView.swift,296,Wine detail,Searching… / 2 so far…,,new (Phase 14: the Critic reviews card summary while a search runs)
 ios,ios/WineApp/Features/Lists/WineRowView.swift,180,Lists,Searching…,,new (Phase 14: list row indicator)
 ios,ios/WineApp/Features/Lists/WineRowView.swift,96,Lists,searching for scores and prices,,new (Phase 14: VoiceOver label)
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,,Price & retailers,Checking prices…,,new use (Phase 14 WI-5: one line over stored prices while a refresh runs; the skeleton when there is no price yet, including after Save)
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,,Wine detail,Checking…,,new (Phase 14 WI-5: the Price & retailers card summary while the first lookup runs)
