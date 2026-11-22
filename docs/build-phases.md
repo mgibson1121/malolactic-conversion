@@ -2019,7 +2019,7 @@ action available on the web is reachable on the phone.
 
 **Work items:** WI-0 staging spike (concurrency, Stage B yield, idle-stop timing; sets the constants) → WI-1 job state and API → WI-2 pipeline → WI-3 durability → WI-4 iOS → WI-5 price status → WI-6 web parity → WI-7 docs → WI-8 field test.
 
-**Progress:** WI-1 built 2026-11-22 (job state and API: migration 012, `enrichment_job`, the per-wine registry, attach-to-running, cancellation on discard and identity edit; PR open). The work items are otherwise not started. WI-0 (the staging spike) still decides the concurrency constant and whether Stage B earns its cost; WI-1 does not depend on either. Differences from the spec are listed under WI-1 status in the spec.
+**Progress:** WI-1 built 2026-11-22 (job state and API: migration 012, `enrichment_job`, the per-wine registry, attach-to-running, cancellation on discard and identity edit; PR open). **WI-2 and WI-3 built 2026-11-22** (the pipeline: every shop at once, saved as each lands, Stage B gated on Tier 1; the durability: heartbeat, SIGTERM wait, interrupted-on-read, resume; `kill_timeout` 120 s). The server does all of it; the apps still send `tier=primary`, so nothing a user sees changes until WI-4. The work items are otherwise not started. WI-0 (the staging spike) still decides the concurrency constant and whether Stage B earns its cost; WI-1 does not depend on either. Differences from the spec are listed under WI-1 status in the spec.
 
 **Cost:** about 27–32 Serper credits a scan against about 10 (ceiling about 40), 6–19% of the prepaid pack over six months; about one extra render and GPT-4o extraction a wine. Arithmetic in spec §6.
 

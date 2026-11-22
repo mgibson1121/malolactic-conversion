@@ -155,6 +155,16 @@ The costs that are not covered by that argument:
 - **Start-up recovery is here, not WI-3.** Marking stored `running` jobs `interrupted` at boot is five lines and keeps §8's "no job stays `running` after its machine has stopped" true from the first deploy. The heartbeat-based detection without a restart stays in WI-3.
 - Tests: `backend/tests/unit/enrichment-jobs.test.ts` (18).
 
+**WI-2 and WI-3 status (built 2026-11-22, branch `feature/phase-14-wi2-wi3-pipeline`).** Done as §5.2 and §5.3 describe, with these differences:
+- **The Tier 1 test is `buildReviewLadder(results, identity).tier === '1'`** (exact bottling, same vintage, a trusted critic), the one definition the app already shows. §5.2 names `review-ladder.ts` but not the call.
+- **Stage B's two parts run side by side, and a page both reach is kept once** (by slug). Before, the open-web pass ran after the merchants and excluded their domains; now each excludes only the configured domains (§5.2), so the same page can be extracted twice. That is the extra GPT-4o cost §6 already counts.
+- **Resume is skip-by-probe-log, as §5.3 says, with two additions the spec leaves open.** It keeps the interrupted run's `started_at` (so a second interruption still skips the first run's shops), and it seeds the run with what was saved, so Stage B's gate sees the Tier 1 result already found. One loss: pages of a different bottling that the interrupted run held back for the last rungs (T3/T4) are not saved anywhere, so a resumed run cannot read them. A wine that needs them can be refreshed.
+- **An identity edit now also removes the cancelled run's saved results and probe-log entries** and re-derives the window and rating. §5.1 says late results are dropped; once results are saved shop by shop there are early ones to remove too (acceptance 6: "discards the old results"). Without removing the probe-log entries, a shop that found nothing for the old identity would be skipped for the new one.
+- **Interrupted detection is on read, and read-only.** `GET /api/wines` and `GET /api/wines/:id` report it; nothing is written, so looking at a wine never changes it. The boot-time recovery from WI-1 still writes.
+- **`ENRICHMENT_HEARTBEAT_MS`** (tests only) and **`REVIEW_SEARCH_CONCURRENCY`** (the WI-0 knob) are the two new environment variables.
+- **Not changed, still WI-0:** the 6 and the 110 s / 120 s are the spec's defaults, not measurements.
+- Tests: `backend/tests/unit/enrichment-jobs-pipeline.test.ts` (21) and a Phase 14 block in `backend/modules/reviews/reviews.test.ts` (16). Three older module tests that asserted the click-gated escalation now assert Stage A and Stage B.
+
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
 ---
