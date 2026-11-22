@@ -151,6 +151,13 @@ final class ScanFlowModel {
     private(set) var resolving: Set<String> = []
     /// Whether the scan path's auto-fire has gone out for this wine.
     private var enrichmentFired = false
+    /// Follows the review search by reading the wine (free) while the server
+    /// says it is running — through a dropped connection, a locked phone and
+    /// the scan screen being closed (Phase 14 WI-4).
+    private let watcher: EnrichmentWatcher
+    /// The one automatic resume of a search the server stopped part-way.
+    private var resumedOnce = false
+    private var lastReviewsState: JobState?
 
     var fields = WineFields()
     var tags = PromoteTags()
@@ -174,11 +181,16 @@ final class ScanFlowModel {
     var onEnrichmentLanded: () -> Void = {}
 
     init(api: APIClient, startManual: Bool = false, previewHold: Duration = ScanTiming.previewHold,
-         fillInDelay: Duration = .milliseconds(1200)) {
+         fillInDelay: Duration = .milliseconds(1200),
+         pollInterval: Duration = ScanTiming.pollInterval, watchGrace: Duration = ScanTiming.watchGrace) {
         self.api = api
         self.previewHold = previewHold
         self.fillInDelay = fillInDelay
+        watcher = EnrichmentWatcher(interval: pollInterval, startGrace: watchGrace) { id in
+            try? await api.getWine(id: id)
+        }
         step = startManual ? .manual : .capture
+        watcher.onWine = { [weak self] in self?.watched($0) }
     }
 
     var isDraft: Bool { wine?.isDraft ?? true }
@@ -338,14 +350,16 @@ final class ScanFlowModel {
 
     // MARK: Enrichment — the scan path's one sanctioned auto-fire
 
-    /// Price and the primary review tier, fired once, together. Fire-and-forget
+    /// Price and the review search, fired once, together. Fire-and-forget
     /// in the sense that nothing retries: a failure is shown inline, with a
-    /// "Try again" the developer can tap.
+    /// "Try again" the developer can tap. The review search covers every
+    /// retailer the app knows and shows each result as it lands (Phase 14,
+    /// CLAUDE.md §15 as amended 2026-11-22): there is no tier to ask for.
     private func fireEnrichment(for draft: Wine, force: Bool) {
         enrichmentFired = true
         PriceOnce.record(draft.id)
         firePrice(draft.id, force: force)
-        fireReviews(draft.id, force: force, tier: .primary)
+        fireReviews(draft.id, force: force)
     }
 
     /// A scan that missed a Tier 1 field fired nothing (no search on a partial
@@ -378,24 +392,86 @@ final class ScanFlowModel {
         }
     }
 
-    private func fireReviews(_ id: String, force: Bool, tier: ReviewTier?) {
+    private func fireReviews(_ id: String, force: Bool) {
         reviews.isBusy = true
         reviews.error = nil
+        watcher.start(wineID: id)
         Task {
             do {
-                let result = try await api.fetchReviews(wineID: id, force: force, tier: tier)
+                let result = try await api.fetchReviews(wineID: id, force: force)
                 guard wine?.id == id else { return }
                 wine = wine?.applying(result.wine, from: .reviews)
                 reviews.isBusy = false
+                // The request returns when the search ends: nothing left to follow
+                // (unless another lookup on this wine is still running).
+                if result.wine.enrichmentJob?.anyRunning != true { watcher.stop() }
+                noteReviewsState(result.wine.enrichmentJob?.reviews?.state)
                 onEnrichmentLanded()
                 // The first critic score ends the interstitial early (D8).
                 if !(wine?.criticSummary?.ordered.isEmpty ?? true) { moveToReview() }
             } catch {
                 guard wine?.id == id else { return }
-                reviews.isBusy = false
-                reviews.error = "Couldn't check reviews"
+                await recoverFromDroppedRequest(id)
             }
         }
+    }
+
+    /// The request failed or was cut off, which says nothing about the search:
+    /// the server keeps running it (a locked phone during a request that takes
+    /// about a minute is the likely trigger, Phase 14 F6). Look at the stored
+    /// wine before showing an error, as the detail screen does.
+    private func recoverFromDroppedRequest(_ id: String) async {
+        guard let fresh = try? await api.getWine(id: id), wine?.id == id else {
+            reviews.isBusy = false
+            reviews.error = "Couldn't check reviews"
+            return
+        }
+        wine = wine?.applying(fresh, from: .reviews)
+        reviews.isBusy = false
+        switch fresh.enrichmentJob?.reviews?.state {
+        case .running:
+            watcher.start(wineID: id) // still going: the watcher shows it
+        case .done:
+            noteReviewsState(.done)
+            onEnrichmentLanded()
+        case .interrupted where !resumedOnce:
+            resumeInterruptedSearch(id)
+        default:
+            reviews.error = "Couldn't check reviews"
+        }
+    }
+
+    /// Reads from the watcher: every poll while the search runs.
+    private func watched(_ fresh: Wine) {
+        guard let current = wine, current.id == fresh.id else { return }
+        wine = current.applying(fresh, from: .reviews)
+        // The first critic score ends the interstitial early, however it arrived.
+        if !(wine?.criticSummary?.ordered.isEmpty ?? true) { moveToReview() }
+        let state = fresh.enrichmentJob?.reviews?.state
+        if state == .interrupted, !resumedOnce, !reviews.isBusy {
+            resumeInterruptedSearch(fresh.id)
+        } else if noteReviewsState(state) {
+            onEnrichmentLanded()
+        }
+    }
+
+    /// Records the job's state and says whether it just ended (was running, no longer is).
+    @discardableResult
+    private func noteReviewsState(_ state: JobState?) -> Bool {
+        defer { lastReviewsState = state }
+        return lastReviewsState == .running && state != .running
+    }
+
+    /// The server stopped the search under us (its machine did). Ask once more:
+    /// the same request, which the server answers by carrying on from the shops
+    /// it had finished. After that one try, a failure is shown as one.
+    /// Stops following the search. The scan screen closing does not call this:
+    /// a search outlives its screen on purpose. Used when the model is done with.
+    func stopWatching() { watcher.stop() }
+
+    private func resumeInterruptedSearch(_ id: String) {
+        resumedOnce = true
+        fireReviews(id, force: false)
     }
 
     /// Price once for a wine that has none (developer decision 2026-09-26).
@@ -427,14 +503,7 @@ final class ScanFlowModel {
     /// "Try again" after a failed review lookup — a deliberate tap, not a retry.
     func retryReviews() {
         guard let id = wine?.id, !reviews.isBusy else { return }
-        fireReviews(id, force: false, tier: .primary)
-    }
-
-    /// "Search more retailers" when the primary tier found nothing: the full
-    /// tier, which adds the extended shops. Still a click (CLAUDE.md §15).
-    func searchMoreRetailers() {
-        guard let id = wine?.id, !reviews.isBusy else { return }
-        fireReviews(id, force: false, tier: nil)
+        fireReviews(id, force: false)
     }
 
     /// "Which bottling is yours?" on the review screen (Phase 12.2).
@@ -530,6 +599,7 @@ final class ScanFlowModel {
         scanTask?.cancel()
         holdTask?.cancel()
         fillInTask?.cancel()
+        watcher.stop()
         guard let draft = wine, draft.isDraft else { return true }
         do {
             try await api.deleteWine(id: draft.id)
@@ -549,6 +619,9 @@ final class ScanFlowModel {
         reviews = EnrichmentControl()
         price = EnrichmentControl()
         enrichmentFired = false
+        resumedOnce = false
+        lastReviewsState = nil
+        watcher.stop()
         actionError = nil
         step = .capture
     }

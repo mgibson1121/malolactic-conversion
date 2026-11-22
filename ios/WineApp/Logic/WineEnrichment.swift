@@ -28,6 +28,7 @@ extension Wine {
         var wine = self
         switch kind {
         case .price:
+            wine.enrichmentJob = wine.enrichmentJob.replacing(price: fresh.enrichmentJob?.price)
             wine.priceData = fresh.priceData
             wine.priceExclusions = fresh.priceExclusions
             wine.priceWindow = fresh.priceWindow
@@ -42,6 +43,7 @@ extension Wine {
                 reviews: wine.enrichmentStale?.reviews ?? false
             )
         case .reviews:
+            wine.enrichmentJob = wine.enrichmentJob.replacing(reviews: fresh.enrichmentJob?.reviews)
             wine.reviewData = fresh.reviewData
             // Review extraction can derive these (never over a manual value —
             // the server enforces that), and they feed the Ready-to-drink counts.
@@ -60,5 +62,20 @@ extension Wine {
             )
         }
         return wine
+    }
+}
+
+extension Optional where Wrapped == EnrichmentJobs {
+    /// One kind's job from a fresh answer, the other kept: a review result
+    /// must not erase what this app already knows about the price job, and the
+    /// other way round (the same rule as `Wine.applying`).
+    func replacing(reviews: ReviewsJob?) -> EnrichmentJobs? {
+        let kept = self?.price
+        return reviews == nil && kept == nil ? nil : EnrichmentJobs(reviews: reviews, price: kept)
+    }
+
+    func replacing(price: PriceJob?) -> EnrichmentJobs? {
+        let kept = self?.reviews
+        return price == nil && kept == nil ? nil : EnrichmentJobs(reviews: kept, price: price)
     }
 }

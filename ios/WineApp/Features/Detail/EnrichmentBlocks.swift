@@ -6,10 +6,15 @@ import SwiftUI
 
 // MARK: - Critic reviews
 
-/// The four explicit states of the critic block (WI-4) plus `idle`, a wine
-/// whose scores were simply never looked up. The block never vanishes: the
-/// old "disappears if nothing is found" rule made "still loading" and "found
+/// The explicit states of the critic block (WI-4) plus `idle`, a wine whose
+/// scores were simply never looked up. The block never vanishes: the old
+/// "disappears if nothing is found" rule made "still loading" and "found
 /// nothing" indistinguishable (the developer's 2026-10-04 complaint).
+///
+/// Phase 14: a search that is running is *shown* as running whatever else is
+/// known. `looking` is a search with nothing to show yet; `found` while a
+/// search is still going keeps its scores and adds the skeleton beneath them
+/// (`ReviewSearch`), so the first score never reads as the end of the search.
 enum CriticReviewsState: Equatable {
     case looking
     case found
@@ -21,8 +26,9 @@ enum CriticReviewsState: Equatable {
         if !(wine?.criticSummary?.ordered.isEmpty ?? true) { return .found }
         // An older backend sends no summary; fall back to the stored scores.
         if wine?.criticSummary == nil, !CriticScores.deduped(wine?.reviewData).isEmpty { return .found }
-        if control.isBusy { return .looking }
-        if control.error != nil { return .failed }
+        let search = ReviewSearch(wine: wine, control: control)
+        if search.isSearching { return .looking }
+        if control.error != nil || search.isInterrupted || wine?.enrichmentJob?.reviews?.state == .failed { return .failed }
         if wine?.reviewData != nil { return .none }
         return .idle
     }
@@ -31,11 +37,8 @@ enum CriticReviewsState: Equatable {
 struct CriticReviewsBlock: View {
     let wine: Wine?
     let control: EnrichmentControl
-    /// "Try again" in the failed state.
+    /// "Retry" in the failed state, and after a search the server stopped.
     var retry: (() -> Void)?
-    /// "Search more retailers" in the nothing-found state (the extended tier,
-    /// still a click — preview only).
-    var searchMore: (() -> Void)?
     /// "Which bottling is yours?" (Phase 12.2). Absent where the answer cannot be saved.
     var chooseBottling: ((BottlingChoice) async -> BottlingOutcome)?
     /// The scan's draft review rather than a saved wine.
@@ -43,34 +46,39 @@ struct CriticReviewsBlock: View {
 
     var body: some View {
         let state = CriticReviewsState.of(wine: wine, control: control)
+        let search = ReviewSearch(wine: wine, control: control)
         VStack(alignment: .leading, spacing: 8) {
             if wine?.enrichmentStale?.reviews == true { StaleNotice() }
             switch state {
             case .looking:
-                VStack(alignment: .leading, spacing: 8) {
-                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 180, height: 12)
-                    RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 120, height: 12)
-                    Text("Checking reviews…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
-                }
-                .padding(.vertical, 4)
-                .accessibilityElement(children: .combine)
+                SearchSkeleton(line: search.metaLine ?? "Checking reviews…")
             case .failed:
                 HStack(spacing: 4) {
-                    Text("Couldn't check reviews.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    Text(search.isInterrupted ? "The search stopped before every shop was checked." : "Couldn't check reviews.")
+                        .font(AppFont.meta()).foregroundStyle(Theme.textMuted)
                     if let retry { Button("Retry", action: retry).buttonStyle(.link).font(AppFont.meta()) }
                 }
             case .none:
-                Text("No critic scores found.").font(AppFont.body()).foregroundStyle(Theme.text)
-                if let searchMore {
-                    Button("Search more retailers", action: searchMore).buttonStyle(.link).font(AppFont.meta())
-                }
+                // How hard it looked, and nothing to tap: the search already covered every shop.
+                Text(search.noneLine).font(AppFont.body()).foregroundStyle(Theme.text)
             case .idle:
                 Text("Critic scores haven't been looked up yet.").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             case .found:
-                if let ladder = wine?.reviewLadder, ladder.tier != "none" {
+                if search.isSearching {
+                    // The tier is not announced early: while shops are unfinished the best
+                    // one so far is not the answer.
+                    if wine?.reviewLadder?.tier != "1" {
+                        Text("Looking for an exact-vintage score…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                    }
+                } else if let ladder = wine?.reviewLadder, ladder.tier != "none" {
                     TierMarker(ladder: ladder)
                 }
                 found
+                if search.isSearching {
+                    SearchSkeleton(line: search.metaLine ?? "Searching shops…")
+                } else if let line = search.metaLine {
+                    Text(line).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                }
             }
             if let scoreless = wine?.reviewLadder?.pages?.filter({ $0.scores == 0 }), !scoreless.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
@@ -83,7 +91,8 @@ struct CriticReviewsBlock: View {
                     }
                 }
             }
-            if let wine, let chooseBottling {
+            // A partial result never prompts a question: the banner waits for the search to end.
+            if let wine, let chooseBottling, !search.isSearching {
                 BottlingBanner(wine: wine, choose: chooseBottling, draft: draft)
             }
         }
@@ -99,12 +108,32 @@ struct CriticReviewsBlock: View {
             }
         } else {
             // Every score, never collapsed, in the backend's order — trusted
-            // first, same vintage first (Phase 12.5 WI-3).
+            // first, same vintage first (Phase 12.5 WI-3). Scores can reorder as
+            // better ones arrive: rows fade in and slide, and a score already on
+            // screen never leaves while the search runs (the server keeps it).
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(ordered, id: \.publication) { CriticSummaryRow(item: $0) }
+                ForEach(ordered, id: \.publication) { CriticSummaryRow(item: $0).transition(.opacity) }
             }
+            .animation(.easeInOut(duration: 0.25), value: ordered.map { "\($0.publication)\($0.score)" })
             .accessibilityIdentifier("critic-score-lines")
         }
+    }
+}
+
+/// Grey placeholder bars and one line saying how far the search has got. Shown
+/// under any scores already in while a shop is still unfinished (Phase 14 D4).
+struct SearchSkeleton: View {
+    let line: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 180, height: 12)
+            RoundedRectangle(cornerRadius: 4).fill(Theme.surface2).frame(width: 120, height: 12)
+            Text(line).font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("search-skeleton")
     }
 }
 

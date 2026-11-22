@@ -431,7 +431,7 @@ ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,51,Critic reviews / Price
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,57,Critic reviews / Price,Review lookup failed —,"Couldn't check reviews. (+ Retry, matching ""Couldn't check prices"")",accept
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,58,Critic reviews / Price,Try again,,keep
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,61,Critic reviews / Price,No critic scores found yet for this wine.,"No critic scores found. (matches ""No prices found"")",accept
-ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,63,Critic reviews / Price,Search more retailers,,keep
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,,Critic reviews / Price,Search more retailers,,removed (Phase 14: the search covers every shop by itself)
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,66,Critic reviews / Price,Critic scores haven't been looked up yet.,,keep
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,75,Critic reviews / Price,A page was found but no score could be read from it. It may carry a review without a score.,A page with no readable score: (link follows),accept
 ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,132,Critic reviews / Price,different bottling,,keep
@@ -667,7 +667,7 @@ ios,ios/WineApp/Features/Scan/ScanFlowView.swift,113,Scan,Retake,,keep
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,164,Scan,Photograph the front label.,,keep
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,170,Scan,Take photo,,keep
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,176,Scan,Choose from library,,keep
-ios,ios/WineApp/Features/Scan/ScanFlowView.swift,209,Scan,Pulling details…,,keep
+ios,ios/WineApp/Features/Scan/ScanFlowView.swift,210,Scan,Pulling details…,Setting up your review…,accept (Phase 14 D5)
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,237,Scan,Reading the label…,,keep
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,241,Scan,Still going — labels with a lot of text take longer.,,keep
 ios,ios/WineApp/Features/Scan/ScanFlowView.swift,267,Scan,This label looks like a wine you already have. Is it the same wine?,,keep
@@ -713,3 +713,13 @@ ios,ios/WineApp/Models/TastingNote.swift,80,Notes,Unknown wine,,keep
 ios,ios/WineApp/Networking/APIClient.swift,74,Other,Content-Type: image/jpeg\r\n\r\n,,keep
 ios,ios/WineApp/Networking/APIClient.swift,210,Other,No HTTP response,,keep
 ios,ios/WineApp/Networking/APIError.swift,27,Errors,The backend sent a response this app doesn't understand. Is it up to date?,Unexpected reply from the server. Is the backend up to date?,accept
+ios,ios/WineApp/Models/EnrichmentJob.swift,106,Critic reviews,Searching shops…,,new (Phase 14)
+ios,ios/WineApp/Models/EnrichmentJob.swift,107,Critic reviews,Checked 7 of 11 shops · 2 scores so far,,new (Phase 14)
+ios,ios/WineApp/Models/EnrichmentJob.swift,110,Critic reviews,Checked 11 shops,,new (Phase 14)
+ios,ios/WineApp/Models/EnrichmentJob.swift,116,Critic reviews,No critic scores found at 11 shops.,,new (Phase 14; no button)
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,71,Critic reviews,Looking for an exact-vintage score…,,new (Phase 14)
+ios,ios/WineApp/Features/Detail/EnrichmentBlocks.swift,57,Critic reviews,The search stopped before every shop was checked.,,new (Phase 14; + Retry)
+ios,ios/WineApp/Features/Detail/DetailComponents.swift,106,Wine detail,Searching…,,new (Phase 14: the Fetch/Refresh button while a search runs)
+ios,ios/WineApp/Features/Detail/WineDetailView.swift,296,Wine detail,Searching… / 2 so far…,,new (Phase 14: the Critic reviews card summary while a search runs)
+ios,ios/WineApp/Features/Lists/WineRowView.swift,180,Lists,Searching…,,new (Phase 14: list row indicator)
+ios,ios/WineApp/Features/Lists/WineRowView.swift,96,Lists,searching for scores and prices,,new (Phase 14: VoiceOver label)
