@@ -1343,7 +1343,7 @@ gap-analysis doc's "recommended order of work" section item by item.
   actually run under `npm test` or CI, silently, since it was written.
 
 **Explicitly out of scope:** allocation-drift-vs-target (needs a target-allocation field
-that doesn't exist and is Phase 14/16 scope, not in the gap doc); the SensorPush
+that doesn't exist and is Phase 15/17 scope, not in the gap doc); the SensorPush
 environment widget (§2.6, no integration exists — already flagged elsewhere); the
 six-hotspot sidebar nav from the original Phase 10 canvas; a new route-level test harness
 (no `supertest`/route tests exist anywhere in this codebase — not introduced here, stayed
@@ -1426,7 +1426,7 @@ backend-only plan. Reviewing the merged PR against that original plan found:
    design that screen now) is unchanged.
 3. **This entry** — recording the reconciliation itself, so a future session reading
    Phase 10.5 isn't left wondering why its own deliverable 5 doesn't match reality.
-4. **Phase 14 note (below):** what Phase 10.5 already shipped, so Phase 14 doesn't
+4. **Phase 15 note (below; was Phase 14 until 2026-11-22):** what Phase 10.5 already shipped, so Phase 15 doesn't
    re-implement it.
 
 **Explicitly not changed:** no code. The `PUT`-vs-`PATCH` naming on `/api/settings` is
@@ -1566,7 +1566,7 @@ no widgets, no offline mode, no push.
 - The web app goes **desktop-only** going forward. Phase 11.1's 860px
   sidebar→top-bar mobile collapse is retired rather than maintained — the iOS
   app is now the phone experience, and there's no longer a good reason to pay
-  the design/testing cost of two responsive targets. See Phase 14's own entry
+  the design/testing cost of two responsive targets. See Phase 15's own entry (Phase 14 until 2026-11-22)
   for the follow-up work this implies.
 - Manual **+ Add Wine** lives behind a small "+" in the Cellar tab's nav bar,
   plus an "Enter manually" link on the scan screen — available in two natural
@@ -2007,7 +2007,25 @@ action available on the web is reachable on the phone.
 **Field-test fix, 2026-11-15 (step 8):** of the two first cloud scans, one showed no reviews or prices before Save. That Littorai label scanned with no denomination, and the scan path fires nothing on a partial identity, by design. The iOS review screen now fires price and the primary review tier once the missing field is filled in, instead of waiting for Save (CLAUDE.md §15, amended). The web already did this from its scan card's Continue. The two scans also left a likely duplicate (Littorai 2024 with no denomination, and Littorai The Pivot Vineyard, Sonoma Coast 2024), because the first had no denomination for the duplicate check to compare.
 ---
 
-## Phase 14 — Remaining frontend surfaces (web + iOS extras)
+## Phase 14 — Polishing
+
+**Status:** Spec drafted 2026-11-22 (`docs/specs/2026-11-22-phase-14-polishing.md`), for developer review. Not started. **Numbering:** inserted as Phase 14 on 2026-11-22; the former Phases 14, 15 and 16 are now 15, 16 and 17 (the same move as Phase 13's insertion on 2026-11-01). Older specs and session notes keep the numbers current when they were written.
+
+**Goal:** Make the scan's retailer and critic lookups behave as the developer expects: they start by themselves, search every retailer the app knows, show each result the moment it arrives, and always show that they are still working, including after the wine is saved.
+
+**Why (developer field test, 2026-11-22):** after a photo scan the lookups were confusing. Only four primary retailers ran on their own; "Search more retailers" appeared only when none found a score and then ran five stages in a row behind one skeleton, with nothing saved until the end; after Save the detail screen said "Not fetched" while the search was still running; and a tap on "Fetch Reviews" then started a second search. Findings F1–F8 are in the spec.
+
+**Decisions (D1–D8, spec §3):** the click-gated escalation is retired and CLAUDE.md §15 amended (credits are prepaid and plentiful); Stage A searches every renderable configured retailer at once, Stage B (merchant probes and open web) runs automatically only when Stage A leaves no Tier 1 result; results are saved per retailer and read by polling the free `GET`; a running search is shown everywhere the wine appears (scan review, detail, list row); the interstitial stays at most 3 s ("Setting up your review…"); the job survives Fly's idle stop through saved progress, a heartbeat, a SIGTERM that waits for jobs, and one automatic resume; manual add, price-once and Refresh/Hard refresh are unchanged; `?tier=primary` keeps working for old builds.
+
+**Work items:** WI-0 staging spike (concurrency, Stage B yield, idle-stop timing; sets the constants) → WI-1 job state and API → WI-2 pipeline → WI-3 durability → WI-4 iOS → WI-5 price status → WI-6 web parity → WI-7 docs → WI-8 field test.
+
+**Cost:** about 27–32 Serper credits a scan against about 10 (ceiling about 40), 6–19% of the prepaid pack over six months; about one extra render and GPT-4o extraction a wine. Arithmetic in spec §6.
+
+**Milestone:** scan a bottle, watch scores appear one at a time under a skeleton that says how many shops are left, save mid-search and see the same search running on the wine; no "Search more retailers" anywhere.
+
+---
+
+## Phase 15 — Remaining frontend surfaces (web + iOS extras)
 
 **Goal:** Everything the validated data model and scan pipeline still need that
 isn't the core mobile app (Phase 12) or already shipped: web parity with what
@@ -2053,7 +2071,7 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 
 ---
 
-## Phase 15 — Learning features
+## Phase 16 — Learning features
 
 **Goal:** Build the compounding knowledge layer. Requires sufficient data in the system to make quizzes and pattern surfaces meaningful.
 
@@ -2072,7 +2090,7 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 
 ---
 
-## Phase 16 — Open source release
+## Phase 17 — Open source release
 
 **Goal:** Make the app generic and shareable. Abstract away hardcoded assumptions to support other users with their own API keys and preferences.
 
@@ -2109,4 +2127,4 @@ share-sheet extension, SensorPush module, and allocation-drift view are live.
 - [ ] Professional review BYOK (Burghound, Vinous, Wine Advocate): confirmed no API available to individual subscribers. Deferred indefinitely — revisit only if a viable individual-subscriber API becomes available.
 - [x] Reddit community-sentiment layer: closed off 2026-07-28. Self-service Data API registration ended under Reddit's Responsible Builder Policy; the unofficial `.json` fallback was itself shut down 2026-05-28; the official commercial tier requires a contract at a four-to-five-figure annual minimum; third-party resellers are unlicensed scraping, inconsistent with the project's own CellarTracker/WineBerserkers principle (`CLAUDE.md` §15). Superseded by Phase 8's professional-review-extraction approach; a YouTube-based alternative is a separate, optional PoC — see Phase 8.5.
 - [ ] Drinking-window reasoning/rationale text: considered for Phase 8, tabled 2026-07-28 — less cleanly fact-based than a date range, enum, or boolean; risks drifting into stored prose. Revisit only if a reliably structured (non-prose) capture method is found.
-- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 15's already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.
+- [ ] Cumulative vintage-quality knowledge base by region: flagged 2026-07-28 as a personal-reference/edification idea — accumulate Phase 8's `vintage_rating` extractions across the collection into a region/year reference the developer can browse. Likely just Phase 16's (Learning features, Phase 15 until 2026-11-22) already-planned Vintage index deliverable, once enough Phase 8 data exists — probably not a separate feature, but noted here so it isn't lost.
