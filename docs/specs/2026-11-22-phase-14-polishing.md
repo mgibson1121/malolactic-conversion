@@ -1,6 +1,7 @@
 # Phase 14 — Polishing
 
 > v1 — 2026-11-22. Status: **drafted, for developer review.** Decisions D1–D8 are the developer's, from the 2026-11-22 field-test conversation; §9 lists what is still open, each with a default.
+> **Closed 2026-11-22 (developer decision): WI-0 and WI-8 are dropped.** WI-1 to WI-7 are built and merged. The developer will judge the result through normal use of the app rather than a staging spike or a scripted field test. See "WI-0 and WI-8: dropped" below for what that leaves unmeasured.
 > Read alongside `CLAUDE.md` §15 (amended by this phase), `docs/build-phases.md` (Phases 9.2, 9.4, 12.1, 12.4, 12.5, 13) and `docs/specs/2026-08-19-phase-9.4-scan-first-enrichment.md`, whose primary-tier bound this phase retires.
 > **Numbering (resolved 2026-11-22):** this is Phase 14. The former Phases 14 (remaining frontend surfaces), 15 (learning) and 16 (open source) are now 15, 16 and 17 in `docs/build-phases.md`, the same way Phase 13 was inserted on 2026-11-01. Older specs and session notes keep the numbers that were current when they were written.
 
@@ -188,6 +189,12 @@ The costs that are not covered by that argument:
 - **Not done:** no browser check (the web is exercised by Vitest with a stubbed API; WI-8 is where it is looked at), and the old "Refresh anyway" copy is untouched.
 - Acceptance 7 holds: `grep -ri "search more retailers"` finds nothing under `ios/`, `web/src/` or the copy audit (three rows removed, nine new web strings added).
 - Tests: 55 new in `utils/enrichmentJob.test.ts`, `hooks/useJobWatcher.test.tsx`, `components/EnrichmentJobs.test.tsx` and the interstitial file; several older tests that asserted the retired rules now assert the new ones. Ten mutations of the guards were each caught.
+
+**WI-0 and WI-8: dropped (developer decision, 2026-11-22).** "Will test naturally through usage of my app." Nothing was measured on staging and no scripted field test was run. What that leaves, so a later reader does not mistake a default for a result:
+- **The constants are the draft's defaults, never measured:** `REVIEW_SEARCH_CONCURRENCY` 6, `SHUTDOWN_GRACE_MS` 110 s, `kill_timeout` 120 s. Symptoms that would mean they need tuning: slow searches or Serper 429s (concurrency), a search that dies after the app has idled (grace and `kill_timeout`).
+- **Stage B's yield is unmeasured.** It runs only when no Tier 1 result exists after Stage A. If scans cost more than §6 estimates, look at Stage B first.
+- **Acceptance criteria 1 (duration targets), 5 (a connection dropped mid-search on staging) and 8 (credits per scan) were to be confirmed by WI-0 and WI-8 and are not.** Criteria 2, 3, 4, 6, 7 and 9 are covered by automated tests (backend and iOS XCTest, web Vitest); criterion 9 (old build 0.1 (2)) is covered by the `?tier=primary` tests, not by running the old build.
+- WI-8's "scan on the phone" and the browser check WI-6 deferred are left to ordinary use.
 
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
