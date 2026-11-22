@@ -237,6 +237,40 @@ export interface ReviewProbeLogEntry {
   probed_at: string // ISO timestamp
 }
 
+// Phase 14 WI-1 (migration 012) — a metered lookup as a persisted job, so a
+// search that outlives a screen, a phone lock or a dropped connection is still
+// visible, and a second request attaches to it instead of starting another.
+// 'interrupted' is a run that was running when its machine stopped (see
+// recoverInterruptedJobs); a client may start one more.
+export type EnrichmentJobState = 'running' | 'done' | 'failed' | 'interrupted'
+export type ReviewsJobStage = 'shops' | 'merchants' | 'finishing'
+
+interface EnrichmentJobBase {
+  state: EnrichmentJobState
+  started_at: string // ISO timestamp
+  updated_at: string // ISO timestamp; the heartbeat (WI-3)
+  // The identityKey the run was started for. A result is written only while
+  // the wine still has this identity.
+  identity: string
+}
+
+export interface ReviewsJob extends EnrichmentJobBase {
+  stage: ReviewsJobStage
+  shops_total: number
+  shops_done: number
+  scores_found: number
+}
+
+// Price carries the same envelope without counts.
+export type PriceJob = EnrichmentJobBase
+
+// One column, one section per kind; a kind that has never run (or whose run
+// was cancelled by an identity edit) is absent or null.
+export interface EnrichmentJobs {
+  reviews?: ReviewsJob | null
+  price?: PriceJob | null
+}
+
 export interface RetailerLink {
   slug: string
   name: string
@@ -582,6 +616,9 @@ export interface WineEntry {
   // nothing") is what erased eight wines' review_data on 2026-08-05, and
   // this log must not recreate it with a longer fuse.
   review_probe_log?: ReviewProbeLogEntry[] | null
+  // Phase 14 WI-1 — the state of this wine's running or last metered lookups;
+  // see EnrichmentJobs. Server-written only: the PATCH schema has no such key.
+  enrichment_job?: EnrichmentJobs | null
   date_added: string                      // ISO timestamp
   date_first_consumed: string | null      // ISO timestamp; set once when tag_consumed first becomes true
   // Phase 9.4 — NULL means draft: persisted (so scan-time enrichment has a

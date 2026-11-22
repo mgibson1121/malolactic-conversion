@@ -7,6 +7,7 @@ config({ path: [path.resolve(__dirname, '../.env'), path.resolve(__dirname, '../
 import { createApp, optionsFromEnv } from './app'
 import { getStorage, closeStorage } from './modules/storage'
 import { activeRenders } from '@shared/utils/render-gate'
+import { recoverInterruptedJobs } from './routes/enrichment-jobs'
 
 const options = optionsFromEnv()
 const app = createApp(options)
@@ -44,6 +45,13 @@ let sweepTimer: NodeJS.Timeout | undefined
 const server = app.listen(PORT, HOST, () => {
   console.log(`Wine app backend listening on ${HOST}:${PORT}`)
   sweepStaleDrafts()
+  // Phase 14 WI-1: nothing runs in a process that has just started, so a job
+  // the database still calls 'running' belonged to a machine that stopped.
+  recoverInterruptedJobs()
+    .then((count) => {
+      if (count > 0) console.log(`Marked ${count} wine(s) with a search interrupted by the last stop`)
+    })
+    .catch((err) => console.error('Recovering interrupted searches failed:', err))
   sweepTimer = setInterval(sweepStaleDrafts, DRAFT_SWEEP_INTERVAL_MS)
   sweepTimer.unref()
 })

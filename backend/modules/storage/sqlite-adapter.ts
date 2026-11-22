@@ -93,6 +93,7 @@ interface WineRow {
   retailer_links: string | null
   review_data: string | null
   review_probe_log: string | null
+  enrichment_job?: string | null
   date_added: string
   date_first_consumed: string | null
   promoted_at: string | null
@@ -214,6 +215,7 @@ function rowToWine(row: WineRow): WineEntry {
     retailer_links: fromJson<Record<string, string> | null>(row.retailer_links, null),
     review_data: reviewData,
     review_probe_log: fromJson(row.review_probe_log, null),
+    enrichment_job: fromJson<WineEntry['enrichment_job']>(row.enrichment_job ?? null, null),
     date_added: row.date_added,
     date_first_consumed: row.date_first_consumed,
     promoted_at: row.promoted_at,
@@ -467,7 +469,7 @@ export class SQLiteAdapter implements StorageAdapter {
         wishlist_notes = ?, price_paid = ?, manual_price = ?, purchased_from = ?,
         advice_linked = ?, expert_reviews = ?,
         community_sentiment = ?, community_excerpts = ?, price_data = ?,
-        retailer_links = ?, review_data = ?, review_probe_log = ?, date_first_consumed = ?,
+        retailer_links = ?, review_data = ?, review_probe_log = ?, enrichment_job = ?, date_first_consumed = ?,
         promoted_at = ?, bottling_plain = ?, bottling_prompt_dismissed = ?
       WHERE id = ?
     `).run(
@@ -484,6 +486,7 @@ export class SQLiteAdapter implements StorageAdapter {
       toJson(updated.advice_linked), toJson(updated.expert_reviews),
       updated.community_sentiment, toJson(updated.community_excerpts), toJson(updated.price_data),
       toJson(updated.retailer_links), toJson(updated.review_data), toJson(updated.review_probe_log),
+      toJson(updated.enrichment_job),
       updated.date_first_consumed,
       updated.promoted_at,
       updated.bottling_plain == null ? null : toBool(updated.bottling_plain),
