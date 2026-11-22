@@ -51,8 +51,10 @@ struct WineDetailView: View {
             .background(Theme.bg)
             .navigationTitle(wine.producer ?? "Wine")
             .navigationBarTitleDisplayMode(.inline)
+            .onDisappear { model.stopWatching() }
             .task {
                 await model.reload()
+                model.watchSearches()
                 async let priced: Void = model.fetchPriceOnceIfNeeded()
                 await model.loadNotes()
                 if focusScores {
@@ -289,7 +291,10 @@ struct WineDetailView: View {
 
     private var criticReviews: some View {
         let count = wine.criticSummary?.ordered.count ?? CriticScores.deduped(wine.reviewData).count
-        let summary = count > 0 ? "\(count) score\(count == 1 ? "" : "s")" : (wine.reviewData == nil ? "Not fetched" : "None found")
+        let searching = ReviewSearch(wine: wine, control: model.reviews).isSearching
+        // A running search says so, never "Not fetched" (Phase 14 F4).
+        let summary = searching ? (count > 0 ? "\(count) so far…" : "Searching…")
+            : count > 0 ? "\(count) score\(count == 1 ? "" : "s")" : (wine.reviewData == nil ? "Not fetched" : "None found")
         return DisclosureCard(title: "Critic reviews", summary: summary, isExpanded: binding(.criticReviews)) {
             VStack(alignment: .leading, spacing: 10) {
                 CriticReviewsBlock(wine: wine, control: model.reviews, retry: { Task { await model.fetchReviews() } },
@@ -300,6 +305,7 @@ struct WineDetailView: View {
                     label: "Reviews",
                     control: model.reviews,
                     hasData: wine.reviewData != nil,
+                    searching: searching,
                     run: { force in Task { await model.fetchReviews(force: force); setExpanded(.criticReviews, true) } }
                 )
             }
@@ -307,7 +313,9 @@ struct WineDetailView: View {
     }
 
     private var priceRetailers: some View {
+        let pricing = PriceSearch(wine: wine, control: model.price).isSearching
         let summary: String = {
+            if pricing && wine.priceData == nil { return "Checking…" }
             if let price = WineFormatting.cardPrice(wine) { return EffectivePrice(wine).isManual ? price : "\(price) avg" }
             if let price = wine.priceData { return price.retailers.isEmpty ? "No listings" : "\(price.retailers.count) listings" }
             return "Not fetched"
@@ -326,6 +334,7 @@ struct WineDetailView: View {
                     label: "Price & retailers",
                     control: model.price,
                     hasData: wine.priceData != nil,
+                    searching: pricing,
                     run: { force in Task { await model.fetchPrice(force: force); setExpanded(.priceRetailers, true) } }
                 )
             }

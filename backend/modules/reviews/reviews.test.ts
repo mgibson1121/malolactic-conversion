@@ -705,7 +705,10 @@ describe('fetchReviewData — primary and extended review tiers', () => {
     jest.restoreAllMocks()
   })
 
-  it('never pays for an extended retailer once the primary tier has produced a score', async () => {
+  // Phase 14 (WI-2): the click-gated escalation is retired. Stage A covers
+  // every renderable shop at once, so a primary shop's score no longer keeps
+  // the extended shops from being searched.
+  it('searches the extended shops too, even when a primary shop already found a score (Phase 14 Stage A)', async () => {
     const queries = recordQueries({
       'jjbuckley.com': [
         { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.jjbuckley.com/p/1' },
@@ -722,17 +725,14 @@ describe('fetchReviewData — primary and extended review tiers', () => {
     const result = await fetchReviewData(makeWine())
 
     expect(result).toHaveLength(1)
-    expect(queries.some(q => q.includes('site:sokolin.com'))).toBe(false)
     for (const slug of extendedSlugs) {
       const domain = RETAILER_CONFIG.find(r => r.slug === slug)!.domain
-      expect(queries.some(q => q.includes(`site:${domain}`))).toBe(false)
+      if (isUnrenderableDomain(domain)) continue
+      expect(queries.some(q => q.includes(`site:${domain}`))).toBe(true)
     }
   })
 
-  // The escalation gate is the same predicate the discovered-merchant and
-  // open-web passes already used — a page that rendered but cited no score
-  // counts as nothing found.
-  it('escalates to the extended tier when the primary tier renders pages but finds no score', async () => {
+  it('searches the extended tier when the primary tier renders pages but finds no score', async () => {
     const queries = recordQueries({
       'benchmarkwine.com': [
         { title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.benchmarkwine.com/p/1' },
@@ -957,7 +957,7 @@ describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () =
     expect(sink.some(e => e.slug === 'kl')).toBe(false)
   })
 
-  it('does not write probe entries for an extended-tier retailer the primary tier already made unnecessary', async () => {
+  it('writes a probe entry for the extended-tier retailers too, since Stage A searches every shop (Phase 14)', async () => {
     const sink: Array<{ slug: string }> = []
     jest.spyOn(global, 'fetch').mockImplementation((_url, init) => {
       const q = (JSON.parse(String(init?.body)) as { q: string }).q
@@ -978,7 +978,7 @@ describe('fetchReviewData — probe log (existingProbeLog / probeLogSink)', () =
 
     await fetchReviewData(makeWine(), { probeLogSink: sink as never })
 
-    expect(sink.some(e => e.slug === 'sokolin')).toBe(false)
+    expect(sink.some(e => e.slug === 'sokolin')).toBe(true)
   })
 })
 
@@ -1466,17 +1466,15 @@ describe('fetchReviewData — retailers discovered by the price module', () => {
     expect(queries.some(q => !q.includes('site:') && q.includes('"Zachys"'))).toBe(false)
   })
 
-  it('runs the blind open-web pass only after the discovered merchants also come up empty', async () => {
+  it('runs the merchant probes and the blind open-web pass together when nothing scored (Phase 14 Stage B)', async () => {
     const queries = installSerperMock({}, [])
 
     await fetchReviewData(makeWine(), {
       discoveredRetailers: [{ slug: 'central-wine-merchants', name: 'Central Wine Merchants' }],
     })
 
-    const merchantProbe = queries.findIndex(q => q.includes('"Central Wine Merchants"'))
-    const openPass = queries.findIndex(q => !q.includes('site:') && q.includes('review'))
-    expect(merchantProbe).toBeGreaterThanOrEqual(0)
-    expect(openPass).toBeGreaterThan(merchantProbe)
+    expect(queries.some(q => q.includes('"Central Wine Merchants"'))).toBe(true)
+    expect(queries.some(q => !q.includes('site:') && q.includes('review'))).toBe(true)
   })
 
   it('caps how many discovered merchants are probed', async () => {
@@ -1610,5 +1608,229 @@ describe('fetchReviewData — the review ladder (Phase 12.2 D9)', () => {
     // Only the retailer-search queries were sent; following the link added none.
     expect(before).toBeGreaterThan(0)
     expect((global.fetch as jest.Mock).mock.calls.every(c => String(c[0]).includes('serper'))).toBe(true)
+  })
+})
+
+// ─── Phase 14 (WI-2): Stage A at once, Stage B gated on Tier 1, progress ─────
+describe('fetchReviewData — Phase 14 pipeline', () => {
+  const burghound = { publication: 'Burghound', score: 92, known_publication: true, drinking_window: null, vintage_character: null, deal: false }
+  const unknownCritic = { publication: 'Some Blog', score: 90, known_publication: false, drinking_window: null, vintage_character: null, deal: false }
+  const liveWine = () => makeWine() // Rousseau Gevrey-Chambertin 2019
+
+  /** A Serper mock that records queries and the most that were ever in flight. */
+  function serper(byDomain: Record<string, Array<{ title: string; link: string }>>, open: Array<{ title: string; link: string }> = []) {
+    const state = { queries: [] as string[], inFlight: 0, peak: 0 }
+    jest.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      const q = (JSON.parse(String(init?.body)) as { q: string }).q
+      state.queries.push(q)
+      state.inFlight++
+      state.peak = Math.max(state.peak, state.inFlight)
+      await new Promise(resolve => setTimeout(resolve, 5))
+      state.inFlight--
+      const domain = Object.keys(byDomain).find(d => q.includes(`site:${d}`))
+      const organic = domain ? byDomain[domain] : q.includes('site:') ? [] : open
+      return new Response(JSON.stringify({ organic }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    return state
+  }
+  const page = (domain: string) => ({ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: `https://www.${domain}/p/1` })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+    delete process.env.REVIEW_SEARCH_CONCURRENCY
+  })
+
+  describe('Stage A', () => {
+    it('searches shops through a pool of REVIEW_SEARCH_CONCURRENCY', async () => {
+      process.env.REVIEW_SEARCH_CONCURRENCY = '2'
+      const state = serper({})
+      await fetchReviewData(liveWine(), { tier: 'full' })
+      expect(state.peak).toBe(2)
+    })
+
+    it('defaults to six at once', async () => {
+      const state = serper({})
+      await fetchReviewData(liveWine())
+      expect(state.peak).toBeGreaterThan(3)
+      expect(state.peak).toBeLessThanOrEqual(6)
+    })
+
+    it('queues every primary shop before any extended one', async () => {
+      process.env.REVIEW_SEARCH_CONCURRENCY = '1'
+      const state = serper({})
+      await fetchReviewData(liveWine(), { tier: 'full' })
+      const tiers = state.queries
+        .map(q => RETAILER_CONFIG.find(r => q.includes(`site:${r.domain}`)))
+        .filter((r): r is RetailerConfig => !!r)
+        .map(r => r.reviewTier)
+      expect(tiers).toContain('extended')
+      expect(tiers.lastIndexOf('primary')).toBeLessThan(tiers.indexOf('extended'))
+    })
+
+    it('reports its plan, then each shop as it finishes, with that shop\'s probe entry', async () => {
+      serper({ 'jjbuckley.com': [page('jjbuckley.com')] })
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'x', vintage: 2019, critic_scores: [burghound] })
+      const plan = jest.fn()
+      const shops: Array<{ slug: string; found: boolean; stage?: string }> = []
+
+      await fetchReviewData(liveWine(), {
+        progress: { onPlan: plan, onShop: e => shops.push({ slug: e.slug, found: e.result !== null, stage: e.probe?.stage }) },
+      })
+
+      const searched = RETAILER_CONFIG.filter(r => r.reviewTier !== 'none' && !isUnrenderableDomain(r.domain))
+      expect(plan).toHaveBeenCalledWith({ shopsTotal: searched.length, shopsSettled: 0 })
+      expect(shops).toHaveLength(searched.length)
+      expect(shops.find(s => s.slug === 'jjbuckley')).toEqual({ slug: 'jjbuckley', found: true, stage: 'found' })
+      expect(shops.filter(s => s.found)).toHaveLength(1)
+    })
+
+    it('counts a shop skipped on a fresh negative probe as settled', async () => {
+      serper({})
+      const plan = jest.fn()
+      await fetchReviewData(liveWine(), {
+        existingProbeLog: [{ slug: 'sokolin', domain: 'sokolin.com', stage: 'zero_results', variants_tried: 3, probed_at: new Date().toISOString() }],
+        progress: { onPlan: plan },
+      })
+      expect(plan.mock.calls[0][0].shopsSettled).toBe(1)
+    })
+
+    it('a progress callback that throws never stops the search', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {})
+      serper({ 'jjbuckley.com': [page('jjbuckley.com')] })
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'x', vintage: 2019, critic_scores: [burghound] })
+      const result = await fetchReviewData(liveWine(), {
+        progress: { onPlan: () => { throw new Error('boom') }, onShop: () => { throw new Error('boom') } },
+      })
+      expect(result).toHaveLength(1)
+    })
+
+    it('tier=primary still stops after the primary shops, and sends no Stage B', async () => {
+      const state = serper({}, [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019', link: 'https://www.amsterwine.com/p/1' }])
+      const result = await fetchReviewData(liveWine(), { tier: 'primary', discoveredRetailers: [{ slug: 'x', name: 'Some Merchant' }] })
+      expect(result).toEqual([])
+      expect(state.queries.some(q => !q.includes('site:'))).toBe(false)
+      expect(state.queries.some(q => q.includes('site:sokolin.com'))).toBe(false)
+    })
+  })
+
+  describe('Stage B is gated on Tier 1, not on "any score"', () => {
+    it('does not run when a trusted critic scores the exact wine in the same vintage', async () => {
+      const state = serper({ 'jjbuckley.com': [page('jjbuckley.com')] }, [{ title: 'never', link: 'https://blog.example/x' }])
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'x', vintage: 2019, critic_scores: [burghound] })
+      await fetchReviewData(liveWine(), { discoveredRetailers: [{ slug: 'c', name: 'Central Wine Merchants' }] })
+      expect(state.queries.some(q => !q.includes('site:'))).toBe(false)
+    })
+
+    it('runs when the only score is for another vintage (F8: a wrong-vintage score used to end the search)', async () => {
+      const state = serper({ 'jjbuckley.com': [{ title: 'Domaine Rousseau Gevrey-Chambertin 2018', link: 'https://www.jjbuckley.com/p/1' }] })
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'x', vintage: 2018, critic_scores: [burghound] })
+      await fetchReviewData(liveWine(), { discoveredRetailers: [{ slug: 'c', name: 'Central Wine Merchants' }] })
+      expect(state.queries.some(q => q.includes('"Central Wine Merchants"'))).toBe(true)
+      expect(state.queries.some(q => !q.includes('site:') && q.includes('review'))).toBe(true)
+    })
+
+    it('runs when the only score is from a critic the developer does not trust', async () => {
+      const state = serper({ 'jjbuckley.com': [page('jjbuckley.com')] })
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'x', vintage: 2019, critic_scores: [unknownCritic] })
+      await fetchReviewData(liveWine())
+      expect(state.queries.some(q => !q.includes('site:') && q.includes('review'))).toBe(true)
+    })
+
+    it('reports Stage B results as they arrive and keeps a page both passes reach once', async () => {
+      serper({}, [{ title: 'Domaine Rousseau Gevrey-Chambertin 2019 | AmsterWine', link: 'https://www.amsterwine.com/p/1' }])
+      mockRenderPageHtml.mockResolvedValue('<html>rendered</html>')
+      mockExtract.mockResolvedValue({ price: null, url: 'https://www.amsterwine.com/p/1', vintage: 2019, critic_scores: [burghound] })
+      const stages: string[] = []
+      const extras: string[] = []
+
+      const result = await fetchReviewData(liveWine(), {
+        // The merchant probe and the open-web pass both land on amsterwine.com.
+        discoveredRetailers: [{ slug: 'amsterwine', name: 'AmsterWine' }],
+        progress: { onStage: s => stages.push(s), onExtra: r => extras.push(r.slug) },
+      })
+
+      expect(stages).toContain('merchants')
+      expect(result!.filter(r => r.slug === 'fallback-amsterwine-com')).toHaveLength(1)
+      expect(extras).toEqual(['fallback-amsterwine-com'])
+    })
+  })
+
+  describe('cancellation', () => {
+    it('launches no new shop once the search is cancelled, and skips Stage B', async () => {
+      const state = serper({})
+      const result = await fetchReviewData(liveWine(), { isCancelled: () => true, discoveredRetailers: [{ slug: 'c', name: 'Central Wine Merchants' }] })
+      expect(state.queries).toHaveLength(0)
+      expect(result).toEqual([])
+    })
+
+    it('stops between shops when cancelled part-way', async () => {
+      process.env.REVIEW_SEARCH_CONCURRENCY = '1'
+      const state = serper({})
+      let shops = 0
+      await fetchReviewData(liveWine(), {
+        isCancelled: () => shops >= 2,
+        progress: { onShop: () => { shops++ } },
+      })
+      const sited = state.queries.filter(q => q.includes('site:'))
+      const domainsHit = new Set(sited.map(q => RETAILER_CONFIG.find(r => q.includes(`site:${r.domain}`))?.slug))
+      expect(domainsHit.size).toBe(2)
+    })
+  })
+
+  describe('resume (WI-3)', () => {
+    const since = '2026-11-22T10:00:00.000Z'
+    const probed = (slug: string, domain: string, stage: 'found' | 'zero_results' | 'request_failed', at = '2026-11-22T10:00:30.000Z') =>
+      ({ slug, domain, stage, variants_tried: 1, probed_at: at })
+
+    it('does not search a shop probed since the interrupted run began, and returns what that run had saved', async () => {
+      const state = serper({})
+      const saved = {
+        slug: 'jjbuckley', name: 'J.J. Buckley', product_url: 'https://www.jjbuckley.com/p/1', critic_scores: [burghound],
+        fetched_at: '2026-11-22T10:00:30.000Z', source: 'configured' as const, page_vintage: 2019, vintage_gap: 0,
+        match: { producer: 'match', denomination: 'match', bottling: 'unknown', vintage: 'match', candidateVintage: 2019, vintageGap: 0 } as never,
+        page_price: null, page_bottling: null,
+      }
+      const plan = jest.fn()
+
+      const result = await fetchReviewData(liveWine(), {
+        existingProbeLog: [probed('jjbuckley', 'jjbuckley.com', 'found'), probed('sokolin', 'sokolin.com', 'zero_results')],
+        resume: { since, priorResults: [saved] },
+        progress: { onPlan: plan },
+      })
+
+      expect(state.queries.some(q => q.includes('site:jjbuckley.com') || q.includes('site:sokolin.com'))).toBe(false)
+      expect(plan.mock.calls[0][0].shopsSettled).toBe(2)
+      expect(result).toEqual([saved])
+    })
+
+    it('searches again a shop whose request failed, and one probed before the run began', async () => {
+      const state = serper({})
+      await fetchReviewData(liveWine(), {
+        existingProbeLog: [
+          probed('jjbuckley', 'jjbuckley.com', 'request_failed'),
+          probed('sokolin', 'sokolin.com', 'found', '2026-11-22T09:00:00.000Z'),
+        ],
+        resume: { since, priorResults: [] },
+      })
+      expect(state.queries.some(q => q.includes('site:jjbuckley.com'))).toBe(true)
+      expect(state.queries.some(q => q.includes('site:sokolin.com'))).toBe(true)
+    })
+
+    it('gates Stage B on the resumed run\'s saved Tier 1 result, not only on shops searched now', async () => {
+      const state = serper({})
+      const tier1 = {
+        slug: 'jjbuckley', name: 'J.J. Buckley', product_url: 'https://www.jjbuckley.com/p/1', critic_scores: [burghound],
+        fetched_at: since, source: 'configured' as const, page_vintage: 2019, vintage_gap: 0,
+        match: { producer: 'match', denomination: 'match', bottling: 'unknown', vintage: 'match', candidateVintage: 2019, vintageGap: 0 } as never,
+        page_price: null, page_bottling: null,
+      }
+      await fetchReviewData(liveWine(), { resume: { since, priorResults: [tier1] } })
+      expect(state.queries.some(q => !q.includes('site:'))).toBe(false)
+    })
   })
 })

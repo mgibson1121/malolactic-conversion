@@ -25,6 +25,11 @@ final class WineDetailModel {
     private(set) var actionError: String?
 
     private let api: APIClient
+    /// Follows a search that is running on this wine, including one this screen
+    /// did not start (a scan that was saved mid-search): Phase 14 WI-4.
+    private let watcher: EnrichmentWatcher
+    private var lastReviewsState: JobState?
+    private var lastPriceState: JobState?
     /// Called after any change the lists must reflect — list membership,
     /// and any stored enrichment (price, reviews, links). The lists hold
     /// their own copy of each wine, and the detail screen opens from that
@@ -32,11 +37,45 @@ final class WineDetailModel {
     /// (found 2026-10-01: refreshed scores vanished on reopen).
     private let onChanged: () -> Void
 
-    init(wine: Wine, api: APIClient, onChanged: @escaping () -> Void) {
+    init(wine: Wine, api: APIClient, onChanged: @escaping () -> Void,
+         pollInterval: Duration = ScanTiming.pollInterval, watchGrace: Duration = ScanTiming.watchGrace) {
         self.wine = wine
         self.api = api
         self.onChanged = onChanged
+        lastReviewsState = wine.enrichmentJob?.reviews?.state
+        lastPriceState = wine.enrichmentJob?.price?.state
+        watcher = EnrichmentWatcher(interval: pollInterval, startGrace: watchGrace) { id in
+            try? await api.getWine(id: id)
+        }
+        watcher.onWine = { [weak self] in self?.watched($0) }
     }
+
+    /// A review search is running on this wine, started here or elsewhere. The
+    /// detail screen shows it as running and will not start a second one.
+    var isSearchingReviews: Bool { reviews.isBusy || wine.enrichmentJob?.reviews?.state == .running }
+
+    /// A price lookup is running on this wine, started here or by the scan.
+    var isSearchingPrice: Bool { price.isBusy || wine.enrichmentJob?.price?.state == .running }
+
+    /// Called when the screen opens, after `reload`: a wine saved while its scan
+    /// was still searching shows that search, not "Not fetched" (Phase 14 F4).
+    func watchSearches() {
+        if wine.enrichmentJob?.anyRunning == true { watcher.start(wineID: wine.id) }
+    }
+
+    private func watched(_ fresh: Wine) {
+        guard fresh.id == wine.id else { return }
+        wine = wine.applying(fresh, from: .reviews).applying(fresh, from: .price)
+        let state = fresh.enrichmentJob?.reviews?.state
+        let priceState = fresh.enrichmentJob?.price?.state
+        defer { lastReviewsState = state; lastPriceState = priceState }
+        // Lists hold their own copy: tell them once a lookup has ended, not on every poll.
+        let reviewsEnded = lastReviewsState == .running && state != .running
+        let priceEnded = lastPriceState == .running && priceState != .running
+        if reviewsEnded || priceEnded { onChanged() }
+    }
+
+    func stopWatching() { watcher.stop() }
 
     // MARK: Reads (free)
 
@@ -118,21 +157,30 @@ final class WineDetailModel {
         await fetchPrice()
     }
 
+    /// Starts the price lookup, unless one is already running on this wine
+    /// (Phase 14 WI-5): a tap, or the open-time price-once, during the scan's
+    /// own lookup starts nothing new.
     func fetchPrice(force: Bool = false) async {
         PriceOnce.record(wine.id)
+        guard !isSearchingPrice else { return }
         price.isBusy = true
         price.error = nil
+        watcher.start(wineID: wine.id)
         defer { price.isBusy = false }
         do {
             let result = try await api.fetchPrice(wineID: wine.id, force: force)
             wine = wine.applying(result.wine, from: .price)
             price.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
+            lastPriceState = result.wine.enrichmentJob?.price?.state
+            if result.wine.enrichmentJob?.anyRunning != true { watcher.stop() }
             onChanged()
         } catch {
             // The request can fail after the server finished and stored (a
-            // dropped connection, a timeout): look before saying "failed".
+            // dropped connection, a timeout), or while it is still working:
+            // look before saying "failed".
             if let fresh = await storedSince(price: wine.priceData) {
                 wine = wine.applying(fresh, from: .price)
+                if fresh.enrichmentJob?.price?.state == .running { watcher.start(wineID: wine.id) }
                 onChanged()
             } else {
                 price.error = "Price lookup failed"
@@ -140,18 +188,29 @@ final class WineDetailModel {
         }
     }
 
+    /// Starts the review search, unless one is already running on this wine: a
+    /// second tap must not start a second search (Phase 14 F5). The button is
+    /// disabled then too; this is the same rule where a caller is not the button.
     func fetchReviews(force: Bool = false) async {
+        guard !isSearchingReviews else { return }
         reviews.isBusy = true
         reviews.error = nil
+        watcher.start(wineID: wine.id)
         defer { reviews.isBusy = false }
         do {
             let result = try await api.fetchReviews(wineID: wine.id, force: force)
             wine = wine.applying(result.wine, from: .reviews)
             reviews.cachedAt = (result.meta.cached == true) ? result.meta.fetchedAt : nil
+            lastReviewsState = result.wine.enrichmentJob?.reviews?.state
+            // The request returns when the search ends: nothing left to follow.
+            if result.wine.enrichmentJob?.anyRunning != true { watcher.stop() }
             onChanged()
         } catch {
+            // The request can fail while the search carries on, or after it
+            // finished: look at the stored wine before saying "failed".
             if let fresh = await storedSince(reviews: wine.reviewData) {
                 wine = wine.applying(fresh, from: .reviews)
+                if fresh.enrichmentJob?.reviews?.state == .running { watcher.start(wineID: wine.id) }
                 onChanged()
             } else {
                 reviews.error = "Couldn't check reviews"
@@ -163,14 +222,18 @@ final class WineDetailModel {
     /// the request went out — i.e. the lookup completed even though the
     /// response never arrived (Phase 12.4 WI-7). Nil otherwise: then it failed.
     private func storedSince(price before: PriceData?) async -> Wine? {
-        guard let fresh = try? await api.getWine(id: wine.id),
-              let after = fresh.priceData, after.fetchedAt != before?.fetchedAt else { return nil }
+        guard let fresh = try? await api.getWine(id: wine.id) else { return nil }
+        // Still running on the server: the request failed, the lookup did not.
+        if fresh.enrichmentJob?.price?.state == .running { return fresh }
+        guard let after = fresh.priceData, after.fetchedAt != before?.fetchedAt else { return nil }
         return fresh
     }
 
     private func storedSince(reviews before: [RetailerReview]?) async -> Wine? {
-        guard let fresh = try? await api.getWine(id: wine.id),
-              fresh.reviewData != nil, fresh.reviewData != before else { return nil }
+        guard let fresh = try? await api.getWine(id: wine.id) else { return nil }
+        // Still running on the server: the request failed, the search did not.
+        if fresh.enrichmentJob?.reviews?.state == .running { return fresh }
+        guard fresh.reviewData != nil, fresh.reviewData != before else { return nil }
         return fresh
     }
 

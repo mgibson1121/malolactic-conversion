@@ -52,7 +52,7 @@ struct WineRowView: View {
     /// Line 3 in priority order, highest first: rating > critic score >
     /// price > drinking window — except Wishlist, where price outranks the
     /// window already, and Notes, where the note date replaces price/window.
-    private var badges: [BadgeItem] {
+    var badges: [BadgeItem] {
         var items: [BadgeItem] = []
         if let rating = wine.myRating {
             items.append(.rating(rating))
@@ -60,6 +60,8 @@ struct WineRowView: View {
         if let score = CriticScores.cardBadge(wine) {
             items.append(.score(score))
         }
+        // A lookup is running on this wine, wherever it was started (Phase 14 D4).
+        if wine.enrichmentJob?.anyRunning == true { items.append(.searching) }
         if kind == .notes {
             if let date = NoteDate.short(wine.latestTastingNoteDate) { items.append(.text(date)) }
             return items
@@ -91,6 +93,7 @@ struct WineRowView: View {
             parts.append("your price \(price)")
         }
         if wine.drinkingWindow == nil, wine.windowStatus == .check { parts.append("check drinking window") }
+        if wine.enrichmentJob?.anyRunning == true { parts.append("searching for scores and prices") }
         return parts.joined(separator: ", ")
     }
 }
@@ -102,6 +105,8 @@ enum BadgeItem: Hashable {
     /// "Check window" — no window of its own and the critics disagree. Tinted
     /// so it reads as a flag, not as a value (Phase 12.1 WI-2).
     case checkWindow
+    /// A critic or price search is running on this wine (Phase 14 D4).
+    case searching
 }
 
 /// A single-line run that drops whole badges right-to-left until it fits —
@@ -169,6 +174,13 @@ private struct BadgeView: View {
             Text(text)
                 .font(AppFont.meta().monospacedDigit())
                 .foregroundStyle(Theme.textMuted)
+        case .searching:
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("Searching…").font(AppFont.meta())
+            }
+            .foregroundStyle(Theme.textMuted)
+            .accessibilityElement(children: .combine)
         case .checkWindow:
             Text("Check window")
                 .font(AppFont.badge())

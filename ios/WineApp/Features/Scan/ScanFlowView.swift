@@ -185,8 +185,9 @@ private struct CaptureChoicesView: View {
     }
 }
 
-/// "Scan successful — pulling details" (Phase 12.1 WI-5, D8): the parsed
-/// wine, held until the first critic score lands or three seconds pass.
+/// "Scan successful — setting up your review" (Phase 12.1 WI-5, D8; copy
+/// changed in Phase 14 D5): the parsed wine, held until the first critic score
+/// lands or three seconds pass. Not lengthened: confirming the label overlaps the search.
 private struct PullingDetailsView: View {
     let wine: Wine?
 
@@ -206,7 +207,7 @@ private struct PullingDetailsView: View {
             }
             HStack(spacing: 8) {
                 ProgressView()
-                Text("Pulling details…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
+                Text("Setting up your review…").font(AppFont.meta()).foregroundStyle(Theme.textMuted)
             }
         }
         .padding(Theme.sideMargin)

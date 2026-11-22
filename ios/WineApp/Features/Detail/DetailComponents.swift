@@ -92,6 +92,9 @@ struct EnrichmentButton: View {
     let control: EnrichmentControl
     /// Hard refresh needs data to refresh; shown once any exists.
     let hasData: Bool
+    /// A search is already running on this wine: both buttons wait for it, so a
+    /// tap can never start a second one (Phase 14 F5).
+    var searching = false
     let run: (_ force: Bool) -> Void
     @State private var confirmingHardRefresh = false
 
@@ -100,11 +103,11 @@ struct EnrichmentButton: View {
             Button {
                 run(false)
             } label: {
-                Text(control.isBusy ? "Fetching…" : title)
+                Text(searching ? "Searching…" : control.isBusy ? "Fetching…" : title)
                     .frame(minHeight: Theme.minHitTarget)
             }
             .buttonStyle(.bordered)
-            .disabled(control.isBusy)
+            .disabled(control.isBusy || searching)
 
             if hasData {
                 Button {
@@ -115,7 +118,7 @@ struct EnrichmentButton: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(Theme.accent)
-                .disabled(control.isBusy)
+                .disabled(control.isBusy || searching)
                 .confirmationDialog("Hard refresh \(label)?", isPresented: $confirmingHardRefresh,
                                     titleVisibility: .visible) {
                     Button("Hard refresh") { run(true) }

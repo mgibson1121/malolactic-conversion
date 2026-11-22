@@ -8,6 +8,13 @@ enum ScanTiming {
     /// the hold ends — the review screen shows "Looking…" for whatever is
     /// still pending. Mirrors `PREVIEW_HOLD_MS` in `web/src/constants.ts`.
     static let previewHold: Duration = .milliseconds(3000)
+
+    /// How often a running review search is read while the app waits for it
+    /// (Phase 14 WI-4): a free GET, never a metered call.
+    static let pollInterval: Duration = .seconds(2)
+    /// How long the watcher waits to see the search running before it decides
+    /// there is nothing to follow (an answer from stored data, or one that ended first).
+    static let watchGrace: Duration = .seconds(8)
 }
 
 /// What a hard refresh costs, in Serper credits (Phase 12.1 WI-7, D6) — the
