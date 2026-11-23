@@ -189,6 +189,8 @@ The costs that are not covered by that argument:
 - Acceptance 7 holds: `grep -ri "search more retailers"` finds nothing under `ios/`, `web/src/` or the copy audit (three rows removed, nine new web strings added).
 - Tests: 55 new in `utils/enrichmentJob.test.ts`, `hooks/useJobWatcher.test.tsx`, `components/EnrichmentJobs.test.tsx` and the interstitial file; several older tests that asserted the retired rules now assert the new ones. Ten mutations of the guards were each caught.
 
+**WI-0 status (skipped, developer decision 2026-11-22).** No staging spike. The constants stand at the spec's starting values (`REVIEW_SEARCH_CONCURRENCY` 6, `SHUTDOWN_GRACE_MS` 110 s, `kill_timeout` 120 s) and Stage B stays gated on Tier 1 (§9 item 1's default); they are measured in real use during WI-8 instead. What that costs: the median 20 s / p90 45 s targets in §8 criterion 1 and the credit range in §6 are not checked before the field test, and a 429 rate at 6 shops at once is unmeasured (retries stay in `fetchWithRetry`, and the pool is bounded). The §8 criteria are the checklist for WI-8; `REVIEW_SEARCH_CONCURRENCY` is the knob if it needs turning down.
+
 Order: WI-0 first (it sets constants), then WI-1 → WI-2 → WI-3 on one branch, then WI-4 and WI-5, then WI-6, WI-7 and WI-8. Each is its own PR; the §14 documentation delta applies to each.
 
 ---
