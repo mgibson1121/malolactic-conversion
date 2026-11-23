@@ -89,6 +89,13 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
           xcrun simctl list devices | grep "$UDID"
 
+      # Serial on purpose. The default runs test classes on cloned simulators,
+      # and a clone failed to launch the app ("Simulator device failed to launch
+      # com.mgibson.WineApp") and had to be retried on a second clone: the run
+      # of 2026-11-22 (45084196361) took 21 minutes against 9-14 before, and
+      # its tests ran in under half a minute once a simulator was up. Nothing
+      # here needs the parallelism. If this job is slow again, look at the
+      # simulator launch in the log before the tests.
       - name: Build and test
         working-directory: ios
         run: |
@@ -97,4 +104,5 @@ jobs:
             -scheme WineApp \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO

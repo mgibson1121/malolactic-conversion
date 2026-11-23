@@ -15,7 +15,7 @@ Native SwiftUI client for the local backend. Spec: `docs/specs/2026-09-20-phase-
    The phone must be on the same Wi-Fi as the Mac. Phase 12 is LAN-only (decision D5).
 
 Tests: **Product → Test** in Xcode, or
-`xcodebuild test -project ios/WineApp.xcodeproj -scheme WineApp -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`.
+`xcodebuild test -project ios/WineApp.xcodeproj -scheme WineApp -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -parallel-testing-enabled NO`. The flag is the same one CI uses: the default runs test classes on cloned simulators, which sometimes fail to launch the app.
 
 ## Keeping the models honest
 
